@@ -1,7 +1,3 @@
-/**
- * hooks/useAuth.js
- * Hook de autenticação — JWT em localStorage.
- */
 import { useState, useCallback } from 'react'
 import { authApi } from '@/services/api'
 
@@ -10,17 +6,20 @@ export function useAuth() {
     try {
       const raw = localStorage.getItem('ralab_user')
       return raw ? JSON.parse(raw) : null
-    } catch {
-      return null
-    }
+    } catch { return null }
   })
 
   const isAuthenticated = !!localStorage.getItem('ralab_token')
 
-  const login = useCallback(async (username, password) => {
-    const data = await authApi.login({ username, password })
-    localStorage.setItem('ralab_token', data.access_token)
-    const userInfo = { username: data.username, role: data.role, display_name: data.display_name }
+  const login = useCallback(async (identifier) => {
+    const data = await authApi.login({ identifier })
+    localStorage.setItem('ralab_token', data.token)
+    const userInfo = {
+      email: data.user.email,
+      display_name: data.user.display_name,
+      role: data.user.role_code,
+      service: data.user.service_code,
+    }
     localStorage.setItem('ralab_user', JSON.stringify(userInfo))
     setUser(userInfo)
     return userInfo
