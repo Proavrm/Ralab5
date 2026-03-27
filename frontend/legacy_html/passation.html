@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Fiche passation</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--accent-h:#4a58d4;
+  --surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.nav-btn .icon{font-size:15px;width:20px;text-align:center}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}.user-name{font-size:13px;color:#fff;font-weight:500}.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}.btn-logout:hover{background:#2a2a40;color:#fff}
+#page{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}#hdr h1{font-size:15px;font-weight:600;flex:1}
+#content{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}.card-title{font-size:13px;font-weight:600}.card-body{padding:18px}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}.btn:hover{background:var(--bg)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover{background:var(--accent-h)}.btn.sm{padding:5px 10px;font-size:12px}.btn.danger{border-color:var(--danger);color:var(--danger)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.full{grid-column:1/-1}.form-group{display:flex;flex-direction:column;gap:5px}.form-group label{font-size:12px;font-weight:500;color:var(--text-m)}.form-group input,.form-group select,.form-group textarea{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;background:var(--bg);font-family:inherit}.form-group textarea{min-height:96px;resize:vertical}.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent);background:#fff}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:12px}.pill{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px}.pill-label{font-size:11px;color:var(--text-m)}.pill-value{font-size:15px;font-weight:700;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}thead th{background:var(--bg);padding:9px 10px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border)}tbody td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle}tbody tr:last-child td{border-bottom:none}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}#toast.show{transform:translateY(0);opacity:1}#toast.success{background:var(--success);color:#fff}#toast.error{background:var(--danger);color:#fff}#toast.info{background:#1a1a2e;color:#fff}
+@media (max-width:1200px){.summary{grid-template-columns:repeat(2,minmax(140px,1fr));}.form-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+  <div class="nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+    <button class="nav-btn" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
+    <button class="nav-btn active" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
+    <button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-row"><div class="user-av" id="sidebar-av">?</div><div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div></div>
+    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+  </div>
+</nav>
+
+<div id="page">
+  <div id="hdr">
+    <h1 id="page-title">Fiche passation</h1>
+    <button class="btn" onclick="goBack()">← Retour</button>
+    <button class="btn" onclick="createDemandeFromPassation()">➕ Demande préremplie</button>
+    <button class="btn primary" onclick="savePassation()">💾 Enregistrer</button>
+  </div>
+
+  <div id="content">
+    <div style="font-size:12px;color:var(--text-m);margin-bottom:12px">La passation reste une aide facultative pour préparer une demande. Elle ne structure pas le workflow métier.</div>
+    <div class="summary">
+      <div class="pill"><div class="pill-label">Référence</div><div class="pill-value" id="sum-ref">Nouvelle</div></div>
+      <div class="pill"><div class="pill-label">Affaire liée</div><div class="pill-value" id="sum-affaire">—</div></div>
+      <div class="pill"><div class="pill-label">Documents</div><div class="pill-value" id="sum-docs">0</div></div>
+      <div class="pill"><div class="pill-label">Actions</div><div class="pill-value" id="sum-actions">0</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">A. Identité de l'affaire</div></div>
+      <div class="card-body form-grid">
+        <div class="form-group"><label>Affaire liée</label><select id="affaire_rst_id"></select></div>
+        <div class="form-group"><label>Date de passation</label><input id="date_passation" type="date"/></div>
+        <div class="form-group"><label>N° d'étude</label><input id="numero_etude"/></div>
+        <div class="form-group"><label>N° affaire NGE</label><input id="numero_affaire_nge"/></div>
+        <div class="form-group"><label>Chantier</label><input id="chantier"/></div>
+        <div class="form-group"><label>Client</label><input id="client"/></div>
+        <div class="form-group"><label>Entreprise responsable</label><input id="entreprise_responsable"/></div>
+        <div class="form-group"><label>Agence</label><input id="agence"/></div>
+        <div class="form-group full"><label>Responsable / pilote</label><input id="responsable"/></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">B. Contexte de l'opération</div></div>
+      <div class="card-body form-grid">
+        <div class="form-group"><label>Origine de la passation</label><select id="source"></select></div>
+        <div class="form-group"><label>Type d'opération</label><select id="operation_type"></select></div>
+        <div class="form-group"><label>Phase chantier</label><select id="phase_operation"></select></div>
+        <div class="form-group full"><label>Interlocuteurs principaux</label><textarea id="interlocuteurs_principaux"></textarea></div>
+        <div class="form-group full"><label>Description générale</label><textarea id="description_generale"></textarea></div>
+        <div class="form-group full"><label>Contexte marché</label><textarea id="contexte_marche"></textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">C. Documents reçus</div><div><button class="btn sm" onclick="addDocumentRow()">+ Ligne</button> <button class="btn sm" onclick="seedDefaultDocuments()">Précharger</button></div></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Type</th><th>Reçu</th><th>Version</th><th>Date</th><th>Commentaire</th><th></th></tr></thead>
+          <tbody id="documents-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">D. Points sensibles</div></div>
+      <div class="card-body form-grid"><div class="form-group full"><label>Points de vigilance / contraintes</label><textarea id="points_sensibles"></textarea></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">E. Besoins pressentis</div></div>
+      <div class="card-body form-grid">
+        <div class="form-group"><label>Besoins laboratoire</label><textarea id="besoins_laboratoire"></textarea></div>
+        <div class="form-group"><label>Besoins terrain</label><textarea id="besoins_terrain"></textarea></div>
+        <div class="form-group"><label>Besoins étude</label><textarea id="besoins_etude"></textarea></div>
+        <div class="form-group"><label>Besoins G3</label><textarea id="besoins_g3"></textarea></div>
+        <div class="form-group"><label>Besoins essais externes</label><textarea id="besoins_essais_externes"></textarea></div>
+        <div class="form-group"><label>Besoins équipements spécifiques</label><textarea id="besoins_equipements_specifiques"></textarea></div>
+        <div class="form-group full"><label>Besoins ressources humaines</label><textarea id="besoins_ressources_humaines"></textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">F. Actions à lancer</div><button class="btn sm" onclick="addActionRow()">+ Action</button></div>
+      <div class="card-body">
+        <table>
+          <thead><tr><th>Action</th><th>Responsable</th><th>Échéance</th><th>Priorité</th><th>Statut</th><th>Commentaire</th><th></th></tr></thead>
+          <tbody id="actions-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">G. Synthèse / Notes</div></div>
+      <div class="card-body form-grid">
+        <div class="form-group full"><label>Synthèse</label><textarea id="synthese"></textarea></div>
+        <div class="form-group full"><label>Notes complémentaires</label><textarea id="notes"></textarea></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const API = 'http://127.0.0.1:8000';
+const token = localStorage.getItem('ralab_token');
+const userRaw = localStorage.getItem('ralab_user');
+const params = new URLSearchParams(window.location.search);
+const uid = params.get('uid');
+const affaireParam = params.get('affaire_id');
+let user = null;
+let filters = null;
+let affaires = [];
+
+function ah(){ return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }; }
+function go(url){ window.location.href = url; }
+function logout(){ localStorage.clear(); go('login.html'); }
+function toast(msg, type='info'){ const el=document.getElementById('toast'); el.textContent=msg; el.className=`show ${type}`; setTimeout(()=>el.className='', 3000); }
+function today(){ return new Date().toISOString().split('T')[0]; }
+function setValue(id, value){ const field = document.getElementById(id); if(field) field.value = value ?? ''; }
+function escapeHtml(value){ return String(value || '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
+
+async function init(){
+  if(!token || !userRaw){ go('login.html'); return; }
+  user = JSON.parse(userRaw);
+  document.getElementById('sidebar-name').textContent = user.display_name || '—';
+  document.getElementById('sidebar-role').textContent = user.service_code || '—';
+  document.getElementById('sidebar-av').textContent = (user.display_name || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('date_passation').value = today();
+  document.getElementById('responsable').value = user.display_name || '';
+  await loadAffaires();
+  await loadFilters();
+  if(uid){ await loadPassation(); }
+  else if(affaireParam){ await bootstrapFromAffaire(parseInt(affaireParam, 10)); }
+  else { updateSummary(); }
+}
+
+async function loadAffaires(){
+  const response = await fetch(`${API}/api/affaires`, { headers: ah() });
+  affaires = response.ok ? await response.json() : [];
+  const select = document.getElementById('affaire_rst_id');
+  select.innerHTML = '<option value="">Choisir une affaire…</option>' + affaires.map(item => `<option value="${item.uid}">${item.reference} · ${item.chantier || item.client || '—'}</option>`).join('');
+  if(affaireParam){ select.value = affaireParam; }
+  select.addEventListener('change', onAffaireChange);
+}
+
+async function loadFilters(){
+  const response = await fetch(`${API}/api/passations/filters`, { headers: ah() });
+  filters = response.ok ? await response.json() : {};
+  fillSelect('source', filters.source_options || []);
+  fillSelect('operation_type', filters.operation_type_options || []);
+  fillSelect('phase_operation', filters.phase_options || []);
+  seedDefaultDocuments();
+}
+
+function fillSelect(id, items){
+  const select = document.getElementById(id);
+  select.innerHTML = '<option value="">—</option>' + items.map(item => `<option>${item}</option>`).join('');
+}
+
+async function bootstrapFromAffaire(affaireUid){
+  const response = await fetch(`${API}/api/passations/bootstrap/${affaireUid}`, { headers: ah() });
+  if(!response.ok) return;
+  const data = await response.json();
+  for(const [key, value] of Object.entries(data)){
+    const field = document.getElementById(key);
+    if(field){ field.value = value || ''; }
+  }
+  updateSummary();
+}
+
+async function onAffaireChange(){
+  const affaireUid = parseInt(document.getElementById('affaire_rst_id').value || '0', 10);
+  if(affaireUid){ await bootstrapFromAffaire(affaireUid); }
+}
+
+async function loadPassation(){
+  const response = await fetch(`${API}/api/passations/${uid}`, { headers: ah() });
+  if(!response.ok){ toast('Passation introuvable', 'error'); return; }
+  const data = await response.json();
+  document.getElementById('page-title').textContent = `Passation ${data.reference}`;
+  document.getElementById('sum-ref').textContent = data.reference;
+  setValue('affaire_rst_id', data.affaire_rst_id);
+  const fields = ['date_passation','source','operation_type','phase_operation','numero_etude','numero_affaire_nge','chantier','client','entreprise_responsable','agence','responsable','description_generale','contexte_marche','interlocuteurs_principaux','points_sensibles','besoins_laboratoire','besoins_terrain','besoins_etude','besoins_g3','besoins_essais_externes','besoins_equipements_specifiques','besoins_ressources_humaines','synthese','notes'];
+  fields.forEach(name => setValue(name, data[name] || ''));
+  renderDocuments(data.documents || []);
+  renderActions(data.actions || []);
+  updateSummary();
+}
+
+function documentRow(item={}){
+  return `
+    <tr>
+      <td><input data-doc="document_type" value="${escapeHtml(item.document_type)}" style="width:100%"></td>
+      <td style="text-align:center"><input data-doc="is_received" type="checkbox" ${item.is_received ? 'checked' : ''}></td>
+      <td><input data-doc="version" value="${escapeHtml(item.version)}" style="width:100%"></td>
+      <td><input data-doc="document_date" type="date" value="${item.document_date || ''}" style="width:100%"></td>
+      <td><input data-doc="comment" value="${escapeHtml(item.comment)}" style="width:100%"></td>
+      <td><button class="btn sm danger" onclick="removeRow(this)">✕</button></td>
+    </tr>`;
+}
+function actionRow(item={}){
+  const priorities = (filters?.action_priority_options || ['Basse','Normale','Haute','Critique']).map(v => `<option ${v===item.priorite?'selected':''}>${v}</option>`).join('');
+  const statuses = (filters?.action_status_options || ['À lancer','En cours','Bloquée','Terminée']).map(v => `<option ${v===item.statut?'selected':''}>${v}</option>`).join('');
+  return `
+    <tr>
+      <td><input data-action="action_label" value="${escapeHtml(item.action_label)}" style="width:100%"></td>
+      <td><input data-action="responsable" value="${escapeHtml(item.responsable)}" style="width:100%"></td>
+      <td><input data-action="echeance" type="date" value="${item.echeance || ''}" style="width:100%"></td>
+      <td><select data-action="priorite">${priorities}</select></td>
+      <td><select data-action="statut">${statuses}</select></td>
+      <td><input data-action="commentaire" value="${escapeHtml(item.commentaire)}" style="width:100%"></td>
+      <td><button class="btn sm danger" onclick="removeRow(this)">✕</button></td>
+    </tr>`;
+}
+function renderDocuments(items){ document.getElementById('documents-body').innerHTML = items.map(item => documentRow(item)).join(''); updateSummary(); }
+function renderActions(items){ document.getElementById('actions-body').innerHTML = items.map(item => actionRow(item)).join(''); updateSummary(); }
+function addDocumentRow(item={}){ document.getElementById('documents-body').insertAdjacentHTML('beforeend', documentRow(item)); updateSummary(); }
+function addActionRow(item={}){ document.getElementById('actions-body').insertAdjacentHTML('beforeend', actionRow(item)); updateSummary(); }
+function removeRow(btn){ btn.closest('tr').remove(); updateSummary(); }
+function seedDefaultDocuments(){ if(document.getElementById('documents-body').children.length) return; (filters?.document_type_options || []).forEach(name => addDocumentRow({ document_type: name })); }
+function collectDocuments(){ return [...document.querySelectorAll('#documents-body tr')].map(row => ({ document_type: row.querySelector('[data-doc="document_type"]').value.trim(), is_received: row.querySelector('[data-doc="is_received"]').checked, version: row.querySelector('[data-doc="version"]').value.trim(), document_date: row.querySelector('[data-doc="document_date"]').value || null, comment: row.querySelector('[data-doc="comment"]').value.trim() })).filter(item => item.document_type || item.version || item.comment || item.document_date || item.is_received); }
+function collectActions(){ return [...document.querySelectorAll('#actions-body tr')].map(row => ({ action_label: row.querySelector('[data-action="action_label"]').value.trim(), responsable: row.querySelector('[data-action="responsable"]').value.trim(), echeance: row.querySelector('[data-action="echeance"]').value || null, priorite: row.querySelector('[data-action="priorite"]').value, statut: row.querySelector('[data-action="statut"]').value, commentaire: row.querySelector('[data-action="commentaire"]').value.trim() })).filter(item => item.action_label || item.responsable || item.commentaire || item.echeance); }
+function collectPayload(){ return { affaire_rst_id: parseInt(document.getElementById('affaire_rst_id').value || '0', 10), date_passation: document.getElementById('date_passation').value || null, source: document.getElementById('source').value, operation_type: document.getElementById('operation_type').value, phase_operation: document.getElementById('phase_operation').value, numero_etude: document.getElementById('numero_etude').value.trim(), numero_affaire_nge: document.getElementById('numero_affaire_nge').value.trim(), chantier: document.getElementById('chantier').value.trim(), client: document.getElementById('client').value.trim(), entreprise_responsable: document.getElementById('entreprise_responsable').value.trim(), agence: document.getElementById('agence').value.trim(), responsable: document.getElementById('responsable').value.trim(), description_generale: document.getElementById('description_generale').value.trim(), contexte_marche: document.getElementById('contexte_marche').value.trim(), interlocuteurs_principaux: document.getElementById('interlocuteurs_principaux').value.trim(), points_sensibles: document.getElementById('points_sensibles').value.trim(), besoins_laboratoire: document.getElementById('besoins_laboratoire').value.trim(), besoins_terrain: document.getElementById('besoins_terrain').value.trim(), besoins_etude: document.getElementById('besoins_etude').value.trim(), besoins_g3: document.getElementById('besoins_g3').value.trim(), besoins_essais_externes: document.getElementById('besoins_essais_externes').value.trim(), besoins_equipements_specifiques: document.getElementById('besoins_equipements_specifiques').value.trim(), besoins_ressources_humaines: document.getElementById('besoins_ressources_humaines').value.trim(), synthese: document.getElementById('synthese').value.trim(), notes: document.getElementById('notes').value.trim(), documents: collectDocuments(), actions: collectActions() }; }
+function updateSummary(){ const select = document.getElementById('affaire_rst_id'); document.getElementById('sum-affaire').textContent = select.options[select.selectedIndex]?.textContent || '—'; document.getElementById('sum-docs').textContent = `${collectDocuments().length}`; document.getElementById('sum-actions').textContent = `${collectActions().length}`; }
+async function savePassation(){ const payload = collectPayload(); if(!payload.affaire_rst_id){ toast('Choisis une affaire liée', 'error'); return; } if(!payload.date_passation){ toast('Renseigne la date de passation', 'error'); return; } const url = uid ? `${API}/api/passations/${uid}` : `${API}/api/passations`; const method = uid ? 'PUT' : 'POST'; const response = await fetch(url, { method, headers: ah(), body: JSON.stringify(payload) }); if(!response.ok){ toast(`Erreur sauvegarde: ${await response.text()}`, 'error'); return; } const data = await response.json(); document.getElementById('sum-ref').textContent = data.reference; toast(uid ? 'Passation mise à jour ✓' : 'Passation créée ✓', 'success'); if(!uid){ window.location.href = `passation.html?uid=${data.uid}`; } }
+function goBack(){ if(window.history.length > 1){ window.history.back(); } else { go('passations.html'); } }
+document.addEventListener('input', updateSummary);
+init();
+</script>
+</body>
+</html>

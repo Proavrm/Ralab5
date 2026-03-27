@@ -1,0 +1,10 @@
+# RaLab4 — dependências API
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1     # servidor ASGI com auto-reload
+pydantic>=2.0,<3               # schemas e validação (incluído no FastAPI)
+pandas>=2.0,<3                 # importação Excel
+openpyxl>=3.1                  # engine Excel para pandas
+
+# Opcional — PySide6 (desktop, pode coexistir)
+# PySide6>=6.7,<7
+PyJWT>=2,<3

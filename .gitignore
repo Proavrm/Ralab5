@@ -1,0 +1,42 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+.idea/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
+
+# Bases de données (données opérationnelles — ne pas versionner)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+backend/current_fastapi/data/
+
+# Zips et dossiers de package (artefacts de handoff — ne pas versionner)
+*.zip
+*.rar
+*.7z
+RaLab5_*_package/
+
+# Frontend
+node_modules/
+coverage/
+.env
+.env.local
+frontend/react/dist/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Fiche Affaire</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--nge:#002C77;--surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}
+.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.user-name{font-size:13px;color:#fff;font-weight:500}
+.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+.btn-logout:hover{background:#2a2a40;color:#fff}
+#main{flex:1;overflow-y:auto}
+.page-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;gap:14px;flex-shrink:0;position:sticky;top:0;z-index:10}
+.back-btn{display:flex;align-items:center;gap:6px;color:var(--text-m);font-size:13px;cursor:pointer;background:none;border:none;padding:5px 10px;border-radius:var(--radius);transition:.15s}
+.back-btn:hover{background:var(--bg);color:var(--text)}
+.page-title{font-size:15px;font-weight:600;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{padding:5px 10px;font-size:12px}.btn.danger{border-color:var(--danger);color:var(--danger)}
+.content{padding:28px;max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+/* Hero */
+.hero{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:22px 24px}
+.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.hero-ref{font-size:22px;font-weight:700;color:var(--accent)}
+.hero-chantier{font-size:15px;color:var(--text);margin-top:3px}
+.hero-client{font-size:13px;color:var(--text-m)}
+.hero-badges{display:flex;flex-wrap:wrap;gap:6px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.b-gray{background:#f1efe8;color:#5f5e5a}.b-green{background:#eaf3de;color:#3b6d11}
+.b-purple{background:#eeedfe;color:#534ab7}.b-nge{background:#002C77;color:#fff}
+.b-blue{background:#e6f1fb;color:#185fa5}
+/* Cards */
+.cards-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:18px 20px}
+.card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.field-row{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
+.field-row:last-child{margin-bottom:0}
+.field-label{font-size:10px;color:var(--text-m)}
+.field-value{font-size:13px;font-weight:500;color:var(--text)}
+.field-value.empty{color:var(--text-m);font-style:italic;font-weight:400}
+/* Demandes mini-table */
+.dem-table{background:var(--surface);border-radius:10px;border:1px solid var(--border);overflow:hidden}
+.dem-table-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.dem-table-header h3{font-size:13px;font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--bg);padding:8px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+tbody tr:hover{background:#f8f8fc}
+td{padding:8px 14px;vertical-align:middle}
+.empty-state{padding:32px;text-align:center;color:var(--text-m);font-size:13px}
+/* Edit panel */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:12px;width:620px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h2{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-m)}
+.modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:500;color:var(--text-m)}
+.form-group input,.form-group select{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;font-family:inherit;background:var(--bg);transition:.15s}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent);background:#fff}
+.form-group input[readonly]{color:var(--text-m)}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{background:var(--success);color:#fff}
+#toast.error{background:var(--danger);color:#fff}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+  <div class="nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+    <button class="nav-btn active" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
+<button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
+        <button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+    <button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
+    <div class="nav-section">Administration</div>
+    <button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-row">
+      <div class="user-av" id="sidebar-av">?</div>
+      <div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div>
+    </div>
+    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+  </div>
+</nav>
+
+<div id="main">
+  <div class="page-header">
+    <button class="back-btn" onclick="go('affaires.html')">← Affaires RST</button>
+    <span class="page-title" id="page-title">Fiche affaire</span>
+    <button class="btn sm primary" onclick="openEdit()">✏️ Modifier</button>
+    <button class="btn sm" onclick="go('demandes.html?affaire_id='+uid)">📂 Demandes</button>
+    <button class="btn sm" onclick="go('passations.html?affaire_id='+uid)">🤝 Passations</button>
+    <button class="btn sm success" onclick="go('passation.html?create=1&affaire_id='+uid)">+ Nouvelle passation</button>
+    <button class="btn sm success" onclick="go('demandes.html?affaire_id='+uid+'&create=1')">+ Nouvelle demande</button>
+  </div>
+
+  <div class="content">
+    <!-- Hero -->
+    <div class="hero" id="hero">
+      <div class="hero-top">
+        <div>
+          <div class="hero-ref" id="h-ref">—</div>
+          <div class="hero-chantier" id="h-chantier">—</div>
+          <div class="hero-client" id="h-site">—</div>
+          <div class="hero-client" id="h-client">—</div>
+        </div>
+        <div class="hero-badges" id="h-badges"></div>
+      </div>
+    </div>
+
+    <div class="cards-row">
+      <div class="card">
+        <div class="card-title">Projet</div>
+        <div class="field-row"><div class="field-label">Client</div><div class="field-value" id="f-client">—</div></div>
+        <div class="field-row"><div class="field-label">Chantier</div><div class="field-value" id="f-chantier">—</div></div>
+        <div class="field-row"><div class="field-label">Site</div><div class="field-value" id="f-site">—</div></div>
+        <div class="field-row"><div class="field-label">Filiale</div><div class="field-value" id="f-filiale">—</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Références</div>
+        <div class="field-row"><div class="field-label">N° étude</div><div class="field-value" id="f-num-etude">—</div></div>
+        <div class="field-row"><div class="field-label">N° Affaire NGE</div><div class="field-value" id="f-aff-nge">—</div></div>
+        <div class="field-row"><div class="field-label">Titulaire</div><div class="field-value" id="f-titulaire">—</div></div>
+        <div class="field-row"><div class="field-label">Responsable affaire NGE</div><div class="field-value" id="f-resp">—</div></div>
+        <div class="field-row"><div class="field-label">Date ouverture</div><div class="field-value" id="f-ouv">—</div></div>
+        <div class="field-row"><div class="field-label">Date clôture</div><div class="field-value" id="f-clo">—</div></div>
+        <div class="field-row"><div class="field-label">Statut</div><div class="field-value" id="f-statut">—</div></div>
+      </div>
+    </div>
+
+    <!-- Demandes -->
+    <div class="dem-table">
+      <div class="dem-table-header">
+        <h3 id="dem-title">Demandes associées</h3>
+        <button class="btn sm primary" onclick="go('demandes.html?affaire_id='+uid)">Voir toutes</button>
+        <button class="btn sm" onclick="go('passations.html?affaire_id='+uid)">Voir passations</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Référence</th><th>Type mission</th><th>Statut</th><th>Échantillons</th><th>Interventions</th><th>N° DST</th><th>Échéance</th><th>Demandeur</th>
+        </tr></thead>
+        <tbody id="dem-tbody">
+          <tr><td colspan="8"><div class="empty-state">Chargement…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal edit -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Modifier l'affaire RST</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label>Référence</label><input id="m-ref" readonly/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="m-statut"><option>À qualifier</option><option>En cours</option><option>Terminée</option><option>Archivée</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Client</label><input id="m-client"/></div>
+        <div class="form-group"><label>Chantier</label><input id="m-chantier"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Site</label><input id="m-site"/></div>
+        <div class="form-group"><label>Filiale</label><input id="m-filiale"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>N° étude</label><input id="m-num-etude"/></div>
+        <div class="form-group"><label>N° Affaire NGE</label><input id="m-aff-nge"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Titulaire</label>
+          <select id="m-titulaire">
+            <option value="">— Non défini —</option>
+            <option>NGE GC</option><option>NGE Energie</option><option>NGE Routes</option>
+            <option>EHTP</option><option>NGE E.S.</option><option>NGE Transitions</option><option>Lyaudet</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Responsable affaire NGE</label><input id="m-resp"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Date ouverture</label><input id="m-ouv" type="date"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="save()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const API='http://127.0.0.1:8000';
+let user=null,token=null,affaire=null;
+const uid=parseInt(new URLSearchParams(location.search).get('uid')||'0');
+
+async function init(){
+  token=localStorage.getItem('ralab_token');
+  user=JSON.parse(localStorage.getItem('ralab_user')||'null');
+  if(!token||!user){go('login.html');return;}
+  const ini=user.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-av').textContent=ini;
+  document.getElementById('sidebar-name').textContent=user.display_name;
+  document.getElementById('sidebar-role').textContent=user.service_code||'';
+  if(!uid){go('affaires.html');return;}
+  await loadAffaire();
+  await loadDemandes();
+}
+
+async function loadAffaire(){
+  const r=await fetch(`${API}/api/affaires/${uid}`,{headers:ah()});
+  if(!r.ok){go('affaires.html');return;}
+  affaire=await r.json();
+  render();
+}
+
+function render(){
+  const a=affaire;
+  document.getElementById('page-title').textContent=`Affaire ${a.reference}`;
+  document.getElementById('h-ref').textContent=a.reference;
+  document.getElementById('h-chantier').textContent=a.chantier||'—';
+  document.getElementById('h-site').textContent=a.site||'—';
+  document.getElementById('h-client').textContent=a.client||'';
+  document.getElementById('h-badges').innerHTML=bStat(a.statut)+(a.titulaire?` <span class="badge b-nge">${a.titulaire}</span>`:'')+(a.filiale?` <span class="badge b-blue">${a.filiale}</span>`:'');
+  fv('f-client',a.client);
+  fv('f-chantier',a.chantier);
+  fv('f-site',a.site);
+  fv('f-filiale',a.filiale);
+  fv('f-num-etude',a.numero_etude);
+  fv('f-aff-nge',a.affaire_nge);
+  fv('f-titulaire',a.titulaire||'— Non défini —');
+  fv('f-resp',a.responsable);
+  document.getElementById('f-ouv').textContent=fd(a.date_ouverture);
+  document.getElementById('f-clo').textContent=a.date_cloture?fd(a.date_cloture):'En cours';
+  document.getElementById('f-statut').innerHTML=bStat(a.statut);
+}
+
+async function loadDemandes(){
+  try{
+    const r=await fetch(`${API}/api/affaires/${uid}/demandes`,{headers:ah()});
+    const dems=await r.json();
+    const tbody=document.getElementById('dem-tbody');
+    const title=document.getElementById('dem-title');
+    title.textContent=`Demandes associées (${dems.length})`;
+    if(!dems.length){
+      tbody.innerHTML='<tr><td colspan="8"><div class="empty-state">Aucune demande associée à cette affaire</div></td></tr>';return;
+    }
+    tbody.innerHTML=dems.map(d=>`
+      <tr onclick="go('demande.html?uid=${d.uid}&from_affaire=${uid}')">
+        <td><strong style="color:var(--accent)">${d.reference}</strong></td>
+        <td style="font-size:12px">${d.type_mission||'—'}</td>
+        <td>${bStatD(d.statut)}</td>
+        <td style="font-size:12px;text-align:center">${d.nb_echantillons||0}</td>
+        <td style="font-size:12px;text-align:center">${d.nb_interventions||0}</td>
+        <td style="font-size:12px">${d.numero_dst||'—'}</td>
+        <td style="font-size:12px">${d.date_echeance?fd(d.date_echeance):'—'}</td>
+        <td style="font-size:12px">${d.demandeur||'—'}</td>
+      </tr>`).join('');
+  }catch{
+    document.getElementById('dem-tbody').innerHTML='<tr><td colspan="8"><div class="empty-state">Impossible de charger les demandes associées</div></td></tr>';
+  }
+}
+
+function openEdit(){
+  const a=affaire;
+  document.getElementById('m-ref').value=a.reference;
+  document.getElementById('m-client').value=a.client||'';
+  document.getElementById('m-chantier').value=a.chantier||'';
+  document.getElementById('m-site').value=a.site||'';
+  document.getElementById('m-filiale').value=a.filiale||'';
+  document.getElementById('m-num-etude').value=a.numero_etude||'';
+  document.getElementById('m-titulaire').value=a.titulaire||'';
+  document.getElementById('m-aff-nge').value=a.affaire_nge||'';
+  document.getElementById('m-resp').value=a.responsable||'';
+  document.getElementById('m-statut').value=a.statut||'À qualifier';
+  document.getElementById('m-ouv').value=a.date_ouverture||'';
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal(){document.getElementById('modal').classList.add('hidden');}
+
+async function save(){
+  const p={
+    client: document.getElementById('m-client').value,
+    chantier: document.getElementById('m-chantier').value,
+    site: document.getElementById('m-site').value,
+    filiale: document.getElementById('m-filiale').value,
+    numero_etude: document.getElementById('m-num-etude').value,
+    titulaire: document.getElementById('m-titulaire').value,
+    affaire_nge: document.getElementById('m-aff-nge').value,
+    responsable: document.getElementById('m-resp').value,
+    statut: document.getElementById('m-statut').value,
+    date_ouverture: document.getElementById('m-ouv').value,
+  };
+  try{
+    const r=await fetch(`${API}/api/affaires/${uid}`,{method:'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    affaire=await r.json();
+    closeModal();
+    render();
+    toast('Mise à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+function ah(){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'};}
+function logout(){localStorage.clear();go('login.html');}
+function go(url){window.location.href=url;}
+function fd(v){if(!v)return'—';try{const p=v.slice(0,10).split('-');return`${p[2]}/${p[1]}/${p[0]}`;}catch{return v;}}
+function fv(id,v){const e=document.getElementById(id);if(!e)return;e.textContent=v||'—';e.className=v?'field-value':'field-value empty';}
+function bStat(s){const m={'À qualifier':'b-gray','En cours':'b-green','Terminée':'b-purple','Archivée':'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;}
+function bStatD(s){const m={'À qualifier':'b-gray','Demande':'b-blue','En Cours':'b-green','Répondu':'b-purple','Fini':'b-green','Envoyé - Perdu':'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;}
+function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className='',3000);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+init();
+</script>
+</body>
+</html>

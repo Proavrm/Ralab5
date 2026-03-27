@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Affaires RST</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--accent-h:#4a58d4;--nge:#002C77;
+  --surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}
+.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.nav-btn:disabled{opacity:.35;cursor:not-allowed}
+.nav-btn .icon{font-size:15px;width:20px;text-align:center}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.user-name{font-size:13px;color:#fff;font-weight:500}
+.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+.btn-logout:hover{background:#2a2a40;color:#fff}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+#hdr-title{font-size:15px;font-weight:600;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-h)}.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.danger:hover{background:#fcebeb}.btn.sm{padding:5px 10px;font-size:12px}
+.filters-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+.filter-label{font-size:12px;color:var(--text-m);white-space:nowrap}
+.filter-select{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);outline:none}
+.filter-select:focus{border-color:var(--accent)}
+#search-wrap{flex:1;max-width:280px}
+#search-wrap input{width:100%;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;background:var(--bg)}
+#search-wrap input:focus{border-color:var(--accent);background:#fff}
+#split{flex:1;display:flex;overflow:hidden;min-height:0}
+#table-wrap{flex:1;overflow-y:auto;min-width:0}
+.table-card{background:var(--surface);height:100%}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;z-index:5}
+thead th:hover{color:var(--text)}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+tbody tr:hover{background:#f8f8fc}
+tbody tr.selected{background:#eeeffe}
+td{padding:9px 14px;vertical-align:middle}
+.empty-state{padding:60px;text-align:center;color:var(--text-m)}
+/* Detail panel */
+#detail{width:340px;min-width:300px;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;overflow-y:auto;flex-shrink:0}
+#detail.visible{display:flex}
+.det-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-shrink:0}
+.det-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px;flex:1}
+.det-section{display:flex;flex-direction:column;gap:6px}
+.det-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:2px}
+.det-field{display:flex;flex-direction:column;gap:2px}
+.det-field label{font-size:10px;color:var(--text-m)}
+.det-field span{font-size:13px;font-weight:500}
+.det-field span.empty{color:var(--text-m);font-style:italic;font-weight:400}
+.det-actions{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.b-gray{background:#f1efe8;color:#5f5e5a}.b-blue{background:#e6f1fb;color:#185fa5}
+.b-green{background:#eaf3de;color:#3b6d11}.b-amber{background:#faeeda;color:#854f0b}
+.b-red{background:#fcebeb;color:#a32d2d}.b-purple{background:#eeedfe;color:#534ab7}
+.b-teal{background:#e0f5ef;color:#0f6e56}.b-nge{background:#002C77;color:#fff}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:12px;width:660px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h2{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-m)}
+.modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:500;color:var(--text-m)}
+.form-group input,.form-group select{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;font-family:inherit;background:var(--bg);transition:.15s}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent);background:#fff}
+.form-group input[readonly]{color:var(--text-m)}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{background:var(--success);color:#fff}
+#toast.error{background:var(--danger);color:#fff}
+#toast.info{background:#1a1a2e;color:#fff}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+  <div class="nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+    <button class="nav-btn active"><span class="icon">📋</span> Affaires RST</button>
+<button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
+        <button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+    <button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
+    <div class="nav-section">Administration</div>
+    <button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-row">
+      <div class="user-av" id="sidebar-av">?</div>
+      <div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div>
+    </div>
+    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+  </div>
+</nav>
+
+<div id="main">
+  <div id="hdr">
+    <span id="hdr-title">Affaires RST</span>
+    <div id="search-wrap"><input id="search-input" type="text" placeholder="Référence, chantier, site, client…" oninput="onSearch()"/></div>
+    <button class="btn primary" onclick="openCreate()">+ Nouvelle affaire</button>
+    <button class="btn sm" onclick="load()" title="Actualiser">↻</button>
+  </div>
+
+  <div class="filters-bar">
+    <span class="filter-label">Statut :</span>
+    <select class="filter-select" id="f-statut" onchange="load()">
+      <option value="">Tous</option>
+      <option>À qualifier</option><option>En cours</option><option>Terminée</option><option>Archivée</option>
+    </select>
+    <span class="filter-label">Titulaire :</span>
+    <select class="filter-select" id="f-titulaire" onchange="load()">
+      <option value="">Tous</option>
+      <option>NGE GC</option><option>NGE Energie</option><option>NGE Routes</option>
+      <option>EHTP</option><option>NGE E.S.</option><option>NGE Transitions</option><option>Lyaudet</option>
+    </select>
+    <button class="btn sm" onclick="clearFilters()">✕ Effacer</button>
+    <span id="filter-info" style="font-size:12px;color:var(--text-m);margin-left:auto"></span>
+  </div>
+
+  <div id="split">
+    <div id="table-wrap">
+      <div class="table-card">
+        <table>
+          <thead><tr>
+            <th onclick="sortBy('reference')">Référence ↕</th>
+            <th onclick="sortBy('numero_etude')">N° étude</th>
+            <th onclick="sortBy('affaire_nge')">N° affaire NGE</th>
+            <th onclick="sortBy('chantier')">Chantier</th>
+            <th onclick="sortBy('site')">Site</th>
+            <th onclick="sortBy('client')">Client</th>
+            <th onclick="sortBy('responsable')">Resp. affaire NGE</th>
+            <th onclick="sortBy('filiale')">Filiale</th>
+            <th onclick="sortBy('titulaire')">Titulaire</th>
+            <th onclick="sortBy('statut')">Statut</th>
+            <th onclick="sortBy('date_ouverture')">Ouverture</th>
+            <th style="text-align:center">Dem.</th>
+          </tr></thead>
+          <tbody id="tbody">
+            <tr><td colspan="12"><div class="empty-state">Chargement…</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="detail">
+      <div class="det-header">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--accent)" id="d-ref">—</div>
+          <div style="font-size:11px;color:var(--text);margin-top:2px;font-weight:600" id="d-chantier">—</div>
+          <div style="font-size:11px;color:var(--text-m);margin-top:2px" id="d-site-top">—</div>
+        </div>
+        <button class="btn sm" onclick="closeDetail()">×</button>
+      </div>
+      <div class="det-body">
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="d-badges"></div>
+        <div class="det-section">
+          <div class="det-section-title">Projet</div>
+          <div class="det-field"><label>Client</label><span id="d-client">—</span></div>
+          <div class="det-field"><label>Chantier</label><span id="d-chantier-field">—</span></div>
+          <div class="det-field"><label>Site</label><span id="d-site">—</span></div>
+        </div>
+        <div class="det-section">
+          <div class="det-section-title">Parties</div>
+          <div class="det-field"><label>Titulaire</label><span id="d-titulaire">—</span></div>
+          <div class="det-field"><label>Responsable affaire NGE</label><span id="d-resp">—</span></div>
+          <div class="det-field"><label>Filiale</label><span id="d-filiale">—</span></div>
+        </div>
+        <div class="det-section">
+          <div class="det-section-title">Références</div>
+          <div class="det-field"><label>N° étude</label><span id="d-num-etude">—</span></div>
+          <div class="det-field"><label>N° affaire NGE</label><span id="d-aff-nge">—</span></div>
+        </div>
+        <div class="det-section">
+          <div class="det-section-title">Dates</div>
+          <div class="det-field"><label>Ouverture</label><span id="d-ouv">—</span></div>
+          <div class="det-field"><label>Clôture</label><span id="d-clo">—</span></div>
+        </div>
+        <div class="det-section">
+          <div class="det-section-title">Demandes</div>
+          <div class="det-field"><label>Total</label><span id="d-nb-dem">—</span></div>
+          <div class="det-field"><label>Actives</label><span id="d-nb-act">—</span></div>
+        </div>
+      </div>
+      <div class="det-actions">
+        <button class="btn sm primary" onclick="openEdit()">✏️ Modifier</button>
+        <button class="btn sm" onclick="openFiche()">📋 Fiche</button>
+        <button class="btn sm" onclick="go('demandes.html?affaire_id='+selUid)">📂 Demandes</button>
+        <button class="btn sm success" onclick="go('demandes.html?affaire_id='+selUid+'&create=1')">+ Demande</button>
+        <button class="btn sm danger" onclick="deleteAff()">🗑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modal-title">Nouvelle affaire RST</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="m-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group"><label>Référence</label><input id="m-ref" readonly placeholder="Générée auto"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="m-statut"><option>À qualifier</option><option>En cours</option><option>Terminée</option><option>Archivée</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Client *</label><input id="m-client" placeholder="SNCF, IMERYS…"/></div>
+        <div class="form-group"><label>Chantier *</label><input id="m-chantier" placeholder="Libellé projet / chantier"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Site</label><input id="m-site" placeholder="VILLE (63)"/></div>
+        <div class="form-group"><label>Filiale</label><input id="m-filiale" placeholder="NGE / GUINTOLI / ..."/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>N° étude</label><input id="m-num-etude" placeholder="Source Études"/></div>
+        <div class="form-group"><label>N° affaire NGE</label><input id="m-aff-nge" placeholder="Source Affaires NGE"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Titulaire</label>
+          <select id="m-titulaire">
+            <option value="">— Non défini —</option>
+            <option>NGE GC</option><option>NGE Energie</option><option>NGE Routes</option>
+            <option>EHTP</option><option>NGE E.S.</option><option>NGE Transitions</option><option>Lyaudet</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Responsable affaire NGE</label><input id="m-resp"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Date ouverture</label><input id="m-ouv" type="date"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="save()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const API='http://127.0.0.1:8000';
+const qs=new URLSearchParams(location.search);
+let user=null,token=null,rows=[],selUid=null,sortCol='date_ouverture',sortAsc=false,srchTimer=null;
+
+async function init(){
+  token=localStorage.getItem('ralab_token');
+  user=JSON.parse(localStorage.getItem('ralab_user')||'null');
+  if(!token||!user){go('login.html');return;}
+  const ini=user.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-av').textContent=ini;
+  document.getElementById('sidebar-name').textContent=user.display_name;
+  document.getElementById('sidebar-role').textContent=user.service_code||'';
+  await load();
+  const focusUid=parseInt(qs.get('uid')||'0');
+  if(focusUid&&rows.some(r=>r.uid===focusUid))selectRow(focusUid);
+  if(qs.get('create')==='1')await openCreate(await loadCreatePrefill());
+}
+
+async function loadCreatePrefill(){
+  const sourceType=qs.get('source_type')||'';
+  const sourceId=qs.get('source_id')||'';
+  if(sourceType&&sourceId){
+    const endpointMap={
+      dst:`${API}/api/dst/${encodeURIComponent(sourceId)}/affaire-prefill`,
+      affaire_nge:`${API}/api/reference-affaires/${encodeURIComponent(sourceId)}/affaire-prefill`,
+      etude:`${API}/api/reference-etudes/${encodeURIComponent(sourceId)}/affaire-prefill`,
+    };
+    const endpoint=endpointMap[sourceType];
+    if(endpoint){
+      try{
+        const r=await fetch(endpoint,{headers:ah()});
+        if(r.ok){
+          const payload=await r.json();
+          return {...(payload.affaire||{}), __source:payload.source||{type:sourceType,id:sourceId}};
+        }
+      }catch{}
+    }
+  }
+  return {
+    client: qs.get('client')||'',
+    chantier: qs.get('chantier')||'',
+    site: qs.get('site')||'',
+    numero_etude: qs.get('numero_etude')||'',
+    affaire_nge: qs.get('affaire_nge')||'',
+    titulaire: qs.get('titulaire')||'',
+    responsable: qs.get('responsable')||'',
+    filiale: qs.get('filiale')||'',
+    statut: qs.get('statut')||'À qualifier',
+    date_ouverture: qs.get('date_ouverture')||today(),
+  };
+}
+
+async function load(){
+  const params=new URLSearchParams();
+  const s=document.getElementById('f-statut').value;
+  const t=document.getElementById('f-titulaire').value;
+  const q=document.getElementById('search-input').value;
+  if(s)params.set('statut',s);
+  if(t)params.set('titulaire',t);
+  if(q)params.set('search',q);
+  try{
+    const r=await fetch(`${API}/api/affaires?${params}`,{headers:ah()});
+    if(!r.ok)throw new Error();
+    rows=await r.json();
+    document.getElementById('filter-info').textContent=`${rows.length} affaire${rows.length!==1?'s':''}`;
+    renderTable();
+  }catch{toast('Erreur connexion API','error');}
+}
+
+function renderTable(){
+  const tbody=document.getElementById('tbody');
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="12"><div class="empty-state">📋 Aucune affaire</div></td></tr>';
+    return;
+  }
+  const sorted=[...rows].sort((a,b)=>{
+    const va=String(a[sortCol]||'').toLowerCase();
+    const vb=String(b[sortCol]||'').toLowerCase();
+    return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+  });
+  tbody.innerHTML=sorted.map(d=>`
+    <tr onclick="selectRow(${d.uid})" class="${d.uid===selUid?'selected':''}">
+      <td><strong style="color:var(--accent)">${d.reference}</strong></td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.numero_etude)}">${d.numero_etude||'—'}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.affaire_nge)}">${d.affaire_nge||'—'}</td>
+      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.chantier)}">${d.chantier||'—'}</td>
+      <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.site)}">${d.site||'—'}</td>
+      <td>${d.client||'—'}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.responsable)}">${d.responsable||'—'}</td>
+      <td>${d.filiale||'—'}</td>
+      <td>${d.titulaire?`<span class="badge b-nge" style="font-size:10px">${d.titulaire}</span>`:'<span style="color:var(--text-m);font-size:12px">—</span>'}</td>
+      <td>${bStat(d.statut)}</td>
+      <td style="font-size:12px">${fd(d.date_ouverture)}</td>
+      <td style="text-align:center">${d.nb_demandes>0?`<span class="badge b-blue" style="font-size:10px">${d.nb_demandes_actives}/${d.nb_demandes}</span>`:'—'}</td>
+    </tr>`).join('');
+}
+
+function selectRow(uid){
+  selUid=uid;
+  renderTable();
+  const d=rows.find(x=>x.uid===uid);
+  if(!d)return;
+  document.getElementById('detail').classList.add('visible');
+  document.getElementById('d-ref').textContent=d.reference;
+  document.getElementById('d-chantier').textContent=d.chantier||'—';
+  document.getElementById('d-site-top').textContent=d.site||'—';
+  document.getElementById('d-badges').innerHTML=bStat(d.statut)+(d.titulaire?` <span class="badge b-nge">${d.titulaire}</span>`:'')+(d.filiale?` <span class="badge b-blue">${d.filiale}</span>`:'');
+  df('d-client',d.client);
+  df('d-chantier-field',d.chantier);
+  df('d-site',d.site);
+  df('d-titulaire',d.titulaire||'— Non défini —');
+  df('d-resp',d.responsable);
+  df('d-filiale',d.filiale);
+  df('d-num-etude',d.numero_etude);
+  df('d-aff-nge',d.affaire_nge);
+  document.getElementById('d-ouv').textContent=fd(d.date_ouverture);
+  document.getElementById('d-clo').textContent=d.date_cloture?fd(d.date_cloture):'En cours';
+  document.getElementById('d-nb-dem').textContent=d.nb_demandes;
+  document.getElementById('d-nb-act').textContent=d.nb_demandes_actives;
+}
+
+function closeDetail(){selUid=null;document.getElementById('detail').classList.remove('visible');renderTable();}
+function openFiche(){if(selUid)go(`affaire.html?uid=${selUid}`);}
+function sortBy(col){sortAsc=sortCol===col?!sortAsc:true;sortCol=col;renderTable();}
+function onSearch(){clearTimeout(srchTimer);srchTimer=setTimeout(load,300);}
+function clearFilters(){['f-statut','f-titulaire'].forEach(id=>document.getElementById(id).value='');document.getElementById('search-input').value='';load();}
+
+async function openCreate(prefill={}){
+  document.getElementById('modal-title').textContent='Nouvelle affaire RST';
+  document.getElementById('m-uid').value='0';
+  document.getElementById('m-client').value=prefill.client||'';
+  document.getElementById('m-chantier').value=prefill.chantier||'';
+  document.getElementById('m-site').value=prefill.site||'';
+  document.getElementById('m-filiale').value=prefill.filiale||'';
+  document.getElementById('m-num-etude').value=prefill.numero_etude||'';
+  document.getElementById('m-titulaire').value=prefill.titulaire||'';
+  document.getElementById('m-aff-nge').value=prefill.affaire_nge||'';
+  document.getElementById('m-resp').value=prefill.responsable||user.display_name||'';
+  document.getElementById('m-statut').value=prefill.statut||'À qualifier';
+  document.getElementById('m-ouv').value=prefill.date_ouverture||today();
+  try{
+    const r=await fetch(`${API}/api/affaires/next-ref`,{headers:ah()});
+    if(r.ok){const d=await r.json();document.getElementById('m-ref').value=d.reference||'';}
+  }catch{}
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function openEdit(){
+  const d=rows.find(x=>x.uid===selUid);if(!d)return;
+  document.getElementById('modal-title').textContent="Modifier l'affaire RST";
+  document.getElementById('m-uid').value=d.uid;
+  document.getElementById('m-ref').value=d.reference;
+  document.getElementById('m-client').value=d.client||'';
+  document.getElementById('m-chantier').value=d.chantier||'';
+  document.getElementById('m-site').value=d.site||'';
+  document.getElementById('m-filiale').value=d.filiale||'';
+  document.getElementById('m-num-etude').value=d.numero_etude||'';
+  document.getElementById('m-titulaire').value=d.titulaire||'';
+  document.getElementById('m-aff-nge').value=d.affaire_nge||'';
+  document.getElementById('m-resp').value=d.responsable||'';
+  document.getElementById('m-statut').value=d.statut||'À qualifier';
+  document.getElementById('m-ouv').value=d.date_ouverture||'';
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function closeModal(){document.getElementById('modal').classList.add('hidden');}
+
+async function save(){
+  const uid=parseInt(document.getElementById('m-uid').value);
+  const p={
+    client: document.getElementById('m-client').value,
+    chantier: document.getElementById('m-chantier').value,
+    site: document.getElementById('m-site').value,
+    filiale: document.getElementById('m-filiale').value,
+    numero_etude: document.getElementById('m-num-etude').value,
+    titulaire: document.getElementById('m-titulaire').value,
+    affaire_nge: document.getElementById('m-aff-nge').value,
+    responsable: document.getElementById('m-resp').value,
+    statut: document.getElementById('m-statut').value,
+    date_ouverture: document.getElementById('m-ouv').value,
+  };
+  if(uid===0)p.reference=document.getElementById('m-ref').value;
+  try{
+    const url=uid===0?`${API}/api/affaires`:`${API}/api/affaires/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();
+    closeModal();
+    await load();
+    selUid=saved.uid;
+    selectRow(saved.uid);
+    toast(uid===0?'Affaire créée ✓':'Mise à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteAff(){
+  const d=rows.find(x=>x.uid===selUid);
+  if(!d||!confirm(`Supprimer l'affaire ${d.reference} ?`))return;
+  await fetch(`${API}/api/affaires/${selUid}`,{method:'DELETE',headers:ah()});
+  closeDetail();
+  await load();
+  toast('Affaire supprimée','info');
+}
+
+function ah(){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'};}
+function logout(){localStorage.clear();go('login.html');}
+function go(url){window.location.href=url;}
+function today(){return new Date().toISOString().split('T')[0];}
+function fd(v){if(!v)return'—';try{const p=v.slice(0,10).split('-');return`${p[2]}/${p[1]}/${p[0]}`;}catch{return v;}}
+function df(id,v){const e=document.getElementById(id);if(!e)return;e.textContent=v||'—';e.className=v?'':'empty';}
+function bStat(s){const m={'À qualifier':'b-gray','En cours':'b-green','Terminée':'b-purple','Archivée':'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;}
+function esc(v){return String(v||'').replaceAll('"','&quot;');}
+function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className='',3000);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+init();
+</script>
+</body>
+</html>

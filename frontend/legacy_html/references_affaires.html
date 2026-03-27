@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Références Affaires</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+	--bg:#f4f4f0;--surface:#fff;--border:#e2e2dc;--text:#1a1a2e;--text-m:#6b6b80;
+	--nge:#002C77;--warn:#ef9f27;--ok:#1d9e75;--danger:#e24b4a;--radius:10px;
+}
+html,body{height:100%}
+body{
+	margin:0;
+	font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+	background:var(--bg);
+	color:var(--text);
+	overflow:auto;
+}
+.page{
+	max-width:1500px;
+	margin:0 auto;
+	padding:24px;
+	display:flex;
+	flex-direction:column;
+	gap:18px;
+}
+.hero{
+	background:linear-gradient(135deg,#002c77,#1c4ea3);
+	color:#fff;
+	border-radius:16px;
+	padding:20px 22px;
+	box-shadow:0 8px 24px rgba(0,44,119,.18);
+}
+.hero h1{margin:0 0 6px;font-size:24px}
+.hero p{margin:0;color:#dce6ff;font-size:14px;line-height:1.5}
+.badge-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.badge{
+	display:inline-flex;align-items:center;gap:8px;
+	padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.14);
+	font-size:12px
+}
+.grid{
+	display:grid;
+	grid-template-columns:repeat(12,1fr);
+	gap:18px;
+}
+.card{
+	background:var(--surface);
+	border:1px solid var(--border);
+	border-radius:14px;
+	box-shadow:0 6px 16px rgba(0,0,0,.04);
+	min-width:0;
+}
+.card.full{grid-column:1/-1}
+.card.span-4{grid-column:span 4}
+.card.span-6{grid-column:span 6}
+.card.span-8{grid-column:span 8}
+.card-header{
+	display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+	padding:16px 18px;border-bottom:1px solid var(--border)
+}
+.card-title{font-size:16px;font-weight:700;margin:0}
+.card-desc{font-size:12px;color:var(--text-m);margin-top:3px;line-height:1.45}
+.card-body{padding:16px 18px}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px}
+button{
+	border:none;border-radius:10px;padding:10px 14px;cursor:pointer;
+	font-weight:600;font-size:13px
+}
+.btn-primary{background:var(--nge);color:#fff}
+.btn-secondary{background:#eef2ff;color:var(--nge)}
+.btn-warn{background:#fff4de;color:#935c00}
+button:disabled{opacity:.5;cursor:not-allowed}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{
+	border:1px solid var(--border);border-radius:12px;padding:14px;background:#fafaf8;min-width:0
+}
+.kpi .label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m)}
+.kpi .value{font-size:22px;font-weight:800;margin-top:6px;word-break:break-word}
+.kpi .sub{font-size:12px;color:var(--text-m);margin-top:4px}
+.status-pill{
+	display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;
+	font-size:12px;font-weight:700
+}
+.status-ok{background:#e8f7f1;color:#0a7b58}
+.status-warn{background:#fff4de;color:#935c00}
+.status-danger{background:#fde8e8;color:#b42318}
+.meta-grid{
+	display:grid;grid-template-columns:220px 1fr;gap:10px 14px;align-items:start
+}
+.meta-grid .key{font-size:12px;color:var(--text-m)}
+.meta-grid .val{font-size:13px;word-break:break-word}
+.table-wrap{
+	border:1px solid var(--border);border-radius:12px;overflow:auto;max-height:460px;background:#fff
+}
+table{width:100%;border-collapse:collapse;min-width:980px}
+th,td{padding:10px 12px;border-bottom:1px solid #eee;text-align:left;vertical-align:top;font-size:12px}
+th{position:sticky;top:0;background:#f8f8f6;z-index:1}
+td{white-space:normal;word-break:break-word}
+pre{
+	margin:0;background:#fbfbfa;border:1px solid var(--border);border-radius:12px;
+	padding:14px;max-height:320px;overflow:auto;font-size:12px;line-height:1.5
+}
+.note{
+	padding:12px 14px;border-radius:12px;background:#fff8e8;border:1px solid #f0deb0;
+	font-size:12px;color:#7d5a00;line-height:1.5
+}
+.small{font-size:12px;color:var(--text-m)}
+.hidden{display:none!important}
+@media (max-width:1200px){
+	.card.span-4,.card.span-6,.card.span-8{grid-column:1/-1}
+	.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:720px){
+	.page{padding:14px}
+	.kpis{grid-template-columns:1fr}
+	.meta-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+	<section class="hero">
+		<div class="hero-nav">
+			<div></div>
+			<div class="hero-nav-actions">
+				<button type="button" class="nav-btn" onclick="goBackOrHome()">← Retour</button>
+				<a class="nav-btn" href="index.html">⌂ Retour au programme</a>
+			</div>
+		</div>
+		<h1>Références Affaires</h1>
+		<p>Page dédiée à la base de référence <strong>affaires.db</strong>. La logique actuelle de la DB est conservée. Cette page n'agit que sur <strong>Affaires</strong> et ignore volontairement <strong>Études</strong>. Les <strong>2 premières feuilles</strong> du fichier Affaires sont ignorées par design.</p>
+		<div class="badge-row">
+			<div class="badge">🧱 DB existante respectée</div>
+			<div class="badge">🗂️ 2 premières feuilles ignorées</div>
+			<div class="badge">🛡️ Backup automatique avant update</div>
+			<div class="badge">👁️ Détection auto, update manuel</div>
+		</div>
+	</section>
+
+	<section class="grid">
+		<div class="card full">
+			<div class="card-header">
+				<div>
+					<h2 class="card-title">État de la source</h2>
+					<div class="card-desc">Le programme voit tout seul s'il y a un nouveau fichier Affaires dans <code>storage/references/affaires</code>, mais ne met rien à jour sans validation.</div>
+				</div>
+				<div class="btn-row">
+					<button class="btn-secondary" onclick="loadStatus()">↻ Actualiser</button>
+					<button class="btn-secondary" onclick="previewSource()">Prévisualiser</button>
+					<button class="btn-primary" id="btn-update" onclick="applyUpdate()" disabled>Mettre à jour</button>
+				</div>
+			</div>
+			<div class="card-body">
+				<div class="kpis">
+					<div class="kpi">
+						<div class="label">Disponibilité</div>
+						<div class="value" id="kpi-available">—</div>
+						<div class="sub" id="kpi-status-msg">Chargement…</div>
+					</div>
+					<div class="kpi">
+						<div class="label">Lignes DB</div>
+						<div class="value" id="kpi-db-count">—</div>
+						<div class="sub">Table affaires</div>
+					</div>
+					<div class="kpi">
+						<div class="label">Mise à jour</div>
+						<div class="value" id="kpi-update">—</div>
+						<div class="sub" id="kpi-last-import">—</div>
+					</div>
+					<div class="kpi">
+						<div class="label">Dernière source</div>
+						<div class="value" id="kpi-file">—</div>
+						<div class="sub" id="kpi-file-time">—</div>
+					</div>
+				</div>
+				<div style="margin-top:16px" class="meta-grid">
+					<div class="key">Source détectée</div><div class="val" id="meta-file-path">—</div>
+					<div class="key">Hash source</div><div class="val" id="meta-file-hash">—</div>
+					<div class="key">Dernier backup</div><div class="val" id="meta-backup">—</div>
+					<div class="key">Feuilles ignorées</div><div class="val" id="meta-ignored">—</div>
+					<div class="key">Message</div><div class="val" id="meta-message">—</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="card span-6">
+			<div class="card-header">
+				<div>
+					<h2 class="card-title">Prévisualisation source</h2>
+					<div class="card-desc">Valeurs lues dans le fichier Excel Affaires, après exclusion des 2 premières feuilles.</div>
+				</div>
+			</div>
+			<div class="card-body">
+				<div class="small" id="preview-summary">Lance une prévisualisation pour voir le contenu détecté.</div>
+				<div style="height:12px"></div>
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr>
+								<th>id</th>
+								<th>N°Affaire</th>
+								<th>Code Agence</th>
+								<th>Libellé</th>
+								<th>GSA</th>
+								<th>EHTP</th>
+								<th>NGE Routes</th>
+								<th>Source sheet</th>
+							</tr>
+						</thead>
+						<tbody id="source-sample-body">
+							<tr><td colspan="8" class="small">Aucune donnée prévisualisée.</td></tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+
+		<div class="card span-6">
+			<div class="card-header">
+				<div>
+					<h2 class="card-title">Valeurs actuelles en DB</h2>
+					<div class="card-desc">Échantillon des valeurs déjà présentes dans <code>affaires.db</code>, sans toucher au schéma existant.</div>
+				</div>
+			</div>
+			<div class="card-body">
+				<div class="small" id="db-summary">Les valeurs DB apparaissent après prévisualisation.</div>
+				<div style="height:12px"></div>
+				<div class="table-wrap">
+					<table>
+						<thead>
+							<tr id="db-sample-head"></tr>
+						</thead>
+						<tbody id="db-sample-body">
+							<tr><td class="small">Aucune donnée DB prévisualisée.</td></tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+
+		<div class="card full">
+			<div class="card-header">
+				<div>
+					<h2 class="card-title">Plan de mise à jour</h2>
+					<div class="card-desc">Résumé simple avant validation. Ici on reste sur la DB Affaires déjà utilisée ailleurs, sans logique spéciale sur Études.</div>
+				</div>
+			</div>
+			<div class="card-body">
+				<div class="kpis">
+					<div class="kpi">
+						<div class="label">Lignes prévisualisées</div>
+						<div class="value" id="plan-preview-count">—</div>
+						<div class="sub" id="plan-sheet-count">—</div>
+					</div>
+					<div class="kpi">
+						<div class="label">Clés reconnues</div>
+						<div class="value" id="plan-matched">—</div>
+						<div class="sub">Déjà en DB</div>
+					</div>
+					<div class="kpi">
+						<div class="label">Nouvelles</div>
+						<div class="value" id="plan-new">—</div>
+						<div class="sub">Absentes de la DB</div>
+					</div>
+					<div class="kpi">
+						<div class="label">DB absentes du fichier</div>
+						<div class="value" id="plan-missing">—</div>
+						<div class="sub">À contrôler</div>
+					</div>
+				</div>
+				<div style="height:14px"></div>
+				<pre id="change-plan-json">Aucune prévisualisation exécutée.</pre>
+				<div class="note" style="margin-top:14px">
+					<div><strong>Règle métier rappelée</strong></div>
+					<div style="margin-top:6px">
+						Le refresh lit les codes déjà construits par entreprise (<code>gsa</code>, <code>ehtp</code>, <code>nge_routes</code>, etc.). Il ne doit pas reconstruire bêtement un code si le code final existe déjà. Les cas spéciaux comme <code>RASTOP</code> ne doivent pas être confondus avec un vrai affaire chantier.
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+</div>
+
+<script>
+function goBackOrHome(){
+	if(window.history.length > 1){
+		window.history.back();
+		return;
+	}
+	window.location.href = "index.html";
+}
+
+const API = "http://127.0.0.1:8000/api/reference-affaires";
+
+function fmt(v){
+	if(v === null || v === undefined || v === "") return "—";
+	return String(v);
+}
+
+function setStatusPill(target, available, updateAvailable){
+	let cls = "status-danger";
+	let label = "Introuvable";
+	if(available && updateAvailable){ cls = "status-warn"; label = "Mise à jour disponible"; }
+	else if(available){ cls = "status-ok"; label = "À jour"; }
+	target.innerHTML = `<span class="status-pill ${cls}">${label}</span>`;
+}
+
+function fillSimpleTable(bodyId, rows, columns){
+	const body = document.getElementById(bodyId);
+	if(!rows || rows.length === 0){
+		body.innerHTML = `<tr><td colspan="${columns.length}" class="small">Aucune ligne.</td></tr>`;
+		return;
+	}
+	body.innerHTML = rows.map(row => `
+		<tr>
+			${columns.map(col => `<td>${fmt(row[col])}</td>`).join("")}
+		</tr>
+	`).join("");
+}
+
+function fillDbTable(snapshot){
+	const head = document.getElementById("db-sample-head");
+	const body = document.getElementById("db-sample-body");
+	const cols = snapshot?.columns || [];
+	const rows = snapshot?.sample_rows || [];
+	if(cols.length === 0){
+		head.innerHTML = `<th>DB</th>`;
+		body.innerHTML = `<tr><td class="small">Aucune donnée DB prévisualisée.</td></tr>`;
+		return;
+	}
+	head.innerHTML = cols.map(col => `<th>${col}</th>`).join("");
+	if(rows.length === 0){
+		body.innerHTML = `<tr><td colspan="${cols.length}" class="small">Aucune ligne en DB.</td></tr>`;
+		return;
+	}
+	body.innerHTML = rows.map(row => `
+		<tr>
+			${cols.map(col => `<td>${fmt(row[col])}</td>`).join("")}
+		</tr>
+	`).join("");
+}
+
+async function loadStatus(){
+	const res = await fetch(`${API}/status`);
+	const data = await res.json();
+
+	document.getElementById("kpi-available").innerHTML = data.available ? "Oui" : "Non";
+	document.getElementById("kpi-status-msg").textContent = data.label || "Affaires";
+	document.getElementById("kpi-db-count").textContent = fmt(data.db_row_count);
+	document.getElementById("kpi-update").innerHTML = "";
+	setStatusPill(document.getElementById("kpi-update"), !!data.available, !!data.update_available);
+	document.getElementById("kpi-last-import").textContent = data.last_imported_at ? `Dernier import: ${data.last_imported_at}` : "Pas d'import enregistré";
+	document.getElementById("kpi-file").textContent = fmt(data.file_name);
+	document.getElementById("kpi-file-time").textContent = data.file_mtime ? `Modifié: ${data.file_mtime}` : "Aucune source";
+	document.getElementById("meta-file-path").textContent = fmt(data.file_path);
+	document.getElementById("meta-file-hash").textContent = fmt(data.file_hash);
+	document.getElementById("meta-backup").textContent = fmt(data.backup_path);
+	document.getElementById("meta-ignored").textContent = (data.ignored_sheet_names || []).join(", ") || "2 premières feuilles ignorées au prochain preview";
+	document.getElementById("meta-message").textContent = fmt(data.last_message);
+	document.getElementById("btn-update").disabled = !data.available;
+}
+
+async function previewSource(){
+	const res = await fetch(`${API}/preview`, {method:"POST"});
+	const data = await res.json();
+	if(!res.ok){
+		alert(data.detail || data.message || "Erreur de prévisualisation");
+		return;
+	}
+	document.getElementById("preview-summary").textContent =
+		`${fmt(data.preview_row_count)} lignes détectées sur ${fmt(data.preview_sheet_count)} feuilles utiles. Feuilles ignorées: ${(data.ignored_sheet_names || []).join(", ") || "aucune"}.`;
+	fillSimpleTable("source-sample-body", data.sample_rows || [], ["id","n°affaire","code_agence","libellé","gsa","ehtp","nge_routes","source_sheet"]);
+	fillDbTable({columns:data.db_columns || [], sample_rows:data.db_sample_rows || []});
+	document.getElementById("db-summary").textContent = `${fmt(data.db_row_count_before)} lignes actuellement en DB.`;
+	const plan = data.change_summary || {};
+	document.getElementById("plan-preview-count").textContent = fmt(data.preview_row_count);
+	document.getElementById("plan-sheet-count").textContent = `${fmt(data.preview_sheet_count)} feuilles utiles`;
+	document.getElementById("plan-matched").textContent = fmt(plan.matched_count);
+	document.getElementById("plan-new").textContent = fmt(plan.new_count);
+	document.getElementById("plan-missing").textContent = fmt(plan.db_only_count);
+	document.getElementById("change-plan-json").textContent = JSON.stringify(plan, null, 2);
+	document.getElementById("btn-update").disabled = false;
+}
+
+async function applyUpdate(){
+	if(!confirm("Mettre à jour affaires.db à partir du fichier détecté ? Un backup sera créé avant écriture.")) return;
+	const res = await fetch(`${API}/update`, {method:"POST"});
+	const data = await res.json();
+	if(!res.ok){
+		alert(data.detail || data.message || "Erreur de mise à jour");
+		return;
+	}
+	alert(data.message || "Mise à jour terminée.");
+	await loadStatus();
+	await previewSource();
+}
+
+loadStatus();
+</script>
+</body>
+</html>

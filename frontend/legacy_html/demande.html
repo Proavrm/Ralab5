@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Fiche Demande</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--nge:#002C77;--surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}
+.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.user-name{font-size:13px;color:#fff;font-weight:500}
+.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+.btn-logout:hover{background:#2a2a40;color:#fff}
+#main{flex:1;overflow-y:auto}
+.page-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0;position:sticky;top:0;z-index:10}
+.back-btn{display:flex;align-items:center;gap:6px;color:var(--text-m);font-size:13px;cursor:pointer;background:none;border:none;padding:5px 10px;border-radius:var(--radius);transition:.15s}
+.back-btn:hover{background:var(--bg);color:var(--text)}
+.page-title{font-size:15px;font-weight:600;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{padding:5px 10px;font-size:12px}.btn.danger{border-color:var(--danger);color:var(--danger)}
+.btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+.content{padding:28px;max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+/* Hero */
+.hero{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:22px 26px}
+.hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.hero-ref{font-size:22px;font-weight:700;color:var(--accent)}
+.hero-sub{font-size:13px;color:var(--text-m);margin-top:4px}
+.hero-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.b-gray{background:#f1efe8;color:#5f5e5a}.b-green{background:#eaf3de;color:#3b6d11}
+.b-purple{background:#eeedfe;color:#534ab7}.b-nge{background:#002C77;color:#fff}
+.b-blue{background:#e6f1fb;color:#185fa5}.b-amber{background:#faeeda;color:#854f0b}
+.b-teal{background:#e0f5ef;color:#0f6e56}.b-red{background:#fcebeb;color:#a32d2d}
+/* Cards grid */
+.cards-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.cards-grid.two{grid-template-columns:1fr 1fr}
+.card{background:var(--surface);border-radius:10px;border:1px solid var(--border);padding:18px 20px}
+.card.full{grid-column:1/-1}
+.card-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:6px}
+.field-row{display:flex;flex-direction:column;gap:3px;margin-bottom:11px}
+.field-row:last-child{margin-bottom:0}
+.field-label{font-size:10px;color:var(--text-m)}
+.field-value{font-size:13px;font-weight:500;color:var(--text)}
+.field-value.empty{color:var(--text-m);font-style:italic;font-weight:400}
+.field-value.small{font-size:11px;word-break:break-all}
+.field-value.urg-late{color:var(--danger);font-weight:700}
+.field-value.urg-soon{color:var(--warn);font-weight:700}
+.text-block{font-size:13px;line-height:1.7;color:var(--text);white-space:pre-wrap}
+.text-block.empty{color:var(--text-m);font-style:italic}
+/* revoir banner */
+.revoir-banner{background:#faeeda;border:1px solid #ef9f27;border-radius:var(--radius);padding:10px 16px;display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#5c3a00}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:12px;width:760px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h2{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-m)}
+.modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:500;color:var(--text-m)}
+.form-group input,.form-group select,.form-group textarea{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;font-family:inherit;background:var(--bg);transition:.15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent);background:#fff}
+.form-group input[readonly]{color:var(--text-m)}
+.form-group textarea{resize:vertical;min-height:70px}
+.form-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:6px;grid-column:1/-1;margin-top:4px}
+.check-row{display:flex;align-items:center;gap:8px;font-size:13px}
+.check-row input[type=checkbox]{accent-color:var(--warn);width:15px;height:15px}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{background:var(--success);color:#fff}
+#toast.error{background:var(--danger);color:#fff}
+.section-note{font-size:11px;color:var(--text-m);margin-bottom:12px}
+.module-grid{display:flex;flex-wrap:wrap;gap:8px}
+.module-chip{display:inline-flex;align-items:center;padding:5px 10px;border:1px solid var(--border);border-radius:999px;background:var(--bg);font-size:12px;font-weight:500}
+.module-chip.off{opacity:.55}
+.checkbox-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.checkbox-card{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);cursor:pointer}
+.checkbox-card input{margin-top:2px;accent-color:var(--accent)}
+.checkbox-title{font-size:13px;font-weight:600}
+.checkbox-sub{font-size:11px;color:var(--text-m);margin-top:2px}
+.quick-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.quick-link{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);cursor:pointer;font-family:inherit;font-size:13px;color:var(--text);transition:.15s;text-align:left}
+.quick-link:hover{background:#fff;border-color:var(--accent)}
+.quick-link strong{font-size:13px}
+.quick-link span{font-size:11px;color:var(--text-m)}
+.summary-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.summary-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+.summary-box .num{font-size:22px;font-weight:700;color:var(--accent)}
+.summary-box .lab{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);margin-top:4px}
+.link-table-card{background:var(--surface);border-radius:10px;border:1px solid var(--border);overflow:hidden}
+.link-table-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.link-table-header h3{font-size:13px;font-weight:600}
+.link-table-header .meta{font-size:11px;color:var(--text-m)}
+.table-wrap{overflow:auto}
+.link-table{width:100%;border-collapse:collapse;font-size:13px}
+.link-table thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap}
+.link-table tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.link-table tbody tr:hover{background:#f8f8fc}
+.link-table td{padding:9px 14px;vertical-align:middle}
+.link-table .empty-state{padding:28px;text-align:center;color:var(--text-m)}
+.table-ref{font-weight:700;color:var(--accent)}
+.table-sub{font-size:11px;color:var(--text-m)}
+
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+  <div class="nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+    <button class="nav-btn" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
+<button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
+        <button class="nav-btn active" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+    <button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
+    <div class="nav-section">Administration</div>
+    <button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-row">
+      <div class="user-av" id="sidebar-av">?</div>
+      <div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div>
+    </div>
+    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+  </div>
+</nav>
+
+<div id="main">
+  <div class="page-header">
+    <button class="back-btn" onclick="goBack()">← Demandes</button>
+    <span class="page-title" id="page-title">Fiche demande</span>
+    <button class="btn sm primary" onclick="openEdit()">✏️ Modifier</button>
+    <button class="btn sm" onclick="openConfigModal()">⚙️ Préparation</button>
+    <button class="btn sm" id="btn-affaire" onclick="openAffaire()">📋 Affaire</button>
+    <button class="btn sm" id="btn-g3" style="background:#e0f5ef;border-color:#0f6e56;color:#0f6e56" onclick="go('intervention.html?demande_id='+uid)">📍 G3</button>
+    <button class="btn sm" id="btn-labo" style="background:#e6f1fb;border-color:#185fa5;color:#185fa5" onclick="go('essai.html?demande_id='+uid)">🔬 Labo</button>
+  </div>
+
+  <div class="content" id="content">
+    <div style="padding:60px;text-align:center;color:var(--text-m)">Chargement…</div>
+  </div>
+</div>
+
+<!-- Modal edit -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Modifier la demande</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-section">Identification</div>
+        <div class="form-group"><label>Référence</label><input id="m-ref" readonly/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="m-statut">
+            <option>À qualifier</option><option>Demande</option><option>En Cours</option>
+            <option>Répondu</option><option>Fini</option><option>Envoyé - Perdu</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Laboratoire</label>
+          <select id="m-labo"><option>SP</option><option>PDC</option><option>CHB</option><option>CLM</option></select>
+        </div>
+        <div class="form-group"><label>Priorité</label>
+          <select id="m-priorite"><option>Basse</option><option>Normale</option><option>Haute</option><option>Critique</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-section">Mission</div>
+        <div class="form-group"><label>Type mission</label>
+          <select id="m-mission">
+            <option>À définir</option><option>Études G1</option><option>Études G2</option>
+            <option>Exploitation G3</option><option>Essais Labo</option><option>Avis Technique</option><option>Externe</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Nature</label><input id="m-nature"/></div>
+        <div class="form-group full"><label>N° DST</label><input id="m-dst"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-section">Acteurs &amp; Dates</div>
+        <div class="form-group"><label>Demandeur</label><input id="m-demandeur"/></div>
+        <div class="form-group"><label>Date réception</label><input id="m-date" type="date"/></div>
+        <div class="form-group"><label>Échéance</label><input id="m-ech" type="date"/></div>
+        <div class="form-group"><label>Date clôture</label><input id="m-clo" type="date"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-section">Description</div>
+        <div class="form-group full"><label>Description</label><textarea id="m-desc"></textarea></div>
+        <div class="form-group full"><label>Observations</label><textarea id="m-obs"></textarea></div>
+      </div>
+      <div class="form-row">
+        <div class="form-section">Suivi</div>
+        <div class="form-group full">
+          <div class="check-row"><input type="checkbox" id="m-revoir"/><label for="m-revoir">⚠ À revoir</label></div>
+        </div>
+        <div class="form-group full"><label>Note réconciliation</label><input id="m-note"/></div>
+        <div class="form-group full"><label>Notes suivi</label><textarea id="m-suivi"></textarea></div>
+      </div>
+      <div class="form-row">
+        <div class="form-section">Rapport / Admin</div>
+        <div class="form-group"><label>Réf. rapport</label><input id="m-rapport"/></div>
+        <div class="form-group"><label>Réf. devis</label><input id="m-devis"/></div>
+        <div class="form-group"><label>Réf. facture</label><input id="m-facture"/></div>
+        <div class="form-group">
+          <div class="check-row" style="margin-top:20px"><input type="checkbox" id="m-envoye"/><label for="m-envoye">Rapport envoyé</label></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Annuler</button>
+      <button class="btn primary" onclick="save()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal configuration -->
+<div class="modal-overlay hidden" id="config-modal">
+  <div class="modal" style="width:980px">
+    <div class="modal-header">
+      <h2>Préparation de la demande &amp; modules</h2>
+      <button class="modal-close" onclick="closeConfigModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Phase opération</label>
+          <select id="cfg-phase"></select>
+        </div>
+        <div class="form-group">
+          <label>Attentes client</label>
+          <input id="cfg-attentes"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Contexte opérationnel</label>
+          <textarea id="cfg-contexte"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Objectifs</label>
+          <textarea id="cfg-objectifs"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Points de vigilance</label>
+          <textarea id="cfg-vigilance"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contraintes accès</label>
+          <textarea id="cfg-acces"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Contraintes délais</label>
+          <textarea id="cfg-delais"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Contraintes HSE</label>
+          <textarea id="cfg-hse"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Programme prévisionnel</label>
+          <textarea id="cfg-programme"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Ressources / moyens</label>
+          <textarea id="cfg-ressources"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Commentaires</label>
+          <textarea id="cfg-comments"></textarea>
+        </div>
+      </div>
+      <div class="form-section">Modules activés sur la demande</div>
+      <div class="checkbox-grid" id="cfg-modules"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeConfigModal()">Annuler</button>
+      <button class="btn primary" onclick="saveConfig()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const API='http://127.0.0.1:8000';
+let user=null,token=null,dem=null,configData=null,configCatalog=null,relatedData=null;
+const uid=parseInt(new URLSearchParams(location.search).get('uid')||'0');
+const fromAffaire=new URLSearchParams(location.search).get('from_affaire');
+
+async function init(){
+  token=localStorage.getItem('ralab_token');
+  user=JSON.parse(localStorage.getItem('ralab_user')||'null');
+  if(!token||!user){go('login.html');return;}
+  const ini=user.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-av').textContent=ini;
+  document.getElementById('sidebar-name').textContent=user.display_name;
+  document.getElementById('sidebar-role').textContent=user.service_code||'';
+  if(!uid){go('demandes.html');return;}
+  await ensureConfigCatalog();
+  await loadDemande();
+}
+
+async function loadDemande(){
+  const r=await fetch(`${API}/api/demandes_rst/${uid}`,{headers:ah()});
+  if(!r.ok){go('demandes.html');return;}
+  dem=await r.json();
+  await loadNavigation();
+  render();
+}
+
+async function ensureConfigCatalog(){
+  if(configCatalog) return;
+  try{
+    const r=await fetch(`${API}/api/demandes_rst/configuration/catalog`,{headers:ah()});
+    configCatalog=r.ok?await r.json():{phase_options:[],modules:[]};
+  }catch{
+    configCatalog={phase_options:[],modules:[]};
+  }
+}
+
+async function loadConfiguration(){
+  try{
+    const r=await fetch(`${API}/api/demandes_rst/${uid}/configuration`,{headers:ah()});
+    configData=r.ok?await r.json():null;
+  }catch{
+    configData=null;
+  }
+}
+
+async function loadNavigation(){
+  try{
+    const r=await fetch(`${API}/api/demandes_rst/${uid}/navigation`,{headers:ah()});
+    if(!r.ok) throw new Error();
+    relatedData=await r.json();
+    configData={preparation:relatedData.preparation,modules:relatedData.modules};
+  }catch{
+    relatedData={counts:{interventions:0,echantillons:0,essais:0,modules_enabled:0},interventions:[],echantillons:[],essais:[],linked_items:[]};
+    if(!configData) await loadConfiguration();
+  }
+}
+
+function getVisibility(){
+  return (relatedData&&relatedData.visibility)||{preparation:true,interventions:true,echantillons:true,essais:true,g3:true,labo:true,planning:true,documents:true,essais_externes:true,etude_technique:true,devis_facturation:true};
+}
+
+function getVisibleCounts(){
+  return (relatedData&&relatedData.counts)||{interventions:0,echantillons:0,essais:0,modules_enabled:0};
+}
+
+function getTotalCounts(){
+  return (relatedData&&relatedData.counts_total)||getVisibleCounts();
+}
+
+function renderModuleDrivenHint(){
+  const visibility=getVisibility();
+  const hidden=[];
+  if(!visibility.interventions) hidden.push('interventions');
+  if(!visibility.echantillons) hidden.push('échantillons');
+  if(!visibility.essais) hidden.push('essais');
+  if(!visibility.planning) hidden.push('planning');
+  if(!visibility.documents) hidden.push('documents');
+  if(!visibility.etude_technique) hidden.push('étude / note technique');
+  if(!visibility.essais_externes) hidden.push('essais externes');
+  if(!visibility.devis_facturation) hidden.push('devis / facturation');
+  if(!hidden.length) return '';
+  return `<div class="card"><div class="card-title">Visibilité pilotée par les modules</div><p class="text-block">Les modules activés commandent ce qui s'affiche dans cette fiche demande. Éléments masqués actuellement: ${esc(hidden.join(', '))}.</p></div>`;
+}
+
+function renderPreparationBlock(){
+  if(!configData) return '';
+  const p=configData.preparation||{};
+  const modules=(configData.modules||[]).filter(m=>m.is_enabled);
+  const moduleHtml=modules.length
+    ? modules.map(m=>`<span class="module-chip">${esc(m.label)}</span>`).join('')
+    : '<span class="field-value empty">Aucun module activé</span>';
+  return `
+    <div class="cards-grid two">
+      <div class="card">
+        <div class="card-title">Préparation associée à la demande</div>
+        <div class="section-note">Préparation directe de la demande. La passation éventuelle reste uniquement une aide facultative de saisie.</div>
+        <div class="field-row"><div class="field-label">Phase opération</div><div class="field-value ${p.phase_operation?'':'empty'}">${esc(p.phase_operation||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Attentes client</div><div class="field-value ${p.attentes_client?'':'empty'}">${esc(p.attentes_client||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Contexte opérationnel</div><p class="text-block ${p.contexte_operationnel?'':'empty'}">${esc(p.contexte_operationnel||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Objectifs</div><p class="text-block ${p.objectifs?'':'empty'}">${esc(p.objectifs||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Points de vigilance</div><p class="text-block ${p.points_vigilance?'':'empty'}">${esc(p.points_vigilance||'—')}</p></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Modules activés</div>
+        <div class="module-grid">${moduleHtml}</div>
+        <div class="field-row" style="margin-top:14px"><div class="field-label">Contraintes accès</div><p class="text-block ${p.contraintes_acces?'':'empty'}">${esc(p.contraintes_acces||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Contraintes délais</div><p class="text-block ${p.contraintes_delais?'':'empty'}">${esc(p.contraintes_delais||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Contraintes HSE</div><p class="text-block ${p.contraintes_hse?'':'empty'}">${esc(p.contraintes_hse||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Programme / ressources</div><p class="text-block ${(p.programme_previsionnel||p.ressources_notes)?'':'empty'}">${esc([p.programme_previsionnel,p.ressources_notes].filter(Boolean).join('\n\n')||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Commentaires</div><p class="text-block ${p.commentaires?'':'empty'}">${esc(p.commentaires||'—')}</p></div>
+      </div>
+    </div>`;
+}
+
+function renderQuickAccess(){
+  const counts=getVisibleCounts();
+  const totalCounts=getTotalCounts();
+  const visibility=getVisibility();
+  const links=[
+    `<button class="quick-link" onclick="openConfigModal()"><div><strong>Préparation</strong><span>Ouvrir la configuration de la demande</span></div><span>⚙️</span></button>`,
+  ];
+  if(visibility.g3){
+    links.push(`<button class="quick-link" onclick="go('intervention.html?demande_id='+uid)"><div><strong>Interventions</strong><span>Ouvrir le module terrain</span></div><span>${counts.interventions}</span></button>`);
+  }
+  if(visibility.echantillons){
+    links.push(`<button class="quick-link" onclick="go('essai.html?demande_id='+uid)"><div><strong>Échantillons</strong><span>Ouvrir le module laboratoire</span></div><span>${counts.echantillons}</span></button>`);
+  }
+  if(visibility.essais){
+    links.push(`<button class="quick-link" onclick="go('essai.html?demande_id='+uid)"><div><strong>Essais</strong><span>Voir directement les essais associés</span></div><span>${counts.essais}</span></button>`);
+  }
+  if(visibility.planning){
+    links.push(`<button class="quick-link" onclick="go('planning.html?demande_id='+uid)"><div><strong>Planning</strong><span>Ouvrir le planning ciblé sur cette demande</span></div><span>📅</span></button>`);
+  }
+  if(visibility.documents){
+    links.push(`<button class="quick-link" onclick="go('documents.html?demande_id='+uid)"><div><strong>Documents</strong><span>Accéder au bloc documentaire de la demande</span></div><span>📎</span></button>`);
+  }
+  if(visibility.etude_technique){
+    links.push(`<button class="quick-link" onclick="go('etude.html?demande_id='+uid)"><div><strong>Étude / note technique</strong><span>Ouvrir le bloc étude lié à la demande</span></div><span>🧮</span></button>`);
+  }
+  if(visibility.essais_externes){
+    links.push(`<button class="quick-link" onclick="go('essais_externes.html?demande_id='+uid)"><div><strong>Essais externes</strong><span>Préparer le recours au laboratoire externe</span></div><span>🧪</span></button>`);
+  }
+  if(visibility.devis_facturation){
+    links.push(`<button class="quick-link" onclick="go('devis.html?demande_id='+uid)"><div><strong>Devis / facturation</strong><span>Voir les références administratives liées</span></div><span>💶</span></button>`);
+  }
+
+  const summary=[];
+  summary.push(`<div class="summary-box"><div class="num">${counts.modules_enabled||0}</div><div class="lab">Modules activés</div></div>`);
+  if(visibility.interventions){
+    summary.push(`<div class="summary-box"><div class="num">${counts.interventions||0}</div><div class="lab">Interventions</div></div>`);
+  }
+  if(visibility.echantillons){
+    summary.push(`<div class="summary-box"><div class="num">${counts.echantillons||0}</div><div class="lab">Échantillons</div></div>`);
+  }
+  if(visibility.essais){
+    summary.push(`<div class="summary-box"><div class="num">${counts.essais||0}</div><div class="lab">Essais</div></div>`);
+  }
+
+  const meta=[];
+  if(!visibility.interventions && (totalCounts.interventions||0)>0) meta.push(`${totalCounts.interventions} interventions masquées`);
+  if(!visibility.echantillons && (totalCounts.echantillons||0)>0) meta.push(`${totalCounts.echantillons} échantillons masqués`);
+  if(!visibility.essais && (totalCounts.essais||0)>0) meta.push(`${totalCounts.essais} essais masqués`);
+
+  return `
+    <div class="cards-grid two">
+      <div class="card">
+        <div class="card-title">Accès direct</div>
+        <div class="quick-links">${links.join('')}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vue rapide du contenu</div>
+        <div class="summary-strip">${summary.join('')}</div>
+        ${meta.length?`<div class="section-note" style="margin-top:12px">${esc(meta.join(' · '))}</div>`:''}
+      </div>
+    </div>`;
+}
+
+function renderLinkedItemsSection(){
+  const items=(relatedData&&relatedData.linked_items)||[];
+  const totalItems=(relatedData&&relatedData.linked_items_total)||items;
+  const body=items.length?items.map(item=>`
+    <tr onclick="openLinkedItem(${js(item.item_kind||'')},${item.item_uid||0},${item.echantillon_uid||0})">
+      <td>${esc(item.type||'—')}</td>
+      <td><div class="table-ref">${esc(item.reference||'—')}</div></td>
+      <td>${esc(item.designation||'—')}</td>
+      <td>${item.statut?bSmall(item.statut,'statut'):'<span class="badge b-gray">—</span>'}</td>
+      <td>${fd(item.date)}</td>
+    </tr>`).join(''):`<tr><td colspan="5"><div class="empty-state">Aucun élément visible pour les modules actuellement activés</div></td></tr>`;
+  const hiddenCount=Math.max(0,(totalItems||[]).length - items.length);
+  return `
+    <div class="link-table-card">
+      <div class="link-table-header">
+        <div><h3>Éléments liés à la demande</h3><div class="meta">Les modules activés commandent les éléments visibles dans cette fiche${hiddenCount?` · ${hiddenCount} élément(s) masqué(s)`:''}</div></div>
+      </div>
+      <div class="table-wrap">
+        <table class="link-table">
+          <thead><tr><th>Type</th><th>Référence</th><th>Intitulé / Désignation</th><th>Statut</th><th>Date</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function openInterventionItem(interventionUid){go(`intervention.html?demande_id=${uid}&focus_uid=${interventionUid}`);}
+function openEchantillonItem(echantillonUid){go(`essai.html?demande_id=${uid}&echantillon_uid=${echantillonUid}`);}
+function openEssaiItem(essaiUid, echantillonUid){go(`essai.html?demande_id=${uid}&echantillon_uid=${echantillonUid}&essai_uid=${essaiUid}`);}
+function openLinkedItem(kind,itemUid,echantillonUid){
+  if(kind==='preparation'){openConfigModal();return;}
+  if(kind==='intervention'){openInterventionItem(itemUid);return;}
+  if(kind==='echantillon'){openEchantillonItem(itemUid);return;}
+  if(kind==='essai'){openEssaiItem(itemUid, echantillonUid);return;}
+}
+function formatDepth(top,bottom){
+  if(top==null&&bottom==null) return '—';
+  if(top!=null&&bottom!=null) return `${top}–${bottom} m`;
+  if(top!=null) return `${top} m`;
+  return `${bottom} m`;
+}
+function bSmall(value,type){
+  if(type==='statut'){
+    const map={'Planifiée':'b-blue','En cours':'b-amber','Réalisée':'b-green','Annulée':'b-red','Reçu':'b-blue','En attente':'b-amber','Terminé':'b-green','Rejeté':'b-red','Programmé':'b-blue'};
+    return `<span class="badge ${map[value]||'b-gray'}">${esc(value||'—')}</span>`;
+  }
+  return `<span class="badge b-gray">${esc(value||'—')}</span>`;
+}
+
+function render(){
+  const d=dem;
+  const counts=getVisibleCounts();
+  const totalCounts=getTotalCounts();
+  const visibility=getVisibility();
+  document.getElementById('page-title').textContent=`Demande ${d.reference}`;
+  document.getElementById('btn-affaire').textContent=`📋 Affaire ${d.affaire_ref||''}`;
+  document.getElementById('btn-g3').style.display=visibility.g3?'inline-flex':'none';
+  document.getElementById('btn-labo').style.display=visibility.labo?'inline-flex':'none';
+
+  const urg=urgence(d.date_echeance,d.statut);
+  let badges=bStat(d.statut)+' '+bPrio(d.priorite);
+  if(d.a_revoir) badges+=' <span class="badge b-amber">⚠ À revoir</span>';
+  if(d.numero_dst) badges+=` <span class="badge b-blue">DST ${d.numero_dst}</span>`;
+  if(d.rapport_envoye) badges+=` <span class="badge b-teal">Rapport envoyé</span>`;
+  if(visibility.interventions) badges+=` <span class="badge b-gray">${counts.interventions||0} interventions</span>`;
+  if(visibility.echantillons) badges+=` <span class="badge b-gray">${counts.echantillons||0} échantillons</span>`;
+  if(visibility.essais) badges+=` <span class="badge b-gray">${counts.essais||0} essais</span>`;
+  const hiddenBadgeParts=[];
+  if(!visibility.interventions && (totalCounts.interventions||0)>0) hiddenBadgeParts.push(`${totalCounts.interventions} interventions masquées`);
+  if(!visibility.echantillons && (totalCounts.echantillons||0)>0) hiddenBadgeParts.push(`${totalCounts.echantillons} échantillons masqués`);
+  if(!visibility.essais && (totalCounts.essais||0)>0) hiddenBadgeParts.push(`${totalCounts.essais} essais masqués`);
+  if(hiddenBadgeParts.length) badges+=` <span class="badge b-amber">${esc(hiddenBadgeParts.join(' · '))}</span>`;
+
+  const revBanner=d.a_revoir?`<div class="revoir-banner">⚠ Cette demande est marquée « À revoir »${d.note_reconciliation?' — '+d.note_reconciliation:''}</div>`:'';
+
+  document.getElementById('content').innerHTML=`
+    ${revBanner}
+
+    <div class="hero">
+      <div class="hero-top">
+        <div>
+          <div class="hero-ref">${d.reference}</div>
+          <div class="hero-sub">${d.affaire_ref||''} — ${d.chantier||d.client||'—'}</div>
+        </div>
+      </div>
+      <div class="hero-badges">${badges}</div>
+    </div>
+
+    <div class="cards-grid two">
+      <div class="card">
+        <div class="card-title">Affaire RST</div>
+        <div class="field-row"><div class="field-label">Référence</div><div class="field-value ${d.affaire_ref?'':'empty'}">${d.affaire_ref||'—'}</div></div>
+        <div class="field-row"><div class="field-label">Client</div><div class="field-value ${d.client?'':'empty'}">${d.client||'—'}</div></div>
+        <div class="field-row"><div class="field-label">Chantier / Site</div><div class="field-value ${d.chantier?'':'empty'}">${d.chantier||'—'}</div></div>
+        <div class="field-row"><div class="field-label">N° Affaire NGE</div><div class="field-value ${d.affaire_nge?'':'empty'}">${d.affaire_nge||'—'}</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Mission</div>
+        <div class="field-row"><div class="field-label">Type mission</div><div class="field-value">${d.type_mission||'—'}</div></div>
+        <div class="field-row"><div class="field-label">Nature</div><div class="field-value ${d.nature?'':'empty'}">${d.nature||'—'}</div></div>
+        <div class="field-row"><div class="field-label">N° DST</div><div class="field-value ${d.numero_dst?'':'empty'}">${d.numero_dst||'—'}</div></div>
+        <div class="field-row"><div class="field-label">Laboratoire</div><div class="field-value">${laboNom(d.labo_code)}</div></div>
+      </div>
+    </div>
+
+    <div class="cards-grid">
+      <div class="card">
+        <div class="card-title">Acteurs</div>
+        <div class="field-row"><div class="field-label">Demandeur</div><div class="field-value ${d.demandeur?'':'empty'}">${d.demandeur||'—'}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Dates</div>
+        <div class="field-row"><div class="field-label">Date réception</div><div class="field-value">${fd(d.date_reception)}</div></div>
+        <div class="field-row"><div class="field-label">Échéance</div><div class="field-value ${urg}">${d.date_echeance?fd(d.date_echeance):'—'}</div></div>
+        <div class="field-row"><div class="field-label">Date clôture</div><div class="field-value ${d.date_cloture?'':'empty'}">${d.date_cloture?fd(d.date_cloture):'—'}</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Rapport / Admin</div>
+        <div class="field-row"><div class="field-label">Réf. rapport</div><div class="field-value ${d.rapport_ref?'':'empty'}">${d.rapport_ref||'—'}</div></div>
+        <div class="field-row"><div class="field-label">Réf. devis</div><div class="field-value ${d.devis_ref?'':'empty'}">${d.devis_ref||'—'}</div></div>
+        <div class="field-row"><div class="field-label">Réf. facture</div><div class="field-value ${d.facture_ref?'':'empty'}">${d.facture_ref||'—'}</div></div>
+      </div>
+    </div>
+
+    ${renderQuickAccess()}
+    ${renderPreparationBlock()}
+    ${renderModuleDrivenHint()}
+    ${renderLinkedItemsSection()}
+
+    ${(d.description||d.observations)?`
+    <div class="cards-grid two">
+      ${d.description?`
+      <div class="card">
+        <div class="card-title">Description</div>
+        <p class="text-block">${esc(d.description)}</p>
+      </div>`:''}
+      ${d.observations?`
+      <div class="card">
+        <div class="card-title">Observations</div>
+        <p class="text-block">${esc(d.observations)}</p>
+      </div>`:''}
+    </div>`:''}
+
+    ${d.dossier_nom?`
+    <div class="card">
+      <div class="card-title">Dossier</div>
+      <div class="field-row"><div class="field-label">Nom dossier</div><div class="field-value small">${esc(d.dossier_nom)}</div></div>
+      ${d.dossier_path?`<div class="field-row"><div class="field-label">Chemin</div><div class="field-value small">${esc(d.dossier_path)}</div></div>`:''}
+    </div>`:''}
+
+    ${(d.suivi_notes||d.note_reconciliation)?`
+    <div class="card">
+      <div class="card-title">Suivi &amp; Notes</div>
+      ${d.note_reconciliation?`<div class="field-row"><div class="field-label">Note réconciliation</div><div class="field-value">${esc(d.note_reconciliation)}</div></div>`:''}
+      ${d.suivi_notes?`<div class="field-row"><div class="field-label">Notes suivi</div><p class="text-block">${esc(d.suivi_notes)}</p></div>`:''}
+    </div>`:''}
+  `;
+}
+
+function openAffaire(){if(dem)go(`affaire.html?uid=${dem.affaire_rst_id}`);}
+
+function openEdit(){
+  const d=dem;
+  document.getElementById('m-ref').value=d.reference;
+  document.getElementById('m-labo').value=d.labo_code||'SP';
+  document.getElementById('m-statut').value=d.statut||'À qualifier';
+  document.getElementById('m-priorite').value=d.priorite||'Normale';
+  document.getElementById('m-mission').value=d.type_mission||'À définir';
+  document.getElementById('m-nature').value=d.nature||'';
+  document.getElementById('m-dst').value=d.numero_dst||'';
+  document.getElementById('m-demandeur').value=d.demandeur||'';
+  document.getElementById('m-date').value=d.date_reception||'';
+  document.getElementById('m-ech').value=d.date_echeance||'';
+  document.getElementById('m-clo').value=d.date_cloture||'';
+  document.getElementById('m-desc').value=d.description||'';
+  document.getElementById('m-obs').value=d.observations||'';
+  document.getElementById('m-revoir').checked=!!d.a_revoir;
+  document.getElementById('m-note').value=d.note_reconciliation||'';
+  document.getElementById('m-suivi').value=d.suivi_notes||'';
+  document.getElementById('m-rapport').value=d.rapport_ref||'';
+  document.getElementById('m-devis').value=d.devis_ref||'';
+  document.getElementById('m-facture').value=d.facture_ref||'';
+  document.getElementById('m-envoye').checked=!!d.rapport_envoye;
+  document.getElementById('modal').classList.remove('hidden');
+}
+function closeModal(){document.getElementById('modal').classList.add('hidden');}
+
+async function save(){
+  const p={
+    labo_code:   document.getElementById('m-labo').value,
+    type_mission:document.getElementById('m-mission').value,
+    statut:      document.getElementById('m-statut').value,
+    priorite:    document.getElementById('m-priorite').value,
+    nature:      document.getElementById('m-nature').value,
+    numero_dst:  document.getElementById('m-dst').value,
+    demandeur:   document.getElementById('m-demandeur').value,
+    date_reception: document.getElementById('m-date').value,
+    date_echeance:  document.getElementById('m-ech').value||null,
+    date_cloture:   document.getElementById('m-clo').value||null,
+    description: document.getElementById('m-desc').value,
+    observations:document.getElementById('m-obs').value,
+    a_revoir:    document.getElementById('m-revoir').checked,
+    note_reconciliation: document.getElementById('m-note').value,
+    suivi_notes: document.getElementById('m-suivi').value,
+    rapport_ref: document.getElementById('m-rapport').value,
+    devis_ref:   document.getElementById('m-devis').value,
+    facture_ref: document.getElementById('m-facture').value,
+    rapport_envoye: document.getElementById('m-envoye').checked,
+  };
+  try{
+    const r=await fetch(`${API}/api/demandes_rst/${uid}`,{method:'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    dem=await r.json();await loadNavigation();closeModal();render();toast('Mise à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+
+async function openConfigModal(){
+  await ensureConfigCatalog();
+  if(!configData) await loadConfiguration();
+  const prep=(configData&&configData.preparation)||{};
+  const phaseSel=document.getElementById('cfg-phase');
+  phaseSel.innerHTML=(configCatalog.phase_options||[]).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  phaseSel.value=prep.phase_operation||'À qualifier';
+  document.getElementById('cfg-attentes').value=prep.attentes_client||'';
+  document.getElementById('cfg-contexte').value=prep.contexte_operationnel||'';
+  document.getElementById('cfg-objectifs').value=prep.objectifs||'';
+  document.getElementById('cfg-vigilance').value=prep.points_vigilance||'';
+  document.getElementById('cfg-acces').value=prep.contraintes_acces||'';
+  document.getElementById('cfg-delais').value=prep.contraintes_delais||'';
+  document.getElementById('cfg-hse').value=prep.contraintes_hse||'';
+  document.getElementById('cfg-programme').value=prep.programme_previsionnel||'';
+  document.getElementById('cfg-ressources').value=prep.ressources_notes||'';
+  document.getElementById('cfg-comments').value=prep.commentaires||'';
+  const selected=new Set((configData&&configData.modules||[]).filter(m=>m.is_enabled).map(m=>m.module_code));
+  document.getElementById('cfg-modules').innerHTML=(configCatalog.modules||[]).map(m=>`<label class="checkbox-card"><input type="checkbox" data-module="${m.module_code}" ${selected.has(m.module_code)?'checked':''}/><div><div class="checkbox-title">${esc(m.label)}</div><div class="checkbox-sub">${esc(m.group)}</div></div></label>`).join('');
+  document.getElementById('config-modal').classList.remove('hidden');
+}
+
+function closeConfigModal(){document.getElementById('config-modal').classList.add('hidden');}
+
+async function saveConfig(){
+  const prep={
+    phase_operation: document.getElementById('cfg-phase').value,
+    attentes_client: document.getElementById('cfg-attentes').value,
+    contexte_operationnel: document.getElementById('cfg-contexte').value,
+    objectifs: document.getElementById('cfg-objectifs').value,
+    points_vigilance: document.getElementById('cfg-vigilance').value,
+    contraintes_acces: document.getElementById('cfg-acces').value,
+    contraintes_delais: document.getElementById('cfg-delais').value,
+    contraintes_hse: document.getElementById('cfg-hse').value,
+    programme_previsionnel: document.getElementById('cfg-programme').value,
+    ressources_notes: document.getElementById('cfg-ressources').value,
+    commentaires: document.getElementById('cfg-comments').value,
+  };
+  const modules=Array.from(document.querySelectorAll('#cfg-modules input[data-module]')).map(el=>({module_code:el.dataset.module,is_enabled:el.checked}));
+  try{
+    const prepRes=await fetch(`${API}/api/demandes_rst/${uid}/preparation`,{method:'PUT',headers:ah(),body:JSON.stringify(prep)});
+    if(!prepRes.ok) throw new Error(await prepRes.text());
+    const modRes=await fetch(`${API}/api/demandes_rst/${uid}/enabled-modules`,{method:'PUT',headers:ah(),body:JSON.stringify({modules})});
+    if(!modRes.ok) throw new Error(await modRes.text());
+    await loadNavigation();
+    closeConfigModal();
+    render();
+    toast('Préparation enregistrée ✓','success');
+  }catch(e){
+    toast('Erreur configuration: '+e.message,'error');
+  }
+}
+
+function goBack(){
+  if(fromAffaire)go(`affaire.html?uid=${fromAffaire}`);
+  else go('demandes.html');
+}
+function urgence(ech,statut){
+  if(!ech||['Fini','Envoyé - Perdu','Archivée'].includes(statut))return'';
+  const diff=(new Date(ech)-new Date())/86400000;
+  return diff<0?'urg-late':diff<=7?'urg-soon':'';
+}
+function laboNom(c){return{SP:'Saint-Priest',PDC:'Pont-du-Château',CHB:'Chambéry',CLM:'Clermont'}[c]||c||'—';}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function js(s){return JSON.stringify(String(s||''));}
+function ah(){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'};}
+function logout(){localStorage.clear();go('login.html');}
+function go(url){window.location.href=url;}
+function fd(v){if(!v)return'—';try{const p=v.slice(0,10).split('-');return`${p[2]}/${p[1]}/${p[0]}`;}catch{return v;}}
+function bStat(s){const m={'À qualifier':'b-gray','Demande':'b-blue','En Cours':'b-green','Répondu':'b-purple','Fini':'b-teal','Envoyé - Perdu':'b-red'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;}
+function bPrio(p){const m={'Basse':'b-gray','Normale':'b-blue','Haute':'b-amber','Critique':'b-red'};return`<span class="badge ${m[p]||'b-gray'}">${p||'?'}</span>`;}
+function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className='',3000);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeConfigModal();}});
+init();
+</script>
+</body>
+</html>

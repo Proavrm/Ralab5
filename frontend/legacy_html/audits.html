@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Audits Qualité</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--nge:#002C77;--surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --aud:#7c3aed;--aud-l:#ede9fe;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+
+/* Sidebar */
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}
+.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.nav-btn:disabled{opacity:.35;cursor:not-allowed}
+.nav-btn .icon{font-size:15px;width:20px;text-align:center}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.user-name{font-size:13px;color:#fff;font-weight:500}
+.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+.btn-logout:hover{background:#2a2a40;color:#fff}
+
+/* Main */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+#hdr-title{font-size:15px;font-weight:600;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--aud);border-color:var(--aud);color:#fff}
+.btn.primary:hover{filter:brightness(1.1)}.btn.success{background:var(--success);border-color:var(--success);color:#fff}
+.btn.danger{border-color:var(--danger);color:var(--danger)}.btn.danger:hover{background:#fcebeb}
+.btn.sm{padding:5px 10px;font-size:12px}
+
+/* Stats bar */
+#stats-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:16px;flex-shrink:0}
+.stat-chip{display:flex;flex-direction:column;align-items:center;padding:8px 16px;border-radius:var(--radius);border:1px solid var(--border);min-width:90px;cursor:pointer;transition:.15s}
+.stat-chip:hover{border-color:var(--aud)}
+.stat-chip.active{border-color:var(--aud);background:var(--aud-l)}
+.stat-n{font-size:22px;font-weight:700;line-height:1}
+.stat-l{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-m);margin-top:3px}
+.stat-chip.danger-chip .stat-n{color:var(--danger)}
+.stat-chip.warn-chip   .stat-n{color:var(--warn)}
+.stat-chip.aud-chip    .stat-n{color:var(--aud)}
+.stat-sep{width:1px;height:40px;background:var(--border);margin:0 4px}
+
+/* Filters */
+.filters-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+.filter-label{font-size:12px;color:var(--text-m);white-space:nowrap}
+.filter-select{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);outline:none}
+#search-wrap{flex:1;max-width:260px}
+#search-wrap input{width:100%;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;background:var(--bg)}
+#search-wrap input:focus{border-color:var(--aud);background:#fff}
+
+/* Split */
+#split{flex:1;display:flex;overflow:hidden;min-height:0}
+#table-wrap{flex:1;overflow-y:auto;min-width:0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;z-index:5}
+thead th:hover{color:var(--text)}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+tbody tr:hover{background:#f8f8fc}
+tbody tr.selected{background:var(--aud-l)}
+td{padding:9px 14px;vertical-align:middle}
+.empty-state{padding:60px;text-align:center;color:var(--text-m)}
+
+/* Detail panel */
+#detail{width:400px;min-width:340px;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;overflow:hidden;flex-shrink:0}
+#detail.visible{display:flex}
+.det-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-shrink:0}
+.det-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.det-tab{flex:1;padding:10px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:500;color:var(--text-m);border-bottom:2px solid transparent;transition:.15s}
+.det-tab.active{color:var(--aud);border-bottom-color:var(--aud)}
+.det-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1}
+.det-body.hidden{display:none}
+.det-section{display:flex;flex-direction:column;gap:6px}
+.det-stitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:2px}
+.det-field{display:flex;flex-direction:column;gap:2px}
+.det-field label{font-size:10px;color:var(--text-m)}
+.det-field span{font-size:13px;font-weight:500}
+.det-field span.empty{color:var(--text-m);font-style:italic;font-weight:400}
+.det-text{font-size:12px;line-height:1.6;white-space:pre-wrap;color:var(--text)}
+.det-actions{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+
+/* NC list */
+.nc-item{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:border-color .15s}
+.nc-item:hover{border-color:var(--aud)}
+.nc-item.retard{border-left:3px solid var(--danger)}
+.nc-item.cloturee{opacity:.6}
+.nc-ref{font-size:11px;font-weight:700;color:var(--aud)}
+.nc-desc{font-size:13px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.nc-meta{display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap}
+
+/* Badges */
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.b-gray{background:#f1efe8;color:#5f5e5a}.b-blue{background:#e6f1fb;color:#185fa5}
+.b-green{background:#eaf3de;color:#3b6d11}.b-amber{background:#faeeda;color:#854f0b}
+.b-red{background:#fcebeb;color:#a32d2d}.b-purple{background:var(--aud-l);color:var(--aud)}
+.b-teal{background:#e0f5ef;color:#0f6e56}
+
+/* Modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:12px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.modal-lg{width:720px}.modal-md{width:580px}
+.modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h2{font-size:15px;font-weight:600}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-m)}
+.modal-body{padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:500;color:var(--text-m)}
+.form-group input,.form-group select,.form-group textarea{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;font-family:inherit;background:var(--bg);transition:.15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--aud);background:#fff}
+.form-group input[readonly]{color:var(--text-m)}
+.form-group textarea{resize:vertical;min-height:75px}
+.form-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:6px;grid-column:1/-1;margin-top:4px}
+
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{background:var(--success);color:#fff}
+#toast.error{background:var(--danger);color:#fff}
+#toast.info{background:#1a1a2e;color:#fff}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+  <div class="nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+    <button class="nav-btn" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
+<button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
+        <button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+    <div class="nav-section">Qualité</div>
+    <button class="nav-btn active"><span class="icon">🔍</span> Audits</button>
+    <div class="nav-section">Administration</div>
+    <button class="nav-btn" onclick="go('admin.html')"><span class="icon">👤</span> Utilisateurs</button>
+    <button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-row">
+      <div class="user-av" id="sidebar-av">?</div>
+      <div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div>
+    </div>
+    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+  </div>
+</nav>
+
+<div id="main">
+  <div id="hdr">
+    <span id="hdr-title">Audits Qualité</span>
+    <div id="search-wrap"><input id="search-input" type="text" placeholder="Référence, organisme, périmètre…" oninput="onSearch()"/></div>
+    <button class="btn primary" onclick="openCreateAudit()">+ Nouvel audit</button>
+    <button class="btn sm" onclick="loadAll()">↻</button>
+  </div>
+
+  <!-- Stats -->
+  <div id="stats-bar">
+    <div class="stat-chip aud-chip" onclick="filterView('all')" id="chip-all">
+      <div class="stat-n" id="s-year">—</div>
+      <div class="stat-l">Cette année</div>
+    </div>
+    <div class="stat-chip" onclick="filterView('planifies')" id="chip-plan">
+      <div class="stat-n" id="s-plan">—</div>
+      <div class="stat-l">Planifiés</div>
+    </div>
+    <div class="stat-chip" onclick="filterView('en_cours')" id="chip-enc">
+      <div class="stat-n" id="s-enc">—</div>
+      <div class="stat-l">En cours</div>
+    </div>
+    <div class="stat-sep"></div>
+    <div class="stat-chip warn-chip" onclick="filterView('nc')" id="chip-nc">
+      <div class="stat-n" id="s-nc">—</div>
+      <div class="stat-l">NCs ouvertes</div>
+    </div>
+    <div class="stat-chip danger-chip" onclick="filterView('retard')" id="chip-ret">
+      <div class="stat-n" id="s-ret">—</div>
+      <div class="stat-l">NCs en retard</div>
+    </div>
+    <div style="margin-left:auto;font-size:12px;color:var(--text-m)" id="filter-info"></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-bar">
+    <span class="filter-label">Statut :</span>
+    <select class="filter-select" id="f-statut" onchange="loadAudits()">
+      <option value="">Tous</option>
+      <option>Planifié</option><option>En cours</option><option>Clôturé</option><option>Annulé</option>
+    </select>
+    <span class="filter-label">Type :</span>
+    <select class="filter-select" id="f-type" onchange="loadAudits()">
+      <option value="">Tous</option>
+      <option>Interne</option><option>Externe</option><option>COFRAC</option>
+      <option>Client</option><option>Fournisseur</option><option>Autre</option>
+    </select>
+    <span class="filter-label">Année :</span>
+    <select class="filter-select" id="f-annee" onchange="loadAudits()">
+      <option value="">Toutes</option>
+      <option>2026</option><option>2025</option><option>2024</option>
+    </select>
+    <button class="btn sm" onclick="clearFilters()">✕ Effacer</button>
+  </div>
+
+  <!-- Split -->
+  <div id="split">
+    <div id="table-wrap">
+      <table>
+        <thead><tr>
+          <th onclick="sortBy('reference')">Référence ↕</th>
+          <th onclick="sortBy('date_audit')">Date</th>
+          <th onclick="sortBy('type_audit')">Type</th>
+          <th onclick="sortBy('organisme')">Organisme</th>
+          <th onclick="sortBy('responsable')">Responsable</th>
+          <th onclick="sortBy('statut')">Statut</th>
+          <th style="text-align:center">NCs</th>
+        </tr></thead>
+        <tbody id="tbody">
+          <tr><td colspan="7"><div class="empty-state">Chargement…</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Detail -->
+    <div id="detail">
+      <div class="det-header">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:var(--aud)" id="d-ref">—</div>
+          <div style="font-size:11px;color:var(--text-m);margin-top:2px" id="d-type">—</div>
+        </div>
+        <button class="btn sm" onclick="closeDetail()">×</button>
+      </div>
+
+      <div class="det-tabs">
+        <button class="det-tab active" id="tab-info" onclick="switchTab('info')">Fiche audit</button>
+        <button class="det-tab" id="tab-nc" onclick="switchTab('nc')">Non-conformités <span id="nc-badge"></span></button>
+      </div>
+
+      <!-- Tab Fiche -->
+      <div class="det-body" id="body-info">
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="d-badges"></div>
+
+        <div class="det-section">
+          <div class="det-stitle">Identification</div>
+          <div class="det-field"><label>Organisme auditeur</label><span id="d-organisme">—</span></div>
+          <div class="det-field"><label>Responsable</label><span id="d-resp">—</span></div>
+          <div class="det-field"><label>Date début</label><span id="d-date">—</span></div>
+          <div class="det-field"><label>Date fin</label><span id="d-fin">—</span></div>
+        </div>
+
+        <div class="det-section">
+          <div class="det-stitle">Périmètre</div>
+          <p class="det-text" id="d-perimetre">—</p>
+        </div>
+
+        <div class="det-section" id="d-synthese-wrap">
+          <div class="det-stitle">Synthèse / Conclusions</div>
+          <p class="det-text" id="d-synthese">—</p>
+        </div>
+      </div>
+
+      <!-- Tab NCs -->
+      <div class="det-body hidden" id="body-nc">
+        <button class="btn success" style="width:100%" onclick="openCreateNc()">+ Nouvelle non-conformité</button>
+        <div id="nc-list">
+          <div class="empty-state" style="padding:32px">Aucune NC</div>
+        </div>
+      </div>
+
+      <div class="det-actions">
+        <button class="btn sm primary" onclick="openEditAudit()">✏️ Modifier</button>
+        <button class="btn sm danger" onclick="deleteAudit()">🗑 Supprimer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Audit -->
+<div class="modal-overlay hidden" id="modal-audit">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 id="maud-title">Nouvel audit</h2>
+      <button class="modal-close" onclick="closeModalAudit()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ma-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-section">Identification</div>
+        <div class="form-group"><label>Référence</label><input id="ma-ref" readonly placeholder="Générée auto"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="ma-statut"><option>Planifié</option><option>En cours</option><option>Clôturé</option><option>Annulé</option></select>
+        </div>
+        <div class="form-group"><label>Type d'audit</label>
+          <select id="ma-type"><option>Interne</option><option>Externe</option><option>COFRAC</option><option>Client</option><option>Fournisseur</option><option>Autre</option></select>
+        </div>
+        <div class="form-group"><label>Organisme auditeur</label><input id="ma-organisme" placeholder="COFRAC, Bureau Veritas, NGE…"/></div>
+        <div class="form-group"><label>Responsable interne</label><input id="ma-resp"/></div>
+        <div class="form-group"><label>Date début *</label><input id="ma-date" type="date"/></div>
+        <div class="form-group"><label>Date fin</label><input id="ma-fin" type="date"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-section">Contenu</div>
+        <div class="form-group full"><label>Périmètre / Scope</label>
+          <textarea id="ma-perimetre" placeholder="Activités, laboratoires, processus couverts par l'audit…"></textarea>
+        </div>
+        <div class="form-group full"><label>Synthèse / Conclusions</label>
+          <textarea id="ma-synthese" placeholder="Points forts, points faibles, conclusion générale…"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModalAudit()">Annuler</button>
+      <button class="btn primary" onclick="saveAudit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal NC -->
+<div class="modal-overlay hidden" id="modal-nc">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2 id="mnc-title">Nouvelle non-conformité</h2>
+      <button class="modal-close" onclick="closeModalNc()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mn-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group"><label>Type</label>
+          <select id="mn-type">
+            <option>Majeure</option><option>Mineure</option>
+            <option>Observation</option><option>Opportunité d'amélioration</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Statut</label>
+          <select id="mn-statut"><option>Ouverte</option><option>En cours</option><option>Clôturée</option><option>Vérifiée</option></select>
+        </div>
+        <div class="form-group full"><label>Description du constat *</label>
+          <textarea id="mn-desc" placeholder="Décrire l'écart constaté par rapport à l'exigence…" rows="3"></textarea>
+        </div>
+        <div class="form-group full"><label>Action corrective</label>
+          <textarea id="mn-action" placeholder="Action mise en place pour corriger l'écart…" rows="3"></textarea>
+        </div>
+        <div class="form-group"><label>Responsable action</label><input id="mn-resp"/></div>
+        <div class="form-group"><label>Échéance</label><input id="mn-ech" type="date"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModalNc()">Annuler</button>
+      <button class="btn success" onclick="saveNc()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const API='http://127.0.0.1:8000';
+let user=null,token=null,audits=[],ncs=[],selUid=null,viewMode='all';
+let sortCol='date_audit',sortAsc=false,srchTimer=null,activeTab='info';
+
+async function init(){
+  token=localStorage.getItem('ralab_token');
+  user=JSON.parse(localStorage.getItem('ralab_user')||'null');
+  if(!token||!user){go('login.html');return;}
+  const ini=user.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-av').textContent=ini;
+  document.getElementById('sidebar-name').textContent=user.display_name;
+  document.getElementById('sidebar-role').textContent=user.service_code||'';
+  await loadAll();
+}
+
+async function loadAll(){
+  await Promise.all([loadStats(), loadAudits()]);
+}
+
+async function loadStats(){
+  try{
+    const r=await fetch(`${API}/api/audits/stats`,{headers:ah()});
+    if(!r.ok)return;
+    const s=await r.json();
+    document.getElementById('s-year').textContent=s.total_year;
+    document.getElementById('s-plan').textContent=s.planifies;
+    document.getElementById('s-enc').textContent=s.en_cours;
+    document.getElementById('s-nc').textContent=s.nc_ouvertes;
+    document.getElementById('s-ret').textContent=s.nc_retard;
+  }catch{}
+}
+
+async function loadAudits(){
+  const params=new URLSearchParams();
+  const s=document.getElementById('f-statut').value;
+  const t=document.getElementById('f-type').value;
+  const a=document.getElementById('f-annee').value;
+  const q=document.getElementById('search-input').value;
+  if(viewMode==='planifies') {document.getElementById('f-statut').value='Planifié';params.set('statut','Planifié');}
+  else if(viewMode==='en_cours'){document.getElementById('f-statut').value='En cours';params.set('statut','En cours');}
+  else{if(s)params.set('statut',s);}
+  if(t)params.set('type_audit',t);
+  if(a)params.set('annee',a);
+  if(q)params.set('search',q);
+
+  if(viewMode==='nc'||viewMode==='retard'){
+    // Afficher NCs ouvertes en mode global
+    try{
+      const r=await fetch(`${API}/api/audits/nc/open`,{headers:ah()});
+      const data=r.ok?await r.json():[];
+      const filtered=viewMode==='retard'?data.filter(n=>n.en_retard):data;
+      document.getElementById('filter-info').textContent=`${filtered.length} NC${filtered.length!==1?'s':''}`;
+      renderNcGlobal(filtered);
+    }catch{toast('Erreur API','error');}
+    return;
+  }
+
+  try{
+    const r=await fetch(`${API}/api/audits?${params}`,{headers:ah()});
+    if(!r.ok)throw new Error();
+    audits=await r.json();
+    document.getElementById('filter-info').textContent=`${audits.length} audit${audits.length!==1?'s':''}`;
+    renderTable();
+  }catch{toast('Erreur API','error');}
+}
+
+function renderTable(){
+  const tbody=document.getElementById('tbody');
+  if(!audits.length){
+    tbody.innerHTML='<tr><td colspan="7"><div class="empty-state">🔍 Aucun audit</div></td></tr>';return;
+  }
+  const sorted=[...audits].sort((a,b)=>{
+    const va=String(a[sortCol]||'').toLowerCase(),vb=String(b[sortCol]||'').toLowerCase();
+    return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+  });
+  tbody.innerHTML=sorted.map(a=>`
+    <tr onclick="selectRow(${a.uid})" class="${a.uid===selUid?'selected':''}">
+      <td><strong style="color:var(--aud)">${a.reference}</strong></td>
+      <td style="font-size:12px">${fd(a.date_audit)}</td>
+      <td>${bType(a.type_audit)}</td>
+      <td>${a.organisme||'—'}</td>
+      <td style="font-size:12px">${a.responsable||'—'}</td>
+      <td>${bStat(a.statut)}</td>
+      <td style="text-align:center">
+        ${a.nb_nc>0?`<span class="badge ${a.nb_nc_ouvertes>0?'b-amber':'b-teal'}" style="font-size:10px">${a.nb_nc_ouvertes}/${a.nb_nc}</span>`:'—'}
+      </td>
+    </tr>`).join('');
+}
+
+function renderNcGlobal(data){
+  const tbody=document.getElementById('tbody');
+  if(!data.length){
+    tbody.innerHTML='<tr><td colspan="7"><div class="empty-state">✅ Aucune NC ouverte</div></td></tr>';return;
+  }
+  // Changer les headers
+  tbody.innerHTML=data.map(nc=>`
+    <tr onclick="goToAudit(${nc.audit_id})">
+      <td><strong style="color:var(--aud)">${nc.reference}</strong></td>
+      <td style="font-size:12px">${nc.audit_ref||'—'}</td>
+      <td>${bTypeNc(nc.type_nc)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${nc.description||'—'}</td>
+      <td style="font-size:12px">${nc.responsable_action||'—'}</td>
+      <td>${nc.en_retard?`<span class="badge b-red">⚠ Retard</span>`:bStatNc(nc.statut)}</td>
+      <td style="font-size:12px">${nc.echeance?fd(nc.echeance):'—'}</td>
+    </tr>`).join('');
+}
+
+async function selectRow(uid){
+  selUid=uid;renderTable();
+  await loadDetail(uid);
+  document.getElementById('detail').classList.add('visible');
+}
+
+async function loadDetail(uid){
+  try{
+    const [ra, rn]=await Promise.all([
+      fetch(`${API}/api/audits/${uid}`,{headers:ah()}),
+      fetch(`${API}/api/audits/${uid}/nc`,{headers:ah()})
+    ]);
+    const a=await ra.json();
+    ncs=rn.ok?await rn.json():[];
+    renderDetail(a);
+    renderNcList();
+  }catch{toast('Erreur chargement','error');}
+}
+
+function renderDetail(a){
+  document.getElementById('d-ref').textContent=a.reference;
+  document.getElementById('d-type').textContent=`${a.type_audit} — ${a.organisme||'Organisme non défini'}`;
+  document.getElementById('d-badges').innerHTML=bStat(a.statut)+' '+bType(a.type_audit);
+  df('d-organisme',a.organisme);df('d-resp',a.responsable);
+  document.getElementById('d-date').textContent=fd(a.date_audit);
+  document.getElementById('d-fin').textContent=a.date_fin?fd(a.date_fin):'—';
+  document.getElementById('d-perimetre').textContent=a.perimetre||'—';
+  document.getElementById('d-synthese').textContent=a.synthese||'—';
+  document.getElementById('nc-badge').textContent=ncs.length?`(${ncs.filter(n=>n.en_retard||n.statut==='Ouverte'||n.statut==='En cours').length}/${ncs.length})`:'';
+}
+
+function renderNcList(){
+  const list=document.getElementById('nc-list');
+  const today=new Date().toISOString().split('T')[0];
+  if(!ncs.length){
+    list.innerHTML='<div class="empty-state" style="padding:24px;text-align:center;color:var(--text-m)">Aucune NC — <button class="btn sm success" onclick="openCreateNc()" style="margin-left:6px">+ Ajouter</button></div>';
+    return;
+  }
+  list.innerHTML=ncs.map(nc=>`
+    <div class="nc-item ${nc.en_retard?'retard':''} ${['Clôturée','Vérifiée'].includes(nc.statut)?'cloturee':''}"
+         onclick="openEditNc(${nc.uid})">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span class="nc-ref">${nc.reference}</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          ${nc.en_retard?'<span class="badge b-red" style="font-size:10px">Retard</span>':''}
+          ${bStatNc(nc.statut)}
+        </div>
+      </div>
+      <div class="nc-desc">${nc.description||'—'}</div>
+      <div class="nc-meta">
+        ${bTypeNc(nc.type_nc)}
+        ${nc.responsable_action?`<span style="font-size:11px;color:var(--text-m)">→ ${nc.responsable_action}</span>`:''}
+        ${nc.echeance?`<span style="font-size:11px;color:${nc.en_retard?'var(--danger)':'var(--text-m)'}">${fd(nc.echeance)}</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function closeDetail(){selUid=null;document.getElementById('detail').classList.remove('visible');renderTable();}
+
+function switchTab(tab){
+  activeTab=tab;
+  ['info','nc'].forEach(t=>{
+    document.getElementById(`tab-${t}`).classList.toggle('active',t===tab);
+    document.getElementById(`body-${t}`).classList.toggle('hidden',t!==tab);
+  });
+}
+
+function filterView(mode){
+  viewMode=mode;
+  ['all','planifies','en_cours','nc','retard'].forEach(m=>{
+    const id=m==='all'?'chip-all':m==='planifies'?'chip-plan':m==='en_cours'?'chip-enc':m==='nc'?'chip-nc':'chip-ret';
+    document.getElementById(id).classList.toggle('active',m===mode);
+  });
+  if(mode==='all'){document.getElementById('f-statut').value='';}
+  loadAudits();
+}
+
+function goToAudit(uid){
+  viewMode='all';
+  ['chip-all','chip-plan','chip-enc','chip-nc','chip-ret'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('chip-all').classList.add('active');
+  document.getElementById('f-statut').value='';
+  loadAudits().then(()=>selectRow(uid));
+}
+
+function sortBy(col){sortAsc=sortCol===col?!sortAsc:true;sortCol=col;renderTable();}
+function onSearch(){clearTimeout(srchTimer);srchTimer=setTimeout(loadAudits,300);}
+function clearFilters(){['f-statut','f-type','f-annee'].forEach(id=>document.getElementById(id).value='');document.getElementById('search-input').value='';viewMode='all';loadAudits();}
+
+// ── AUDIT CRUD ────────────────────────────────────────────────────────────────
+async function openCreateAudit(){
+  document.getElementById('maud-title').textContent='Nouvel audit';
+  document.getElementById('ma-uid').value='0';
+  document.getElementById('ma-ref').value='';
+  document.getElementById('ma-type').value='Interne';
+  document.getElementById('ma-statut').value='Planifié';
+  document.getElementById('ma-organisme').value='';
+  document.getElementById('ma-resp').value=user.display_name||'';
+  document.getElementById('ma-date').value=today();
+  document.getElementById('ma-fin').value='';
+  document.getElementById('ma-perimetre').value='';
+  document.getElementById('ma-synthese').value='';
+  document.getElementById('modal-audit').classList.remove('hidden');
+}
+
+function openEditAudit(){
+  const a=audits.find(x=>x.uid===selUid);if(!a)return;
+  document.getElementById('maud-title').textContent="Modifier l'audit";
+  document.getElementById('ma-uid').value=a.uid;
+  document.getElementById('ma-ref').value=a.reference;
+  document.getElementById('ma-type').value=a.type_audit||'Interne';
+  document.getElementById('ma-statut').value=a.statut||'Planifié';
+  document.getElementById('ma-organisme').value=a.organisme||'';
+  document.getElementById('ma-resp').value=a.responsable||'';
+  document.getElementById('ma-date').value=a.date_audit||'';
+  document.getElementById('ma-fin').value=a.date_fin||'';
+  document.getElementById('ma-perimetre').value=a.perimetre||'';
+  document.getElementById('ma-synthese').value=a.synthese||'';
+  document.getElementById('modal-audit').classList.remove('hidden');
+}
+
+function closeModalAudit(){document.getElementById('modal-audit').classList.add('hidden');}
+
+async function saveAudit(){
+  const uid=parseInt(document.getElementById('ma-uid').value);
+  const p={
+    type_audit:   document.getElementById('ma-type').value,
+    statut:       document.getElementById('ma-statut').value,
+    organisme:    document.getElementById('ma-organisme').value,
+    responsable:  document.getElementById('ma-resp').value,
+    date_audit:   document.getElementById('ma-date').value,
+    date_fin:     document.getElementById('ma-fin').value||null,
+    perimetre:    document.getElementById('ma-perimetre').value,
+    synthese:     document.getElementById('ma-synthese').value,
+  };
+  try{
+    const url=uid===0?`${API}/api/audits`:`${API}/api/audits/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();
+    closeModalAudit();await loadAll();
+    selUid=saved.uid;await selectRow(saved.uid);
+    toast(uid===0?'Audit créé ✓':'Mis à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteAudit(){
+  const a=audits.find(x=>x.uid===selUid);
+  if(!a||!confirm(`Supprimer l'audit ${a.reference} et toutes ses NCs ?`))return;
+  await fetch(`${API}/api/audits/${selUid}`,{method:'DELETE',headers:ah()});
+  closeDetail();await loadAll();toast('Audit supprimé','info');
+}
+
+// ── NC CRUD ───────────────────────────────────────────────────────────────────
+function openCreateNc(){
+  if(!selUid){toast('Sélectionner un audit','error');return;}
+  document.getElementById('mnc-title').textContent='Nouvelle non-conformité';
+  document.getElementById('mn-uid').value='0';
+  document.getElementById('mn-type').value='Mineure';
+  document.getElementById('mn-statut').value='Ouverte';
+  document.getElementById('mn-desc').value='';
+  document.getElementById('mn-action').value='';
+  document.getElementById('mn-resp').value='';
+  document.getElementById('mn-ech').value='';
+  document.getElementById('modal-nc').classList.remove('hidden');
+}
+
+function openEditNc(ncUid){
+  const nc=ncs.find(x=>x.uid===ncUid);if(!nc)return;
+  document.getElementById('mnc-title').textContent='Modifier la non-conformité';
+  document.getElementById('mn-uid').value=nc.uid;
+  document.getElementById('mn-type').value=nc.type_nc||'Mineure';
+  document.getElementById('mn-statut').value=nc.statut||'Ouverte';
+  document.getElementById('mn-desc').value=nc.description||'';
+  document.getElementById('mn-action').value=nc.action_corrective||'';
+  document.getElementById('mn-resp').value=nc.responsable_action||'';
+  document.getElementById('mn-ech').value=nc.echeance||'';
+  document.getElementById('modal-nc').classList.remove('hidden');
+}
+
+function closeModalNc(){document.getElementById('modal-nc').classList.add('hidden');}
+
+async function saveNc(){
+  const ncUid=parseInt(document.getElementById('mn-uid').value);
+  const p={
+    type_nc:            document.getElementById('mn-type').value,
+    statut:             document.getElementById('mn-statut').value,
+    description:        document.getElementById('mn-desc').value,
+    action_corrective:  document.getElementById('mn-action').value,
+    responsable_action: document.getElementById('mn-resp').value,
+    echeance:           document.getElementById('mn-ech').value||null,
+  };
+  try{
+    const url=ncUid===0?`${API}/api/audits/${selUid}/nc`:`${API}/api/audits/nc/${ncUid}`;
+    const r=await fetch(url,{method:ncUid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    closeModalNc();
+    await loadDetail(selUid);
+    switchTab('nc');
+    await loadStats();
+    toast(ncUid===0?'NC créée ✓':'NC mise à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+// Helpers
+function bStat(s){const m={Planifié:'b-blue','En cours':'b-amber',Clôturé:'b-teal',Annulé:'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;}
+function bType(t){const m={Interne:'b-blue',Externe:'b-purple',COFRAC:'b-purple',Client:'b-amber',Fournisseur:'b-gray',Autre:'b-gray'};return`<span class="badge ${m[t]||'b-gray'}">${t}</span>`;}
+function bStatNc(s){const m={Ouverte:'b-red','En cours':'b-amber',Clôturée:'b-teal',Vérifiée:'b-green'};return`<span class="badge ${m[s]||'b-gray'}">${s}</span>`;}
+function bTypeNc(t){const m={Majeure:'b-red',Mineure:'b-amber',"Observation":'b-blue',"Opportunité d'amélioration":'b-green'};return`<span class="badge ${m[t]||'b-gray'}" style="font-size:10px">${t}</span>`;}
+function ah(){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'};}
+function logout(){localStorage.clear();go('login.html');}
+function go(url){window.location.href=url;}
+function today(){return new Date().toISOString().split('T')[0];}
+function fd(v){if(!v)return'—';try{const p=v.slice(0,10).split('-');return`${p[2]}/${p[1]}/${p[0]}`;}catch{return v;}}
+function df(id,v){const e=document.getElementById(id);if(!e)return;e.textContent=v||'—';e.className=v?'':'empty';}
+function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className='',3000);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModalAudit();closeModalNc();}});
+init();
+</script>
+</body>
+</html>

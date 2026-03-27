@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Essais Laboratoire</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--nge:#002C77;--surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --labo:#185fa5;--labo-l:#e6f1fb;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}
+.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}
+.user-name{font-size:13px;color:#fff;font-weight:500}
+.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+.btn-logout:hover{background:#2a2a40;color:#fff}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.ctx-bar{background:var(--labo-l);border-bottom:1px solid #c0d9f0;padding:10px 24px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.ctx-label{font-size:12px;color:var(--labo);font-weight:600}
+.ctx-val{font-size:12px;color:var(--labo)}
+.ctx-sep{color:#c0d9f0}
+.page-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+.back-btn{display:flex;align-items:center;gap:6px;color:var(--text-m);font-size:13px;cursor:pointer;background:none;border:none;padding:5px 10px;border-radius:var(--radius);transition:.15s}
+.back-btn:hover{background:var(--bg);color:var(--text)}
+.page-title{font-size:15px;font-weight:600;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--labo);border-color:var(--labo);color:#fff}
+.btn.primary:hover{background:#124d88}.btn.sm{padding:5px 10px;font-size:12px}
+.btn.success{background:var(--success);border-color:var(--success);color:#fff}
+.btn.danger{border-color:var(--danger);color:var(--danger)}.btn.danger:hover{background:#fcebeb}
+/* Layout principal: 2 colonnes gauche/droite */
+#body{flex:1;display:flex;overflow:hidden;min-height:0}
+/* Colonne gauche: échantillons */
+#col-ech{width:340px;min-width:280px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+.col-header{padding:10px 16px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.col-header h3{font-size:12px;font-weight:600;color:var(--text-m);text-transform:uppercase;letter-spacing:.04em}
+.ech-list{flex:1;overflow-y:auto}
+.ech-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.ech-item:hover{background:#f8f8fc}
+.ech-item.selected{background:var(--labo-l);border-left:3px solid var(--labo)}
+.ech-ref{font-size:12px;font-weight:700;color:var(--labo)}
+.ech-desig{font-size:13px;color:var(--text);margin-top:2px}
+.ech-meta{font-size:11px;color:var(--text-m);margin-top:3px}
+.ech-empty{padding:32px;text-align:center;color:var(--text-m);font-size:13px}
+/* Colonne droite: essais de l'échantillon sélectionné */
+#col-essais{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.essais-placeholder{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text-m);font-size:13px;flex-direction:column;gap:10px}
+/* Table essais */
+#essais-wrap{flex:1;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--bg);padding:8px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+tbody tr:hover{background:#f8f8fc}
+tbody tr.selected{background:var(--labo-l)}
+td{padding:8px 14px;vertical-align:middle}
+.empty-state{padding:40px;text-align:center;color:var(--text-m)}
+/* Panel essai detail */
+#essai-detail{width:320px;min-width:280px;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;overflow-y:auto;flex-shrink:0}
+#essai-detail.visible{display:flex}
+.det-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.det-body{padding:14px 16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.det-section{display:flex;flex-direction:column;gap:5px}
+.det-stitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:3px;margin-bottom:2px}
+.det-field{display:flex;flex-direction:column;gap:2px}
+.det-field label{font-size:10px;color:var(--text-m)}
+.det-field span{font-size:13px;font-weight:500}
+.det-field span.empty{color:var(--text-m);font-style:italic;font-weight:400}
+.det-actions{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.b-gray{background:#f1efe8;color:#5f5e5a}.b-blue{background:#e6f1fb;color:#185fa5}
+.b-green{background:#eaf3de;color:#3b6d11}.b-amber{background:#faeeda;color:#854f0b}
+.b-red{background:#fcebeb;color:#a32d2d}.b-purple{background:#eeedfe;color:#534ab7}
+.b-teal{background:#e0f5ef;color:#0f6e56}
+/* Modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:12px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.modal-sm{width:520px}
+.modal-md{width:660px}
+.modal-header{padding:18px 24px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h2{font-size:14px;font-weight:600}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-m)}
+.modal-body{padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.modal-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:500;color:var(--text-m)}
+.form-group input,.form-group select,.form-group textarea{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;font-family:inherit;background:var(--bg);transition:.15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--labo);background:#fff}
+.form-group input[readonly]{color:var(--text-m)}
+.form-group textarea{resize:vertical;min-height:60px}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{background:var(--success);color:#fff}
+#toast.error{background:var(--danger);color:#fff}
+#toast.info{background:#1a1a2e;color:#fff}
+.module-banner{display:flex;align-items:flex-start;gap:10px;padding:12px 24px;border-bottom:1px solid #f1d39a;background:#fff6e6;color:#7a4a00;font-size:13px}
+.module-banner.hidden{display:none}
+.module-banner strong{display:block;font-size:13px}
+.module-banner span{display:block;font-size:12px;color:#8a6a32;margin-top:2px}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+  <div class="nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+    <button class="nav-btn" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
+<button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
+        <button class="nav-btn active" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+    <button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
+    <div class="nav-section">Administration</div>
+    <button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-row">
+      <div class="user-av" id="sidebar-av">?</div>
+      <div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div>
+    </div>
+    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+  </div>
+</nav>
+
+<div id="main">
+  <div class="ctx-bar">
+    <span class="ctx-label">🔬 Laboratoire</span>
+    <span class="ctx-sep">|</span>
+    <span class="ctx-val" id="ctx-demande">Chargement…</span>
+    <span class="ctx-sep">|</span>
+    <span class="ctx-val" id="ctx-chantier">—</span>
+  </div>
+
+  <div class="page-header">
+    <button class="back-btn" id="back-btn" onclick="goBack()">← Demande</button>
+    <span class="page-title">Échantillons &amp; Essais</span>
+    <button class="btn primary" id="btn-create-ech" onclick="openCreateEch()">+ Échantillon</button>
+    <button class="btn sm success" id="btn-essai" onclick="openCreateEssai()" disabled>+ Essai</button>
+    <button class="btn sm" onclick="loadAll()">↻</button>
+  </div>
+  <div id="module-banner" class="module-banner hidden"></div>
+
+  <div id="body">
+    <!-- Colonne échantillons -->
+    <div id="col-ech">
+      <div class="col-header">
+        <h3>Échantillons <span id="ech-count" style="font-weight:400"></span></h3>
+      </div>
+      <div class="ech-list" id="ech-list">
+        <div class="ech-empty">Chargement…</div>
+      </div>
+    </div>
+
+    <!-- Colonne essais -->
+    <div id="col-essais">
+      <div class="col-header">
+        <h3 id="essais-title">Essais</h3>
+      </div>
+      <div id="essais-placeholder" class="essais-placeholder">
+        <span style="font-size:28px">🔬</span>
+        <span>Sélectionner un échantillon</span>
+      </div>
+      <div id="essais-wrap" style="display:none">
+        <table>
+          <thead><tr>
+            <th>Type essai</th><th>Norme</th><th>Statut</th>
+            <th>Début</th><th>Fin</th><th>Opérateur</th>
+          </tr></thead>
+          <tbody id="essais-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Panel détail essai -->
+      <div id="essai-detail">
+        <div class="det-header">
+          <div style="font-size:13px;font-weight:600;color:var(--labo)" id="ed-type">—</div>
+          <button class="btn sm" onclick="closeEssaiDetail()">×</button>
+        </div>
+        <div class="det-body">
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="ed-badges"></div>
+          <div class="det-section">
+            <div class="det-stitle">Essai</div>
+            <div class="det-field"><label>Norme</label><span id="ed-norme">—</span></div>
+            <div class="det-field"><label>Opérateur</label><span id="ed-op">—</span></div>
+            <div class="det-field"><label>Début</label><span id="ed-debut">—</span></div>
+            <div class="det-field"><label>Fin</label><span id="ed-fin">—</span></div>
+          </div>
+          <div class="det-section">
+            <div class="det-stitle">Résultats</div>
+            <pre id="ed-resultats" style="font-size:12px;white-space:pre-wrap;color:var(--text)">—</pre>
+          </div>
+          <div class="det-section" id="ed-obs-wrap">
+            <div class="det-stitle">Observations</div>
+            <span id="ed-obs" style="font-size:12px;color:var(--text)">—</span>
+          </div>
+        </div>
+        <div class="det-actions">
+          <button class="btn sm primary" onclick="openEditEssai()">✏️ Modifier</button>
+          <button class="btn sm danger" onclick="deleteEssai()">🗑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal échantillon -->
+<div class="modal-overlay hidden" id="modal-ech">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2 id="mech-title">Nouvel échantillon</h2>
+      <button class="modal-close" onclick="closeModalEch()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="me-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group"><label>Référence</label><input id="me-ref" readonly placeholder="Générée auto"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="me-statut"><option>Reçu</option><option>En attente</option><option>En cours</option><option>Terminé</option><option>Rejeté</option></select>
+        </div>
+        <div class="form-group full"><label>Désignation *</label><input id="me-desig" placeholder="Ex: Argile brune compacte"/></div>
+        <div class="form-group"><label>Prof. haut (m)</label><input id="me-ph" type="number" step="0.01"/></div>
+        <div class="form-group"><label>Prof. bas (m)</label><input id="me-pb" type="number" step="0.01"/></div>
+        <div class="form-group"><label>Localisation</label><input id="me-loc" placeholder="Sondage SC1, PK 12+300…"/></div>
+        <div class="form-group"><label>Date prélèvement</label><input id="me-dprele" type="date"/></div>
+        <div class="form-group"><label>Réception labo</label><input id="me-drec" type="date"/></div>
+        <div class="form-group full"><label>Observations</label><textarea id="me-obs"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn sm danger" id="me-del-btn" onclick="deleteEch()" style="margin-right:auto;display:none">🗑 Supprimer</button>
+      <button class="btn" onclick="closeModalEch()">Annuler</button>
+      <button class="btn primary" onclick="saveEch()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal essai -->
+<div class="modal-overlay hidden" id="modal-essai">
+  <div class="modal modal-md">
+    <div class="modal-header">
+      <h2 id="mes-title">Nouvel essai</h2>
+      <button class="modal-close" onclick="closeModalEssai()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mes-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group full"><label>Échantillon</label><input id="mes-ech-ref" readonly/></div>
+        <div class="form-group"><label>Type d'essai</label><select id="mes-type"></select></div>
+        <div class="form-group"><label>Norme</label><input id="mes-norme" placeholder="NF P 94-051…"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="mes-statut"><option>Programmé</option><option>En cours</option><option>Terminé</option><option>Annulé</option></select>
+        </div>
+        <div class="form-group"><label>Opérateur</label><input id="mes-op"/></div>
+        <div class="form-group"><label>Date début</label><input id="mes-debut" type="date"/></div>
+        <div class="form-group"><label>Date fin</label><input id="mes-fin" type="date"/></div>
+        <div class="form-group full"><label>Résultats</label><textarea id="mes-resultats" rows="3" placeholder='{"w": 24.5, "wL": 48, "IP": 22}'></textarea></div>
+        <div class="form-group full"><label>Observations</label><textarea id="mes-obs"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModalEssai()">Annuler</button>
+      <button class="btn primary" onclick="saveEssai()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+
+const API='http://127.0.0.1:8000';
+let user=null,token=null,demande=null,navContext=null,echantillons=[],essais=[],meta={};
+let selEchUid=null,selEssaiUid=null;
+const params=new URLSearchParams(location.search);
+const demandeId=parseInt(params.get('demande_id')||'0');
+let pendingEchantillonUid=parseInt(params.get('echantillon_uid')||'0');
+let pendingEssaiUid=parseInt(params.get('essai_uid')||'0');
+
+async function init(){
+  token=localStorage.getItem('ralab_token');
+  user=JSON.parse(localStorage.getItem('ralab_user')||'null');
+  if(!token||!user){go('login.html');return;}
+  const ini=user.display_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  document.getElementById('sidebar-av').textContent=ini;
+  document.getElementById('sidebar-name').textContent=user.display_name;
+  document.getElementById('sidebar-role').textContent=user.service_code||'';
+  if(!demandeId){go('demandes.html');return;}
+  try{
+    const r=await fetch(`${API}/api/essais/meta`,{headers:ah()});
+    if(r.ok) meta=await r.json();
+    document.getElementById('mes-type').innerHTML=(meta.types_essai||[]).map(t=>`<option>${t}</option>`).join('');
+  }catch{}
+  await loadDemandeContext();
+  await loadAll();
+}
+
+async function loadDemandeContext(){
+  try{
+    const r=await fetch(`${API}/api/demandes_rst/${demandeId}`,{headers:ah()});
+    if(r.ok){
+      demande=await r.json();
+      document.getElementById('ctx-demande').textContent=demande.reference;
+      document.getElementById('ctx-chantier').textContent=demande.chantier||demande.client||'—';
+      document.getElementById('back-btn').onclick=()=>go(`demande.html?uid=${demandeId}`);
+    }
+  }catch{}
+  try{
+    const r=await fetch(`${API}/api/demandes_rst/${demandeId}/navigation`,{headers:ah()});
+    navContext=r.ok?await r.json():null;
+  }catch{
+    navContext=null;
+  }
+  updateModuleBanner();
+}
+
+function echantillonsEnabled(){
+  return !!(navContext?.visibility?.echantillons);
+}
+
+function essaisEnabled(){
+  return !!(navContext?.visibility?.essais);
+}
+
+function laboEnabled(){
+  return !!(navContext?.visibility?.labo);
+}
+
+function totalCount(name){
+  return Number(navContext?.counts_total?.[name]||0);
+}
+
+function updateModuleBanner(){
+  const banner=document.getElementById('module-banner');
+  const btnEch=document.getElementById('btn-create-ech');
+  const btnEssai=document.getElementById('btn-essai');
+  btnEch.style.display=echantillonsEnabled()?'inline-flex':'none';
+  btnEssai.style.display=essaisEnabled()?'inline-flex':'none';
+  btnEssai.disabled=!essaisEnabled() || !selEchUid;
+
+  if(!laboEnabled()){
+    const hiddenParts=[];
+    if(totalCount('echantillons')) hiddenParts.push(`${totalCount('echantillons')} échantillon(s) masqué(s)`);
+    if(totalCount('essais')) hiddenParts.push(`${totalCount('essais')} essai(s) masqué(s)`);
+    banner.innerHTML=`<div>🚧</div><div><strong>Module laboratoire non activé</strong><span>Cette demande n'ouvre pas l'écran laboratoire pour le moment.${hiddenParts.length?` ${hiddenParts.join(' · ')}.`:''}</span></div>`;
+    banner.classList.remove('hidden');
+    return;
+  }
+
+  if(echantillonsEnabled() && essaisEnabled()){
+    banner.classList.add('hidden');
+    return;
+  }
+
+  if(echantillonsEnabled() && !essaisEnabled()){
+    banner.innerHTML=`<div>ℹ️</div><div><strong>Visibilité laboratoire partielle</strong><span>Les échantillons restent visibles, mais le module Essais laboratoire n'est pas activé sur cette demande.</span></div>`;
+    banner.classList.remove('hidden');
+    return;
+  }
+
+  banner.classList.add('hidden');
+}
+
+async function loadAll(){
+  updateModuleBanner();
+  if(!laboEnabled()){
+    echantillons=[];essais=[];selEchUid=null;selEssaiUid=null;
+    renderLaboLocked();
+    return;
+  }
+  try{
+    const r=await fetch(`${API}/api/essais/echantillons?demande_id=${demandeId}`,{headers:ah()});
+    if(!r.ok)throw new Error();
+    echantillons=await r.json();
+    renderEchList();
+    if(pendingEchantillonUid && echantillons.some(x=>x.uid===pendingEchantillonUid)){
+      await selectEch(pendingEchantillonUid);
+      pendingEchantillonUid=0;
+      return;
+    }
+    if(selEchUid) await loadEssais(selEchUid);
+  }catch{toast('Erreur API','error');}
+}
+
+function renderLaboLocked(){
+  document.getElementById('ech-count').textContent='(0)';
+  document.getElementById('ech-list').innerHTML=`<div class="ech-empty">Le module laboratoire n'est pas activé pour cette demande.<br><button class="btn sm" onclick="goBack()" style="margin-top:10px">← Retour à la demande</button></div>`;
+  document.getElementById('essais-title').textContent='Essais';
+  document.getElementById('essais-wrap').style.display='none';
+  document.getElementById('essai-detail').classList.remove('visible');
+  document.getElementById('essais-placeholder').style.display='flex';
+  document.getElementById('essais-placeholder').innerHTML='<span style="font-size:28px">🔬</span><span>Module laboratoire non activé</span>';
+}
+
+function renderEssaisDisabled(){
+  document.getElementById('essais-wrap').style.display='none';
+  document.getElementById('essai-detail').classList.remove('visible');
+  document.getElementById('essais-placeholder').style.display='flex';
+  document.getElementById('essais-placeholder').innerHTML=`<span style="font-size:28px">🔬</span><span>Le module Essais laboratoire n'est pas activé</span>`;
+}
+
+function renderEchList(){
+  const list=document.getElementById('ech-list');
+  document.getElementById('ech-count').textContent=`(${echantillons.length})`;
+  if(!echantillons.length){
+    list.innerHTML='<div class="ech-empty">Aucun échantillon<br><button class="btn sm primary" onclick="openCreateEch()" style="margin-top:10px">+ Ajouter</button></div>';
+    return;
+  }
+  list.innerHTML=echantillons.map(e=>`
+    <div class="ech-item ${e.uid===selEchUid?'selected':''}" onclick="selectEch(${e.uid})">
+      <div class="ech-ref">${e.reference}</div>
+      <div class="ech-desig">${e.designation||'—'}</div>
+      <div class="ech-meta">
+        ${e.profondeur_haut!=null?`${e.profondeur_haut}–${e.profondeur_bas??'?'} m | `:''}
+        ${e.localisation||''}
+        <span style="float:right">${bStatEch(e.statut)}</span>
+      </div>
+    </div>`).join('');
+}
+
+async function selectEch(uid){
+  if(!laboEnabled()) return;
+  selEchUid=uid;selEssaiUid=null;
+  renderEchList();
+  closeEssaiDetail();
+  document.getElementById('btn-essai').disabled=!essaisEnabled();
+  if(!essaisEnabled()){
+    renderEssaisDisabled();
+    return;
+  }
+  await loadEssais(uid);
+}
+
+async function loadEssais(echUid){
+  if(!essaisEnabled()){
+    renderEssaisDisabled();
+    return;
+  }
+  const r=await fetch(`${API}/api/essais?echantillon_id=${echUid}`,{headers:ah()});
+  essais=r.ok?await r.json():[];
+  const ech=echantillons.find(e=>e.uid===echUid);
+  document.getElementById('essais-title').textContent=`Essais — ${ech?.designation||ech?.reference||''}`;
+  renderEssaisTable();
+  if(pendingEssaiUid && essais.some(x=>x.uid===pendingEssaiUid)){
+    selectEssai(pendingEssaiUid);
+    setTimeout(()=>document.querySelector(`#essais-tbody tr[data-uid="${pendingEssaiUid}"]`)?.scrollIntoView({block:'center'}), 40);
+    pendingEssaiUid=0;
+  }
+}
+
+function renderEssaisTable(){
+  if(!essaisEnabled()){
+    renderEssaisDisabled();
+    return;
+  }
+  document.getElementById('essais-placeholder').style.display='none';
+  document.getElementById('essais-wrap').style.display='block';
+  const tbody=document.getElementById('essais-tbody');
+  if(!essais.length){
+    tbody.innerHTML=`<tr><td colspan="6"><div class="empty-state">Aucun essai — <button class="btn sm primary" onclick="openCreateEssai()" style="margin-left:8px">+ Ajouter</button></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML=essais.map(e=>`
+    <tr data-uid="${e.uid}" onclick="selectEssai(${e.uid})" class="${e.uid===selEssaiUid?'selected':''}">
+      <td><strong style="color:var(--labo)">${e.type_essai||'—'}</strong></td>
+      <td style="font-size:11px;color:var(--text-m)">${e.norme||'—'}</td>
+      <td>${bStatEssai(e.statut)}</td>
+      <td style="font-size:12px">${fd(e.date_debut)}</td>
+      <td style="font-size:12px">${fd(e.date_fin)}</td>
+      <td style="font-size:12px">${e.operateur||'—'}</td>
+    </tr>`).join('');
+}
+
+function selectEssai(uid){
+  if(!essaisEnabled()) return;
+  selEssaiUid=uid;renderEssaisTable();
+  const d=essais.find(x=>x.uid===uid);if(!d)return;
+  document.getElementById('essai-detail').classList.add('visible');
+  document.getElementById('ed-type').textContent=d.type_essai||'—';
+  document.getElementById('ed-badges').innerHTML=bStatEssai(d.statut);
+  df('ed-norme',d.norme);df('ed-op',d.operateur);
+  document.getElementById('ed-debut').textContent=fd(d.date_debut);
+  document.getElementById('ed-fin').textContent=fd(d.date_fin);
+  let res='—';
+  try{const p=JSON.parse(d.resultats||'{}');res=Object.keys(p).length?JSON.stringify(p,null,2):'—';}catch{res=d.resultats||'—';}
+  document.getElementById('ed-resultats').textContent=res;
+  document.getElementById('ed-obs').textContent=d.observations||'—';
+}
+
+function closeEssaiDetail(){selEssaiUid=null;document.getElementById('essai-detail').classList.remove('visible');if(essaisEnabled())renderEssaisTable();}
+
+function openCreateEch(){
+  if(!echantillonsEnabled()){toast('Module laboratoire / échantillons non activé','info');return;}
+  document.getElementById('mech-title').textContent='Nouvel échantillon';
+  document.getElementById('me-uid').value='0';
+  document.getElementById('me-ref').value='';
+  document.getElementById('me-statut').value='Reçu';
+  document.getElementById('me-desig').value='';
+  document.getElementById('me-ph').value='';document.getElementById('me-pb').value='';
+  document.getElementById('me-loc').value='';
+  document.getElementById('me-dprele').value='';document.getElementById('me-drec').value=today();
+  document.getElementById('me-obs').value='';
+  document.getElementById('me-del-btn').style.display='none';
+  document.getElementById('modal-ech').classList.remove('hidden');
+}
+function openEditEch(){
+  if(!echantillonsEnabled()){toast('Module laboratoire / échantillons non activé','info');return;}
+  const e=echantillons.find(x=>x.uid===selEchUid);if(!e)return;
+  document.getElementById('mech-title').textContent="Modifier l'échantillon";
+  document.getElementById('me-uid').value=e.uid;
+  document.getElementById('me-ref').value=e.reference;
+  document.getElementById('me-statut').value=e.statut||'Reçu';
+  document.getElementById('me-desig').value=e.designation||'';
+  document.getElementById('me-ph').value=e.profondeur_haut??'';
+  document.getElementById('me-pb').value=e.profondeur_bas??'';
+  document.getElementById('me-loc').value=e.localisation||'';
+  document.getElementById('me-dprele').value=e.date_prelevement||'';
+  document.getElementById('me-drec').value=e.date_reception_labo||'';
+  document.getElementById('me-obs').value=e.observations||'';
+  document.getElementById('me-del-btn').style.display='inline-flex';
+  document.getElementById('modal-ech').classList.remove('hidden');
+}
+function closeModalEch(){document.getElementById('modal-ech').classList.add('hidden');}
+
+async function saveEch(){
+  if(!echantillonsEnabled()){toast('Module laboratoire / échantillons non activé','info');return;}
+  const uid=parseInt(document.getElementById('me-uid').value);
+  const payload={
+    demande_id: demandeId,
+    designation: document.getElementById('me-desig').value,
+    statut: document.getElementById('me-statut').value,
+    profondeur_haut: parseFloat(document.getElementById('me-ph').value)||null,
+    profondeur_bas: parseFloat(document.getElementById('me-pb').value)||null,
+    localisation: document.getElementById('me-loc').value,
+    date_prelevement: document.getElementById('me-dprele').value||null,
+    date_reception_labo: document.getElementById('me-drec').value||null,
+    observations: document.getElementById('me-obs').value,
+  };
+  try{
+    const url=uid===0?`${API}/api/essais/echantillons`:`${API}/api/essais/echantillons/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(payload)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();
+    closeModalEch();await loadAll();
+    selEchUid=saved.uid;renderEchList();
+    toast(uid===0?'Échantillon créé ✓':'Mis à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteEch(){
+  if(!echantillonsEnabled()){toast('Module laboratoire / échantillons non activé','info');return;}
+  const e=echantillons.find(x=>x.uid===selEchUid);
+  if(!e||!confirm(`Supprimer ${e.reference} ?`))return;
+  await fetch(`${API}/api/essais/echantillons/${selEchUid}`,{method:'DELETE',headers:ah()});
+  selEchUid=null;closeModalEch();await loadAll();
+  document.getElementById('essais-placeholder').style.display='flex';
+  document.getElementById('essais-wrap').style.display='none';
+  toast('Supprimé','info');
+}
+
+function openCreateEssai(){
+  if(!essaisEnabled()){toast('Module Essais laboratoire non activé','info');return;}
+  if(!selEchUid){toast('Sélectionner un échantillon','error');return;}
+  const ech=echantillons.find(e=>e.uid===selEchUid);
+  document.getElementById('mes-title').textContent='Nouvel essai';
+  document.getElementById('mes-uid').value='0';
+  document.getElementById('mes-ech-ref').value=`${ech?.reference} — ${ech?.designation||''}`;
+  document.getElementById('mes-statut').value='Programmé';
+  document.getElementById('mes-norme').value='';
+  document.getElementById('mes-op').value=user.display_name||'';
+  document.getElementById('mes-debut').value='';
+  document.getElementById('mes-fin').value='';
+  document.getElementById('mes-resultats').value='{}';
+  document.getElementById('mes-obs').value='';
+  document.getElementById('modal-essai').classList.remove('hidden');
+}
+function openEditEssai(){
+  if(!essaisEnabled()){toast('Module Essais laboratoire non activé','info');return;}
+  const e=essais.find(x=>x.uid===selEssaiUid);if(!e)return;
+  const ech=echantillons.find(x=>x.uid===selEchUid);
+  document.getElementById('mes-title').textContent="Modifier l'essai";
+  document.getElementById('mes-uid').value=e.uid;
+  document.getElementById('mes-ech-ref').value=`${ech?.reference} — ${ech?.designation||''}`;
+  document.getElementById('mes-type').value=e.type_essai||'';
+  document.getElementById('mes-norme').value=e.norme||'';
+  document.getElementById('mes-statut').value=e.statut||'Programmé';
+  document.getElementById('mes-op').value=e.operateur||'';
+  document.getElementById('mes-debut').value=e.date_debut||'';
+  document.getElementById('mes-fin').value=e.date_fin||'';
+  document.getElementById('mes-resultats').value=e.resultats||'{}';
+  document.getElementById('mes-obs').value=e.observations||'';
+  document.getElementById('modal-essai').classList.remove('hidden');
+}
+function closeModalEssai(){document.getElementById('modal-essai').classList.add('hidden');}
+
+async function saveEssai(){
+  if(!essaisEnabled()){toast('Module Essais laboratoire non activé','info');return;}
+  const uid=parseInt(document.getElementById('mes-uid').value);
+  const payload={
+    echantillon_id: selEchUid,
+    type_essai: document.getElementById('mes-type').value,
+    norme: document.getElementById('mes-norme').value,
+    statut: document.getElementById('mes-statut').value,
+    operateur: document.getElementById('mes-op').value,
+    date_debut: document.getElementById('mes-debut').value||null,
+    date_fin: document.getElementById('mes-fin').value||null,
+    resultats: document.getElementById('mes-resultats').value,
+    observations: document.getElementById('mes-obs').value,
+  };
+  try{
+    const url=uid===0?`${API}/api/essais`:`${API}/api/essais/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(payload)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();
+    closeModalEssai();
+    await loadEssais(selEchUid);
+    selEssaiUid=saved.uid;selectEssai(saved.uid);
+    toast(uid===0?'Essai créé ✓':'Mis à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteEssai(){
+  if(!essaisEnabled()){toast('Module Essais laboratoire non activé','info');return;}
+  const e=essais.find(x=>x.uid===selEssaiUid);
+  if(!e||!confirm(`Supprimer l'essai ${e.type_essai||e.uid} ?`))return;
+  await fetch(`${API}/api/essais/${selEssaiUid}`,{method:'DELETE',headers:ah()});
+  closeEssaiDetail();
+  await loadEssais(selEchUid);
+  toast('Supprimé','info');
+}
+
+function bStatEch(s){const m={Reçu:'b-blue','En attente':'b-amber','En cours':'b-purple','Terminé':'b-green','Rejeté':'b-red'};return`<span class="badge ${m[s]||'b-gray'}">${s||'—'}</span>`;}
+function bStatEssai(s){const m={Programmé:'b-blue','En cours':'b-amber','Terminé':'b-green','Annulé':'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s||'—'}</span>`;}
+function goBack(){go(demandeId?`demande.html?uid=${demandeId}`:'demandes.html');}
+function ah(){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'};}
+function logout(){localStorage.clear();go('login.html');}
+function go(url){window.location.href=url;}
+function today(){return new Date().toISOString().split('T')[0];}
+function fd(v){if(!v)return'—';try{const p=v.slice(0,10).split('-');return`${p[2]}/${p[1]}/${p[0]}`;}catch{return v;}}
+function df(id,v){const e=document.getElementById(id);if(!e)return;e.textContent=v||'—';e.className=v?'':'empty';}
+function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className='',3000);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModalEch();closeModalEssai();}});
+init();
+</script>
+</body>
+</html>

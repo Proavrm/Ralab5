@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Passations</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--accent-h:#4a58d4;--nge:#002C77;
+  --surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.nav-btn .icon{font-size:15px;width:20px;text-align:center}.nav-btn:disabled{opacity:.35;cursor:not-allowed}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.user-name{font-size:13px;color:#fff;font-weight:500}.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}.btn-logout:hover{background:#2a2a40;color:#fff}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px;flex-shrink:0}
+#hdr-title{font-size:15px;font-weight:600;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover{background:var(--accent-h)}.btn.sm{padding:5px 10px;font-size:12px}
+.filters-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0}
+.filter-label{font-size:12px;color:var(--text-m);white-space:nowrap}.filter-select{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);outline:none}
+.filter-select:focus{border-color:var(--accent)}#search-wrap{flex:1;max-width:280px}#search-wrap input{width:100%;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;background:var(--bg)}#search-wrap input:focus{border-color:var(--accent);background:#fff}
+#split{flex:1;display:flex;overflow:hidden;min-height:0}.table-card{background:var(--surface);height:100%}#table-wrap{flex:1;overflow-y:auto;min-width:0}
+table{width:100%;border-collapse:collapse;font-size:13px}thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:5}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}tbody tr:hover{background:#f8f8fc}tbody tr.selected{background:#eeeffe}td{padding:9px 14px;vertical-align:middle}
+.empty-state{padding:60px;text-align:center;color:var(--text-m)}
+#detail{width:360px;min-width:320px;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;overflow-y:auto;flex-shrink:0}#detail.visible{display:flex}
+.det-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-shrink:0}.det-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px;flex:1}
+.det-section{display:flex;flex-direction:column;gap:6px}.det-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:2px}
+.det-field{display:flex;flex-direction:column;gap:2px}.det-field label{font-size:10px;color:var(--text-m)}.det-field span{font-size:13px;font-weight:500}.det-field span.empty{color:var(--text-m);font-style:italic;font-weight:400}
+.det-actions{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}.b-gray{background:#f1efe8;color:#5f5e5a}.b-blue{background:#e6f1fb;color:#185fa5}.b-amber{background:#faeeda;color:#854f0b}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}#toast.show{transform:translateY(0);opacity:1}#toast.success{background:var(--success);color:#fff}#toast.error{background:var(--danger);color:#fff}#toast.info{background:#1a1a2e;color:#fff}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+  <div class="nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+    <button class="nav-btn" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
+    <button class="nav-btn active"><span class="icon">🤝</span> Passations</button>
+    <button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+    <button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
+    <div class="nav-section">Administration</div>
+    <button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
+  </div>
+  <div class="sidebar-user">
+    <div class="user-row"><div class="user-av" id="sidebar-av">?</div><div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div></div>
+    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+  </div>
+</nav>
+
+<div id="main">
+  <div id="hdr">
+    <span id="hdr-title">Passations</span>
+    <div id="search-wrap"><input id="search-input" type="text" placeholder="Référence, chantier, étude…" oninput="onSearch()"/></div>
+    <button class="btn primary" onclick="createPassation()">+ Nouvelle passation</button>
+    <button class="btn sm" onclick="load()">↻</button>
+  </div>
+
+  <div class="filters-bar">
+    <span class="filter-label">Source :</span>
+    <select class="filter-select" id="f-source" onchange="load()"><option value="">Toutes</option></select>
+    <span class="filter-label">Type :</span>
+    <select class="filter-select" id="f-type" onchange="load()"><option value="">Tous</option></select>
+    <span class="filter-label" id="filter-info">Chargement…</span>
+    <span class="filter-label">Passation = aide facultative de saisie</span>
+    <button class="btn sm" onclick="clearFilters()">Effacer</button>
+  </div>
+
+  <div id="split">
+    <div id="table-wrap"><div class="table-card"><table>
+      <thead><tr><th>Réf.</th><th>Affaire</th><th>Chantier</th><th>Source</th><th>Type</th><th>Date</th><th>Suivi</th></tr></thead>
+      <tbody id="tbody"><tr><td colspan="7"><div class="empty-state">Chargement…</div></td></tr></tbody>
+    </table></div></div>
+
+    <div id="detail">
+      <div class="det-header"><div><div id="d-ref" style="font-size:15px;font-weight:700">—</div><div id="d-badges" style="margin-top:6px"></div></div><button class="btn sm" onclick="closeDetail()">✕</button></div>
+      <div class="det-body">
+        <div class="det-section"><div class="det-section-title">Identité</div>
+          <div class="det-field"><label>Affaire</label><span id="d-affaire">—</span></div>
+          <div class="det-field"><label>Client</label><span id="d-client">—</span></div>
+          <div class="det-field"><label>Chantier</label><span id="d-chantier">—</span></div>
+          <div class="det-field"><label>N° étude</label><span id="d-etude">—</span></div>
+          <div class="det-field"><label>N° affaire NGE</label><span id="d-nge">—</span></div>
+        </div>
+        <div class="det-section"><div class="det-section-title">Contexte</div>
+          <div class="det-field"><label>Source</label><span id="d-source">—</span></div>
+          <div class="det-field"><label>Type opération</label><span id="d-type">—</span></div>
+          <div class="det-field"><label>Phase</label><span id="d-phase">—</span></div>
+          <div class="det-field"><label>Responsable</label><span id="d-resp">—</span></div>
+        </div>
+        <div class="det-section"><div class="det-section-title">Suivi</div>
+          <div class="det-field"><label>Documents reçus</label><span id="d-docs">—</span></div>
+          <div class="det-field"><label>Actions</label><span id="d-actions">—</span></div>
+          <div class="det-field"><label>Date passation</label><span id="d-date">—</span></div>
+        </div>
+        <div class="det-section"><div class="det-section-title">Synthèse</div>
+          <div class="det-field"><label>Résumé</label><span id="d-synthese" class="empty">—</span></div>
+        </div>
+      </div>
+      <div class="det-actions">
+        <button class="btn sm primary" onclick="openPassation()">📋 Fiche</button>
+        <button class="btn sm" onclick="openLinkedAffaire()">📁 Affaire</button>
+        <button class="btn sm" onclick="openDemandeHelper()">➕ Demande</button>
+        <button class="btn sm danger" onclick="deletePassation()">🗑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const API = 'http://127.0.0.1:8000';
+const token = localStorage.getItem('ralab_token');
+const userRaw = localStorage.getItem('ralab_user');
+let user = null;
+let rows = [];
+let selUid = null;
+let searchTimer = null;
+
+function ah(){ return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }; }
+function go(url){ window.location.href = url; }
+function logout(){ localStorage.clear(); go('login.html'); }
+function fd(value){ if(!value) return '—'; const p = value.slice(0,10).split('-'); return `${p[2]}/${p[1]}/${p[0]}`; }
+function df(id, value){ const el = document.getElementById(id); if(!el) return; el.textContent = value || '—'; el.className = value ? '' : 'empty'; }
+function toast(msg, type='info'){ const el=document.getElementById('toast'); el.textContent=msg; el.className=`show ${type}`; setTimeout(()=>el.className='', 3000); }
+function pill(text, cls='b-blue'){ return `<span class="badge ${cls}">${text}</span>`; }
+function infoState(item){ return `${item.nb_documents || 0} doc${(item.nb_documents||0)!==1?'s':''} · ${item.nb_actions || 0} action${(item.nb_actions||0)!==1?'s':''}`; }
+
+async function init(){
+  if(!token || !userRaw){ go('login.html'); return; }
+  user = JSON.parse(userRaw);
+  document.getElementById('sidebar-name').textContent = user.display_name || '—';
+  document.getElementById('sidebar-role').textContent = user.service_code || '—';
+  document.getElementById('sidebar-av').textContent = (user.display_name || '?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  await loadFilters();
+  await load();
+}
+
+async function loadFilters(){
+  try{
+    const response = await fetch(`${API}/api/passations/filters`, { headers: ah() });
+    if(!response.ok) return;
+    const data = await response.json();
+    document.getElementById('f-source').innerHTML = '<option value="">Toutes</option>' + (data.sources || []).map(v => `<option>${v}</option>`).join('');
+    document.getElementById('f-type').innerHTML = '<option value="">Tous</option>' + (data.operation_types || []).map(v => `<option>${v}</option>`).join('');
+  }catch{}
+}
+
+async function load(){
+  const params = new URLSearchParams();
+  const source = document.getElementById('f-source').value;
+  const type = document.getElementById('f-type').value;
+  const search = document.getElementById('search-input').value.trim();
+  if(source) params.set('source', source);
+  if(type) params.set('operation_type', type);
+  if(search) params.set('search', search);
+  try{
+    const response = await fetch(`${API}/api/passations?${params.toString()}`, { headers: ah() });
+    if(!response.ok) throw new Error('API');
+    rows = await response.json();
+    document.getElementById('filter-info').textContent = `${rows.length} passation${rows.length!==1?'s':''}`;
+    renderTable();
+  }catch(error){
+    console.error(error);
+    toast('Erreur de chargement des passations', 'error');
+  }
+}
+
+function renderTable(){
+  const tbody = document.getElementById('tbody');
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">🤝 Aucune passation</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(item => `
+    <tr onclick="selectRow(${item.uid})" class="${item.uid===selUid?'selected':''}">
+      <td><strong style="color:var(--accent)">${item.reference}</strong></td>
+      <td>${item.affaire_ref || '—'}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.chantier || '—'}</td>
+      <td>${item.source || '—'}</td>
+      <td>${item.operation_type || '—'}</td>
+      <td>${fd(item.date_passation)}</td>
+      <td><span class="badge b-blue">${infoState(item)}</span></td>
+    </tr>
+  `).join('');
+}
+
+function selectRow(uid){
+  selUid = uid;
+  renderTable();
+  const item = rows.find(x => x.uid === uid);
+  if(!item) return;
+  document.getElementById('detail').classList.add('visible');
+  df('d-ref', item.reference);
+  document.getElementById('d-badges').innerHTML = `${pill(item.phase_operation || 'Sans phase', 'b-amber')} ${pill(item.source || 'Sans source', 'b-gray')}`;
+  df('d-affaire', item.affaire_ref);
+  df('d-client', item.client);
+  df('d-chantier', item.chantier);
+  df('d-etude', item.numero_etude);
+  df('d-nge', item.numero_affaire_nge);
+  df('d-source', item.source);
+  df('d-type', item.operation_type);
+  df('d-phase', item.phase_operation);
+  df('d-resp', item.responsable);
+  df('d-docs', `${item.nb_documents || 0}`);
+  df('d-actions', `${item.nb_actions || 0}`);
+  df('d-date', fd(item.date_passation));
+  df('d-synthese', item.synthese || item.description_generale || '');
+}
+
+function closeDetail(){ selUid = null; document.getElementById('detail').classList.remove('visible'); renderTable(); }
+function onSearch(){ clearTimeout(searchTimer); searchTimer = setTimeout(load, 250); }
+function clearFilters(){ document.getElementById('f-source').value=''; document.getElementById('f-type').value=''; document.getElementById('search-input').value=''; load(); }
+function openPassation(){ if(selUid) go(`passation.html?uid=${selUid}`); }
+function openLinkedAffaire(){ const item = rows.find(x => x.uid===selUid); if(item) go(`affaire.html?uid=${item.affaire_rst_id}`); }
+function createPassation(){ go('passation.html?create=1'); }
+function openDemandeHelper(){ if(selUid) go(`demandes.html?passation_uid=${selUid}&create=1`); }
+
+async function deletePassation(){
+  const item = rows.find(x => x.uid===selUid);
+  if(!item) return;
+  if(!confirm(`Supprimer la passation ${item.reference} ?`)) return;
+  const response = await fetch(`${API}/api/passations/${item.uid}`, { method:'DELETE', headers: ah() });
+  if(response.ok){
+    closeDetail();
+    await load();
+    toast('Passation supprimée', 'info');
+  }else{
+    toast('Suppression impossible', 'error');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

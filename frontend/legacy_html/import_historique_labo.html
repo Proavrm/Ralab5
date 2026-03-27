@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Import historique labo sols</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+    --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+    --accent:#5b6af0;--accent-h:#4a58d4;
+    --surface:#fff;--border:#e2e2dc;
+    --text:#1a1a2e;--text-m:#6b6b80;
+    --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+    --radius:8px;
+}
+html,body{min-height:100vh}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;overflow:auto}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column;position:sticky;top:0;align-self:flex-start;min-height:100vh}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}
+.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-name{font-size:13px;color:#fff;font-weight:500}
+.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+.btn-logout:hover{background:#2a2a40;color:#fff}
+#main{flex:1;display:flex;flex-direction:column;min-width:0}
+#hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 28px;min-height:58px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+#hdr h1{font-size:16px;font-weight:600;flex:1;min-width:260px}
+#status-bar{font-size:12px;padding:6px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text-m);min-width:min(100%,420px);text-align:center;max-width:100%}
+#status-bar.ok{background:#eaf3de;border-color:#b6d98b;color:#3b6d11}
+#status-bar.err{background:#fcebeb;border-color:#f0a0a0;color:#a32d2d}
+#content{flex:1;overflow:visible;padding:28px;display:grid;grid-template-columns:minmax(560px,1.2fr) minmax(380px,.8fr);gap:20px;align-content:start;min-width:0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;min-width:0}
+.card-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px}
+.card-title{font-size:13px;font-weight:600;color:var(--text)}
+.card-desc{font-size:11px;color:var(--text-m);margin-top:2px;line-height:1.45}
+.card-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.field-row{display:flex;flex-direction:column;gap:6px}
+.field-label{font-size:12px;color:var(--text-m);font-weight:600}
+input[type=text]{padding:9px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;width:100%}
+input[type=text]:focus{border-color:var(--accent)}
+.checkbox-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-m);flex-wrap:wrap}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover:not(:disabled){background:var(--bg)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover:not(:disabled){background:var(--accent-h)}
+.btn.success{background:var(--success);border-color:var(--success);color:#fff}
+.btn.warn{border-color:var(--warn);color:var(--warn)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.kpi{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;min-width:0}
+.kpi-label{font-size:11px;color:var(--text-m);margin-bottom:4px}
+.kpi-value{font-size:20px;font-weight:700;color:var(--text);overflow-wrap:anywhere}
+.result-box,pre{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;font-size:12px;line-height:1.6;color:var(--text-m);white-space:pre-wrap;overflow:auto;max-height:280px}
+.table-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:auto;max-height:min(56vh,720px);min-height:220px;min-width:0;resize:vertical}
+table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+table.compact{min-width:620px}
+thead th{position:sticky;top:0;background:#f8f8f6;border-bottom:1px solid var(--border);text-align:left;padding:8px 10px;z-index:1}
+tbody td{padding:8px 10px;border-bottom:1px solid #f0f0eb;vertical-align:top;overflow-wrap:anywhere}
+tbody tr:hover{background:#fafaf8}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+.badge.ok{background:#eaf3de;color:#3b6d11}
+.badge.warn{background:#faeeda;color:#9a6700}
+.badge.err{background:#fcebeb;color:#a32d2d}
+.muted{color:var(--text-m);font-size:12px}
+.code-list{display:flex;flex-wrap:wrap;gap:6px}
+.code-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:var(--bg);border:1px solid var(--border);font-size:11px;color:var(--text)}
+.code-chip strong{font-size:11px}
+.grid-full{grid-column:1 / -1}
+.action-log{display:grid;gap:10px}
+.action-item{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
+.action-item strong{display:block;margin-bottom:4px}
+
+@media (max-width: 1300px){
+    #content{grid-template-columns:1fr}
+    .grid-full{grid-column:auto}
+}
+@media (max-width: 900px){
+    body{display:block}
+    #sidebar{position:relative;min-height:auto;width:100%}
+    #hdr{padding:12px 16px}
+    #content{padding:16px;grid-template-columns:1fr}
+}
+@media (max-width: 640px){
+    .btn-row{flex-direction:column;align-items:stretch}
+    .btn{justify-content:center}
+    .kpis{grid-template-columns:1fr}
+    table{min-width:720px}
+    table.compact{min-width:560px}
+}
+</style>
+</head>
+<body>
+<nav id="sidebar">
+    <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
+    <div class="nav">
+        <div class="nav-section">Navigation</div>
+        <button class="nav-btn" onclick="go('index.html')">🏠 Dashboard</button>
+        <button class="nav-btn" onclick="go('affaires.html')">📋 Affaires RST</button>
+        <button class="nav-btn" onclick="go('demandes.html')">📂 Demandes</button>
+        <button class="nav-btn" onclick="go('tools.html')">🔧 Outils</button>
+        <button class="nav-btn active" onclick="go('import_historique_labo.html')">📥 Import historique labo</button>
+    </div>
+    <div class="sidebar-user">
+        <div class="user-row">
+            <div class="user-av">IH</div>
+            <div>
+                <div class="user-name">Import historique</div>
+                <div class="user-role">One-shot labo sols</div>
+            </div>
+        </div>
+        <button class="btn-logout" onclick="go('tools.html')">↩ Retour outils</button>
+    </div>
+</nav>
+
+<div id="main">
+    <div id="hdr">
+        <h1>📥 Import historique labo sols</h1>
+        <div id="status-bar">Page prête. Commence par un preview du dossier dézippé.</div>
+    </div>
+
+    <div id="content">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Pilotage de l’import</div>
+                    <div class="card-desc">Importer une seule fois les Excel historiques labo sols dans la base RaLab4</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="field-row">
+                    <label class="field-label" for="folder-path">Dossier dézippé des Excel</label>
+                    <input id="folder-path" type="text" placeholder="Ex. C:\Users\marco\...\Essais realises 2026" />
+                </div>
+                <div class="checkbox-row">
+                    <input id="dry-run" type="checkbox" />
+                    <label for="dry-run">Mode dry-run pour tester sans rien écrire</label>
+                </div>
+                <div class="btn-row">
+                    <button class="btn primary" onclick="previewFolder()">👀 Preview</button>
+                    <button class="btn success" onclick="runImport()">⬆️ Importer</button>
+                    <button class="btn warn" onclick="loadStatus()">↻ État API</button>
+                </div>
+                <div class="field-label">Après import</div>
+                <div class="btn-row">
+                    <button class="btn warn" onclick="loadUnmatchedReport()">📋 Rapport affaires non trouvées</button>
+                    <button class="btn warn" onclick="rematchAffaires(true)">🧪 Re-matching dry-run</button>
+                    <button class="btn success" onclick="rematchAffaires(false)">🪄 Re-matching réel</button>
+                </div>
+                <div class="result-box" id="result-box">Aucun preview pour le moment.</div>
+                <pre id="status-json">Statut API non chargé.</pre>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Résumé</div>
+                    <div class="card-desc">Vue rapide du dossier, de l’import et du re-matching des affaires</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="kpis">
+                    <div class="kpi"><div class="kpi-label">Fichiers .xlsx</div><div class="kpi-value" id="kpi-files">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Feuilles scannées</div><div class="kpi-value" id="kpi-sheets">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Candidats supportés</div><div class="kpi-value" id="kpi-candidates">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Créées Affaires</div><div class="kpi-value" id="kpi-affaires">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Créées Demandes</div><div class="kpi-value" id="kpi-demandes">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Créés Échantillons</div><div class="kpi-value" id="kpi-echantillons">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Créés Essais</div><div class="kpi-value" id="kpi-essais">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Affaires fusionnées</div><div class="kpi-value" id="kpi-merged-affaires">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Demandes déplacées</div><div class="kpi-value" id="kpi-moved-demandes">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Affaires enrichies ref. DB</div><div class="kpi-value" id="kpi-updated-refdb">0</div></div>
+                    <div class="kpi"><div class="kpi-label">Affaires importées non trouvées</div><div class="kpi-value" id="kpi-unmatched-affaires">0</div></div>
+                </div>
+                <div class="muted">Familles supportées dans cette v1: WE, ID, LCP, IPI - PR. Le parser travaille maintenant <strong>par fichier + feuille</strong> et traite <strong>ID</strong> comme une <strong>fiche composite</strong> créant plusieurs essais sous le même échantillon.</div>
+                <div>
+                    <div class="field-label">Codes connus</div>
+                    <div id="known-codes" class="code-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card grid-full">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Synthèse multi-feuilles</div>
+                    <div class="card-desc">Chaque workbook est analysé feuille par feuille. Cette vue permet de vérifier rapidement quels classeurs portent plusieurs feuilles utiles.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrap">
+                    <table class="compact">
+                        <thead>
+                            <tr>
+                                <th>Fichier</th>
+                                <th>Feuilles</th>
+                                <th>Feuilles supportées</th>
+                                <th>Feuilles ignorées</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workbook-body">
+                            <tr><td colspan="4" class="muted">Aucune synthèse pour le moment.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card grid-full">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Preview des lignes détectées</div>
+                    <div class="card-desc">Le but est d’abord de voir ce que le parser comprend avant d’écrire dans la base</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Fichier</th>
+                                <th>Feuille</th>
+                                <th>Code</th>
+                                <th>Mode</th>
+                                <th>Sous-essais</th>
+                                <th>Affaire NGE brute</th>
+                                <th>Affaire normalisée</th>
+                                <th>Réf. locale</th>
+                                <th>Date essai</th>
+                                <th>Opérateur</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-body">
+                            <tr><td colspan="10" class="muted">Aucun preview pour le moment.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card grid-full">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Feuilles ignorées / avertissements</div>
+                    <div class="card-desc">Normal à ce stade: on ne cible que le labo sols historique, pas encore le terrain ni le reste</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrap">
+                    <table class="compact">
+                        <thead>
+                            <tr>
+                                <th>Fichier</th>
+                                <th>Feuille</th>
+                                <th>Raison</th>
+                            </tr>
+                        </thead>
+                        <tbody id="skipped-body">
+                            <tr><td colspan="3" class="muted">Aucune information.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card grid-full">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Rapport des affaires importées non trouvées</div>
+                    <div class="card-desc">Après normalisation du numéro affaire, voici les affaires importées qui ne trouvent toujours pas de rattachement dans affaires_rst. Si une affaire existe seulement dans <code>affaires.db</code>, le code source est aussi indiqué.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Affaire importée</th>
+                                <th>N° affaire brut</th>
+                                <th>N° affaire normalisé</th>
+                                <th>Chantier</th>
+                                <th>Raison</th>
+                                <th>Code trouvé en référence DB</th>
+                                <th>Colonne référence DB</th>
+                            </tr>
+                        </thead>
+                        <tbody id="unmatched-body">
+                            <tr><td colspan="7" class="muted">Aucun rapport chargé.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card grid-full">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Journal du re-matching</div>
+                    <div class="card-desc">Quand une affaire importée correspond à une affaire déjà existante après normalisation, les demandes peuvent être re-rattachées proprement.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="action-log" id="rematch-log">
+                    <div class="muted">Aucun re-matching lancé pour le moment.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api/import-historique-labo";
+
+function go(page) {
+    window.location.href = page;
+}
+
+function setStatus(message, kind = "") {
+    const bar = document.getElementById("status-bar");
+    bar.textContent = message;
+    bar.className = "";
+    if (kind) {
+        bar.classList.add(kind);
+    }
+}
+
+function updateKpis(data) {
+    document.getElementById("kpi-files").textContent = data.xlsx_files_found ?? document.getElementById("kpi-files").textContent;
+    document.getElementById("kpi-sheets").textContent = data.sheet_count ?? document.getElementById("kpi-sheets").textContent;
+    document.getElementById("kpi-candidates").textContent = data.supported_candidate_count ?? document.getElementById("kpi-candidates").textContent;
+    document.getElementById("kpi-affaires").textContent = data.created_affaires ?? document.getElementById("kpi-affaires").textContent;
+    document.getElementById("kpi-demandes").textContent = data.created_demandes ?? document.getElementById("kpi-demandes").textContent;
+    document.getElementById("kpi-echantillons").textContent = data.created_echantillons ?? document.getElementById("kpi-echantillons").textContent;
+    document.getElementById("kpi-essais").textContent = data.created_essais ?? document.getElementById("kpi-essais").textContent;
+    document.getElementById("kpi-merged-affaires").textContent = data.merged_affaires ?? document.getElementById("kpi-merged-affaires").textContent;
+    document.getElementById("kpi-moved-demandes").textContent = data.moved_demandes ?? document.getElementById("kpi-moved-demandes").textContent;
+    document.getElementById("kpi-updated-refdb").textContent = data.updated_from_reference_db ?? document.getElementById("kpi-updated-refdb").textContent;
+    const unmatchedValue =
+        data.unmatched_imported_affaires_count ??
+        data.unresolved_count ??
+        document.getElementById("kpi-unmatched-affaires").textContent;
+    document.getElementById("kpi-unmatched-affaires").textContent = unmatchedValue;
+}
+
+function renderKnownCodes(knownCodes) {
+    const container = document.getElementById("known-codes");
+    if (!container || !knownCodes) {
+        return;
+    }
+    const entries = Array.isArray(knownCodes)
+        ? knownCodes.map(code => [code, code])
+        : Object.entries(knownCodes);
+    container.innerHTML = entries.map(([code, label]) =>
+        `<span class="code-chip"><strong>${escapeHtml(code)}</strong> ${escapeHtml(label || "")}</span>`
+    ).join("");
+}
+
+function fillWorkbookSummaries(rows) {
+    const body = document.getElementById("workbook-body");
+    if (!rows || !rows.length) {
+        body.innerHTML = '<tr><td colspan="4" class="muted">Aucune synthèse pour le moment.</td></tr>';
+        return;
+    }
+    body.innerHTML = rows.map(row => `
+        <tr>
+            <td>${escapeHtml(row.file_name || "")}</td>
+            <td>${escapeHtml(row.sheet_count ?? 0)}</td>
+            <td>${escapeHtml(row.supported_sheet_count ?? 0)}</td>
+            <td>${escapeHtml(row.skipped_sheet_count ?? 0)}</td>
+        </tr>
+    `).join("");
+}
+
+function fillPreview(rows) {
+    const body = document.getElementById("preview-body");
+    if (!rows || !rows.length) {
+        body.innerHTML = '<tr><td colspan="10" class="muted">Aucune ligne détectée.</td></tr>';
+        return;
+    }
+    body.innerHTML = rows.map(row => `
+        <tr>
+            <td>${escapeHtml(row.file_name || "")}</td>
+            <td>${escapeHtml(row.sheet_name || "")}</td>
+            <td><span class="badge ok">${escapeHtml(row.essai_code || "")}</span></td>
+            <td><span class="badge ${row.import_mode === "composite" ? "warn" : "ok"}">${escapeHtml(row.import_mode || "simple")}</span></td>
+            <td>${escapeHtml(row.subtest_count ?? 0)}</td>
+            <td>${escapeHtml(row.affaire_nge || "")}</td>
+            <td>${escapeHtml(row.affaire_nge_normalized || "")}</td>
+            <td>${escapeHtml(row.sample_local_ref || "")}</td>
+            <td>${escapeHtml(row.date_essai || "")}</td>
+            <td>${escapeHtml(row.operator || "")}</td>
+        </tr>
+    `).join("");
+}
+
+function fillSkipped(rows) {
+    const body = document.getElementById("skipped-body");
+    if (!rows || !rows.length) {
+        body.innerHTML = '<tr><td colspan="3" class="muted">Aucune feuille ignorée.</td></tr>';
+        return;
+    }
+    body.innerHTML = rows.map(row => `
+        <tr>
+            <td>${escapeHtml(row.file_name || "")}</td>
+            <td>${escapeHtml(row.sheet_name || "")}</td>
+            <td>${escapeHtml(row.reason || "")}</td>
+        </tr>
+    `).join("");
+}
+
+function fillUnmatched(rows) {
+    const body = document.getElementById("unmatched-body");
+    if (!rows || !rows.length) {
+        body.innerHTML = '<tr><td colspan="7" class="muted">Aucune affaire importée non trouvée après normalisation.</td></tr>';
+        return;
+    }
+    body.innerHTML = rows.map(row => `
+        <tr>
+            <td>${escapeHtml(row.imported_reference || "")}</td>
+            <td>${escapeHtml(row.affaire_nge_raw || "")}</td>
+            <td>${escapeHtml(row.affaire_nge_normalized || "")}</td>
+            <td>${escapeHtml(row.chantier || "")}</td>
+            <td>${escapeHtml(row.reason || "")}</td>
+            <td>${escapeHtml(row.external_match_code || "")}</td>
+            <td>${escapeHtml(row.external_match_column || "")}</td>
+        </tr>
+    `).join("");
+}
+
+function fillRematchLog(actions, unresolvedRows, dryRun) {
+    const container = document.getElementById("rematch-log");
+    const parts = [];
+    if (actions && actions.length) {
+        for (const action of actions) {
+            if (action.action === "merge_into_existing_affaire") {
+                parts.push(`
+                    <div class="action-item">
+                        <strong>${dryRun ? "Dry-run fusion" : "Fusion effectuée"}</strong>
+                        <div>Source: ${escapeHtml(action.source_affaire_reference || "")} (#${escapeHtml(action.source_affaire_id || "")})</div>
+                        <div>Cible: ${escapeHtml(action.target_affaire_reference || "")} (#${escapeHtml(action.target_affaire_id || "")})</div>
+                        <div>Demandes déplacées: ${escapeHtml(action.moved_demandes || 0)}</div>
+                        <div>Clé normalisée: ${escapeHtml(action.normalized_affaire_key || "")}</div>
+                    </div>
+                `);
+            } else if (action.action === "enrich_imported_affaire_from_reference_db") {
+                parts.push(`
+                    <div class="action-item">
+                        <strong>${dryRun ? "Dry-run enrichissement" : "Affaire enrichie depuis affaires.db"}</strong>
+                        <div>Affaire importée: ${escapeHtml(action.source_affaire_reference || "")} (#${escapeHtml(action.source_affaire_id || "")})</div>
+                        <div>Code de référence trouvé: ${escapeHtml(action.external_match_code || "")}</div>
+                        <div>Colonne de référence: ${escapeHtml(action.external_match_column || "")}</div>
+                        <div>Clé normalisée: ${escapeHtml(action.normalized_affaire_key || "")}</div>
+                    </div>
+                `);
+            }
+        }
+    }
+    if (unresolvedRows && unresolvedRows.length) {
+        for (const row of unresolvedRows.slice(0, 20)) {
+            parts.push(`
+                <div class="action-item">
+                    <strong>Non résolu</strong>
+                    <div>Affaire importée: ${escapeHtml(row.imported_reference || "")} (#${escapeHtml(row.imported_affaire_id || "")})</div>
+                    <div>N° affaire: ${escapeHtml(row.affaire_nge_raw || "")}</div>
+                    <div>Raison: ${escapeHtml(row.reason || "")}</div>
+                </div>
+            `);
+        }
+    }
+    container.innerHTML = parts.length ? parts.join("") : '<div class="muted">Aucun re-matching lancé pour le moment.</div>';
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+async function apiCall(url, payload) {
+    const response = await fetch(url, {
+        method: payload ? "POST" : "GET",
+        headers: payload ? {"Content-Type":"application/json"} : {},
+        body: payload ? JSON.stringify(payload) : undefined
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.detail || "API error");
+    }
+    return data;
+}
+
+async function loadStatus() {
+    try {
+        setStatus("Lecture de l’état API...", "");
+        const data = await apiCall(`${API_BASE}/status`);
+        document.getElementById("status-json").textContent = JSON.stringify(data, null, 2);
+        renderKnownCodes(data.known_codes);
+        updateKpis(data);
+        setStatus("État API chargé.", "ok");
+    } catch (error) {
+        setStatus(`Erreur API: ${error.message}`, "err");
+        document.getElementById("status-json").textContent = error.message;
+    }
+}
+
+async function previewFolder() {
+    const folderPath = document.getElementById("folder-path").value.trim();
+    if (!folderPath) {
+        setStatus("Renseigne d’abord le dossier dézippé.", "err");
+        return;
+    }
+    try {
+        setStatus("Preview en cours...", "");
+        const data = await apiCall(`${API_BASE}/preview`, {
+            folder_path: folderPath,
+            limit: 300
+        });
+        document.getElementById("result-box").textContent = `Preview terminé.
+Fichiers .xlsx: ${data.xlsx_files_found}
+Feuilles scannées: ${data.sheet_count ?? 0}
+Candidats supportés: ${data.supported_candidate_count}
+Feuilles ignorées: ${data.skipped_count}`;
+        updateKpis(data);
+        fillWorkbookSummaries(data.workbook_rows);
+        fillPreview(data.preview_rows);
+        fillSkipped(data.skipped_rows);
+        setStatus("Preview terminé.", "ok");
+    } catch (error) {
+        setStatus(`Preview impossible: ${error.message}`, "err");
+        document.getElementById("result-box").textContent = error.message;
+    }
+}
+
+async function runImport() {
+    const folderPath = document.getElementById("folder-path").value.trim();
+    if (!folderPath) {
+        setStatus("Renseigne d’abord le dossier dézippé.", "err");
+        return;
+    }
+    const dryRun = document.getElementById("dry-run").checked;
+    try {
+        setStatus(dryRun ? "Dry-run en cours..." : "Import en cours...", "");
+        const data = await apiCall(`${API_BASE}/run`, {
+            folder_path: folderPath,
+            dry_run: dryRun
+        });
+        document.getElementById("result-box").textContent =
+            `${dryRun ? "Dry-run" : "Import"} terminé.
+Fichiers .xlsx: ${data.xlsx_files_found}
+Feuilles scannées: ${data.sheet_count ?? 0}
+Candidats supportés: ${data.supported_candidate_count}
+Créées Affaires: ${data.created_affaires}
+Créées Demandes: ${data.created_demandes}
+Créés Échantillons: ${data.created_echantillons}
+Créés Essais: ${data.created_essais}
+Feuilles ignorées: ${data.skipped_count}
+Affaires importées non trouvées: ${data.unmatched_imported_affaires_count ?? 0}`;
+        updateKpis(data);
+        fillSkipped(data.skipped_rows);
+        setStatus(dryRun ? "Dry-run terminé." : "Import terminé.", "ok");
+        await loadUnmatchedReport();
+    } catch (error) {
+        setStatus(`Import impossible: ${error.message}`, "err");
+        document.getElementById("result-box").textContent = error.message;
+    }
+}
+
+async function loadUnmatchedReport() {
+    try {
+        setStatus("Chargement du rapport affaires non trouvées...", "");
+        const data = await apiCall(`${API_BASE}/report-unmatched-affaires?limit=300`);
+        fillUnmatched(data.rows);
+        updateKpis({unmatched_imported_affaires_count: data.count});
+        setStatus("Rapport des affaires non trouvées chargé.", "ok");
+    } catch (error) {
+        setStatus(`Rapport impossible: ${error.message}`, "err");
+    }
+}
+
+async function rematchAffaires(dryRun) {
+    try {
+        setStatus(dryRun ? "Re-matching dry-run en cours..." : "Re-matching réel en cours...", "");
+        const data = await apiCall(`${API_BASE}/rematch-affaires`, {
+            dry_run: dryRun,
+            limit: 500
+        });
+        updateKpis(data);
+        fillRematchLog(data.actions, data.unresolved_rows, dryRun);
+        fillUnmatched(data.unresolved_rows);
+        document.getElementById("result-box").textContent =
+            `${dryRun ? "Dry-run re-matching" : "Re-matching"} terminé.
+Affaires fusionnées: ${data.merged_affaires}
+Demandes déplacées: ${data.moved_demandes}
+Affaires enrichies depuis affaires.db: ${data.updated_from_reference_db}
+Affaires non résolues: ${data.unresolved_count}`;
+        setStatus(dryRun ? "Re-matching dry-run terminé." : "Re-matching réel terminé.", "ok");
+    } catch (error) {
+        setStatus(`Re-matching impossible: ${error.message}`, "err");
+        document.getElementById("result-box").textContent = error.message;
+    }
+}
+
+loadStatus();
+</script>
+</body>
+</html>

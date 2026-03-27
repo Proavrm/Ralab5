@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab4 — Régularisation affaires</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{
+    --bg:#f4f4f0;--surface:#fff;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+    --accent:#5b6af0;--accent-h:#4a58d4;--text:#1a1a2e;--text-m:#6b6b80;
+    --border:#e2e2dc;--ok:#1d9e75;--warn:#ef9f27;--danger:#e24b4a;--radius:10px;
+}
+html,body{height:100%}
+body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;overflow:auto}
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}.sidebar-logo h1{margin:0;font-size:18px;color:#fff;font-weight:700}.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{padding:12px 0;flex:1}.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}.nav-btn:hover{background:#2a2a40;color:#fff}.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+#main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:visible}
+#hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;min-height:60px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:20}
+#hdr h1{font-size:16px;font-weight:600;flex:1;margin:0}
+#status-bar{font-size:12px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--text-m);min-width:320px;text-align:center}
+#status-bar.ok{background:#eaf3de;border-color:#b6d98b;color:#3b6d11}#status-bar.err{background:#fcebeb;border-color:#f0a0a0;color:#a32d2d}
+#content{padding:24px;display:flex;flex-direction:column;gap:20px;overflow:visible}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.card-title{font-size:14px;font-weight:700}.card-desc{font-size:11px;color:var(--text-m);margin-top:3px}
+.card-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;font-weight:600;color:var(--text-m)}
+input[type=text],input[type=number]{padding:10px 12px;border:1px solid var(--border);border-radius:8px;min-width:160px;background:#fff;color:var(--text)}
+button{padding:10px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font-weight:600}button:hover{background:var(--accent-h)}button.secondary{background:#fff;color:var(--text);border-color:var(--border)}button.secondary:hover{background:#f6f6fb}button.warn{background:var(--warn);border-color:var(--warn)}button.warn:hover{filter:brightness(.96)}button.tiny{padding:6px 9px;font-size:12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.kpi{border:1px solid var(--border);border-radius:10px;padding:14px;background:linear-gradient(180deg,#fff,#fafaf7)}.kpi .label{font-size:11px;color:var(--text-m);text-transform:uppercase;letter-spacing:.05em}.kpi .value{font-size:28px;font-weight:800;margin-top:6px}
+.table-wrap{border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:60vh;background:#fff}.table-wrap.tall{max-height:72vh}
+table{width:100%;border-collapse:collapse;min-width:1300px}th,td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;font-size:12px}th{background:#fafaf7;position:sticky;top:0;z-index:5;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-m)}tbody tr:hover{background:#fbfbfe}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid var(--border);background:#f7f7fb;color:var(--text)}.badge.ok{background:#eaf3de;border-color:#b6d98b;color:#3b6d11}.badge.warn{background:#fff4df;border-color:#f3c067;color:#8a5b09}.badge.err{background:#fdeaea;border-color:#f2aaaa;color:#992626}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.soft{color:var(--text-m)}.small{font-size:11px}.stack{display:flex;flex-direction:column;gap:6px}.inline-input{width:100%;min-width:160px}.candidate-box{border:1px solid var(--border);border-radius:8px;padding:8px;background:#fafaf7;display:flex;flex-direction:column;gap:4px;min-width:260px}
+.edit-grid{display:grid;grid-template-columns:1fr;gap:8px;min-width:250px}
+.edit-item{display:flex;flex-direction:column;gap:4px}
+.edit-item label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-m);font-weight:700}
+.help-text{font-size:11px;color:var(--text-m)}
+.note{padding:10px 12px;border-radius:10px;background:#f8f7ef;border:1px solid #e7e2c7;font-size:12px;color:#6a5a1b}
+.hidden{display:none}
+@media (max-width:1100px){body{display:block}#sidebar{position:static;width:100%;height:auto;min-width:0}#hdr{position:static}#content{padding:16px}}
+</style>
+</head>
+<body>
+<aside id="sidebar">
+    <div class="sidebar-logo"><h1>RaLab4</h1><span>Régularisation affaires</span></div>
+    <div class="nav">
+        <button class="nav-btn active" data-section="overview">Vue globale</button>
+        <button class="nav-btn" data-section="enrichable">Enrichables</button>
+        <button class="nav-btn" data-section="unresolved">Non résolues</button>
+        <button class="nav-btn" data-section="chantier-site">Chantier / site</button>
+    </div>
+</aside>
+<main id="main">
+    <header id="hdr">
+        <h1>Régularisation des affaires importées</h1>
+        <div id="status-bar">Chargement…</div>
+    </header>
+    <div id="content">
+        <section class="card" id="sec-overview">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Synthèse</div>
+                    <div class="card-desc">Lecture ciblée des affaires importées avant corrections.</div>
+                </div>
+                <div class="actions">
+                    <div class="field"><label>Limite</label><input id="limitInput" type="number" min="20" max="2000" value="300"/></div>
+                    <button id="refreshBtn">Rafraîchir</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="kpis" id="kpis"></div>
+                <div class="note">Cette page peut corriger <span class="mono">chantier</span>, <span class="mono">site</span> et enrichir une affaire importée depuis <span class="mono">affaires.db</span>. Elle ne touche pas aux imports historiques eux-mêmes.</div><div class="note">Correction importante: les champs d'édition de chaque onglet sont maintenant isolés. Une même affaire peut apparaître dans plusieurs vues sans mélanger les valeurs au moment d'enregistrer.</div>
+            </div>
+        </section>
+
+        <section class="card" id="sec-enrichable">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Affaires enrichables depuis affaires.db</div>
+                    <div class="card-desc">Quand une référence existe dans affaires.db, on peut reprendre le libellé comme chantier et basculer l’ancien chantier vers site si nécessaire.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrap tall"><table>
+                    <thead><tr><th>Affaire importée</th><th>N° affaire actuel</th><th>Chantier actuel</th><th>Site actuel</th><th>Référence trouvée</th><th>Suggestion proposée</th><th>Edition à enregistrer</th><th>Actions</th></tr></thead>
+                    <tbody id="enrichableBody"></tbody>
+                </table></div>
+            </div>
+        </section>
+
+        <section class="card hidden" id="sec-unresolved">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Affaires non résolues</div>
+                    <div class="card-desc">Cas sans rattachement automatique. Possibilité de chercher une référence et de corriger chantier/site manuellement.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrap tall"><table>
+                    <thead><tr><th>Affaire importée</th><th>N° affaire actuel</th><th>Chantier actuel</th><th>Site actuel</th><th>Candidats affaires.db</th><th>Edition à enregistrer</th><th>Actions</th></tr></thead>
+                    <tbody id="unresolvedBody"></tbody>
+                </table></div>
+            </div>
+        </section>
+
+        <section class="card hidden" id="sec-chantier-site">
+            <div class="card-header">
+                <div>
+                    <div class="card-title">Suspects chantier / site</div>
+                    <div class="card-desc">Cas où le champ chantier ressemble à une localisation. On peut réaffecter proprement les deux champs.</div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrap tall"><table>
+                    <thead><tr><th>Affaire importée</th><th>N° affaire actuel</th><th>Valeurs actuelles</th><th>Suggestion proposée</th><th>Edition à enregistrer</th><th>Action</th></tr></thead>
+                    <tbody id="chantierSiteBody"></tbody>
+                </table></div>
+            </div>
+        </section>
+    </div>
+</main>
+<script>
+const API = 'http://127.0.0.1:8000/api/regularisation-affaires';
+let currentReport = null;
+
+const statusBar = document.getElementById('status-bar');
+const limitInput = document.getElementById('limitInput');
+const refreshBtn = document.getElementById('refreshBtn');
+const kpis = document.getElementById('kpis');
+const enrichableBody = document.getElementById('enrichableBody');
+const unresolvedBody = document.getElementById('unresolvedBody');
+const chantierSiteBody = document.getElementById('chantierSiteBody');
+
+function setStatus(text, kind='') {
+    statusBar.textContent = text;
+    statusBar.className = kind ? kind : '';
+}
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;');
+}
+
+function badge(text, kind='') {
+    return `<span class="badge ${kind}">${escapeHtml(text)}</span>`;
+}
+
+function renderKpis(summary) {
+    const items = [
+        ['Affaires importées', summary.imported_affaires ?? 0],
+        ['Enrichables', summary.enrichable_from_reference ?? 0],
+        ['Non résolues', summary.unresolved_affaires ?? 0],
+        ['Suspects chantier/site', summary.chantier_site_suspects ?? 0],
+    ];
+    kpis.innerHTML = items.map(([label, value]) => `
+        <div class="kpi">
+            <div class="label">${escapeHtml(label)}</div>
+            <div class="value">${escapeHtml(value)}</div>
+        </div>
+    `).join('');
+}
+
+function renderEnrichable(rows) {
+    enrichableBody.innerHTML = rows.map(row => {
+        const match = row.reference_match || {};
+        const suggestion = row.suggestion || {};
+        return `
+        <tr>
+            <td class="stack"><strong>${escapeHtml(row.reference)}</strong><span class="soft small">id ${escapeHtml(row.id)}</span></td>
+            <td class="stack"><span class="mono">${escapeHtml(row.affaire_nge || '')}</span><span class="soft small">clé ${escapeHtml(row.affaire_key || '')}</span></td>
+            <td>${escapeHtml(row.chantier || '')}</td>
+            <td>${escapeHtml(row.site || '')}</td>
+            <td>
+                <div class="candidate-box">
+                    <strong>${escapeHtml(match.libellé || '')}</strong>
+                    <span class="mono">${escapeHtml(match.matched_code_raw || '')}</span>
+                    <span class="soft small">colonne ${escapeHtml(match.matched_column || '')}</span>
+                </div>
+            </td>
+            <td class="stack">
+                <div><strong>Chantier:</strong> ${escapeHtml(suggestion.suggested_chantier || '')}</div>
+                <div><strong>Site:</strong> ${escapeHtml(suggestion.suggested_site || '')}</div>
+            </td>
+            <td>
+                <div class="edit-grid">
+                    <div class="edit-item">
+                        <label>N° affaire à enregistrer</label>
+                        <input class="inline-input mono" id="unresolved-nge-${row.id}" type="text" value="${escapeHtml(match.matched_code_raw || row.affaire_nge || '')}" placeholder="RAO73T"/>
+                    </div>
+                    <div class="edit-item">
+                        <label>Chantier à enregistrer</label>
+                        <input class="inline-input" id="enrichable-chantier-${row.id}" type="text" value="${escapeHtml(suggestion.suggested_chantier || row.chantier || '')}" placeholder="Titre affaire NGE"/>
+                    </div>
+                    <div class="edit-item">
+                        <label>Site à enregistrer</label>
+                        <input class="inline-input" id="enrichable-site-${row.id}" type="text" value="${escapeHtml(suggestion.suggested_site || row.site || '')}" placeholder="Commune / localisation"/>
+                    </div>
+                </div>
+            </td>
+            <td class="stack">
+                <button class="tiny secondary" onclick="fillAffaireEditors('enrichable', ${row.id}, '${escapeHtml(suggestion.suggested_chantier || '').replaceAll("'", "&#39;")}', '${escapeHtml(suggestion.suggested_site || '').replaceAll("'", "&#39;")}', '${escapeHtml(match.matched_code_raw || row.affaire_nge || '').replaceAll("'", "&#39;")}')">Préremplir</button>
+                <button class="tiny" onclick="applyReference(${row.id}, '${escapeHtml(match.matched_code_raw || '').replaceAll("'", "&#39;")}')">Appliquer ref</button>
+                <button class="tiny secondary" onclick="saveAffaire('enrichable', ${row.id})">Enregistrer</button>
+                <span class="help-text">Préremplir remplit les 3 champs. Appliquer ref force le code NGE trouvé. Enregistrer sauvegarde les valeurs visibles.</span>
+            </td>
+        </tr>
+        `;
+    }).join('') || `<tr><td colspan="8" class="soft">Aucune affaire enrichable détectée.</td></tr>`;
+}
+
+function candidateHtml(candidate, affaireId) {
+    return `
+        <div class="candidate-box">
+            <strong>${escapeHtml(candidate.libellé || '')}</strong>
+            <span class="mono">${escapeHtml(candidate.matched_code_raw || '') || escapeHtml(candidate['n°affaire'] || '')}</span>
+            <span class="soft small">score ${escapeHtml(candidate.score || 0)}${candidate.matched_column ? ` · colonne ${escapeHtml(candidate.matched_column)}` : ''}</span>
+            <button class="tiny" onclick="applyReference(${affaireId}, '${escapeHtml(candidate.matched_code_raw || candidate['n°affaire'] || '').replaceAll("'", "&#39;")}')">Appliquer</button>
+        </div>
+    `;
+}
+
+function renderUnresolved(rows) {
+    unresolvedBody.innerHTML = rows.map(row => {
+        const suggestion = row.suggestion || {};
+        const candidates = (row.reference_candidates || []).map(item => candidateHtml(item, row.id)).join('');
+        return `
+        <tr>
+            <td class="stack"><strong>${escapeHtml(row.reference)}</strong><span class="soft small">id ${escapeHtml(row.id)}</span></td>
+            <td class="stack"><span class="mono">${escapeHtml(row.affaire_nge || '')}</span><span class="soft small">clé ${escapeHtml(row.affaire_key || '')}</span></td>
+            <td>${escapeHtml(row.chantier || '')}</td>
+            <td>${escapeHtml(row.site || '')}</td>
+            <td>${candidates || `<span class="soft">Aucun candidat automatique.</span>`}</td>
+            <td>
+                <div class="edit-grid">
+                    <div class="edit-item">
+                        <label>N° affaire à enregistrer</label>
+                        <input class="inline-input mono" id="chantier-site-nge-${row.id}" type="text" value="${escapeHtml(row.affaire_nge || '')}" placeholder="Code NGE"/>
+                    </div>
+                    <div class="edit-item">
+                        <label>Chantier à enregistrer</label>
+                        <input class="inline-input" id="unresolved-chantier-${row.id}" type="text" value="${escapeHtml(suggestion.suggested_chantier || row.chantier || '')}" placeholder="Titre chantier"/>
+                    </div>
+                    <div class="edit-item">
+                        <label>Site à enregistrer</label>
+                        <input class="inline-input" id="unresolved-site-${row.id}" type="text" value="${escapeHtml(suggestion.suggested_site || row.site || '')}" placeholder="Site / adresse"/>
+                    </div>
+                </div>
+            </td>
+            <td class="stack">
+                <button class="tiny warn" onclick="searchCandidates('unresolved', ${row.id})">Chercher ref</button>
+                <button class="tiny secondary" onclick="saveAffaire('unresolved', ${row.id})">Enregistrer</button>
+                <span class="help-text">Chercher ref propose des candidats. Enregistrer sauvegarde les 3 champs visibles.</span>
+            </td>
+        </tr>
+        `;
+    }).join('') || `<tr><td colspan="7" class="soft">Aucune affaire non résolue.</td></tr>`;
+}
+
+function renderChantierSite(rows) {
+    chantierSiteBody.innerHTML = rows.map(row => {
+        const suggestion = row.suggestion || {};
+        return `
+        <tr>
+            <td class="stack"><strong>${escapeHtml(row.reference)}</strong><span class="soft small">id ${escapeHtml(row.id)}</span></td>
+            <td class="mono">${escapeHtml(row.affaire_nge || '')}</td>
+            <td class="stack"><div><strong>Chantier:</strong> ${escapeHtml(row.chantier || '')}</div><div><strong>Site:</strong> ${escapeHtml(row.site || '')}</div></td>
+            <td class="stack"><div><strong>Chantier:</strong> ${escapeHtml(suggestion.suggested_chantier || '')}</div><div><strong>Site:</strong> ${escapeHtml(suggestion.suggested_site || '')}</div></td>
+            <td>
+                <div class="edit-grid">
+                    <div class="edit-item">
+                        <label>N° affaire à enregistrer</label>
+                        <input class="inline-input mono" id="enrichable-nge-${row.id}" type="text" value="${escapeHtml(row.affaire_nge || '')}" placeholder="Code NGE"/>
+                    </div>
+                    <div class="edit-item">
+                        <label>Chantier à enregistrer</label>
+                        <input class="inline-input" id="chantier-site-chantier-${row.id}" type="text" value="${escapeHtml(suggestion.suggested_chantier || row.chantier || '')}" placeholder="Titre chantier"/>
+                    </div>
+                    <div class="edit-item">
+                        <label>Site à enregistrer</label>
+                        <input class="inline-input" id="chantier-site-site-${row.id}" type="text" value="${escapeHtml(suggestion.suggested_site || row.site || '')}" placeholder="Site / adresse"/>
+                    </div>
+                </div>
+            </td>
+            <td class="stack">
+                ${row.reference_match ? `<button class="tiny" onclick="applyReference(${row.id}, '${escapeHtml(row.reference_match.matched_code_raw || '').replaceAll("'", "&#39;")}')">Appliquer ref</button>` : ''}
+                <button class="tiny secondary" onclick="saveAffaire('chantier-site', ${row.id})">Enregistrer</button>
+                <span class="help-text">Enregistrer sauvegarde les 3 champs visibles.</span>
+            </td>
+        </tr>
+        `;
+    }).join('') || `<tr><td colspan="6" class="soft">Aucun suspect chantier/site.</td></tr>`;
+}
+
+function inputId(section, field, id) {
+    return `${section}-${field}-${id}`;
+}
+
+function fillAffaireEditors(section, id, chantier, site, affaireNge) {
+    const chantierInput = document.getElementById(inputId(section, 'chantier', id));
+    const siteInput = document.getElementById(inputId(section, 'site', id));
+    const ngeInput = document.getElementById(inputId(section, 'nge', id));
+    if (chantierInput) chantierInput.value = chantier || '';
+    if (siteInput) siteInput.value = site || '';
+    if (ngeInput) ngeInput.value = affaireNge || '';
+}
+
+async function loadReport() {
+    try {
+        setStatus('Chargement du rapport…');
+        const limit = Number(limitInput.value || 300);
+        const [statusRes, reportRes] = await Promise.all([
+            fetch(`${API}/status`),
+            fetch(`${API}/report`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({limit}),
+            }),
+        ]);
+        if (!statusRes.ok) throw new Error(`Status HTTP ${statusRes.status}`);
+        if (!reportRes.ok) throw new Error(`Report HTTP ${reportRes.status}`);
+        const statusData = await statusRes.json();
+        currentReport = await reportRes.json();
+        renderKpis(currentReport.summary || {});
+        renderEnrichable(currentReport.enrichable_affaires || []);
+        renderUnresolved(currentReport.unresolved_affaires || []);
+        renderChantierSite(currentReport.chantier_site_suspects || []);
+        setStatus(`DB ok · ${statusData.imported_affaires_count} affaires importées · ${statusData.imported_affaires_with_site} avec site`, 'ok');
+    } catch (err) {
+        console.error(err);
+        setStatus(`Erreur: ${err.message}`, 'err');
+    }
+}
+
+async function saveAffaire(section, id) {
+    const chantier = document.getElementById(inputId(section, 'chantier', id))?.value || '';
+    const site = document.getElementById(inputId(section, 'site', id))?.value || '';
+    const affaire_nge = document.getElementById(inputId(section, 'nge', id))?.value || '';
+    try {
+        setStatus(`Enregistrement affaire ${id}…`);
+        const res = await fetch(`${API}/affaires/${id}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({chantier, site, affaire_nge}),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+        setStatus(`Affaire ${id} mise à jour.`, 'ok');
+        await loadReport();
+    } catch (err) {
+        console.error(err);
+        setStatus(`Erreur enregistrement: ${err.message}`, 'err');
+    }
+}
+
+async function applyReference(id, referenceCode) {
+    try {
+        setStatus(`Enrichissement affaire ${id}…`);
+        const res = await fetch(`${API}/apply-reference`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({affaire_id: id, reference_code: referenceCode || null}),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+        setStatus(`Affaire ${id} enrichie depuis affaires.db.`, 'ok');
+        await loadReport();
+    } catch (err) {
+        console.error(err);
+        setStatus(`Erreur enrichissement: ${err.message}`, 'err');
+    }
+}
+
+async function searchCandidates(section, id) {
+    const query = document.getElementById(inputId(section, 'nge', id))?.value || document.getElementById(inputId(section, 'chantier', id))?.value || '';
+    try {
+        setStatus(`Recherche de références pour affaire ${id}…`);
+        const res = await fetch(`${API}/reference-search?query=${encodeURIComponent(query)}&limit=8`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+        const row = currentReport?.unresolved_affaires?.find(item => Number(item.id) === Number(id));
+        if (row) {
+            row.reference_candidates = data.items || [];
+            renderUnresolved(currentReport.unresolved_affaires || []);
+        }
+        setStatus(`Recherche terminée pour affaire ${id}.`, 'ok');
+    } catch (err) {
+        console.error(err);
+        setStatus(`Erreur recherche: ${err.message}`, 'err');
+    }
+}
+
+refreshBtn.addEventListener('click', loadReport);
+document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.nav-btn').forEach(item => item.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('#content > section').forEach(section => section.classList.add('hidden'));
+        document.getElementById(`sec-${btn.dataset.section}`).classList.remove('hidden');
+        if (btn.dataset.section === 'overview') {
+            document.getElementById('sec-enrichable').classList.remove('hidden');
+        }
+    });
+});
+
+loadReport();
+</script>
+</body>
+</html>
