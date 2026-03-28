@@ -1,0 +1,1 @@
+RaLab4: make demande modules drive fiche visibility and linked items display

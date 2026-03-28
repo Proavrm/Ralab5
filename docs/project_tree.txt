@@ -1,0 +1,4 @@
+frontend/legacy_html/tools.html
+docs/handoff_next_steps.txt
+docs/project_tree.txt
+docs/commit_message.txt

@@ -68,14 +68,14 @@ Affaire RST
 ### Conventions de référence
 | Objet | Format | Exemple |
 |---|---|---|
-| Affaire | `YYYY-RA-NNNN` | `2026-RA-0042` |
-| Demande | `YYYY-SP-DNNNN` | `2026-SP-D0042` |
-| Intervention | `YYYY-SP-INNNN` | `2026-SP-I0001` |
-| Échantillon | `YYYY-SP-ENNNN` | `2026-SP-E0001` |
-| NC interne | `NC-YYYY-NNN` | `NC-2026-001` |
+| Affaire | `YYYY-RA-NNN` | `2026-RA-042` |
+| Demande | `YYYY-SP-DNNN` | `2026-SP-D042` |
+| Intervention | `YYYY-SP-INNN` | `2026-SP-I001` |
+| Échantillon | `YYYY-SP-ENNN` | `2026-SP-E001` |
+| NC interne | `YYYY-RA-NCNNN` | `2026-RA-NC001` |
 
 ### Statuts demande
-`À qualifier` → `Demande` → `En Cours` → `Répondu` → `Fini` → `Envoyé - Perdu`
+`À qualifier` → `Demande` → `En Cours / En Attente' → `Répondu` → `Fini` → `Envoyé - Perdu`
 
 ### Statuts affaire
 `À qualifier` → `En cours` → `Terminée` → `Archivée`
@@ -270,32 +270,23 @@ git ls-files | grep -E "(\.db$|_package/)"
 
 ## 12. Session en cours / dernière session
 
-**Date :** 2026-03-27
-**Fait dans cette session :**
-- Nettoyage du repo RaLab4 (packages, .db, fichiers racine, .gitignore)
-- Analyse complète du codebase RaLab4
-- Décision de créer RaLab5 avec frontend React
-- Création de ce fichier CONTEXT.md
-- Création structure complète RaLab5 :
-  - `frontend/react/` avec Vite + React 18 + TanStack Query + Tailwind
-  - Composants UI : Button, Input, Card, Modal, Table, Badge
-  - Layout : AppLayout (sidebar) + routing complet App.jsx
-  - Services : api.js (toutes les entités) + useAuth hook
-  - Pages complètes : LoginPage, DashboardPage, AffairesPage, DemandesPage
-  - Stubs pour todas as outras páginas
-- Backend copiado do RaLab4 sem alterações
+```
+**Data :** 2026-03-28
+**Feito nesta sessão :**
+- AffairesPage completa (painel lateral, modal criar/editar, todos os campos)
+- DemandesPage completa (painel lateral, modal, filtros: statut/labo/mission/à revoir)
+- AffairePage completa (fiche detalhe, tabela demandes, modal editar)
+- AppLayout/sidebar com todos os itens correctos (Affaires NGE, Études, À venir...)
+- App.jsx com todas as rotas
 
-**Prochaine étape :**
-- Marco cria repo GitHub `Ralab5` e faz push inicial
-- Migrar: AffairePage, DemandePage (fichas detalhadas)
-- Migrar: PassationsPage + PassationPage
-- Migrar: PlanningPage (kanban)
+**Próxima sessão :**
+- DemandePage (fiche detalhe demande.html)
+- PassationsPage + PassationPage
+- PlanningPage
+- ToolsPage
+- Continuar pelas restantes páginas em ordem
 
-**Em attente de Marco :**
-- Push do RaLab4 limpo
-- Criar repo GitHub RaLab5 e fazer `git init` + primeiro push
-- Confirmar: web only ou Tauri para RaLab5?
-
+**HTMLs de referência:** todos em /mnt/user-data/uploads/ — sempre ler antes de escrever
 ---
 
 ## 13. Pour reprendre le travail après une pause

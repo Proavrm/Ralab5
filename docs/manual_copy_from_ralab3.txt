@@ -1,0 +1,15 @@
+Copy these files manually from the live local RaLab3 folder into the matching place in RaLab4:
+
+backend/current_fastapi/data/ralab3.db
+backend/current_fastapi/data/security.db
+backend/current_fastapi/data/dst.db
+
+Optional archive/history databases:
+backend/current_fastapi/data/demandes.db
+backend/current_fastapi/data/affaires.db
+backend/current_fastapi/data/etudes.db
+
+Notes:
+- do not copy .git
+- do not copy __pycache__
+- do not copy .db-shm or .db-wal unless you know the database was closed cleanly

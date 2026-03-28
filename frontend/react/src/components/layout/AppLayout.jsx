@@ -1,44 +1,34 @@
-/**
- * components/layout/AppLayout.jsx
- * Layout principal — sidebar + header + content.
- * Equivalente ao sidebar.js do HTML legacy.
- */
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
-import {
-  LayoutDashboard, Briefcase, ClipboardList, FileText,
-  MapPin, FlaskConical, Calendar, Shield, Wrench,
-  HandshakeIcon, LogOut, ChevronRight
-} from 'lucide-react'
+import { LogOut } from 'lucide-react'
 
 const NAV = [
   {
-    section: 'Principal',
+    section: 'Navigation',
     items: [
-      { to: '/',           icon: LayoutDashboard, label: 'Dashboard',   end: true },
-      { to: '/affaires',   icon: Briefcase,        label: 'Affaires RST' },
-      { to: '/demandes',   icon: ClipboardList,    label: 'Demandes' },
-      { to: '/passations', icon: HandshakeIcon,    label: 'Passations' },
+      { to: '/',              icon: '🏠', label: 'Dashboard',     end: true },
+      { to: '/affaires',      icon: '📋', label: 'Affaires RST' },
+      { to: '/passations',    icon: '🤝', label: 'Passations' },
+      { to: '/demandes',      icon: '📂', label: 'Demandes' },
+      { to: '/dst',           icon: '📁', label: 'DST' },
+      { to: '/affaires-nge',  icon: '🏗️', label: 'Affaires NGE' },
+      { to: '/etudes',        icon: '📚', label: 'Études' },
+      { to: '/planning',      icon: '📅', label: 'Planning' },
+      { to: '/qualite',       icon: '🔍', label: 'Audits / Qualité' },
     ]
   },
   {
-    section: 'Terrain & Labo',
+    section: 'À venir',
     items: [
-      { to: '/dst',      icon: FileText,    label: 'DST' },
-      { to: '/planning', icon: Calendar,    label: 'Planning' },
-    ]
-  },
-  {
-    section: 'Qualité',
-    items: [
-      { to: '/qualite', icon: Shield, label: 'Qualité Labo' },
+      { to: null, icon: '📍', label: 'G3',          disabled: true },
+      { to: null, icon: '🔬', label: 'Laboratoire', disabled: true },
     ]
   },
   {
     section: 'Administration',
     items: [
-      { to: '/admin', icon: Shield, label: 'Admin' },
-      { to: '/tools', icon: Wrench, label: 'Outils' },
+      { to: '/tools', icon: '🔧', label: 'Outils' },
+      { to: '/admin', icon: '⚙️', label: 'Utilisateurs' },
     ]
   },
 ]
@@ -50,15 +40,12 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
       <aside className="w-[220px] min-w-[220px] bg-sidebar flex flex-col">
-        {/* Logo */}
         <div className="px-5 py-5 border-b border-white/5">
           <h1 className="text-white font-bold text-lg">RaLab5</h1>
-          <span className="text-xs text-sidebar-t opacity-60">Labo Géotechnique NGE</span>
+          <span className="text-[11px] text-[#a0a0b8]">Laboratoire géotechnique</span>
         </div>
 
-        {/* Nav */}
         <nav className="flex-1 py-3 overflow-y-auto">
           {NAV.map(group => (
             <div key={group.section}>
@@ -66,27 +53,34 @@ export default function AppLayout() {
                 {group.section}
               </p>
               {group.items.map(item => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2.5 w-full px-5 py-2.5 text-[13px] border-l-[3px] transition-all duration-150 ${
-                      isActive
-                        ? 'bg-white/10 text-white border-accent'
-                        : 'text-sidebar-t border-transparent hover:bg-white/5 hover:text-white'
-                    }`
-                  }
-                >
-                  <item.icon size={15} className="shrink-0 opacity-80" />
-                  {item.label}
-                </NavLink>
+                item.disabled ? (
+                  <div key={item.label}
+                    className="flex items-center gap-2.5 w-full px-5 py-2.5 text-[13px] text-[#a0a0b8]/35 border-l-[3px] border-transparent cursor-not-allowed select-none">
+                    <span className="text-[15px] w-5 text-center">{item.icon}</span>
+                    {item.label}
+                  </div>
+                ) : (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2.5 w-full px-5 py-2.5 text-[13px] border-l-[3px] transition-all duration-150 ${
+                        isActive
+                          ? 'bg-white/10 text-white border-accent'
+                          : 'text-[#a0a0b8] border-transparent hover:bg-white/5 hover:text-white'
+                      }`
+                    }
+                  >
+                    <span className="text-[15px] w-5 text-center">{item.icon}</span>
+                    {item.label}
+                  </NavLink>
+                )
               ))}
             </div>
           ))}
         </nav>
 
-        {/* User */}
         <div className="px-5 py-4 border-t border-white/5">
           <div className="flex items-center gap-2.5 mb-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
@@ -94,22 +88,19 @@ export default function AppLayout() {
             </div>
             <div className="min-w-0">
               <p className="text-white text-[13px] font-medium truncate">
-                {user?.display_name || user?.username || '—'}
+                {user?.display_name || user?.email || '—'}
               </p>
-              <p className="text-sidebar-t text-[11px] capitalize">{user?.role || ''}</p>
+              <p className="text-[#a0a0b8] text-[11px]">{user?.role || ''}</p>
             </div>
           </div>
-          <button
-            onClick={logout}
-            className="w-full py-1.5 border border-white/10 rounded text-sidebar-t text-xs hover:bg-white/5 hover:text-white transition-colors flex items-center justify-center gap-1.5"
-          >
+          <button onClick={logout}
+            className="w-full py-1.5 border border-white/10 rounded text-[#a0a0b8] text-xs hover:bg-white/5 hover:text-white transition-colors flex items-center justify-center gap-1.5">
             <LogOut size={12} />
             Déconnexion
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-y-auto p-6">
           <Outlet />

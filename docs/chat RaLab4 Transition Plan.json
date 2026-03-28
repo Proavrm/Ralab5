@@ -1,0 +1,181 @@
+{
+  "conversation_summary": {
+    "project": "RaLab4 (Logiciel RaLab)",
+    "domain": "Laboratory + Geotechnical + Project Management software (NGE context)",
+    "current_phase": "Post-import stabilization + structuring operational UI",
+    "core_focus": [
+      "Import historique labo (Excel → DB)",
+      "Normalisation affaires",
+      "Structuration Demande ↔ Affaire RST",
+      "Creation of operational pages (DST-like)"
+    ]
+  },
+  "key_concepts": {
+    "affaire_rst": "Internal operational project entity used in RaLab, central pivot",
+    "demande": "Request/task linked to an affaire RST, always created from a source",
+    "sources": [
+      "DST (incoming technical requests)",
+      "Affaires NGE (reference database)",
+      "Études (reference database, less structured)"
+    ],
+    "rule_core": "A demande is always created first, then linked to an affaire RST (existing or newly created)",
+    "affaire_creation_logic": {
+      "if_affaire_exists": "Create only demande and attach to existing affaire RST",
+      "if_affaire_not_exists": "Create affaire RST then create demande and link it"
+    }
+  },
+  "affaire_code_logic": {
+    "true_affaire_format": "RA + letter(year) + number(01-99) + optional suffix letter + agency letter",
+    "examples": ["RAP99A", "RAP1B"],
+    "non_valid_codes": ["RASTOP"],
+    "agency_code": {
+      "example": "FG",
+      "meaning": "frais d'agence",
+      "not_a_project": true
+    },
+    "data_structure": {
+      "base_code_column": "RAP99",
+      "agency_column": "A",
+      "final_codes": "Already constructed in enterprise columns (gsa, ehtp, etc.)",
+      "rule": "Use final codes, do not reconstruct artificially"
+    }
+  },
+  "import_logic": {
+    "historical_import": {
+      "status": "Completed for 2025 and 2026",
+      "issues_resolved": [
+        "multi-sheet Excel parsing",
+        "code detection improvements",
+        "CFE composite handling",
+        "ID composite handling",
+        "filename-based detection (FTP, SO)",
+        "normalisation affaire codes"
+      ]
+    },
+    "remaining_constraints": [
+      "Some codes appear only in titles",
+      "Excel sheets can be multiple and inconsistent",
+      "Certain codes like MVA/DE required parsing improvements"
+    ]
+  },
+  "database_state": {
+    "ralab3.db": {
+      "status": "Actively used and updated",
+      "size_increase": "Confirmed large growth after import",
+      "writes": "Committed on backend shutdown (SQLite WAL flush behavior)"
+    },
+    "affaires.db": {
+      "role": "Reference database",
+      "constraint_issue": "UNIQUE constraint failed: affaires.id",
+      "fix": "Ignore id from Excel, use business keys, perform upsert"
+    },
+    "etudes.db": {
+      "status": "Must remain untouched structurally",
+      "reason": "Codes are not logically structured"
+    }
+  },
+  "reference_update_system": {
+    "design_principle": "Detect automatically, notify user, never update automatically",
+    "flow": [
+      "Detect file changes (mtime/hash)",
+      "Display status (à jour / mise à jour disponible)",
+      "Allow preview",
+      "Backup DB",
+      "Manual confirmation before update"
+    ],
+    "affaires_special_rule": "Ignore first 2 sheets in Excel"
+  },
+  "ui_architecture": {
+    "current_state": {
+      "tools_page": "Now simplified to navigation hub",
+      "reference_pages": [
+        "references_affaires.html",
+        "references_etudes.html"
+      ],
+      "issue": "These pages are maintenance-oriented, not operational"
+    },
+    "target_state": {
+      "main_navigation_pages": [
+        "DST",
+        "Affaires NGE",
+        "Études"
+      ],
+      "each_page_features": [
+        "Immediate table display",
+        "Search/filter",
+        "Row-level actions",
+        "Create demande",
+        "Create or attach affaire RST"
+      ],
+      "tools_page_role": "Utility + access only"
+    }
+  },
+  "workflow_model": {
+    "general_flow": [
+      "User interacts with source (DST / Affaires NGE / Études)",
+      "User triggers creation",
+      "System checks if affaire RST exists",
+      "If yes → create demande only",
+      "If no → create affaire RST + demande",
+      "Link demande to affaire"
+    ],
+    "important_principle": "Affaire is never created alone; always through demande context"
+  },
+  "resolved_issues": [
+    "Import parsing improvements",
+    "Affaire normalization logic clarified",
+    "Reference update system stabilized",
+    "Frontend linking via tools page",
+    "Manual correction tool created for affaires",
+    "Understanding of SQLite commit behavior"
+  ],
+  "current_problems": [
+    "Operational pages (Affaires NGE / Études) not yet built",
+    "Need DST-like UI for references",
+    "Creation workflow not yet integrated into those pages",
+    "Global regularisation UI abandoned due to instability"
+  ],
+  "next_steps": [
+    "Create Affaires NGE operational page (DST-like)",
+    "Create Études operational page (DST-like)",
+    "Integrate creation logic (affaire RST + demande)",
+    "Ensure consistent linking logic across all sources",
+    "Eventually unify UI patterns across modules"
+  ],
+  "meta_insights": {
+    "user_preference": [
+      "Pragmatic, iterative development",
+      "Prefers working solutions over theoretical perfection",
+      "Strong sensitivity to real-world métier logic",
+      "Rejects over-engineered or unstable UI",
+      "Prefers clear, deterministic behavior"
+    ],
+    "assistant_adjustment": [
+      "Moved from abstract design to concrete tools",
+      "Reduced complexity after failed global UI",
+      "Aligned with user's operational workflow mindset",
+      "Focused on robustness over automation"
+    ]
+  },
+  "tone_and_style": {
+    "communication": "Direct, technical, pragmatic",
+    "language_mix": "Portuguese + French technical vocabulary",
+    "expected_behavior": [
+      "Be precise",
+      "Avoid overcomplication",
+      "Respect métier logic",
+      "Focus on implementation reality"
+    ]
+  },
+  "implicit_understandings": [
+    "RaLab is evolving from tool to full operational system",
+    "Data integrity is more important than automation",
+    "UI must follow real workflows, not abstract structures",
+    "Affaire ↔ Demande linkage is the backbone of the system"
+  ],
+  "conversation_state": {
+    "phase": "Transition from data import to operational UI design",
+    "confidence_level": "High alignment between user and assistant",
+    "ready_for": "Implementation of DST-like pages for Affaires NGE and Études"
+  }
+}

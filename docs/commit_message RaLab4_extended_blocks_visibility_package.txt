@@ -1,0 +1,1 @@
+RaLab4: extend module-driven demande visibility to planning, documents, study, external tests and quoting screens

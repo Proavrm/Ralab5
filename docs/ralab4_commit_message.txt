@@ -1,0 +1,7 @@
+feat(ralab4): initialize clean transition package from RaLab3 baseline
+
+- keep current live FastAPI logic as migration baseline
+- keep current live HTML GUI as migration baseline
+- define target RaLab4 tree
+- prepare backend/frontend split
+- prepare handoff and next-step documentation

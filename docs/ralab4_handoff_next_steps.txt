@@ -1,0 +1,103 @@
+RaLab4 - Handoff and next steps
+================================
+
+What I read and fixed as the real direction:
+- RaLab4 must keep the current RaLab3 GUI and business logic as the living baseline.
+- The final target remains a desktop application with a web UI, FastAPI backend, business/calculation logic separated from the routes, and a clean modular tree.
+- The current same-GUI transition should not destroy what already works.
+
+Functional baseline kept from RaLab3
+------------------------------------
+Backend live baseline:
+- FastAPI entry point
+- auth
+- admin
+- affaires
+- demandes_rst
+- dst
+- planning
+- interventions
+- essais
+- audits
+- repositories / services already used by the current pages
+
+Frontend live baseline:
+- login.html
+- index.html
+- affaires.html
+- affaire.html
+- demandes.html
+- demande.html
+- dst.html
+- intervention.html
+- essai.html
+- planning.html
+- audits.html
+- admin.html
+- tools.html
+
+Naming rules retained
+---------------------
+- Affaire reference: keep the existing YYYY-RA-0001 logic with 4 digits for the affair reference.
+- Demande reference: YYYY-RA-D0001.
+- Passation reference: YYYY-RA-P0001.
+- Echantillon / Intervention references keep the laboratory code logic.
+
+Core business rules retained
+----------------------------
+- Affaire = the project / contract container.
+- Demande = the actual request handled inside the affaire.
+- A single affaire may contain multiple different demandes.
+- A passation may create a new affaire or enrich an existing affaire already opened during study / DCE / G3 pricing work.
+- Essai laboratoire is linked to the echantillon.
+- Essai terrain is linked to the intervention.
+- A demande may have multiple interventions.
+
+Immediate migration strategy
+----------------------------
+Wave 0 - safe reset
+- Keep the current live backend and current live HTML pages.
+- Re-home them in a clean RaLab4 package.
+- Stop mixing old PySide traces with the live web application.
+
+Wave 1 - structural baseline
+- Create backend/, frontend/, desktop/, docs/, storage/, scripts/.
+- Keep current HTML in frontend/legacy_html.
+- Keep current live FastAPI code in backend/current_fastapi.
+- Do not rename the live database yet.
+
+Wave 2 - functional architecture
+- Create passation as a first-class module.
+- Add demande preparation and module activation logic.
+- Prepare the document control block for procedures, standards, and templates.
+
+Wave 3 - operational transversal modules
+- resources
+- equipment
+- metrology
+- field findings
+- non-conformities
+- quotations
+- external tests
+- supplier accounting
+
+Wave 4 - modern frontend
+- Rebuild the shell and business pages progressively in React.
+- Replace legacy HTML page by page, not all at once.
+- Preserve behavior and business rules during every migration step.
+
+Very next concrete coding block I recommend
+-------------------------------------------
+1. Create the real RaLab4 root tree.
+2. Drop in the copied backend and frontend legacy baselines from this package.
+3. Add a new Passation page and API module first.
+4. Add Demande Preparation second.
+5. Only then start the React shell.
+
+Files expected to be produced in each future delivery
+-----------------------------------------------------
+- updated backend folder
+- updated frontend folder
+- full project tree TXT
+- handoff / next-step TXT
+- commit message TXT

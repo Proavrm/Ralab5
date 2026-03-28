@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RaLab3 — Qualité Labo</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;
+  --accent:#5b6af0;--nge:#002C77;--surface:#fff;--border:#e2e2dc;
+  --text:#1a1a2e;--text-m:#6b6b80;
+  --danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;
+  --qual:#0369a1;--qual-l:#e0f2fe;
+  --radius:8px;
+}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+/* ── Sidebar ── */
+#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+.nav{flex:1;padding:12px 0}
+.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+.nav-btn .icon{font-size:15px;width:20px;text-align:center}
+.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+.user-name{font-size:13px;color:#fff;font-weight:500}
+.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+.btn-logout:hover{background:#2a2a40;color:#fff}
+/* ── Main ── */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+/* ── Tabs ── */
+.top-tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:stretch;padding:0 24px;gap:0;flex-shrink:0}
+.top-tab{padding:0 18px;height:52px;display:flex;align-items:center;gap:7px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-m);border-bottom:2px solid transparent;transition:.15s;white-space:nowrap}
+.top-tab:hover{color:var(--text)}
+.top-tab.active{color:var(--qual);border-bottom-color:var(--qual)}
+.top-tab .badge{background:var(--danger);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700}
+.top-tab .badge.warn{background:var(--warn)}
+/* Stats bar */
+#stats-bar{background:var(--qual-l);border-bottom:1px solid #bae6fd;padding:10px 24px;display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap}
+.stat-chip{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-size:12px;cursor:default}
+.stat-chip .n{font-size:18px;font-weight:700;line-height:1}
+.stat-chip .l{color:var(--text-m)}
+.stat-chip.alert .n{color:var(--danger)}
+.stat-chip.warn  .n{color:var(--warn)}
+.stat-chip.ok    .n{color:var(--success)}
+.stat-chip.blue  .n{color:var(--qual)}
+/* Section wrapper */
+.section{flex:1;display:none;flex-direction:column;overflow:hidden}
+.section.active{display:flex}
+/* Header bar */
+.sec-hdr{padding:12px 24px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-bottom:1px solid var(--border);background:var(--surface)}
+.sec-hdr-title{font-size:14px;font-weight:600;flex:1}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.btn:hover{background:var(--bg)}.btn.primary{background:var(--qual);border-color:var(--qual);color:#fff}
+.btn.primary:hover{filter:brightness(1.1)}.btn.success{background:var(--success);border-color:var(--success);color:#fff}
+.btn.danger{border-color:var(--danger);color:var(--danger)}.btn.danger:hover{background:#fcebeb}
+.btn.sm{padding:5px 10px;font-size:12px}
+/* Filters */
+.filters{padding:8px 24px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+.fsel{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--bg);outline:none}
+.fsearch{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;background:var(--bg);width:220px}
+.fsearch:focus{border-color:var(--qual);background:#fff}
+/* Split */
+.split{flex:1;display:flex;overflow:hidden;min-height:0}
+.tbl-wrap{flex:1;overflow-y:auto;min-width:0}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:5;cursor:pointer;user-select:none}
+thead th:hover{color:var(--text)}
+tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+tbody tr:hover{background:#f8f8fc}
+tbody tr.selected{background:var(--qual-l)}
+tbody tr.alert-row td:first-child{border-left:3px solid var(--danger)}
+tbody tr.warn-row td:first-child{border-left:3px solid var(--warn)}
+td{padding:9px 14px;vertical-align:middle}
+.empty-state{padding:60px;text-align:center;color:var(--text-m)}
+/* Detail panel */
+.detail{width:360px;min-width:310px;background:var(--surface);border-left:1px solid var(--border);display:none;flex-direction:column;overflow-y:auto;flex-shrink:0}
+.detail.visible{display:flex}
+.det-hdr{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-shrink:0}
+.det-body{padding:14px 16px;display:flex;flex-direction:column;gap:12px;flex:1}
+.det-section{display:flex;flex-direction:column;gap:6px}
+.det-stitle{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:2px}
+.det-field{display:flex;flex-direction:column;gap:2px}
+.det-field label{font-size:10px;color:var(--text-m)}
+.det-field span{font-size:13px;font-weight:500}
+.det-field span.empty{color:var(--text-m);font-style:italic;font-weight:400}
+.det-text{font-size:12px;line-height:1.6;white-space:pre-wrap}
+.det-actions{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+/* Metro list in detail */
+.metro-item{border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-bottom:6px;font-size:12px}
+.metro-item.expired{border-left:3px solid var(--danger)}
+.metro-item.soon{border-left:3px solid var(--warn)}
+/* Badges */
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}
+.b-gray{background:#f1efe8;color:#5f5e5a}.b-blue{background:#e6f1fb;color:#185fa5}
+.b-green{background:#eaf3de;color:#3b6d11}.b-amber{background:#faeeda;color:#854f0b}
+.b-red{background:#fcebeb;color:#a32d2d}.b-purple{background:#eeedfe;color:#534ab7}
+.b-teal{background:#e0f5ef;color:#0f6e56}.b-sky{background:var(--qual-l);color:var(--qual)}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border-radius:12px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.modal-md{width:580px}.modal-lg{width:720px}
+.modal-header{padding:18px 24px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-header h2{font-size:14px;font-weight:600}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-m)}
+.modal-body{padding:20px 24px;display:flex;flex-direction:column;gap:12px}
+.modal-footer{padding:14px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:5px}
+.form-group.full{grid-column:1/-1}
+.form-group label{font-size:12px;font-weight:500;color:var(--text-m)}
+.form-group input,.form-group select,.form-group textarea{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;outline:none;font-family:inherit;background:var(--bg);transition:.15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--qual);background:#fff}
+.form-group input[readonly]{color:var(--text-m)}
+.form-group textarea{resize:vertical;min-height:60px}
+.form-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:5px;grid-column:1/-1;margin-top:4px}
+#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius);font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.success{background:var(--success);color:#fff}
+#toast.error{background:var(--danger);color:#fff}
+#toast.info{background:#1a1a2e;color:#fff}
+</style>
+</head>
+<body>
+<nav id="sidebar"></nav>
+<script src="sidebar.js"></script>
+
+<div id="main">
+  <!-- Tabs -->
+  <div class="top-tabs">
+    <button class="top-tab active" id="tab-equipment" onclick="switchTab('equipment')">🔧 Équipements</button>
+    <button class="top-tab" id="tab-metrology" onclick="switchTab('metrology')">📏 Métrologie <span class="badge warn" id="badge-metro" style="display:none">0</span></button>
+    <button class="top-tab" id="tab-procedures" onclick="switchTab('procedures')">📄 Procédures</button>
+    <button class="top-tab" id="tab-standards" onclick="switchTab('standards')">📐 Normes</button>
+    <button class="top-tab" id="tab-nc" onclick="switchTab('nc')">⚠ Non-conformités <span class="badge" id="badge-nc" style="display:none">0</span></button>
+  </div>
+
+  <!-- Stats -->
+  <div id="stats-bar">
+    <div class="stat-chip blue"><span class="n" id="s-eq">—</span><span class="l">Équipements actifs</span></div>
+    <div class="stat-chip alert"><span class="n" id="s-eq-hs">—</span><span class="l">Hors service</span></div>
+    <div class="stat-chip alert"><span class="n" id="s-metro-exp">—</span><span class="l">Étalonnages expirés</span></div>
+    <div class="stat-chip warn"><span class="n" id="s-metro-soon">—</span><span class="l">Étalonnages &lt;30j</span></div>
+    <div class="stat-chip alert"><span class="n" id="s-nc">—</span><span class="l">NCs ouvertes</span></div>
+    <div class="stat-chip alert"><span class="n" id="s-nc-late">—</span><span class="l">NCs en retard</span></div>
+    <div class="stat-chip blue"><span class="n" id="s-proc">—</span><span class="l">Procédures</span></div>
+    <div class="stat-chip blue"><span class="n" id="s-std">—</span><span class="l">Normes</span></div>
+  </div>
+
+  <!-- ── ÉQUIPEMENTS ─────────────────────────────────────────────────── -->
+  <div class="section active" id="section-equipment">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title">Équipements</span>
+      <div class="filters" style="padding:0;border:none;flex:1">
+        <input class="fsearch" id="eq-search" placeholder="Code, désignation, fournisseur…" oninput="loadEquipment()"/>
+        <select class="fsel" id="eq-cat" onchange="loadEquipment()">
+          <option value="">Toutes catégories</option>
+          <option>Labo</option><option>Terrain</option><option>Métrologie</option><option>Informatique</option><option>Autre</option>
+        </select>
+        <select class="fsel" id="eq-status" onchange="loadEquipment()">
+          <option value="">Tous statuts</option>
+          <option>En service</option><option>En maintenance</option><option>Hors service</option><option>Réformé</option>
+        </select>
+      </div>
+      <button class="btn primary" onclick="openCreateEquipment()">+ Équipement</button>
+    </div>
+    <div class="split">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Code</th><th>Désignation</th><th>Catégorie</th><th>Statut</th>
+            <th>Métrologie</th><th>N° série</th><th>Fournisseur</th>
+          </tr></thead>
+          <tbody id="eq-tbody"><tr><td colspan="7"><div class="empty-state">Chargement…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="detail" id="eq-detail">
+        <div class="det-hdr">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--qual)" id="eq-d-code">—</div>
+            <div style="font-size:12px;color:var(--text-m);margin-top:2px" id="eq-d-label">—</div>
+          </div>
+          <button class="btn sm" onclick="closeDetail('eq')">×</button>
+        </div>
+        <div class="det-body">
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="eq-d-badges"></div>
+          <div class="det-section">
+            <div class="det-stitle">Identification</div>
+            <div class="det-field"><label>Catégorie</label><span id="eq-d-cat">—</span></div>
+            <div class="det-field"><label>Laboratoire</label><span id="eq-d-labo">—</span></div>
+            <div class="det-field"><label>N° série</label><span id="eq-d-serial">—</span></div>
+            <div class="det-field"><label>Fournisseur</label><span id="eq-d-sup">—</span></div>
+            <div class="det-field"><label>Date achat</label><span id="eq-d-date">—</span></div>
+          </div>
+          <div class="det-section">
+            <div class="det-stitle" style="display:flex;align-items:center;justify-content:space-between">
+              Étalonnages / Contrôles
+              <button class="btn sm success" style="font-size:10px" onclick="openCreateMetro()">+ Ajouter</button>
+            </div>
+            <div id="eq-d-metro"><div style="color:var(--text-m);font-size:12px;font-style:italic">Aucun contrôle</div></div>
+          </div>
+          <div class="det-section" id="eq-d-notes-wrap">
+            <div class="det-stitle">Notes</div>
+            <p class="det-text" id="eq-d-notes">—</p>
+          </div>
+        </div>
+        <div class="det-actions">
+          <button class="btn sm primary" onclick="openEditEquipment()">✏️ Modifier</button>
+          <button class="btn sm danger" onclick="deleteEquipment()">🗑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MÉTROLOGIE ─────────────────────────────────────────────────── -->
+  <div class="section" id="section-metrology">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title">Alertes métrologie — étalonnages expirés ou expirant dans 30 jours</span>
+      <button class="btn sm" onclick="loadMetrologyAlerts()">↻</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Équipement</th><th>Catégorie</th><th>Type contrôle</th><th>Réf. certificat</th>
+          <th>Réalisé le</th><th>Valide jusqu'au</th><th>Prestataire</th><th>Statut</th>
+        </tr></thead>
+        <tbody id="metro-tbody"><tr><td colspan="8"><div class="empty-state">Chargement…</div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── PROCÉDURES ─────────────────────────────────────────────────── -->
+  <div class="section" id="section-procedures">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title">Procédures internes</span>
+      <div class="filters" style="padding:0;border:none;flex:1">
+        <input class="fsearch" id="proc-search" placeholder="Code, titre, responsable…" oninput="loadProcedures()"/>
+        <select class="fsel" id="proc-family" onchange="loadProcedures()">
+          <option value="">Toutes familles</option>
+          <option>Sols / Terrassements</option><option>Enrobés</option><option>Granulats</option>
+          <option>Assainissement</option><option>Béton</option><option>Géotechnique / G3</option><option>Transversal</option>
+        </select>
+        <select class="fsel" id="proc-status" onchange="loadProcedures()">
+          <option value="">Tous statuts</option>
+          <option>En vigueur</option><option>En révision</option><option>Obsolète</option><option>Projet</option>
+        </select>
+      </div>
+      <button class="btn primary" onclick="openCreateProc()">+ Procédure</button>
+    </div>
+    <div class="split">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Code</th><th>Titre</th><th>Famille technique</th><th>Version</th>
+            <th>Statut</th><th>Date émission</th><th>Révision</th><th>Responsable</th>
+          </tr></thead>
+          <tbody id="proc-tbody"><tr><td colspan="8"><div class="empty-state">Chargement…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="detail" id="proc-detail">
+        <div class="det-hdr">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--qual)" id="proc-d-code">—</div>
+            <div style="font-size:12px;color:var(--text-m);margin-top:2px" id="proc-d-title">—</div>
+          </div>
+          <button class="btn sm" onclick="closeDetail('proc')">×</button>
+        </div>
+        <div class="det-body">
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="proc-d-badges"></div>
+          <div class="det-section">
+            <div class="det-stitle">Identification</div>
+            <div class="det-field"><label>Famille technique</label><span id="proc-d-family">—</span></div>
+            <div class="det-field"><label>Version</label><span id="proc-d-version">—</span></div>
+            <div class="det-field"><label>Responsable</label><span id="proc-d-owner">—</span></div>
+            <div class="det-field"><label>Date émission</label><span id="proc-d-issue">—</span></div>
+            <div class="det-field"><label>Date révision</label><span id="proc-d-review">—</span></div>
+            <div class="det-field"><label>Fichier</label><span id="proc-d-file">—</span></div>
+          </div>
+          <div class="det-section"><div class="det-stitle">Notes</div><p class="det-text" id="proc-d-notes">—</p></div>
+        </div>
+        <div class="det-actions">
+          <button class="btn sm primary" onclick="openEditProc()">✏️ Modifier</button>
+          <button class="btn sm danger" onclick="deleteProc()">🗑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NORMES ──────────────────────────────────────────────────────── -->
+  <div class="section" id="section-standards">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title">Normes de référence</span>
+      <div class="filters" style="padding:0;border:none;flex:1">
+        <input class="fsearch" id="std-search" placeholder="Code norme, titre, organisme…" oninput="loadStandards()"/>
+        <select class="fsel" id="std-family" onchange="loadStandards()">
+          <option value="">Toutes familles</option>
+          <option>Sols / Terrassements</option><option>Enrobés</option><option>Granulats</option>
+          <option>Assainissement</option><option>Béton</option><option>Géotechnique / G3</option><option>Transversal</option>
+        </select>
+      </div>
+      <button class="btn primary" onclick="openCreateStd()">+ Norme</button>
+    </div>
+    <div class="split">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Code</th><th>Titre</th><th>Famille technique</th><th>Organisme</th>
+            <th>Version</th><th>Date</th><th>Statut</th>
+          </tr></thead>
+          <tbody id="std-tbody"><tr><td colspan="7"><div class="empty-state">Chargement…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="detail" id="std-detail">
+        <div class="det-hdr">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--qual)" id="std-d-code">—</div>
+            <div style="font-size:12px;color:var(--text-m);margin-top:2px" id="std-d-title">—</div>
+          </div>
+          <button class="btn sm" onclick="closeDetail('std')">×</button>
+        </div>
+        <div class="det-body">
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="std-d-badges"></div>
+          <div class="det-section">
+            <div class="det-stitle">Identification</div>
+            <div class="det-field"><label>Famille technique</label><span id="std-d-family">—</span></div>
+            <div class="det-field"><label>Organisme</label><span id="std-d-issuer">—</span></div>
+            <div class="det-field"><label>Version</label><span id="std-d-version">—</span></div>
+            <div class="det-field"><label>Date publication</label><span id="std-d-date">—</span></div>
+          </div>
+          <div class="det-section"><div class="det-stitle">Notes</div><p class="det-text" id="std-d-notes">—</p></div>
+        </div>
+        <div class="det-actions">
+          <button class="btn sm primary" onclick="openEditStd()">✏️ Modifier</button>
+          <button class="btn sm danger" onclick="deleteStd()">🗑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── NON-CONFORMITÉS ────────────────────────────────────────────── -->
+  <div class="section" id="section-nc">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title">Non-conformités internes</span>
+      <div class="filters" style="padding:0;border:none;flex:1">
+        <input class="fsearch" id="nc-search" placeholder="Référence, titre, responsable…" oninput="loadNc()"/>
+        <select class="fsel" id="nc-status" onchange="loadNc()">
+          <option value="">Tous statuts</option>
+          <option>Ouverte</option><option>En cours</option><option>Clôturée</option><option>Vérifiée</option>
+        </select>
+        <select class="fsel" id="nc-severity" onchange="loadNc()">
+          <option value="">Toutes gravités</option>
+          <option>Majeure</option><option>Mineure</option><option>Observation</option>
+        </select>
+        <select class="fsel" id="nc-source" onchange="loadNc()">
+          <option value="">Toutes sources</option>
+          <option>Essai</option><option>Équipement</option><option>Procédure</option>
+          <option>Terrain</option><option>Document</option><option>Audit</option><option>Autre</option>
+        </select>
+      </div>
+      <button class="btn primary" onclick="openCreateNc()">+ Non-conformité</button>
+    </div>
+    <div class="split">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Référence</th><th>Source</th><th>Titre</th><th>Gravité</th>
+            <th>Statut</th><th>Détecté le</th><th>Échéance</th><th>Responsable</th>
+          </tr></thead>
+          <tbody id="nc-tbody"><tr><td colspan="8"><div class="empty-state">Chargement…</div></td></tr></tbody>
+        </table>
+      </div>
+      <div class="detail" id="nc-detail">
+        <div class="det-hdr">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--danger)" id="nc-d-ref">—</div>
+            <div style="font-size:12px;color:var(--text-m);margin-top:2px" id="nc-d-title">—</div>
+          </div>
+          <button class="btn sm" onclick="closeDetail('nc')">×</button>
+        </div>
+        <div class="det-body">
+          <div style="display:flex;flex-wrap:wrap;gap:6px" id="nc-d-badges"></div>
+          <div class="det-section">
+            <div class="det-stitle">Constat</div>
+            <div class="det-field"><label>Source</label><span id="nc-d-source">—</span></div>
+            <div class="det-field"><label>Réf. source</label><span id="nc-d-src-ref">—</span></div>
+            <div class="det-field"><label>Détecté le</label><span id="nc-d-date">—</span></div>
+            <div class="det-field"><label>Par</label><span id="nc-d-by">—</span></div>
+          </div>
+          <div class="det-section"><div class="det-stitle">Description</div><p class="det-text" id="nc-d-desc">—</p></div>
+          <div class="det-section">
+            <div class="det-stitle">Actions</div>
+            <div class="det-field"><label>Action immédiate</label><p class="det-text" id="nc-d-imm">—</p></div>
+            <div class="det-field"><label>Action corrective</label><p class="det-text" id="nc-d-corr">—</p></div>
+            <div class="det-field"><label>Responsable</label><span id="nc-d-owner">—</span></div>
+            <div class="det-field"><label>Échéance</label><span id="nc-d-due">—</span></div>
+            <div class="det-field"><label>Date clôture</label><span id="nc-d-close">—</span></div>
+          </div>
+        </div>
+        <div class="det-actions">
+          <button class="btn sm primary" onclick="openEditNc()">✏️ Modifier</button>
+          <button class="btn sm success" onclick="closeNc()">✅ Clôturer</button>
+          <button class="btn sm danger" onclick="deleteNc()">🗑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Équipement -->
+<div class="modal-overlay hidden" id="modal-eq">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2 id="meq-title">Nouvel équipement</h2><button class="modal-close" onclick="closeModal('eq')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="meq-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group"><label>Code *</label><input id="meq-code" placeholder="EQ-001"/></div>
+        <div class="form-group"><label>Catégorie</label>
+          <select id="meq-cat"><option>Labo</option><option>Terrain</option><option>Métrologie</option><option>Informatique</option><option>Autre</option></select>
+        </div>
+        <div class="form-group full"><label>Désignation *</label><input id="meq-label" placeholder="Étuve, CBR, plaque de charge…"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="meq-status"><option>En service</option><option>En maintenance</option><option>Hors service</option><option>Réformé</option></select>
+        </div>
+        <div class="form-group"><label>Laboratoire</label>
+          <select id="meq-labo"><option value="">— Tous —</option></select>
+        </div>
+        <div class="form-group"><label>N° série</label><input id="meq-serial"/></div>
+        <div class="form-group"><label>Fournisseur</label><input id="meq-supplier"/></div>
+        <div class="form-group"><label>Date achat</label><input id="meq-date" type="date"/></div>
+        <div class="form-group full"><label>Notes</label><textarea id="meq-notes"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('eq')">Annuler</button><button class="btn primary" onclick="saveEquipment()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Modal Métrologie -->
+<div class="modal-overlay hidden" id="modal-metro">
+  <div class="modal modal-md">
+    <div class="modal-header"><h2 id="mmetro-title">Nouvel étalonnage</h2><button class="modal-close" onclick="closeModal('metro')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mmetro-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group full"><label>Équipement</label><input id="mmetro-eq-label" readonly/></div>
+        <div class="form-group"><label>Type de contrôle</label>
+          <select id="mmetro-type"><option>Étalonnage</option><option>Vérification</option><option>Maintenance préventive</option><option>Contrôle interne</option></select>
+        </div>
+        <div class="form-group"><label>Statut</label>
+          <select id="mmetro-status"><option>Valide</option><option>Non conforme</option><option>En cours</option></select>
+        </div>
+        <div class="form-group"><label>Référence / N° cert.</label><input id="mmetro-ref"/></div>
+        <div class="form-group"><label>Prestataire</label><input id="mmetro-provider"/></div>
+        <div class="form-group"><label>Réalisé le *</label><input id="mmetro-done" type="date"/></div>
+        <div class="form-group"><label>Valide jusqu'au</label><input id="mmetro-until" type="date"/></div>
+        <div class="form-group full"><label>Notes</label><textarea id="mmetro-notes" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('metro')">Annuler</button><button class="btn primary" onclick="saveMetro()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Modal Procédure -->
+<div class="modal-overlay hidden" id="modal-proc">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2 id="mproc-title">Nouvelle procédure</h2><button class="modal-close" onclick="closeModal('proc')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mproc-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group"><label>Code *</label><input id="mproc-code" placeholder="PRO-001"/></div>
+        <div class="form-group"><label>Version</label><input id="mproc-version" placeholder="1.0"/></div>
+        <div class="form-group full"><label>Titre *</label><input id="mproc-title-f" placeholder="Procédure de prélèvement sol…"/></div>
+        <div class="form-group"><label>Famille technique</label>
+          <select id="mproc-family">
+            <option value="">— Transversal —</option>
+            <option>Sols / Terrassements</option><option>Enrobés</option><option>Granulats</option>
+            <option>Assainissement</option><option>Béton</option><option>Géotechnique / G3</option><option>Transversal</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Statut</label>
+          <select id="mproc-status"><option>En vigueur</option><option>En révision</option><option>Obsolète</option><option>Projet</option></select>
+        </div>
+        <div class="form-group"><label>Responsable</label><input id="mproc-owner"/></div>
+        <div class="form-group"><label>Date émission</label><input id="mproc-issue" type="date"/></div>
+        <div class="form-group"><label>Date révision prévue</label><input id="mproc-review" type="date"/></div>
+        <div class="form-group full"><label>Chemin / référence fichier</label><input id="mproc-file" placeholder="\\\\Serveur\\Qualite\\PRO-001.pdf"/></div>
+        <div class="form-group full"><label>Notes</label><textarea id="mproc-notes" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('proc')">Annuler</button><button class="btn primary" onclick="saveProc()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Modal Norme -->
+<div class="modal-overlay hidden" id="modal-std">
+  <div class="modal modal-md">
+    <div class="modal-header"><h2 id="mstd-title">Nouvelle norme</h2><button class="modal-close" onclick="closeModal('std')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mstd-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-group"><label>Code *</label><input id="mstd-code" placeholder="NF P 94-093"/></div>
+        <div class="form-group"><label>Organisme</label><input id="mstd-issuer" placeholder="AFNOR, CEN, LCPC…"/></div>
+        <div class="form-group full"><label>Titre *</label><input id="mstd-title-f" placeholder="Essai de compactage Proctor…"/></div>
+        <div class="form-group"><label>Famille technique</label>
+          <select id="mstd-family">
+            <option value="">— Transversal —</option>
+            <option>Sols / Terrassements</option><option>Enrobés</option><option>Granulats</option>
+            <option>Assainissement</option><option>Béton</option><option>Géotechnique / G3</option><option>Transversal</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Version / Indice</label><input id="mstd-version" placeholder="2012-A1:2018"/></div>
+        <div class="form-group"><label>Date publication</label><input id="mstd-date" type="date"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="mstd-status"><option>En vigueur</option><option>Obsolète</option><option>En révision</option></select>
+        </div>
+        <div class="form-group full"><label>Notes</label><textarea id="mstd-notes" rows="2"></textarea></div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('std')">Annuler</button><button class="btn primary" onclick="saveStd()">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Modal NC -->
+<div class="modal-overlay hidden" id="modal-nc">
+  <div class="modal modal-lg">
+    <div class="modal-header"><h2 id="mnc-title">Nouvelle non-conformité</h2><button class="modal-close" onclick="closeModal('nc')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mnc-uid" value="0"/>
+      <div class="form-row">
+        <div class="form-section">Constat</div>
+        <div class="form-group"><label>Source</label>
+          <select id="mnc-source">
+            <option>Essai</option><option>Équipement</option><option>Procédure</option>
+            <option>Terrain</option><option>Document</option><option>Audit</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Gravité</label>
+          <select id="mnc-severity"><option>Mineure</option><option>Majeure</option><option>Observation</option></select>
+        </div>
+        <div class="form-group"><label>Réf. source</label><input id="mnc-src-ref" placeholder="Réf. essai, code équipement…"/></div>
+        <div class="form-group"><label>Détecté le</label><input id="mnc-date" type="date"/></div>
+        <div class="form-group full"><label>Titre *</label><input id="mnc-title-f" placeholder="Résultat hors tolerance, matériel défaillant…"/></div>
+        <div class="form-group full"><label>Description</label><textarea id="mnc-desc" rows="3"></textarea></div>
+        <div class="form-group full"><label>Détecté par</label><input id="mnc-by"/></div>
+        <div class="form-section">Actions</div>
+        <div class="form-group full"><label>Action immédiate</label><textarea id="mnc-imm" rows="2"></textarea></div>
+        <div class="form-group full"><label>Action corrective</label><textarea id="mnc-corr" rows="2"></textarea></div>
+        <div class="form-group"><label>Responsable</label><input id="mnc-owner"/></div>
+        <div class="form-group"><label>Échéance</label><input id="mnc-due" type="date"/></div>
+        <div class="form-group"><label>Statut</label>
+          <select id="mnc-status"><option>Ouverte</option><option>En cours</option><option>Clôturée</option><option>Vérifiée</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('nc')">Annuler</button><button class="btn primary" onclick="saveNc()">Enregistrer</button></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script>
+const API='http://127.0.0.1:8000';
+let user=null,token=null,labos=[];
+let eqRows=[],procRows=[],stdRows=[],ncRows=[];
+let selEq=null,selProc=null,selStd=null,selNc=null;
+let selMetroEqUid=null;
+let srchTimers={};
+
+async function init(){
+  token=localStorage.getItem('ralab_token');
+  user=JSON.parse(localStorage.getItem('ralab_user')||'null');
+  if(!token||!user){go('login.html');return;}
+  sidebarSetUser(user.display_name, user.service_code||'');
+  // Load labs for equipment select
+  try{const r=await fetch(`${API}/api/admin/labs`,{headers:ah()});if(r.ok)labos=await r.json();}catch{}
+  await Promise.all([loadStats(), loadEquipment()]);
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+async function switchTab(tab){
+  ['equipment','metrology','procedures','standards','nc'].forEach(t=>{
+    document.getElementById(`tab-${t}`).classList.toggle('active',t===tab);
+    document.getElementById(`section-${t}`).classList.toggle('active',t===tab);
+  });
+  if(tab==='equipment')   await loadEquipment();
+  if(tab==='metrology')   await loadMetrologyAlerts();
+  if(tab==='procedures')  await loadProcedures();
+  if(tab==='standards')   await loadStandards();
+  if(tab==='nc')          await loadNc();
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────────
+async function loadStats(){
+  try{
+    const r=await fetch(`${API}/api/qualite/stats`,{headers:ah()});
+    if(!r.ok)return;
+    const s=await r.json();
+    document.getElementById('s-eq').textContent=s.eq_total;
+    document.getElementById('s-eq-hs').textContent=s.eq_hors;
+    document.getElementById('s-metro-exp').textContent=s.metro_expire;
+    document.getElementById('s-metro-soon').textContent=s.metro_soon;
+    document.getElementById('s-nc').textContent=s.nc_open;
+    document.getElementById('s-nc-late').textContent=s.nc_late;
+    document.getElementById('s-proc').textContent=s.proc_total;
+    document.getElementById('s-std').textContent=s.std_total;
+    if(s.metro_expire+s.metro_soon>0){
+      const b=document.getElementById('badge-metro');
+      b.textContent=s.metro_expire+s.metro_soon;b.style.display='inline-block';
+    }
+    if(s.nc_open>0){
+      const b=document.getElementById('badge-nc');
+      b.textContent=s.nc_open;b.style.display='inline-block';
+    }
+  }catch{}
+}
+
+// ── EQUIPMENT ─────────────────────────────────────────────────────────────────
+async function loadEquipment(){
+  clearTimeout(srchTimers.eq);srchTimers.eq=setTimeout(async()=>{
+    const params=new URLSearchParams();
+    const q=document.getElementById('eq-search').value;
+    const cat=document.getElementById('eq-cat').value;
+    const st=document.getElementById('eq-status').value;
+    if(q)params.set('search',q);if(cat)params.set('category',cat);if(st)params.set('status',st);
+    try{
+      const r=await fetch(`${API}/api/qualite/equipment?${params}`,{headers:ah()});
+      eqRows=r.ok?await r.json():[];renderEquipment();
+    }catch{toast('Erreur API','error');}
+  },200);
+}
+
+function renderEquipment(){
+  const tbody=document.getElementById('eq-tbody');
+  if(!eqRows.length){tbody.innerHTML='<tr><td colspan="7"><div class="empty-state">Aucun équipement</div></td></tr>';return;}
+  tbody.innerHTML=eqRows.map(e=>`
+    <tr onclick="selectEquipment(${e.uid})" class="${e.uid===selEq?'selected':''}${e.status==='Hors service'?' alert-row':''}" >
+      <td><strong style="color:var(--qual)">${e.code}</strong></td>
+      <td>${e.label}</td>
+      <td>${bCat(e.category)}</td>
+      <td>${bEqStat(e.status)}</td>
+      <td>${e.nb_controls>0?bMetroStat(e.metro_status,e.last_valid_until):'<span style="color:var(--text-m);font-size:12px">—</span>'}</td>
+      <td style="font-size:12px">${e.serial_number||'—'}</td>
+      <td style="font-size:12px">${e.supplier||'—'}</td>
+    </tr>`).join('');
+}
+
+async function selectEquipment(uid){
+  selEq=uid;selMetroEqUid=uid;renderEquipment();
+  const e=eqRows.find(x=>x.uid===uid);if(!e)return;
+  document.getElementById('eq-detail').classList.add('visible');
+  document.getElementById('eq-d-code').textContent=e.code;
+  document.getElementById('eq-d-label').textContent=e.label;
+  document.getElementById('eq-d-badges').innerHTML=bEqStat(e.status)+' '+bCat(e.category);
+  df('eq-d-cat',e.category);df('eq-d-labo',e.labo_nom);df('eq-d-serial',e.serial_number);
+  df('eq-d-sup',e.supplier);
+  document.getElementById('eq-d-date').textContent=e.purchase_date?fd(e.purchase_date):'—';
+  document.getElementById('eq-d-notes').textContent=e.notes||'—';
+  // Load metrology
+  try{
+    const r=await fetch(`${API}/api/qualite/equipment/${uid}/metrology`,{headers:ah()});
+    const metros=r.ok?await r.json():[];
+    const div=document.getElementById('eq-d-metro');
+    if(!metros.length){div.innerHTML='<div style="color:var(--text-m);font-size:12px;font-style:italic">Aucun contrôle enregistré</div>';return;}
+    div.innerHTML=metros.map(m=>`
+      <div class="metro-item ${m.is_expired?'expired':''}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+          <span style="font-weight:600">${m.control_type}</span>
+          ${bMetroStat(m.status,m.valid_until)}
+        </div>
+        <div>Réalisé le ${fd(m.performed_on)}${m.valid_until?' · Valide jusqu\'au '+fd(m.valid_until):''}</div>
+        ${m.provider?`<div style="color:var(--text-m)">${m.provider}</div>`:''}
+        ${m.certificate_ref?`<div style="color:var(--text-m)">Réf. ${m.certificate_ref}</div>`:''}
+        <div style="margin-top:4px;display:flex;justify-content:flex-end;gap:4px">
+          <button class="btn sm" style="font-size:10px" onclick="openEditMetro(${m.uid})">✏️</button>
+          <button class="btn sm danger" style="font-size:10px" onclick="deleteMetro(${m.uid})">🗑</button>
+        </div>
+      </div>`).join('');
+  }catch{}
+}
+
+function closeDetail(type){
+  if(type==='eq'){selEq=null;document.getElementById('eq-detail').classList.remove('visible');renderEquipment();}
+  if(type==='proc'){selProc=null;document.getElementById('proc-detail').classList.remove('visible');renderProcedures();}
+  if(type==='std'){selStd=null;document.getElementById('std-detail').classList.remove('visible');renderStandards();}
+  if(type==='nc'){selNc=null;document.getElementById('nc-detail').classList.remove('visible');renderNc();}
+}
+
+async function openCreateEquipment(){
+  document.getElementById('meq-title').textContent='Nouvel équipement';
+  document.getElementById('meq-uid').value='0';
+  ['meq-code','meq-label','meq-serial','meq-supplier','meq-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('meq-cat').value='Labo';
+  document.getElementById('meq-status').value='En service';
+  document.getElementById('meq-date').value='';
+  // fill labo select
+  const sel=document.getElementById('meq-labo');
+  sel.innerHTML='<option value="">— Tous —</option>';
+  // try to get labs from API
+  try{const r=await fetch(`${API}/api/qualite/meta`,{headers:ah()});} catch{}
+  document.getElementById('modal-eq').classList.remove('hidden');
+}
+
+function openEditEquipment(){
+  const e=eqRows.find(x=>x.uid===selEq);if(!e)return;
+  document.getElementById('meq-title').textContent='Modifier l\'équipement';
+  document.getElementById('meq-uid').value=e.uid;
+  document.getElementById('meq-code').value=e.code;
+  document.getElementById('meq-label').value=e.label;
+  document.getElementById('meq-cat').value=e.category;
+  document.getElementById('meq-status').value=e.status;
+  document.getElementById('meq-serial').value=e.serial_number||'';
+  document.getElementById('meq-supplier').value=e.supplier||'';
+  document.getElementById('meq-date').value=e.purchase_date||'';
+  document.getElementById('meq-notes').value=e.notes||'';
+  document.getElementById('modal-eq').classList.remove('hidden');
+}
+
+async function saveEquipment(){
+  const uid=parseInt(document.getElementById('meq-uid').value);
+  const p={
+    code:document.getElementById('meq-code').value,
+    label:document.getElementById('meq-label').value,
+    category:document.getElementById('meq-cat').value,
+    status:document.getElementById('meq-status').value,
+    serial_number:document.getElementById('meq-serial').value,
+    supplier:document.getElementById('meq-supplier').value,
+    purchase_date:document.getElementById('meq-date').value||null,
+    notes:document.getElementById('meq-notes').value,
+  };
+  if(!p.code||!p.label){toast('Code et désignation obligatoires','error');return;}
+  try{
+    const url=uid===0?`${API}/api/qualite/equipment`:`${API}/api/qualite/equipment/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();
+    closeModal('eq');await loadEquipment();await loadStats();
+    selEq=saved.uid;await selectEquipment(saved.uid);
+    toast(uid===0?'Équipement créé ✓':'Mis à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteEquipment(){
+  const e=eqRows.find(x=>x.uid===selEq);
+  if(!e||!confirm(`Supprimer ${e.code} — ${e.label} ?`))return;
+  await fetch(`${API}/api/qualite/equipment/${selEq}`,{method:'DELETE',headers:ah()});
+  closeDetail('eq');await loadEquipment();await loadStats();toast('Supprimé','info');
+}
+
+// ── METROLOGY ─────────────────────────────────────────────────────────────────
+async function loadMetrologyAlerts(){
+  try{
+    const r=await fetch(`${API}/api/qualite/metrology/alerts`,{headers:ah()});
+    const rows=r.ok?await r.json():[];
+    const tbody=document.getElementById('metro-tbody');
+    if(!rows.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state">✅ Aucune alerte métrologie</div></td></tr>';return;}
+    tbody.innerHTML=rows.map(m=>`
+      <tr class="${m.is_expired?'alert-row':'warn-row'}">
+        <td><strong>${m.eq_code}</strong> — ${m.eq_label}</td>
+        <td>${bCat(m.eq_category)}</td>
+        <td>${m.control_type}</td>
+        <td style="font-size:12px">${m.certificate_ref||'—'}</td>
+        <td style="font-size:12px">${fd(m.performed_on)}</td>
+        <td style="font-size:12px;font-weight:600;color:${m.is_expired?'var(--danger)':'var(--warn)'}">${m.valid_until?fd(m.valid_until):'—'}</td>
+        <td style="font-size:12px">${m.provider||'—'}</td>
+        <td>${m.is_expired?'<span class="badge b-red">Expiré</span>':'<span class="badge b-amber">Bientôt</span>'}</td>
+      </tr>`).join('');
+  }catch{toast('Erreur API','error');}
+}
+
+function openCreateMetro(){
+  if(!selMetroEqUid){toast('Sélectionner un équipement','error');return;}
+  const e=eqRows.find(x=>x.uid===selMetroEqUid);
+  document.getElementById('mmetro-title').textContent='Nouvel étalonnage / contrôle';
+  document.getElementById('mmetro-uid').value='0';
+  document.getElementById('mmetro-eq-label').value=`${e?.code} — ${e?.label||''}`;
+  document.getElementById('mmetro-type').value='Étalonnage';
+  document.getElementById('mmetro-status').value='Valide';
+  ['mmetro-ref','mmetro-provider','mmetro-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mmetro-done').value=today();
+  document.getElementById('mmetro-until').value='';
+  document.getElementById('modal-metro').classList.remove('hidden');
+}
+
+function openEditMetro(mid){
+  // Find from detail — quick re-fetch approach
+  fetch(`${API}/api/qualite/equipment/${selMetroEqUid}/metrology`,{headers:ah()})
+    .then(r=>r.json()).then(metros=>{
+      const m=metros.find(x=>x.uid===mid);if(!m)return;
+      const e=eqRows.find(x=>x.uid===selMetroEqUid);
+      document.getElementById('mmetro-title').textContent='Modifier le contrôle';
+      document.getElementById('mmetro-uid').value=m.uid;
+      document.getElementById('mmetro-eq-label').value=`${e?.code} — ${e?.label||''}`;
+      document.getElementById('mmetro-type').value=m.control_type;
+      document.getElementById('mmetro-status').value=m.status;
+      document.getElementById('mmetro-ref').value=m.reference||'';
+      document.getElementById('mmetro-provider').value=m.provider||'';
+      document.getElementById('mmetro-done').value=m.performed_on||'';
+      document.getElementById('mmetro-until').value=m.valid_until||'';
+      document.getElementById('mmetro-notes').value=m.notes||'';
+      document.getElementById('modal-metro').classList.remove('hidden');
+    });
+}
+
+async function saveMetro(){
+  const uid=parseInt(document.getElementById('mmetro-uid').value);
+  const p={
+    equipment_id:selMetroEqUid,
+    control_type:document.getElementById('mmetro-type').value,
+    status:document.getElementById('mmetro-status').value,
+    reference:document.getElementById('mmetro-ref').value,
+    provider:document.getElementById('mmetro-provider').value,
+    performed_on:document.getElementById('mmetro-done').value,
+    valid_until:document.getElementById('mmetro-until').value||null,
+    notes:document.getElementById('mmetro-notes').value,
+  };
+  try{
+    const url=uid===0?`${API}/api/qualite/equipment/${selMetroEqUid}/metrology`:`${API}/api/qualite/metrology/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    closeModal('metro');await selectEquipment(selMetroEqUid);await loadStats();
+    toast('Contrôle enregistré ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteMetro(mid){
+  if(!confirm('Supprimer ce contrôle ?'))return;
+  await fetch(`${API}/api/qualite/metrology/${mid}`,{method:'DELETE',headers:ah()});
+  await selectEquipment(selMetroEqUid);await loadStats();toast('Supprimé','info');
+}
+
+// ── PROCEDURES ────────────────────────────────────────────────────────────────
+async function loadProcedures(){
+  clearTimeout(srchTimers.proc);srchTimers.proc=setTimeout(async()=>{
+    const params=new URLSearchParams();
+    const q=document.getElementById('proc-search').value;
+    const f=document.getElementById('proc-family').value;
+    const s=document.getElementById('proc-status').value;
+    if(q)params.set('search',q);if(f)params.set('family',f);if(s)params.set('status',s);
+    try{const r=await fetch(`${API}/api/qualite/procedures?${params}`,{headers:ah()});procRows=r.ok?await r.json():[];renderProcedures();}
+    catch{toast('Erreur API','error');}
+  },200);
+}
+
+function renderProcedures(){
+  const tbody=document.getElementById('proc-tbody');
+  if(!procRows.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state">Aucune procédure</div></td></tr>';return;}
+  tbody.innerHTML=procRows.map(p=>`
+    <tr onclick="selectProc(${p.uid})" class="${p.uid===selProc?'selected':''}${p.review_due?' warn-row':''}">
+      <td><strong style="color:var(--qual)">${p.code}</strong></td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title}</td>
+      <td style="font-size:12px">${p.technical_family||'—'}</td>
+      <td style="font-size:12px">${p.version}</td>
+      <td>${bDocStat(p.status)}</td>
+      <td style="font-size:12px">${p.issue_date?fd(p.issue_date):'—'}</td>
+      <td style="font-size:12px${p.review_due?';color:var(--warn);font-weight:600':''}">${p.review_date?fd(p.review_date):'—'}</td>
+      <td style="font-size:12px">${p.owner||'—'}</td>
+    </tr>`).join('');
+}
+
+function selectProc(uid){
+  selProc=uid;renderProcedures();
+  const p=procRows.find(x=>x.uid===uid);if(!p)return;
+  document.getElementById('proc-detail').classList.add('visible');
+  document.getElementById('proc-d-code').textContent=p.code;
+  document.getElementById('proc-d-title').textContent=p.title;
+  document.getElementById('proc-d-badges').innerHTML=bDocStat(p.status);
+  df('proc-d-family',p.technical_family);df('proc-d-version',p.version);
+  df('proc-d-owner',p.owner);
+  document.getElementById('proc-d-issue').textContent=p.issue_date?fd(p.issue_date):'—';
+  document.getElementById('proc-d-review').textContent=p.review_date?fd(p.review_date):'—';
+  df('proc-d-file',p.file_path);
+  document.getElementById('proc-d-notes').textContent=p.notes||'—';
+}
+
+function openCreateProc(){
+  document.getElementById('mproc-title').textContent='Nouvelle procédure';
+  document.getElementById('mproc-uid').value='0';
+  ['mproc-code','mproc-title-f','mproc-version','mproc-owner','mproc-file','mproc-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mproc-version').value='1.0';
+  document.getElementById('mproc-family').value='';
+  document.getElementById('mproc-status').value='En vigueur';
+  document.getElementById('mproc-issue').value=today();
+  document.getElementById('mproc-review').value='';
+  document.getElementById('modal-proc').classList.remove('hidden');
+}
+
+function openEditProc(){
+  const p=procRows.find(x=>x.uid===selProc);if(!p)return;
+  document.getElementById('mproc-title').textContent='Modifier la procédure';
+  document.getElementById('mproc-uid').value=p.uid;
+  document.getElementById('mproc-code').value=p.code;
+  document.getElementById('mproc-title-f').value=p.title;
+  document.getElementById('mproc-family').value=p.technical_family||'';
+  document.getElementById('mproc-version').value=p.version||'1.0';
+  document.getElementById('mproc-status').value=p.status;
+  document.getElementById('mproc-owner').value=p.owner||'';
+  document.getElementById('mproc-issue').value=p.issue_date||'';
+  document.getElementById('mproc-review').value=p.review_date||'';
+  document.getElementById('mproc-file').value=p.file_path||'';
+  document.getElementById('mproc-notes').value=p.notes||'';
+  document.getElementById('modal-proc').classList.remove('hidden');
+}
+
+async function saveProc(){
+  const uid=parseInt(document.getElementById('mproc-uid').value);
+  const p={
+    code:document.getElementById('mproc-code').value,
+    title:document.getElementById('mproc-title-f').value,
+    technical_family:document.getElementById('mproc-family').value,
+    version:document.getElementById('mproc-version').value,
+    status:document.getElementById('mproc-status').value,
+    owner:document.getElementById('mproc-owner').value,
+    issue_date:document.getElementById('mproc-issue').value||null,
+    review_date:document.getElementById('mproc-review').value||null,
+    file_path:document.getElementById('mproc-file').value,
+    notes:document.getElementById('mproc-notes').value,
+  };
+  if(!p.code||!p.title){toast('Code et titre obligatoires','error');return;}
+  try{
+    const url=uid===0?`${API}/api/qualite/procedures`:`${API}/api/qualite/procedures/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();closeModal('proc');await loadProcedures();await loadStats();
+    selProc=saved.uid;selectProc(saved.uid);toast(uid===0?'Procédure créée ✓':'Mise à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteProc(){
+  const p=procRows.find(x=>x.uid===selProc);
+  if(!p||!confirm(`Supprimer ${p.code} ?`))return;
+  await fetch(`${API}/api/qualite/procedures/${selProc}`,{method:'DELETE',headers:ah()});
+  closeDetail('proc');await loadProcedures();await loadStats();toast('Supprimé','info');
+}
+
+// ── STANDARDS ─────────────────────────────────────────────────────────────────
+async function loadStandards(){
+  clearTimeout(srchTimers.std);srchTimers.std=setTimeout(async()=>{
+    const params=new URLSearchParams();
+    const q=document.getElementById('std-search').value;
+    const f=document.getElementById('std-family').value;
+    if(q)params.set('search',q);if(f)params.set('family',f);
+    try{const r=await fetch(`${API}/api/qualite/standards?${params}`,{headers:ah()});stdRows=r.ok?await r.json():[];renderStandards();}
+    catch{toast('Erreur API','error');}
+  },200);
+}
+
+function renderStandards(){
+  const tbody=document.getElementById('std-tbody');
+  if(!stdRows.length){tbody.innerHTML='<tr><td colspan="7"><div class="empty-state">Aucune norme</div></td></tr>';return;}
+  tbody.innerHTML=stdRows.map(s=>`
+    <tr onclick="selectStd(${s.uid})" class="${s.uid===selStd?'selected':''}">
+      <td><strong style="color:var(--qual)">${s.code}</strong></td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.title}</td>
+      <td style="font-size:12px">${s.technical_family||'—'}</td>
+      <td style="font-size:12px">${s.issuer||'—'}</td>
+      <td style="font-size:12px">${s.version||'—'}</td>
+      <td style="font-size:12px">${s.issue_date?fd(s.issue_date):'—'}</td>
+      <td>${bDocStat(s.status)}</td>
+    </tr>`).join('');
+}
+
+function selectStd(uid){
+  selStd=uid;renderStandards();
+  const s=stdRows.find(x=>x.uid===uid);if(!s)return;
+  document.getElementById('std-detail').classList.add('visible');
+  document.getElementById('std-d-code').textContent=s.code;
+  document.getElementById('std-d-title').textContent=s.title;
+  document.getElementById('std-d-badges').innerHTML=bDocStat(s.status);
+  df('std-d-family',s.technical_family);df('std-d-issuer',s.issuer);
+  df('std-d-version',s.version);
+  document.getElementById('std-d-date').textContent=s.issue_date?fd(s.issue_date):'—';
+  document.getElementById('std-d-notes').textContent=s.notes||'—';
+}
+
+function openCreateStd(){
+  document.getElementById('mstd-title').textContent='Nouvelle norme';
+  document.getElementById('mstd-uid').value='0';
+  ['mstd-code','mstd-title-f','mstd-issuer','mstd-version','mstd-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mstd-family').value='';
+  document.getElementById('mstd-status').value='En vigueur';
+  document.getElementById('mstd-date').value='';
+  document.getElementById('modal-std').classList.remove('hidden');
+}
+
+function openEditStd(){
+  const s=stdRows.find(x=>x.uid===selStd);if(!s)return;
+  document.getElementById('mstd-title').textContent='Modifier la norme';
+  document.getElementById('mstd-uid').value=s.uid;
+  document.getElementById('mstd-code').value=s.code;
+  document.getElementById('mstd-title-f').value=s.title;
+  document.getElementById('mstd-family').value=s.technical_family||'';
+  document.getElementById('mstd-issuer').value=s.issuer||'';
+  document.getElementById('mstd-version').value=s.version||'';
+  document.getElementById('mstd-status').value=s.status;
+  document.getElementById('mstd-date').value=s.issue_date||'';
+  document.getElementById('mstd-notes').value=s.notes||'';
+  document.getElementById('modal-std').classList.remove('hidden');
+}
+
+async function saveStd(){
+  const uid=parseInt(document.getElementById('mstd-uid').value);
+  const p={
+    code:document.getElementById('mstd-code').value,
+    title:document.getElementById('mstd-title-f').value,
+    technical_family:document.getElementById('mstd-family').value,
+    issuer:document.getElementById('mstd-issuer').value,
+    version:document.getElementById('mstd-version').value,
+    status:document.getElementById('mstd-status').value,
+    issue_date:document.getElementById('mstd-date').value||null,
+    notes:document.getElementById('mstd-notes').value,
+  };
+  if(!p.code||!p.title){toast('Code et titre obligatoires','error');return;}
+  try{
+    const url=uid===0?`${API}/api/qualite/standards`:`${API}/api/qualite/standards/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();closeModal('std');await loadStandards();await loadStats();
+    selStd=saved.uid;selectStd(saved.uid);toast(uid===0?'Norme créée ✓':'Mise à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteStd(){
+  const s=stdRows.find(x=>x.uid===selStd);
+  if(!s||!confirm(`Supprimer ${s.code} ?`))return;
+  await fetch(`${API}/api/qualite/standards/${selStd}`,{method:'DELETE',headers:ah()});
+  closeDetail('std');await loadStandards();await loadStats();toast('Supprimé','info');
+}
+
+// ── NON-CONFORMITÉS ───────────────────────────────────────────────────────────
+async function loadNc(){
+  clearTimeout(srchTimers.nc);srchTimers.nc=setTimeout(async()=>{
+    const params=new URLSearchParams();
+    const q=document.getElementById('nc-search').value;
+    const s=document.getElementById('nc-status').value;
+    const sev=document.getElementById('nc-severity').value;
+    const src=document.getElementById('nc-source').value;
+    if(q)params.set('search',q);if(s)params.set('status',s);if(sev)params.set('severity',sev);if(src)params.set('source_type',src);
+    try{const r=await fetch(`${API}/api/qualite/nc?${params}`,{headers:ah()});ncRows=r.ok?await r.json():[];renderNc();}
+    catch{toast('Erreur API','error');}
+  },200);
+}
+
+function renderNc(){
+  const tbody=document.getElementById('nc-tbody');
+  if(!ncRows.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state">Aucune non-conformité</div></td></tr>';return;}
+  tbody.innerHTML=ncRows.map(n=>`
+    <tr onclick="selectNc(${n.uid})" class="${n.uid===selNc?'selected':''}${n.is_late?' alert-row':''}">
+      <td><strong style="color:var(--danger)">${n.reference}</strong></td>
+      <td style="font-size:12px">${n.source_type}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${n.title||'—'}</td>
+      <td>${bNcSev(n.severity)}</td>
+      <td>${bNcStat(n.status)}</td>
+      <td style="font-size:12px">${fd(n.detected_on)}</td>
+      <td style="font-size:12px${n.is_late?';color:var(--danger);font-weight:600':''}">${n.due_date?fd(n.due_date):'—'}</td>
+      <td style="font-size:12px">${n.owner||'—'}</td>
+    </tr>`).join('');
+}
+
+function selectNc(uid){
+  selNc=uid;renderNc();
+  const n=ncRows.find(x=>x.uid===uid);if(!n)return;
+  document.getElementById('nc-detail').classList.add('visible');
+  document.getElementById('nc-d-ref').textContent=n.reference;
+  document.getElementById('nc-d-title').textContent=n.title||'—';
+  document.getElementById('nc-d-badges').innerHTML=bNcStat(n.status)+' '+bNcSev(n.severity);
+  df('nc-d-source',n.source_type);df('nc-d-src-ref',n.source_ref);
+  document.getElementById('nc-d-date').textContent=fd(n.detected_on);
+  df('nc-d-by',n.detected_by);
+  document.getElementById('nc-d-desc').textContent=n.description||'—';
+  document.getElementById('nc-d-imm').textContent=n.action_immediate||'—';
+  document.getElementById('nc-d-corr').textContent=n.corrective_action||'—';
+  df('nc-d-owner',n.owner);
+  document.getElementById('nc-d-due').textContent=n.due_date?fd(n.due_date):'—';
+  document.getElementById('nc-d-close').textContent=n.closure_date?fd(n.closure_date):'—';
+}
+
+function openCreateNc(){
+  document.getElementById('mnc-title').textContent='Nouvelle non-conformité';
+  document.getElementById('mnc-uid').value='0';
+  document.getElementById('mnc-source').value='Essai';
+  document.getElementById('mnc-severity').value='Mineure';
+  document.getElementById('mnc-status').value='Ouverte';
+  document.getElementById('mnc-date').value=today();
+  ['mnc-src-ref','mnc-title-f','mnc-desc','mnc-by','mnc-imm','mnc-corr','mnc-owner'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mnc-due').value='';
+  document.getElementById('modal-nc').classList.remove('hidden');
+}
+
+function openEditNc(){
+  const n=ncRows.find(x=>x.uid===selNc);if(!n)return;
+  document.getElementById('mnc-title').textContent='Modifier la non-conformité';
+  document.getElementById('mnc-uid').value=n.uid;
+  document.getElementById('mnc-source').value=n.source_type;
+  document.getElementById('mnc-severity').value=n.severity;
+  document.getElementById('mnc-status').value=n.status;
+  document.getElementById('mnc-src-ref').value=n.source_ref||'';
+  document.getElementById('mnc-title-f').value=n.title||'';
+  document.getElementById('mnc-desc').value=n.description||'';
+  document.getElementById('mnc-date').value=n.detected_on||'';
+  document.getElementById('mnc-by').value=n.detected_by||'';
+  document.getElementById('mnc-imm').value=n.action_immediate||'';
+  document.getElementById('mnc-corr').value=n.corrective_action||'';
+  document.getElementById('mnc-owner').value=n.owner||'';
+  document.getElementById('mnc-due').value=n.due_date||'';
+  document.getElementById('modal-nc').classList.remove('hidden');
+}
+
+async function saveNc(){
+  const uid=parseInt(document.getElementById('mnc-uid').value);
+  const p={
+    source_type:document.getElementById('mnc-source').value,
+    severity:document.getElementById('mnc-severity').value,
+    status:document.getElementById('mnc-status').value,
+    source_ref:document.getElementById('mnc-src-ref').value,
+    title:document.getElementById('mnc-title-f').value,
+    description:document.getElementById('mnc-desc').value,
+    detected_on:document.getElementById('mnc-date').value,
+    detected_by:document.getElementById('mnc-by').value,
+    action_immediate:document.getElementById('mnc-imm').value,
+    corrective_action:document.getElementById('mnc-corr').value,
+    owner:document.getElementById('mnc-owner').value,
+    due_date:document.getElementById('mnc-due').value||null,
+  };
+  if(!p.title){toast('Titre obligatoire','error');return;}
+  try{
+    const url=uid===0?`${API}/api/qualite/nc`:`${API}/api/qualite/nc/${uid}`;
+    const r=await fetch(url,{method:uid===0?'POST':'PUT',headers:ah(),body:JSON.stringify(p)});
+    if(!r.ok)throw new Error(await r.text());
+    const saved=await r.json();closeModal('nc');await loadNc();await loadStats();
+    selNc=saved.uid;selectNc(saved.uid);toast(uid===0?'NC créée ✓':'Mise à jour ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function closeNc(){
+  const n=ncRows.find(x=>x.uid===selNc);if(!n)return;
+  if(['Clôturée','Vérifiée'].includes(n.status)){toast('NC déjà clôturée','info');return;}
+  try{
+    const r=await fetch(`${API}/api/qualite/nc/${selNc}`,{method:'PUT',headers:ah(),body:JSON.stringify({status:'Clôturée'})});
+    if(!r.ok)throw new Error(await r.text());
+    await loadNc();await loadStats();
+    const updated=ncRows.find(x=>x.uid===selNc);if(updated)selectNc(selNc);
+    toast('NC clôturée ✓','success');
+  }catch(e){toast('Erreur: '+e.message,'error');}
+}
+
+async function deleteNc(){
+  const n=ncRows.find(x=>x.uid===selNc);
+  if(!n||!confirm(`Supprimer ${n.reference} ?`))return;
+  await fetch(`${API}/api/qualite/nc/${selNc}`,{method:'DELETE',headers:ah()});
+  closeDetail('nc');await loadNc();await loadStats();toast('Supprimé','info');
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function bCat(c){const m={Labo:'b-sky',Terrain:'b-green',Métrologie:'b-purple',Informatique:'b-gray',Autre:'b-gray'};return`<span class="badge ${m[c]||'b-gray'}">${c||'—'}</span>`;}
+function bEqStat(s){const m={'En service':'b-green','En maintenance':'b-amber','Hors service':'b-red','Réformé':'b-gray'};return`<span class="badge ${m[s]||'b-gray'}">${s||'—'}</span>`;}
+function bMetroStat(s,vu){
+  if(!vu)return`<span style="color:var(--text-m);font-size:12px">—</span>`;
+  const today_=today();
+  const exp=vu<today_;
+  if(exp)return`<span class="badge b-red">Expiré</span>`;
+  const d30=new Date();d30.setDate(d30.getDate()+30);
+  if(vu<=d30.toISOString().split('T')[0])return`<span class="badge b-amber">Bientôt</span>`;
+  return`<span class="badge b-green">OK</span>`;
+}
+function bDocStat(s){const m={'En vigueur':'b-green','En révision':'b-amber','Obsolète':'b-gray','Projet':'b-blue'};return`<span class="badge ${m[s]||'b-gray'}">${s||'—'}</span>`;}
+function bNcSev(s){const m={Majeure:'b-red',Mineure:'b-amber',Observation:'b-blue'};return`<span class="badge ${m[s]||'b-gray'}">${s||'—'}</span>`;}
+function bNcStat(s){const m={Ouverte:'b-red','En cours':'b-amber',Clôturée:'b-teal',Vérifiée:'b-green'};return`<span class="badge ${m[s]||'b-gray'}">${s||'—'}</span>`;}
+function closeModal(type){document.getElementById(`modal-${type}`).classList.add('hidden');}
+function ah(){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'};}
+function logout(){localStorage.clear();go('login.html');}
+function go(url){window.location.href=url;}
+function today(){return new Date().toISOString().split('T')[0];}
+function fd(v){if(!v)return'—';try{const p=v.slice(0,10).split('-');return`${p[2]}/${p[1]}/${p[0]}`;}catch{return v;}}
+function df(id,v){const e=document.getElementById(id);if(!e)return;e.textContent=v||'—';e.className=v?'':'empty';}
+function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;setTimeout(()=>t.className='',3000);}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')['eq','metro','proc','std','nc'].forEach(t=>closeModal(t));});
+init();
+</script>
+</body>
+</html>

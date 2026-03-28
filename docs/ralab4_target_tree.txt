@@ -1,0 +1,185 @@
+RaLab4/
+├── backend/
+│   ├── main.py
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── auth/
+│   │   │   │   ├── routes.py
+│   │   │   │   └── dependencies.py
+│   │   │   ├── dashboard/
+│   │   │   │   └── routes.py
+│   │   │   ├── affaires/
+│   │   │   │   └── routes.py
+│   │   │   ├── passations/
+│   │   │   │   └── routes.py
+│   │   │   ├── demandes/
+│   │   │   │   └── routes.py
+│   │   │   ├── interventions/
+│   │   │   │   └── routes.py
+│   │   │   ├── samples/
+│   │   │   │   └── routes.py
+│   │   │   ├── lab_tests/
+│   │   │   │   └── routes.py
+│   │   │   ├── field_tests/
+│   │   │   │   └── routes.py
+│   │   │   ├── calculations/
+│   │   │   │   └── routes.py
+│   │   │   ├── deliverables/
+│   │   │   │   └── routes.py
+│   │   │   ├── planning/
+│   │   │   │   └── routes.py
+│   │   │   ├── resources/
+│   │   │   │   └── routes.py
+│   │   │   ├── equipment/
+│   │   │   │   └── routes.py
+│   │   │   ├── metrology/
+│   │   │   │   └── routes.py
+│   │   │   ├── audits/
+│   │   │   │   └── routes.py
+│   │   │   ├── field_findings/
+│   │   │   │   └── routes.py
+│   │   │   ├── non_conformities/
+│   │   │   │   └── routes.py
+│   │   │   ├── quotations/
+│   │   │   │   └── routes.py
+│   │   │   ├── external_tests/
+│   │   │   │   └── routes.py
+│   │   │   ├── suppliers/
+│   │   │   │   └── routes.py
+│   │   │   ├── documents/
+│   │   │   │   └── routes.py
+│   │   │   └── admin/
+│   │   │       └── routes.py
+│   │   ├── models/
+│   │   │   ├── affaire_model.py
+│   │   │   ├── passation_model.py
+│   │   │   ├── passation_document_model.py
+│   │   │   ├── passation_action_model.py
+│   │   │   ├── demande_model.py
+│   │   │   ├── demande_preparation_model.py
+│   │   │   ├── demande_enabled_module_model.py
+│   │   │   ├── intervention_model.py
+│   │   │   ├── field_finding_model.py
+│   │   │   ├── echantillon_model.py
+│   │   │   ├── essai_model.py
+│   │   │   ├── field_test_model.py
+│   │   │   ├── calculation_model.py
+│   │   │   ├── livrable_model.py
+│   │   │   ├── laboratoire_model.py
+│   │   │   ├── test_catalog_model.py
+│   │   │   ├── document_control_item_model.py
+│   │   │   ├── resource_model.py
+│   │   │   ├── resource_skill_model.py
+│   │   │   ├── equipment_model.py
+│   │   │   ├── equipment_assignment_model.py
+│   │   │   ├── metrology_record_model.py
+│   │   │   ├── audit_model.py
+│   │   │   ├── audit_item_model.py
+│   │   │   ├── non_conformity_model.py
+│   │   │   ├── quotation_model.py
+│   │   │   ├── external_test_order_model.py
+│   │   │   ├── supplier_model.py
+│   │   │   ├── supplier_invoice_model.py
+│   │   │   └── planning_item_model.py
+│   │   ├── schemas/
+│   │   ├── repositories/
+│   │   ├── services/
+│   │   │   ├── affaires/
+│   │   │   ├── passations/
+│   │   │   ├── demandes/
+│   │   │   ├── interventions/
+│   │   │   ├── samples/
+│   │   │   ├── lab_tests/
+│   │   │   ├── field_tests/
+│   │   │   ├── calculations/
+│   │   │   ├── deliverables/
+│   │   │   ├── planning/
+│   │   │   ├── resources/
+│   │   │   ├── equipment/
+│   │   │   ├── metrology/
+│   │   │   ├── audits/
+│   │   │   ├── field_findings/
+│   │   │   ├── non_conformities/
+│   │   │   ├── quotations/
+│   │   │   ├── external_tests/
+│   │   │   ├── suppliers/
+│   │   │   └── documents/
+│   │   ├── calculations/
+│   │   │   ├── sols/
+│   │   │   ├── terrassements/
+│   │   │   ├── enrobes/
+│   │   │   ├── beton/
+│   │   │   ├── penetrometres/
+│   │   │   ├── g3/
+│   │   │   └── dimensionnement/
+│   │   └── core/
+│   │       ├── config/
+│   │       ├── security/
+│   │       ├── database/
+│   │       └── logging/
+│   └── tests/
+├── frontend/
+│   ├── legacy_html/
+│   │   ├── login.html
+│   │   ├── index.html
+│   │   ├── affaires.html
+│   │   ├── affaire.html
+│   │   ├── demandes.html
+│   │   ├── demande.html
+│   │   ├── dst.html
+│   │   ├── intervention.html
+│   │   ├── essai.html
+│   │   ├── planning.html
+│   │   ├── audits.html
+│   │   ├── admin.html
+│   │   └── tools.html
+│   ├── src/
+│   │   ├── app/
+│   │   ├── pages/
+│   │   │   ├── Dashboard/
+│   │   │   ├── Affaires/
+│   │   │   ├── Passations/
+│   │   │   ├── Demandes/
+│   │   │   ├── Planning/
+│   │   │   ├── Interventions/
+│   │   │   ├── Samples/
+│   │   │   ├── Tests/
+│   │   │   ├── Resources/
+│   │   │   ├── Equipment/
+│   │   │   ├── Metrology/
+│   │   │   ├── Audits/
+│   │   │   ├── NonConformities/
+│   │   │   ├── Quotations/
+│   │   │   ├── ExternalTests/
+│   │   │   ├── Documents/
+│   │   │   └── Admin/
+│   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   ├── forms/
+│   │   │   ├── tables/
+│   │   │   ├── cards/
+│   │   │   ├── modals/
+│   │   │   ├── charts/
+│   │   │   └── planning/
+│   │   ├── services/
+│   │   │   └── api/
+│   │   ├── hooks/
+│   │   ├── utils/
+│   │   └── types/
+│   └── public/
+├── desktop/
+│   └── tauri/
+├── docs/
+│   ├── architecture/
+│   ├── handoff/
+│   └── project_tree/
+├── storage/
+│   ├── db/
+│   ├── documents/
+│   │   ├── procedures/
+│   │   ├── standards/
+│   │   └── templates/
+│   ├── exports/
+│   └── reports/
+├── scripts/
+└── work_zip/

@@ -1,0 +1,3 @@
+Copy frontend/legacy_html/tools.html over your current file.
+This adds direct navigation cards from Tools to references_affaires.html and references_etudes.html.
+No backend changes required.
