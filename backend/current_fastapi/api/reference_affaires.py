@@ -1,17 +1,14 @@
 # File: reference_affaires.py
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
-from app.repositories.reference_affaires_repository import ReferenceAffairesRepository
 from app.services.reference_sources_service import ReferenceSourcesService
-from app.services.source_prefill_service import SourcePrefillService
-
+from app.repositories.reference_affaires_repository import ReferenceAffairesRepository
 
 router = APIRouter()
 service = ReferenceSourcesService()
-repo = ReferenceAffairesRepository()
-prefill_service = SourcePrefillService()
+_repo = ReferenceAffairesRepository()
 
 
 @router.get("/status")
@@ -19,51 +16,6 @@ def get_reference_affaires_status() -> dict:
     try:
         report = service.get_status_report()
         return report.get("sources", {}).get("affaires", {})
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.get("/rows")
-def list_reference_affaires_rows(
-    search: str = Query(""),
-    limit: int = Query(500, ge=1, le=5000),
-) -> dict:
-    try:
-        rows = repo.list_rows(search=search, limit=limit)
-        return {"rows": rows, "count": len(rows)}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.get("/{row_id}")
-def get_reference_affaires_row(row_id: str) -> dict:
-    try:
-        row = repo.get_row(row_id)
-        if not row:
-            raise HTTPException(status_code=404, detail="Affaire NGE introuvable")
-        return row
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.get("/{row_id}/affaire-prefill")
-def get_reference_affaires_affaire_prefill(row_id: str) -> dict:
-    try:
-        return prefill_service.affaire_prefill_from_affaire_nge(row_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Affaire NGE introuvable")
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@router.get("/{row_id}/demande-prefill")
-def get_reference_affaires_demande_prefill(row_id: str) -> dict:
-    try:
-        return prefill_service.demande_prefill_from_affaire_nge(row_id)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Affaire NGE introuvable")
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -84,5 +36,26 @@ def apply_reference_affaires_update() -> dict:
         return service.apply_update("affaires")
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get('/rows')
+def list_reference_affaires_rows(search: str | None = None, limit: int = 2000) -> list[dict]:
+    try:
+        return _repo.all(search=search, limit=limit)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get('/rows/{row_id}')
+def get_reference_affaires_row(row_id: str) -> dict:
+    try:
+        row = _repo.get_by_id(row_id)
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Affaire de référence {row_id} introuvable")
+        return row
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

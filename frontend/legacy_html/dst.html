@@ -148,13 +148,15 @@
 <button class="nav-btn" onclick="window.location.href='passations.html'"><span class="icon">🤝</span> Passations</button>
         <button class="nav-btn" onclick="window.location.href='demandes.html'"><span class="icon">📂</span> Demandes</button>
     <button class="nav-btn active"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="window.location.href='affaires_nge.html'"><span class="icon">🏗️</span> Affaires NGE</button>
+    <button class="nav-btn" onclick="window.location.href='etudes.html'"><span class="icon">📚</span> Études</button>
     <button class="nav-btn" onclick="window.location.href='planning.html'"><span class="icon">📅</span> Planning</button>
     <button class="nav-btn" onclick="window.location.href='audits.html'"><span class="icon">🔍</span> Audits</button>
     <div class="nav-section">À venir</div>
     <button class="nav-btn" disabled><span class="icon">📍</span> G3</button>
     <button class="nav-btn" disabled><span class="icon">🔬</span> Laboratoire</button>
     <div class="nav-section">Administration</div>
-    <button class="nav-btn" onclick="window.location.href('tools.html')"><span class="icon">🔧</span> Outils</button>
+    <button class="nav-btn" onclick="window.location.href='tools.html'"><span class="icon">🔧</span> Outils</button>
   </div>
   <div class="sidebar-user">
     <div class="user-row">
@@ -228,8 +230,8 @@
         <p id="d-objet">—</p>
       </div>
       <div class="detail-actions">
-        <button class="btn primary" onclick="openDemandeFromDst()">📋 Créer une demande</button>
-        <button class="btn success" onclick="openAffaireFromDst()">📁 Créer une affaire RST</button>
+        <button class="btn primary" onclick="createAffaireFromDst()">📋 Créer une affaire RST</button>
+        <button class="btn success" onclick="createDemandeFromDst()">📂 Créer une demande</button>
       </div>
     </div>
 
@@ -385,17 +387,67 @@
   function sortBy(col){sortAsc=sortCol===col?!sortAsc:false;sortCol=col;renderTable();}
   function onSearch(){clearTimeout(srchTimer);srchTimer=setTimeout(loadDst,300);}
 
-  // ── OUVERTURE FLOWS DEPUIS DST ───────────────────────────────────────────
-  function openDemandeFromDst(){
-    const d=allDst.find(x=>x.id===selId);
-    if(!d){showToast('Sélectionne d\'abord un dossier DST','warn');return;}
-    window.location.href=`demandes.html?create=1&source_type=dst&source_id=${encodeURIComponent(d.id)}`;
+  // ── PRÉREMPLISSAGE DEPUIS DST ────────────────────────────────────────────
+  function findMatchingAffaireRstFromDst(dstRow){
+    const affaireNge=String(dstRow['N° affaire demandeur']||'').trim().toLowerCase();
+    if(!affaireNge)return null;
+    return (window._affairesRstForDst||[]).find(a=>String(a.affaire_nge||'').trim().toLowerCase()===affaireNge)||null;
   }
 
-  function openAffaireFromDst(){
+  function buildDstAffaireUrl(dstRow){
+    const params=new URLSearchParams();
+    params.set('create','1');
+    params.set('chantier',dstRow['Libellé du projet']||'');
+    params.set('site',dstRow['Situation Géographique']||dstRow['Situation géographique projet']||'');
+    params.set('affaire_nge',dstRow['N° affaire demandeur']||'');
+    params.set('client',dstRow['Société']||'');
+    params.set('responsable',(dstRow['Demandeur']||'').replace(/,.*/, '').trim());
+    params.set('statut','À qualifier');
+    return `affaires.html?${params.toString()}`;
+  }
+
+  function buildDstDemandePrefill(dstRow,affaire){
+    const chrono=dstRow['N° chrono']||'';
+    const objet=String(dstRow['Objet de la demande (Problématiques, Hypothèses, Objectifs, Remarques)']||'')
+      .replace(/_x000D_/gi,'')
+      .trim();
+    return {
+      target:'demande_rst',
+      source_type:'dst',
+      source_id:dstRow.id,
+      prefill:{
+        affaire_rst_id:affaire?affaire.uid:null,
+        numero_dst:chrono,
+        type_mission:'À définir',
+        nature:dstRow['Cadre de la demande']||'Demande DST',
+        demandeur:(dstRow['Demandeur']||'').replace(/,.*/, '').trim(),
+        description:[chrono?`DST: ${chrono}`:'',dstRow['Libellé du projet']||'',objet].filter(Boolean).join('\n'),
+        observations:`Préremplie depuis DST ${chrono}`.trim(),
+      },
+    };
+  }
+
+  function storeDemandePrefill(payload){
+    sessionStorage.setItem('ralab4_source_prefill',JSON.stringify(payload));
+  }
+
+  async function createAffaireFromDst(){
     const d=allDst.find(x=>x.id===selId);
-    if(!d){showToast('Sélectionne d\'abord un dossier DST','warn');return;}
-    window.location.href=`affaires.html?create=1&source_type=dst&source_id=${encodeURIComponent(d.id)}`;
+    if(!d){showToast("Sélectionne d'abord un dossier DST",'warn');return;}
+    window.location.href=buildDstAffaireUrl(d);
+  }
+
+  async function createDemandeFromDst(){
+    const d=allDst.find(x=>x.id===selId);
+    if(!d){showToast("Sélectionne d'abord un dossier DST",'warn');return;}
+    const affaire=findMatchingAffaireRstFromDst(d);
+    if(!affaire){
+      showToast('Aucune affaire RST liée. Ouverture de la création affaire RST.','info');
+      window.location.href=buildDstAffaireUrl(d);
+      return;
+    }
+    storeDemandePrefill(buildDstDemandePrefill(d,affaire));
+    window.location.href='demandes.html?create=1';
   }
 
   // ── IMPORT EXCEL ──────────────────────────────────────────────────────────
@@ -515,7 +567,16 @@
   }
 
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeImportModal();});
-  init();
+  async function preloadAffairesRstForDst(){
+    try{const r=await fetch(`${API}/api/affaires`,{headers:ah()});window._affairesRstForDst=r.ok?await r.json():[];}catch{window._affairesRstForDst=[];}
+  }
+
+  async function bootstrap(){
+    await preloadAffairesRstForDst();
+    await init();
+  }
+
+  bootstrap();
 </script>
 </body>
 </html>

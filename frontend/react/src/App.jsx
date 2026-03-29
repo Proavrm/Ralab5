@@ -41,8 +41,8 @@ export default function App() {
         <Route path="affaires/:uid" element={<P><AffairePage /></P>} />
         <Route path="demandes"     element={<P><DemandesPage /></P>} />
         <Route path="demandes/:uid" element={<P><DemandePage /></P>} />
-        <Route path="passations"   element={<P><PassationsPage /></P>} />
-        <Route path="passations/:uid" element={<P><PassationPage /></P>} />
+        <Route path="passations"        element={<P><PassationsPage /></P>} />
+        <Route path="passations/:uid"   element={<P><PassationPage /></P>} />
         <Route path="dst"          element={<P><DstPage /></P>} />
         <Route path="affaires-nge" element={<P><AffairesNgePage /></P>} />
         <Route path="etudes"       element={<P><EtudesPage /></P>} />

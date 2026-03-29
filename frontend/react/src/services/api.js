@@ -56,7 +56,7 @@ export const affairesApi = {
   list:     (params = {}) => api.get('/affaires?' + new URLSearchParams(params)),
   get:      (uid)         => api.get(`/affaires/${uid}`),
   create:   (data)        => api.post('/affaires', data),
-  update:   (uid, data)   => api.patch(`/affaires/${uid}`, data),
+  update:   (uid, data)   => api.put(`/affaires/${uid}`, data),   // backend uses PUT
   delete:   (uid)         => api.delete(`/affaires/${uid}`),
   nextRef:  ()            => api.get('/affaires/next-ref'),
   demandes: (uid)         => api.get(`/affaires/${uid}/demandes`),

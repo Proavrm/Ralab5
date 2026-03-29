@@ -1,99 +1,496 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>RaLab4 — Études</title>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;--accent:#5b6af0;--accent-h:#4a58d4;--surface:#fff;--border:#e2e2dc;--text:#1a1a2e;--text-m:#6b6b80;--danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;--radius:8px;--nge:#002C77}
-body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
-#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
-.nav{flex:1;padding:12px 0}.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}.nav-btn .icon{font-size:15px;width:20px;text-align:center}
-.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}.user-name{font-size:13px;color:#fff;font-weight:500}.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}.btn-logout:hover{background:#2a2a40;color:#fff}
-#content{flex:1;display:flex;flex-direction:column;overflow:hidden}#header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px}#page-title{font-size:15px;font-weight:600;flex:1}#search-input{padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:320px;outline:none;background:var(--bg)}#search-input:focus{border-color:var(--accent);background:#fff}
-.btn{padding:7px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);transition:.15s;white-space:nowrap}.btn:hover{background:var(--bg)}.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}.btn.primary:hover{background:var(--accent-h)}.btn.nge{background:var(--nge);border-color:var(--nge);color:#fff}.btn.nge:hover{background:#09388d}.btn.warn{background:#fff5dd;color:#8a5a00;border-color:#f1d699}.btn.warn:hover{background:#ffefc7}.btn.sm{padding:5px 10px;font-size:12px}
-#toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}#filter-info{margin-left:auto;font-size:12px;color:var(--text-m)}
-#main{flex:1;display:flex;overflow:hidden;min-height:0}.table-panel{flex:1;min-width:0}.table-card{background:var(--surface);height:100%}.table-wrapper{overflow:auto;height:100%}table{width:100%;border-collapse:collapse;font-size:13px}thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:12px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:1;cursor:pointer}thead th:hover{color:var(--text)}tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}tbody tr:hover{background:#f8f8fc}tbody tr.selected{background:#eeeffe}td{padding:9px 14px;vertical-align:middle}.empty-state{padding:60px;text-align:center;color:var(--text-m)}
-#detail{width:360px;min-width:320px;background:var(--surface);display:none;flex-direction:column;overflow:auto;flex-shrink:0;border-left:1px solid var(--border)}#detail.visible{display:flex}.det-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px}.det-title{font-size:15px;font-weight:700;color:var(--accent)}.det-sub{font-size:12px;color:var(--text-m);margin-top:3px}.det-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px}.det-section{display:flex;flex-direction:column;gap:6px}.det-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:2px}.det-field{display:flex;flex-direction:column;gap:2px}.det-field label{font-size:10px;color:var(--text-m)}.det-field span{font-size:13px;font-weight:500}.det-actions{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
-.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}.b-gray{background:#f1efe8;color:#5f5e5a}.b-blue{background:#e6f1fb;color:#185fa5}
-#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}#toast.show{transform:translateY(0);opacity:1}#toast.success{background:#1d9e75;color:#fff}#toast.error{background:#e24b4a;color:#fff}#toast.info{background:#1a1a2e;color:#fff}
-</style>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+	<title>RaLab4 — Études</title>
+	<style>
+		*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+		:root{--bg:#f4f4f0;--sidebar:#1e1e2e;--sidebar-t:#a0a0b8;--accent:#5b6af0;--accent-h:#4a58d4;--surface:#fff;--border:#e2e2dc;--text:#1a1a2e;--text-m:#6b6b80;--danger:#e24b4a;--success:#1d9e75;--warn:#ef9f27;--radius:8px;--nge:#002C77}
+		body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+		#sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column}
+		.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid #2e2e44}
+		.sidebar-logo h1{font-size:18px;color:#fff;font-weight:700}
+		.sidebar-logo span{font-size:11px;color:var(--sidebar-t)}
+		.nav{flex:1;padding:12px 0}
+		.nav-section{padding:16px 20px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#4e4e6a}
+		.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 20px;background:none;border:none;cursor:pointer;color:var(--sidebar-t);font-size:13px;text-align:left;border-left:3px solid transparent;transition:.15s}
+		.nav-btn:hover:not(:disabled){background:#2a2a40;color:#fff}
+		.nav-btn.active{background:#2a2a40;color:#fff;border-left-color:var(--accent)}
+		.nav-btn .icon{font-size:15px;width:20px;text-align:center}
+		.sidebar-user{padding:14px 20px;border-top:1px solid #2e2e44}
+		.user-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+		.user-av{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0}
+		.user-name{font-size:13px;color:#fff;font-weight:500}
+		.user-role{font-size:11px;color:var(--sidebar-t);margin-top:1px}
+		.btn-logout{width:100%;padding:7px;background:none;border:1px solid #3e3e5a;border-radius:var(--radius);color:var(--sidebar-t);font-size:12px;cursor:pointer;transition:.15s}
+		.btn-logout:hover{background:#2a2a40;color:#fff}
+
+		#content{flex:1;display:flex;flex-direction:column;overflow:hidden}
+		#header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;gap:12px}
+		#page-title{font-size:15px;font-weight:600;flex:1}
+		#search-input{padding:7px 14px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:320px;outline:none;background:var(--bg)}
+		#search-input:focus{border-color:var(--accent);background:#fff}
+
+		.btn{padding:7px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text);transition:.15s;white-space:nowrap}
+		.btn:hover{background:var(--bg)}
+		.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+		.btn.primary:hover{background:var(--accent-h)}
+		.btn.nge{background:var(--nge);border-color:var(--nge);color:#fff}
+		.btn.nge:hover{background:#09388d}
+		.btn.warn{background:#fff5dd;color:#8a5a00;border-color:#f1d699}
+		.btn.warn:hover{background:#ffefc7}
+		.btn.sm{padding:5px 10px;font-size:12px}
+
+		#toolbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+		#filter-info{margin-left:auto;font-size:12px;color:var(--text-m)}
+
+		#main{flex:1;display:flex;overflow:hidden;min-height:0}
+		.table-panel{flex:1;min-width:0}
+		.table-card{background:var(--surface);height:100%}
+		.table-wrapper{overflow:auto;height:100%}
+		table{width:100%;border-collapse:collapse;font-size:13px}
+		thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:12px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;z-index:1;cursor:pointer}
+		thead th:hover{color:var(--text)}
+		tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+		tbody tr:hover{background:#f8f8fc}
+		tbody tr.selected{background:#eeeffe}
+		td{padding:9px 14px;vertical-align:middle}
+		.empty-state{padding:60px;text-align:center;color:var(--text-m)}
+
+		#detail{width:360px;min-width:320px;background:var(--surface);display:none;flex-direction:column;overflow:auto;flex-shrink:0;border-left:1px solid var(--border)}
+		#detail.visible{display:flex}
+		.det-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px}
+		.det-title{font-size:15px;font-weight:700;color:var(--accent)}
+		.det-sub{font-size:12px;color:var(--text-m);margin-top:3px}
+		.det-body{padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+		.det-section{display:flex;flex-direction:column;gap:6px}
+		.det-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-m);border-bottom:1px solid var(--border);padding-bottom:4px;margin-bottom:2px}
+		.det-field{display:flex;flex-direction:column;gap:2px}
+		.det-field label{font-size:10px;color:var(--text-m)}
+		.det-field span{font-size:13px;font-weight:500}
+		.det-actions{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+
+		.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:500}
+		.b-gray{background:#f1efe8;color:#5f5e5a}
+		.b-blue{background:#e6f1fb;color:#185fa5}
+
+		#toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:500;z-index:200;transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+		#toast.show{transform:translateY(0);opacity:1}
+		#toast.success{background:#1d9e75;color:#fff}
+		#toast.error{background:#e24b4a;color:#fff}
+		#toast.info{background:#1a1a2e;color:#fff}
+	</style>
 </head>
 <body>
-<nav id="sidebar">
-  <div class="sidebar-logo"><h1>RaLab4</h1><span>Laboratoire géotechnique</span></div>
-  <div class="nav">
-    <div class="nav-section">Navigation</div>
-    <button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
-    <button class="nav-btn" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
-    <button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
-    <button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
-    <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
-    <button class="nav-btn" onclick="go('affaires_nge.html')"><span class="icon">🏗️</span> Affaires NGE</button>
-    <button class="nav-btn active"><span class="icon">📚</span> Études</button>
-    <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
-    <button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
-    <div class="nav-section">Administration</div>
-    <button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
-  </div>
-  <div class="sidebar-user">
-    <div class="user-row"><div class="user-av" id="sidebar-av">?</div><div><div class="user-name" id="sidebar-name">—</div><div class="user-role" id="sidebar-role">—</div></div></div>
-    <button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
-  </div>
-</nav>
-<div id="content">
-  <div id="header">
-    <div id="page-title">Études</div>
-    <input id="search-input" type="text" placeholder="Rechercher N° étude, nom affaire, ville, filiale..." oninput="onSearch()"/>
-    <button class="btn warn" onclick="go('references_etudes.html')">🛠 Maintenance DB</button>
-    <button class="btn" onclick="loadRows()">↻ Actualiser</button>
-  </div>
-  <div id="toolbar"><span style="font-size:12px;color:var(--text-m)">Source de préremplissage pour créer une affaire RST ou une demande.</span><span id="filter-info"></span></div>
-  <div id="main">
-    <div class="table-panel"><div class="table-card"><div class="table-wrapper"><table>
-      <thead><tr><th onclick="sortBy('numero_etude')">N° étude ↕</th><th onclick="sortBy('nom_affaire')">Chantier ↕</th><th onclick="sortBy('filiale')">Filiale ↕</th><th onclick="sortBy('ville')">Ville ↕</th><th onclick="sortBy('departement')">Dépt. ↕</th><th onclick="sortBy('responsable_etude')">Resp. étude ↕</th><th onclick="sortBy('statut_affaire')">Statut ↕</th></tr></thead>
-      <tbody id="tbody"><tr><td colspan="7"><div class="empty-state">Chargement…</div></td></tr></tbody>
-    </table></div></div></div>
-    <div id="detail">
-      <div class="det-header"><div><div class="det-title" id="d-num">—</div><div class="det-sub" id="d-lib">—</div></div><button class="btn sm" onclick="closeDetail()">×</button></div>
-      <div class="det-body">
-        <div id="d-badges"></div>
-        <div class="det-section"><div class="det-section-title">Étude</div><div class="det-field"><label>N° étude</label><span id="d-num2">—</span></div><div class="det-field"><label>Chantier</label><span id="d-chantier">—</span></div><div class="det-field"><label>Site</label><span id="d-site">—</span></div><div class="det-field"><label>Filiale</label><span id="d-filiale">—</span></div><div class="det-field"><label>Direction</label><span id="d-direction">—</span></div></div>
-        <div class="det-section"><div class="det-section-title">Acteurs</div><div class="det-field"><label>Responsable étude</label><span id="d-resp">—</span></div><div class="det-field"><label>Maître d'ouvrage</label><span id="d-moa">—</span></div><div class="det-field"><label>Maître d'œuvre</label><span id="d-moe">—</span></div><div class="det-field"><label>Mandataire</label><span id="d-mandataire">—</span></div></div>
-        <div class="det-section"><div class="det-section-title">Suivi</div><div class="det-field"><label>Statut</label><span id="d-statut">—</span></div><div class="det-field"><label>Date réception dossier</label><span id="d-recep">—</span></div><div class="det-field"><label>Date information attribution</label><span id="d-attrib">—</span></div></div>
-      </div>
-      <div class="det-actions"><button class="btn primary" onclick="createAffaireFromSelected()">📋 Créer une affaire RST</button><button class="btn nge" onclick="createDemandeFromSelected()">📂 Créer une demande</button></div>
-    </div>
-  </div>
-</div>
-<div id="toast"></div>
-<script>
-const API='http://127.0.0.1:8000';
-let token=null,user=null,rows=[],selId=null,sortCol='numero_etude',sortAsc=true,srchTimer=null,affairesRst=[];
-function ah(){return{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'};}
-function go(url){window.location.href=url;}
-function logout(){localStorage.clear();go('login.html');}
-function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
-function toast(msg,type='info'){const t=document.getElementById('toast');t.textContent=msg;t.className=`show ${type}`;}
-function badge(text,cls='b-gray'){return `<span class="badge ${cls}">${esc(text)}</span>`;}
-function fd(v){if(!v)return'—';const d=new Date(v);return isNaN(d)?String(v):d.toLocaleDateString('fr-FR');}
-function df(id,v){document.getElementById(id).textContent=v||'—';}
-async function init(){token=localStorage.getItem('ralab_token');user=JSON.parse(localStorage.getItem('ralab_user')||'null');if(!token||!user){go('login.html');return;}const ini=(user.display_name||'??').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();document.getElementById('sidebar-av').textContent=ini;document.getElementById('sidebar-name').textContent=user.display_name||'Utilisateur';document.getElementById('sidebar-role').textContent=user.service_code||'';try{const r=await fetch(`${API}/api/affaires`,{headers:ah()});if(r.ok)affairesRst=await r.json();}catch{}await loadRows();}
-async function loadRows(){const q=document.getElementById('search-input').value.trim();const params=new URLSearchParams({limit:'2000'});if(q)params.set('search',q);try{const r=await fetch(`${API}/api/reference-etudes/rows?${params}`,{headers:ah()});if(!r.ok)throw new Error(await r.text());rows=await r.json();document.getElementById('filter-info').textContent=`${rows.length} ligne${rows.length!==1?'s':''}`;renderTable();}catch(e){toast('Erreur chargement Études','error');}}
-function renderTable(){const tbody=document.getElementById('tbody');if(!rows.length){tbody.innerHTML='<tr><td colspan="7"><div class="empty-state">Aucune étude disponible.</div></td></tr>';return;}const sorted=[...rows].sort((a,b)=>{const va=String(a[sortCol]||'').toLowerCase();const vb=String(b[sortCol]||'').toLowerCase();return sortAsc?va.localeCompare(vb):vb.localeCompare(va);});tbody.innerHTML=sorted.map(r=>`<tr onclick="selectRow(${r.id})" class="${selId===r.id?'selected':''}"><td><strong style="color:var(--accent)">${esc(r.numero_etude||'—')}</strong></td><td title="${esc(r.nom_affaire||'')}">${esc(r.nom_affaire||'—')}</td><td>${esc(r.filiale||'—')}</td><td>${esc(r.ville||'—')}</td><td>${esc(r.departement||'—')}</td><td>${esc(r.responsable_etude||'—')}</td><td>${r.statut_affaire?badge(r.statut_affaire,'b-blue'):'—'}</td></tr>`).join('');}
-function selectRow(id){selId=id;renderTable();const d=rows.find(x=>x.id===id);if(!d)return;document.getElementById('detail').classList.add('visible');df('d-num',d.numero_etude);df('d-lib',d.nom_affaire);df('d-num2',d.numero_etude);df('d-chantier',d.nom_affaire);df('d-site',[d.ville,d.departement].filter(Boolean).join(' '));df('d-filiale',d.filiale);df('d-direction',d.direction);df('d-resp',d.responsable_etude);df('d-moa',d.maitre_ouvrage);df('d-moe',d.maitre_oeuvre);df('d-mandataire',d.mandataire);df('d-statut',d.statut_affaire);df('d-recep',fd(d.date_reception_dossier));df('d-attrib',fd(d.date_information_attribution));document.getElementById('d-badges').innerHTML=(d.filiale?badge(d.filiale,'b-blue'):'')+' '+(d.statut_affaire?badge(d.statut_affaire,'b-gray'):'');}
-function closeDetail(){selId=null;document.getElementById('detail').classList.remove('visible');renderTable();}
-function sortBy(col){sortAsc=sortCol===col?!sortAsc:true;sortCol=col;renderTable();}
-function onSearch(){clearTimeout(srchTimer);srchTimer=setTimeout(loadRows,250);}
-function findMatchingAffaireRst(row){return affairesRst.find(a=>String(a.numero_etude||'').trim().toLowerCase()===String(row.numero_etude||'').trim().toLowerCase());}
-function buildAffaireUrl(row){const p=new URLSearchParams();p.set('create','1');p.set('chantier',row.nom_affaire||'');p.set('site',[row.ville,row.departement].filter(Boolean).join(' '));p.set('numero_etude',row.numero_etude||'');p.set('filiale',row.filiale||'');p.set('responsable',row.responsable_etude||'');p.set('statut','À qualifier');return `affaires.html?${p.toString()}`;}
-function storeDemandePrefill(payload){sessionStorage.setItem('ralab4_source_prefill',JSON.stringify(payload));}
-function buildDemandePrefill(row,affaire){return {target:'demande_rst',source_type:'etude',source_id:row.id,prefill:{affaire_rst_id:affaire?affaire.uid:null,numero_dst:'',type_mission:'À définir',nature:'Demande liée à une étude',demandeur:row.responsable_etude||'',description:[row.numero_etude||'',row.nom_affaire||'',[row.ville,row.departement].filter(Boolean).join(' ')].filter(Boolean).join('\n'),observations:`Préremplie depuis Étude ${row.numero_etude||''}`.trim()}};}
-function createAffaireFromSelected(){const row=rows.find(x=>x.id===selId);if(!row){toast('Sélectionne d\'abord une ligne','error');return;}go(buildAffaireUrl(row));}
-function createDemandeFromSelected(){const row=rows.find(x=>x.id===selId);if(!row){toast('Sélectionne d\'abord une ligne','error');return;}const affaire=findMatchingAffaireRst(row);if(!affaire){toast('Aucune affaire RST liée. Ouverture de la création affaire RST.','info');go(buildAffaireUrl(row));return;}storeDemandePrefill(buildDemandePrefill(row,affaire));go('demandes.html?create=1');}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
-init();
-</script>
+	<nav id="sidebar">
+		<div class="sidebar-logo">
+			<h1>RaLab4</h1>
+			<span>Laboratoire géotechnique</span>
+		</div>
+		<div class="nav">
+			<div class="nav-section">Navigation</div>
+			<button class="nav-btn" onclick="go('index.html')"><span class="icon">🏠</span> Dashboard</button>
+			<button class="nav-btn" onclick="go('affaires.html')"><span class="icon">📋</span> Affaires RST</button>
+			<button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
+			<button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
+			<button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+			<button class="nav-btn" onclick="go('affaires_nge.html')"><span class="icon">🏗️</span> Affaires NGE</button>
+			<button class="nav-btn active"><span class="icon">📚</span> Études</button>
+			<button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
+			<button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
+			<div class="nav-section">Administration</div>
+			<button class="nav-btn" onclick="go('tools.html')"><span class="icon">🔧</span> Outils</button>
+		</div>
+		<div class="sidebar-user">
+			<div class="user-row">
+				<div class="user-av" id="sidebar-av">?</div>
+				<div>
+					<div class="user-name" id="sidebar-name">—</div>
+					<div class="user-role" id="sidebar-role">—</div>
+				</div>
+			</div>
+			<button class="btn-logout" onclick="logout()">↩ Déconnexion</button>
+		</div>
+	</nav>
+
+	<div id="content">
+		<div id="header">
+			<div id="page-title">Études</div>
+			<input id="search-input" type="text" placeholder="Rechercher N° étude, nom affaire, ville, filiale..." oninput="onSearch()"/>
+			<button class="btn warn" onclick="go('references_etudes.html')">🛠 Maintenance DB</button>
+			<button class="btn" onclick="loadRows()">↻ Actualiser</button>
+		</div>
+
+		<div id="toolbar">
+			<span style="font-size:12px;color:var(--text-m)">Source de préremplissage pour créer une affaire RST ou une demande.</span>
+			<span id="filter-info"></span>
+		</div>
+
+		<div id="main">
+			<div class="table-panel">
+				<div class="table-card">
+					<div class="table-wrapper">
+						<table>
+							<thead>
+								<tr>
+									<th onclick="sortBy('numero_etude')">N° étude ↕</th>
+									<th onclick="sortBy('nom_affaire')">Chantier ↕</th>
+									<th onclick="sortBy('filiale')">Filiale ↕</th>
+									<th onclick="sortBy('ville')">Ville ↕</th>
+									<th onclick="sortBy('departement')">Dépt. ↕</th>
+									<th onclick="sortBy('responsable_etude')">Resp. étude ↕</th>
+									<th onclick="sortBy('statut_affaire')">Statut ↕</th>
+								</tr>
+							</thead>
+							<tbody id="tbody">
+								<tr><td colspan="7"><div class="empty-state">Chargement…</div></td></tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+
+			<div id="detail">
+				<div class="det-header">
+					<div>
+						<div class="det-title" id="d-num">—</div>
+						<div class="det-sub" id="d-lib">—</div>
+					</div>
+					<button class="btn sm" onclick="closeDetail()">×</button>
+				</div>
+
+				<div class="det-body">
+					<div id="d-badges"></div>
+
+					<div class="det-section">
+						<div class="det-section-title">Étude</div>
+						<div class="det-field"><label>N° étude</label><span id="d-num2">—</span></div>
+						<div class="det-field"><label>Chantier</label><span id="d-chantier">—</span></div>
+						<div class="det-field"><label>Site</label><span id="d-site">—</span></div>
+						<div class="det-field"><label>Filiale</label><span id="d-filiale">—</span></div>
+						<div class="det-field"><label>Direction</label><span id="d-direction">—</span></div>
+					</div>
+
+					<div class="det-section">
+						<div class="det-section-title">Acteurs</div>
+						<div class="det-field"><label>Responsable étude</label><span id="d-resp">—</span></div>
+						<div class="det-field"><label>Maître d'ouvrage</label><span id="d-moa">—</span></div>
+						<div class="det-field"><label>Maître d'œuvre</label><span id="d-moe">—</span></div>
+						<div class="det-field"><label>Mandataire</label><span id="d-mandataire">—</span></div>
+					</div>
+
+					<div class="det-section">
+						<div class="det-section-title">Suivi</div>
+						<div class="det-field"><label>Statut</label><span id="d-statut">—</span></div>
+						<div class="det-field"><label>Date réception dossier</label><span id="d-recep">—</span></div>
+						<div class="det-field"><label>Date information attribution</label><span id="d-attrib">—</span></div>
+					</div>
+				</div>
+
+				<div class="det-actions">
+					<button class="btn primary" onclick="createAffaireFromSelected()">📋 Créer une affaire RST</button>
+					<button class="btn nge" onclick="createDemandeFromSelected()">📂 Créer une demande</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="toast"></div>
+
+	<script>
+		const API = 'http://127.0.0.1:8000';
+		let token = null;
+		let user = null;
+		let rows = [];
+		let selId = null;
+		let sortCol = 'numero_etude';
+		let sortAsc = true;
+		let srchTimer = null;
+		let affairesRst = [];
+
+		function ah() {
+			return {
+				'Authorization': `Bearer ${token}`,
+				'Content-Type': 'application/json'
+			};
+		}
+
+		function go(url) {
+			window.location.href = url;
+		}
+
+		function logout() {
+			localStorage.clear();
+			go('login.html');
+		}
+
+		function esc(v) {
+			return String(v ?? '').replace(/[&<>"']/g, m => ({
+				'&': '&amp;',
+				'<': '&lt;',
+				'>': '&gt;',
+				'"': '&quot;',
+				"'": '&#39;'
+			}[m]));
+		}
+
+		function toast(msg, type = 'info') {
+			const t = document.getElementById('toast');
+			t.textContent = msg;
+			t.className = `show ${type}`;
+		}
+
+		function badge(text, cls = 'b-gray') {
+			return `<span class="badge ${cls}">${esc(text)}</span>`;
+		}
+
+		function fd(v) {
+			if (!v) return '—';
+			const d = new Date(v);
+			return isNaN(d) ? String(v) : d.toLocaleDateString('fr-FR');
+		}
+
+		function df(id, v) {
+			document.getElementById(id).textContent = v || '—';
+		}
+
+		function formatEtudeSite(row) {
+			const ville = String(row?.ville || '').trim();
+			const departement = String(row?.departement || '').trim();
+
+			if (ville && departement) {
+				return `${ville} (${departement})`;
+			}
+
+			return ville || departement || '';
+		}
+
+		function normalizeEtudeNumber(value) {
+			return String(value || '')
+				.trim()
+				.toUpperCase()
+				.replace(/[\s\-_/\.]+/g, '');
+		}
+
+		async function init() {
+			token = localStorage.getItem('ralab_token');
+			user = JSON.parse(localStorage.getItem('ralab_user') || 'null');
+
+			if (!token || !user) {
+				go('login.html');
+				return;
+			}
+
+			const ini = (user.display_name || '??')
+				.split(' ')
+				.map(w => w[0])
+				.join('')
+				.slice(0, 2)
+				.toUpperCase();
+
+			document.getElementById('sidebar-av').textContent = ini;
+			document.getElementById('sidebar-name').textContent = user.display_name || 'Utilisateur';
+			document.getElementById('sidebar-role').textContent = user.service_code || '';
+
+			try {
+				const r = await fetch(`${API}/api/affaires`, { headers: ah() });
+				if (r.ok) {
+					affairesRst = await r.json();
+				}
+			} catch {}
+
+			await loadRows();
+		}
+
+		async function loadRows() {
+			const q = document.getElementById('search-input').value.trim();
+			const params = new URLSearchParams({ limit: '2000' });
+
+			if (q) {
+				params.set('search', q);
+			}
+
+			try {
+				const r = await fetch(`${API}/api/reference-etudes/rows?${params.toString()}`, { headers: ah() });
+				if (!r.ok) {
+					throw new Error(await r.text());
+				}
+
+				rows = await r.json();
+				document.getElementById('filter-info').textContent = `${rows.length} ligne${rows.length !== 1 ? 's' : ''}`;
+				renderTable();
+			} catch (e) {
+				document.getElementById('tbody').innerHTML = '<tr><td colspan="7"><div class="empty-state">Erreur de chargement des études.</div></td></tr>';
+				toast('Erreur chargement Études', 'error');
+				console.error(e);
+			}
+		}
+
+		function renderTable() {
+      const tbody = document.getElementById('tbody');
+
+      if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">Aucune étude disponible.</div></td></tr>';
+          return;
+      }
+
+      const sorted = [...rows].sort((a, b) => {
+          const va = String(a?.[sortCol] || '').toLowerCase();
+          const vb = String(b?.[sortCol] || '').toLowerCase();
+          return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      });
+
+      tbody.innerHTML = sorted.map(r => {
+          const rowId = String(r.id).replace(/'/g, '&#39;');
+          return `<tr onclick="selectRow('${rowId}')" class="${selId === String(r.id) ? 'selected' : ''}">
+              <td><strong style="color:var(--accent)">${esc(r.numero_etude || '—')}</strong></td>
+              <td title="${esc(r.nom_affaire || '')}">${esc(r.nom_affaire || '—')}</td>
+              <td>${esc(r.filiale || '—')}</td>
+              <td>${esc(r.ville || '—')}</td>
+              <td>${esc(r.departement || '—')}</td>
+              <td>${esc(r.responsable_etude || '—')}</td>
+              <td>${r.statut_affaire ? badge(r.statut_affaire, 'b-blue') : '—'}</td>
+          </tr>`;
+      }).join('');
+}
+
+		function selectRow(id) {
+      selId = String(id);
+      renderTable();
+
+      const d = rows.find(x => String(x.id) === String(id));
+      if (!d) {
+          return;
+      }
+
+      document.getElementById('detail').classList.add('visible');
+      df('d-num', d.numero_etude);
+      df('d-lib', d.nom_affaire);
+      df('d-num2', d.numero_etude);
+      df('d-chantier', d.nom_affaire);
+      df('d-site', formatEtudeSite(d));
+      df('d-filiale', d.filiale);
+      df('d-direction', d.direction);
+      df('d-resp', d.responsable_etude);
+      df('d-moa', d.maitre_ouvrage);
+      df('d-moe', d.maitre_oeuvre);
+      df('d-mandataire', d.mandataire);
+      df('d-statut', d.statut_affaire);
+      df('d-recep', fd(d.date_reception_dossier));
+      df('d-attrib', fd(d.date_information_attribution));
+      document.getElementById('d-badges').innerHTML =
+          (d.filiale ? badge(d.filiale, 'b-blue') : '') + ' ' +
+          (d.statut_affaire ? badge(d.statut_affaire, 'b-gray') : '');
+  }
+
+		function closeDetail() {
+			selId = null;
+			document.getElementById('detail').classList.remove('visible');
+			renderTable();
+		}
+
+		function sortBy(col) {
+			sortAsc = sortCol === col ? !sortAsc : true;
+			sortCol = col;
+			renderTable();
+		}
+
+		function onSearch() {
+			clearTimeout(srchTimer);
+			srchTimer = setTimeout(loadRows, 250);
+		}
+
+		function findMatchingAffaireRst(row) {
+			const numeroEtude = normalizeEtudeNumber(row.numero_etude || '');
+			return affairesRst.find(a => normalizeEtudeNumber(a.numero_etude || '') === numeroEtude);
+		}
+
+		function buildAffaireUrl(row) {
+			const p = new URLSearchParams();
+			p.set('create', '1');
+			p.set('source_type', 'etude');
+			p.set('source_id', String(row.id || ''));
+			p.set('chantier', row.nom_affaire || '');
+			p.set('site', formatEtudeSite(row));
+			p.set('numero_etude', row.numero_etude || '');
+			p.set('filiale', row.filiale || '');
+			p.set('responsable', row.responsable_etude || '');
+			p.set('client', '');
+			p.set('affaire_nge', '');
+			p.set('titulaire', '');
+			p.set('statut', 'À qualifier');
+			return `affaires.html?${p.toString()}`;
+		}
+
+		function storeDemandePrefill(payload) {
+			sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(payload));
+		}
+
+		function buildDemandePrefill(row, affaire) {
+			const site = formatEtudeSite(row);
+
+			return {
+				target: 'demande_rst',
+				source_type: 'etude',
+				source_id: row.id,
+				prefill: {
+					affaire_rst_id: affaire ? affaire.uid : null,
+					numero_dst: '',
+					numero_etude: row.numero_etude || '',
+					numero_affaire_nge: '',
+					type_mission: 'À définir',
+					nature: 'Demande liée à une étude',
+					demandeur: row.responsable_etude || '',
+					chantier: row.nom_affaire || '',
+					site: site,
+					filiale: row.filiale || '',
+					client: '',
+					description: [
+						row.numero_etude || '',
+						row.nom_affaire || '',
+						site
+					].filter(Boolean).join('\n'),
+					observations: `Préremplie depuis Étude ${row.numero_etude || ''}`.trim()
+				}
+			};
+		}
+
+		function createAffaireFromSelected() {
+			const row = rows.find(x => String(x.id) === String(selId));
+			if (!row) {
+				toast("Sélectionne d'abord une ligne", 'error');
+				return;
+			}
+			go(buildAffaireUrl(row));
+		}
+
+		function createDemandeFromSelected() {
+			const row = rows.find(x => String(x.id) === String(selId));
+			if (!row) {
+				toast("Sélectionne d'abord une ligne", 'error');
+				return;
+			}
+
+			const affaire = findMatchingAffaireRst(row);
+
+			if (!affaire) {
+				toast("Aucune affaire RST liée. Ouverture de la création affaire RST.", 'info');
+				go(buildAffaireUrl(row));
+				return;
+			}
+
+			storeDemandePrefill(buildDemandePrefill(row, affaire));
+			go('demandes.html?create=1');
+		}
+
+		document.addEventListener('keydown', e => {
+			if (e.key === 'Escape') {
+				closeDetail();
+			}
+		});
+
+		init();
+	</script>
 </body>
 </html>

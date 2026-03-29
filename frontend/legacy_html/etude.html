@@ -71,6 +71,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
     <button class="nav-btn" onclick="go('passations.html')">🤝 Passations</button>
     <button class="nav-btn active" onclick="go('demandes.html')">📂 Demandes</button>
     <button class="nav-btn" onclick="go('dst.html')">📁 DST</button>
+    <button class="nav-btn" onclick="go('affaires_nge.html')">🏗️ Affaires NGE</button>
+    <button class="nav-btn" onclick="go('etudes.html')">📚 Études</button>
     <button class="nav-btn" onclick="go('planning.html')">📅 Planning</button>
     <button class="nav-btn" onclick="go('audits.html')">🔍 Audits</button>
     <div class="nav-section">Administration</div>
@@ -141,7 +143,7 @@ function moduleChipHtml(){
 }
 async function loadContext(){
   if(!demandeId){
-    document.getElementById('content').innerHTML='<div class="empty-state">Aucune demande ciblée.<br><button class="btn" style="margin-top:12px" onclick="go('demandes.html')">← Retour aux demandes</button></div>';
+    document.getElementById("content").innerHTML=`<div class="empty-state">Aucune demande ciblée.<br><button class="btn" style="margin-top:12px" onclick="go('demandes.html')">← Retour aux demandes</button></div>`;
     return;
   }
   await loadUser();
@@ -189,9 +191,7 @@ function render(){
         <div class="card-title">Base technique issue de la préparation</div>
         <div class="field-row"><div class="field-label">Objectifs</div><p class="text-block ${navigationData?.preparation?.objectifs?'':'empty'}">${esc(navigationData?.preparation?.objectifs||'—')}</p></div>
         <div class="field-row"><div class="field-label">Contexte opérationnel</div><p class="text-block ${navigationData?.preparation?.contexte_operationnel?'':'empty'}">${esc(navigationData?.preparation?.contexte_operationnel||'—')}</p></div>
-        <div class="field-row"><div class="field-label">Contraintes délais / HSE</div><p class="text-block ${(navigationData?.preparation?.contraintes_delais||navigationData?.preparation?.contraintes_hse)?'':'empty'}">${esc([navigationData?.preparation?.contraintes_delais,navigationData?.preparation?.contraintes_hse].filter(Boolean).join('
-
-')||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Contraintes délais / HSE</div><p class="text-block ${(navigationData?.preparation?.contraintes_delais||navigationData?.preparation?.contraintes_hse)?'':'empty'}">${esc([navigationData?.preparation?.contraintes_delais,navigationData?.preparation?.contraintes_hse].filter(Boolean).join('\n\n')||'—')}</p></div>
       </div>
       <div class="card">
         <div class="card-title">Bloc étude</div>

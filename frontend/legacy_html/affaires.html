@@ -50,7 +50,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:v
 #split{flex:1;display:flex;overflow:hidden;min-height:0}
 #table-wrap{flex:1;overflow-y:auto;min-width:0}
 .table-card{background:var(--surface);height:100%}
-table{width:100%;border-collapse:collapse;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px;table-layout: fixed;}
 thead th{background:var(--bg);padding:9px 14px;text-align:left;font-weight:500;font-size:11px;color:var(--text-m);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;z-index:5}
 thead th:hover{color:var(--text)}
 tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
@@ -78,7 +78,7 @@ td{padding:9px 14px;vertical-align:middle}
 /* Modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:100}
 .modal-overlay.hidden{display:none}
-.modal{background:var(--surface);border-radius:12px;width:660px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
+.modal{background:var(--surface);border-radius:12px;width:900px;max-width:96vw;max-height:96vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.18)}
 .modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .modal-header h2{font-size:15px;font-weight:600}
 .modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-m)}
@@ -108,6 +108,8 @@ td{padding:9px 14px;vertical-align:middle}
 <button class="nav-btn" onclick="go('passations.html')"><span class="icon">🤝</span> Passations</button>
         <button class="nav-btn" onclick="go('demandes.html')"><span class="icon">📂</span> Demandes</button>
     <button class="nav-btn" onclick="go('dst.html')"><span class="icon">📁</span> DST</button>
+    <button class="nav-btn" onclick="go('affaires_nge.html')"><span class="icon">🏗️</span> Affaires NGE</button>
+    <button class="nav-btn" onclick="go('etudes.html')"><span class="icon">📚</span> Études</button>
     <button class="nav-btn" onclick="go('planning.html')"><span class="icon">📅</span> Planning</button>
     <button class="nav-btn" onclick="go('audits.html')"><span class="icon">🔍</span> Audits</button>
     <div class="nav-section">Administration</div>
@@ -233,28 +235,26 @@ td{padding:9px 14px;vertical-align:middle}
       <div class="form-row">
         <div class="form-group"><label>Référence</label><input id="m-ref" readonly placeholder="Générée auto"/></div>
         <div class="form-group"><label>Statut</label>
-          <select id="m-statut"><option>À qualifier</option><option>En cours</option><option>Terminée</option><option>Archivée</option></select>
+          <select id="m-statut"><option value=""></option><option>À qualifier</option><option>En cours</option><option>Terminée</option><option>Archivée</option></select>
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Client *</label><input id="m-client" placeholder="SNCF, IMERYS…"/></div>
-        <div class="form-group"><label>Chantier *</label><input id="m-chantier" placeholder="Libellé projet / chantier"/></div>
+        <div class="form-group"><label>Client *</label><input id="m-client" /></div>
+        <div class="form-group"><label>Chantier *</label><input id="m-chantier" /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Site</label><input id="m-site" placeholder="VILLE (63)"/></div>
-        <div class="form-group"><label>Filiale</label><input id="m-filiale" placeholder="NGE / GUINTOLI / ..."/></div>
+        <div class="form-group"><label>Site</label><input id="m-site" /></div>
+        <div class="form-group"><label>Filiale</label><input id="m-filiale" /></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>N° étude</label><input id="m-num-etude" placeholder="Source Études"/></div>
-        <div class="form-group"><label>N° affaire NGE</label><input id="m-aff-nge" placeholder="Source Affaires NGE"/></div>
+        <div class="form-group"><label>N° étude</label><input id="m-num-etude" /></div>
+        <div class="form-group"><label>N° affaire NGE</label><input id="m-aff-nge" /></div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Titulaire</label>
-          <select id="m-titulaire">
-            <option value="">— Non défini —</option>
-            <option>NGE GC</option><option>NGE Energie</option><option>NGE Routes</option>
-            <option>EHTP</option><option>NGE E.S.</option><option>NGE Transitions</option><option>Lyaudet</option><option>Autre</option>
-          </select>
+          <input id="m-titulaire" list="m-titulaire-list" />
+        <datalist id="m-titulaire-list"></datalist>
+        
         </div>
         <div class="form-group"><label>Responsable affaire NGE</label><input id="m-resp"/></div>
       </div>
@@ -273,7 +273,7 @@ td{padding:9px 14px;vertical-align:middle}
 <script>
 const API='http://127.0.0.1:8000';
 const qs=new URLSearchParams(location.search);
-let user=null,token=null,rows=[],selUid=null,sortCol='date_ouverture',sortAsc=false,srchTimer=null;
+let user=null,token=null,rows=[],selUid=null,sortCol='reference',sortAsc=false,srchTimer=null;
 
 async function init(){
   token=localStorage.getItem('ralab_token');
@@ -284,31 +284,13 @@ async function init(){
   document.getElementById('sidebar-name').textContent=user.display_name;
   document.getElementById('sidebar-role').textContent=user.service_code||'';
   await load();
+  renderTitulaireSelect('');
   const focusUid=parseInt(qs.get('uid')||'0');
   if(focusUid&&rows.some(r=>r.uid===focusUid))selectRow(focusUid);
-  if(qs.get('create')==='1')await openCreate(await loadCreatePrefill());
+  if(qs.get('create')==='1')await openCreate(getCreatePrefillFromQuery());
 }
 
-async function loadCreatePrefill(){
-  const sourceType=qs.get('source_type')||'';
-  const sourceId=qs.get('source_id')||'';
-  if(sourceType&&sourceId){
-    const endpointMap={
-      dst:`${API}/api/dst/${encodeURIComponent(sourceId)}/affaire-prefill`,
-      affaire_nge:`${API}/api/reference-affaires/${encodeURIComponent(sourceId)}/affaire-prefill`,
-      etude:`${API}/api/reference-etudes/${encodeURIComponent(sourceId)}/affaire-prefill`,
-    };
-    const endpoint=endpointMap[sourceType];
-    if(endpoint){
-      try{
-        const r=await fetch(endpoint,{headers:ah()});
-        if(r.ok){
-          const payload=await r.json();
-          return {...(payload.affaire||{}), __source:payload.source||{type:sourceType,id:sourceId}};
-        }
-      }catch{}
-    }
-  }
+function getCreatePrefillFromQuery(){
   return {
     client: qs.get('client')||'',
     chantier: qs.get('chantier')||'',
@@ -318,9 +300,45 @@ async function loadCreatePrefill(){
     titulaire: qs.get('titulaire')||'',
     responsable: qs.get('responsable')||'',
     filiale: qs.get('filiale')||'',
-    statut: qs.get('statut')||'À qualifier',
-    date_ouverture: qs.get('date_ouverture')||today(),
+    statut: qs.get('statut')||'',
+    date_ouverture: qs.get('date_ouverture')||'',
   };
+}
+
+
+function uniqueValues(values){
+  const out=[];
+  for(const v of values){
+    const s=String(v||'').trim();
+    if(s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
+function titulaireOptions(extra=''){
+  const existing=uniqueValues(rows.map(r=>r.titulaire));
+  const ordered=[];
+  const first=String(extra||'').trim();
+
+  if(first) ordered.push(first);
+
+  for(const v of existing){
+    if(!ordered.includes(v)) ordered.push(v);
+  }
+
+  return ordered;
+}
+
+function renderTitulaireSelect(selected=''){
+  const input=document.getElementById('m-titulaire');
+  const list=document.getElementById('m-titulaire-list');
+  if(!input || !list) return;
+
+  const current=String(selected??'').trim();
+  const options=titulaireOptions(current);
+
+  list.innerHTML=options.map(v=>`<option value="${esc(v)}"></option>`).join('');
+  input.value=current;
 }
 
 async function load(){
@@ -336,36 +354,75 @@ async function load(){
     if(!r.ok)throw new Error();
     rows=await r.json();
     document.getElementById('filter-info').textContent=`${rows.length} affaire${rows.length!==1?'s':''}`;
+    renderTitulaireSelect(document.getElementById('m-titulaire')?.value||'');
     renderTable();
   }catch{toast('Erreur connexion API','error');}
 }
 
+function getReferenceSortParts(value){
+	const ref=String(value||'').trim().toUpperCase();
+	const match=ref.match(/^(.*?)(\d+)([A-Z]*)$/);
+
+	if(!match){
+		return {
+			prefix: ref,
+			number: -1,
+			suffix: ''
+		};
+	}
+
+	return {
+		prefix: match[1],
+		number: parseInt(match[2],10),
+		suffix: match[3]||''
+	};
+}
+
 function renderTable(){
-  const tbody=document.getElementById('tbody');
-  if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="12"><div class="empty-state">📋 Aucune affaire</div></td></tr>';
-    return;
-  }
-  const sorted=[...rows].sort((a,b)=>{
-    const va=String(a[sortCol]||'').toLowerCase();
-    const vb=String(b[sortCol]||'').toLowerCase();
-    return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
-  });
-  tbody.innerHTML=sorted.map(d=>`
-    <tr onclick="selectRow(${d.uid})" class="${d.uid===selUid?'selected':''}">
-      <td><strong style="color:var(--accent)">${d.reference}</strong></td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.numero_etude)}">${d.numero_etude||'—'}</td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.affaire_nge)}">${d.affaire_nge||'—'}</td>
-      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.chantier)}">${d.chantier||'—'}</td>
-      <td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.site)}">${d.site||'—'}</td>
-      <td>${d.client||'—'}</td>
-      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.responsable)}">${d.responsable||'—'}</td>
-      <td>${d.filiale||'—'}</td>
-      <td>${d.titulaire?`<span class="badge b-nge" style="font-size:10px">${d.titulaire}</span>`:'<span style="color:var(--text-m);font-size:12px">—</span>'}</td>
-      <td>${bStat(d.statut)}</td>
-      <td style="font-size:12px">${fd(d.date_ouverture)}</td>
-      <td style="text-align:center">${d.nb_demandes>0?`<span class="badge b-blue" style="font-size:10px">${d.nb_demandes_actives}/${d.nb_demandes}</span>`:'—'}</td>
-    </tr>`).join('');
+	const tbody=document.getElementById('tbody');
+	if(!rows.length){
+		tbody.innerHTML='<tr><td colspan="12"><div class="empty-state">📋 Aucune affaire</div></td></tr>';
+		return;
+	}
+
+	const sorted=[...rows].sort((a,b)=>{
+		if(sortCol==='reference'){
+			const ra=getReferenceSortParts(a.reference);
+			const rb=getReferenceSortParts(b.reference);
+
+			const prefixCompare=ra.prefix.localeCompare(rb.prefix);
+			if(prefixCompare!==0){
+				return sortAsc?prefixCompare:-prefixCompare;
+			}
+
+			if(ra.number!==rb.number){
+				return sortAsc?(ra.number-rb.number):(rb.number-ra.number);
+			}
+
+			const suffixCompare=ra.suffix.localeCompare(rb.suffix);
+			return sortAsc?suffixCompare:-suffixCompare;
+		}
+
+		const va=String(a[sortCol]||'').toLowerCase();
+		const vb=String(b[sortCol]||'').toLowerCase();
+		return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+	});
+
+	tbody.innerHTML=sorted.map(d=>`
+		<tr onclick="selectRow(${d.uid})" class="${d.uid===selUid?'selected':''}">
+			<td><strong style="color:var(--accent)">${d.reference}</strong></td>
+			<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.numero_etude)}">${d.numero_etude||'—'}</td>
+			<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.affaire_nge)}">${d.affaire_nge||'—'}</td>
+			<td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.chantier)}">${d.chantier||'—'}</td>
+			<td style="max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.site)}">${d.site||'—'}</td>
+			<td>${d.client||'—'}</td>
+			<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.responsable)}">${d.responsable||'—'}</td>
+			<td>${d.filiale||'—'}</td>
+			<td>${d.titulaire?`<span class="badge b-nge" style="font-size:10px">${d.titulaire}</span>`:'<span style="color:var(--text-m);font-size:12px">—</span>'}</td>
+			<td>${bStat(d.statut)}</td>
+			<td style="font-size:12px">${fd(d.date_ouverture)}</td>
+			<td style="text-align:center">${d.nb_demandes>0?`<span class="badge b-blue" style="font-size:10px">${d.nb_demandes_actives}/${d.nb_demandes}</span>`:'—'}</td>
+		</tr>`).join('');
 }
 
 function selectRow(uid){
@@ -394,7 +451,7 @@ function selectRow(uid){
 
 function closeDetail(){selUid=null;document.getElementById('detail').classList.remove('visible');renderTable();}
 function openFiche(){if(selUid)go(`affaire.html?uid=${selUid}`);}
-function sortBy(col){sortAsc=sortCol===col?!sortAsc:true;sortCol=col;renderTable();}
+function sortBy(col){sortAsc=sortCol===col?!sortAsc:false;sortCol=col;renderTable();}
 function onSearch(){clearTimeout(srchTimer);srchTimer=setTimeout(load,300);}
 function clearFilters(){['f-statut','f-titulaire'].forEach(id=>document.getElementById(id).value='');document.getElementById('search-input').value='';load();}
 
@@ -406,11 +463,11 @@ async function openCreate(prefill={}){
   document.getElementById('m-site').value=prefill.site||'';
   document.getElementById('m-filiale').value=prefill.filiale||'';
   document.getElementById('m-num-etude').value=prefill.numero_etude||'';
-  document.getElementById('m-titulaire').value=prefill.titulaire||'';
+  renderTitulaireSelect(prefill.titulaire||'');
   document.getElementById('m-aff-nge').value=prefill.affaire_nge||'';
-  document.getElementById('m-resp').value=prefill.responsable||user.display_name||'';
-  document.getElementById('m-statut').value=prefill.statut||'À qualifier';
-  document.getElementById('m-ouv').value=prefill.date_ouverture||today();
+  document.getElementById('m-resp').value=prefill.responsable||'';
+  document.getElementById('m-statut').value=prefill.statut||'';
+  document.getElementById('m-ouv').value=prefill.date_ouverture||'';
   try{
     const r=await fetch(`${API}/api/affaires/next-ref`,{headers:ah()});
     if(r.ok){const d=await r.json();document.getElementById('m-ref').value=d.reference||'';}
@@ -428,10 +485,10 @@ function openEdit(){
   document.getElementById('m-site').value=d.site||'';
   document.getElementById('m-filiale').value=d.filiale||'';
   document.getElementById('m-num-etude').value=d.numero_etude||'';
-  document.getElementById('m-titulaire').value=d.titulaire||'';
+  renderTitulaireSelect(d.titulaire||'');
   document.getElementById('m-aff-nge').value=d.affaire_nge||'';
   document.getElementById('m-resp').value=d.responsable||'';
-  document.getElementById('m-statut').value=d.statut||'À qualifier';
+  document.getElementById('m-statut').value=d.statut||'';
   document.getElementById('m-ouv').value=d.date_ouverture||'';
   document.getElementById('modal').classList.remove('hidden');
 }

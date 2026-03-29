@@ -554,9 +554,12 @@ function render(){
   document.getElementById('btn-labo').style.display=visibility.labo?'inline-flex':'none';
 
   const urg=urgence(d.date_echeance,d.statut);
+  const sourceLabel=d.numero_dst?'DST':(d.numero_etude?'Études':(d.affaire_nge?'Affaires NGE':'Manuel'));
   let badges=bStat(d.statut)+' '+bPrio(d.priorite);
   if(d.a_revoir) badges+=' <span class="badge b-amber">⚠ À revoir</span>';
-  if(d.numero_dst) badges+=` <span class="badge b-blue">DST ${d.numero_dst}</span>`;
+  if(d.numero_dst) badges+=` <span class="badge b-blue">DST ${esc(d.numero_dst)}</span>`;
+  if(d.numero_etude) badges+=` <span class="badge b-purple">Étude ${esc(d.numero_etude)}</span>`;
+  if(d.affaire_nge) badges+=` <span class="badge b-nge">Affaire NGE ${esc(d.affaire_nge)}</span>`;
   if(d.rapport_envoye) badges+=` <span class="badge b-teal">Rapport envoyé</span>`;
   if(visibility.interventions) badges+=` <span class="badge b-gray">${counts.interventions||0} interventions</span>`;
   if(visibility.echantillons) badges+=` <span class="badge b-gray">${counts.echantillons||0} échantillons</span>`;
@@ -567,7 +570,10 @@ function render(){
   if(!visibility.essais && (totalCounts.essais||0)>0) hiddenBadgeParts.push(`${totalCounts.essais} essais masqués`);
   if(hiddenBadgeParts.length) badges+=` <span class="badge b-amber">${esc(hiddenBadgeParts.join(' · '))}</span>`;
 
-  const revBanner=d.a_revoir?`<div class="revoir-banner">⚠ Cette demande est marquée « À revoir »${d.note_reconciliation?' — '+d.note_reconciliation:''}</div>`:'';
+  const revBanner=d.a_revoir?`<div class="revoir-banner">⚠ Esta demande está marcada « À revoir »${d.note_reconciliation?' — '+esc(d.note_reconciliation):''}</div>`:'';
+  const heroTitle=d.chantier||d.dst_libelle_projet||d.client||'—';
+  const heroSub=[d.affaire_ref||'', d.site||'', sourceLabel].filter(Boolean).join(' • ');
+  const hasDstContext=!!(d.dst_libelle_projet||d.dst_societe||d.dst_direction_regionale||d.dst_affaire_demandeur||d.dst_situation_geographique||d.dst_cadre_demande||d.dst_domaine_etude||d.dst_type_prestation||d.dst_objet_demande||d.dst_urgence||d.dst_origine||d.dst_remise_souhaitee);
 
   document.getElementById('content').innerHTML=`
     ${revBanner}
@@ -575,47 +581,74 @@ function render(){
     <div class="hero">
       <div class="hero-top">
         <div>
-          <div class="hero-ref">${d.reference}</div>
-          <div class="hero-sub">${d.affaire_ref||''} — ${d.chantier||d.client||'—'}</div>
+          <div class="hero-ref">${esc(d.reference)}</div>
+          <div class="hero-sub">${esc(heroTitle)}</div>
+          <div class="hero-sub" style="margin-top:2px">${esc(heroSub||'—')}</div>
         </div>
       </div>
       <div class="hero-badges">${badges}</div>
     </div>
 
-    <div class="cards-grid two">
+    <div class="cards-grid">
       <div class="card">
-        <div class="card-title">Affaire RST</div>
-        <div class="field-row"><div class="field-label">Référence</div><div class="field-value ${d.affaire_ref?'':'empty'}">${d.affaire_ref||'—'}</div></div>
-        <div class="field-row"><div class="field-label">Client</div><div class="field-value ${d.client?'':'empty'}">${d.client||'—'}</div></div>
-        <div class="field-row"><div class="field-label">Chantier / Site</div><div class="field-value ${d.chantier?'':'empty'}">${d.chantier||'—'}</div></div>
-        <div class="field-row"><div class="field-label">N° Affaire NGE</div><div class="field-value ${d.affaire_nge?'':'empty'}">${d.affaire_nge||'—'}</div></div>
+        <div class="card-title">Références</div>
+        <div class="field-row"><div class="field-label">Référence demande</div><div class="field-value">${esc(d.reference)}</div></div>
+        <div class="field-row"><div class="field-label">Affaire RST</div><div class="field-value ${d.affaire_ref?'':'empty'}">${esc(d.affaire_ref||'—')}</div></div>
+        <div class="field-row"><div class="field-label">N° DST</div><div class="field-value ${d.numero_dst?'':'empty'}">${esc(d.numero_dst||'—')}</div></div>
+        <div class="field-row"><div class="field-label">N° étude</div><div class="field-value ${d.numero_etude?'':'empty'}">${esc(d.numero_etude||'—')}</div></div>
+        <div class="field-row"><div class="field-label">N° affaire NGE</div><div class="field-value ${d.affaire_nge?'':'empty'}">${esc(d.affaire_nge||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Origine</div><div class="field-value">${esc(sourceLabel)}</div></div>
       </div>
 
       <div class="card">
-        <div class="card-title">Mission</div>
-        <div class="field-row"><div class="field-label">Type mission</div><div class="field-value">${d.type_mission||'—'}</div></div>
-        <div class="field-row"><div class="field-label">Nature</div><div class="field-value ${d.nature?'':'empty'}">${d.nature||'—'}</div></div>
-        <div class="field-row"><div class="field-label">N° DST</div><div class="field-value ${d.numero_dst?'':'empty'}">${d.numero_dst||'—'}</div></div>
-        <div class="field-row"><div class="field-label">Laboratoire</div><div class="field-value">${laboNom(d.labo_code)}</div></div>
+        <div class="card-title">Projet / affaire</div>
+        <div class="field-row"><div class="field-label">Client</div><div class="field-value ${d.client?'':'empty'}">${esc(d.client||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Chantier</div><div class="field-value ${d.chantier?'':'empty'}">${esc(d.chantier||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Site</div><div class="field-value ${d.site?'':'empty'}">${esc(d.site||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Filiale</div><div class="field-value ${d.filiale?'':'empty'}">${esc(d.filiale||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Titulaire</div><div class="field-value ${d.titulaire?'':'empty'}">${esc(d.titulaire||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Responsable affaire RST</div><div class="field-value ${d.responsable_affaire?'':'empty'}">${esc(d.responsable_affaire||'—')}</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Pilotage</div>
+        <div class="field-row"><div class="field-label">Type mission</div><div class="field-value">${esc(d.type_mission||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Nature</div><div class="field-value ${d.nature?'':'empty'}">${esc(d.nature||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Laboratoire</div><div class="field-value">${esc(laboNom(d.labo_code))}</div></div>
+        <div class="field-row"><div class="field-label">Demandeur</div><div class="field-value ${d.demandeur?'':'empty'}">${esc(d.demandeur||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Date réception</div><div class="field-value">${esc(fd(d.date_reception))}</div></div>
+        <div class="field-row"><div class="field-label">Échéance</div><div class="field-value ${urg}">${esc(d.date_echeance?fd(d.date_echeance):'—')}</div></div>
       </div>
     </div>
 
     <div class="cards-grid">
       <div class="card">
-        <div class="card-title">Acteurs</div>
-        <div class="field-row"><div class="field-label">Demandeur</div><div class="field-value ${d.demandeur?'':'empty'}">${d.demandeur||'—'}</div></div>
+        <div class="card-title">État affaire &amp; dates</div>
+        <div class="field-row"><div class="field-label">Statut affaire RST</div><div class="field-value ${d.statut_affaire?'':'empty'}">${esc(d.statut_affaire||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Ouverture affaire</div><div class="field-value ${d.date_ouverture_affaire?'':'empty'}">${esc(d.date_ouverture_affaire?fd(d.date_ouverture_affaire):'—')}</div></div>
+        <div class="field-row"><div class="field-label">Clôture affaire</div><div class="field-value ${d.date_cloture_affaire?'':'empty'}">${esc(d.date_cloture_affaire?fd(d.date_cloture_affaire):'—')}</div></div>
+        <div class="field-row"><div class="field-label">Clôture demande</div><div class="field-value ${d.date_cloture?'':'empty'}">${esc(d.date_cloture?fd(d.date_cloture):'—')}</div></div>
+        <div class="field-row"><div class="field-label">Créée le</div><div class="field-value ${d.created_at?'':'empty'}">${esc(d.created_at?fd(d.created_at):'—')}</div></div>
+        <div class="field-row"><div class="field-label">Mise à jour</div><div class="field-value ${d.updated_at?'':'empty'}">${esc(d.updated_at?fd(d.updated_at):'—')}</div></div>
       </div>
+
       <div class="card">
-        <div class="card-title">Dates</div>
-        <div class="field-row"><div class="field-label">Date réception</div><div class="field-value">${fd(d.date_reception)}</div></div>
-        <div class="field-row"><div class="field-label">Échéance</div><div class="field-value ${urg}">${d.date_echeance?fd(d.date_echeance):'—'}</div></div>
-        <div class="field-row"><div class="field-label">Date clôture</div><div class="field-value ${d.date_cloture?'':'empty'}">${d.date_cloture?fd(d.date_cloture):'—'}</div></div>
+        <div class="card-title">Rapport / administratif</div>
+        <div class="field-row"><div class="field-label">Réf. rapport</div><div class="field-value ${d.rapport_ref?'':'empty'}">${esc(d.rapport_ref||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Rapport envoyé</div><div class="field-value">${d.rapport_envoye?'Oui':'Non'}</div></div>
+        <div class="field-row"><div class="field-label">Date envoi rapport</div><div class="field-value ${d.date_envoi_rapport?'':'empty'}">${esc(d.date_envoi_rapport?fd(d.date_envoi_rapport):'—')}</div></div>
+        <div class="field-row"><div class="field-label">Réf. devis</div><div class="field-value ${d.devis_ref?'':'empty'}">${esc(d.devis_ref||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Réf. facture</div><div class="field-value ${d.facture_ref?'':'empty'}">${esc(d.facture_ref||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Nom dossier</div><div class="field-value small ${d.dossier_nom?'':'empty'}">${esc(d.dossier_nom||'—')}</div></div>
+        ${d.dossier_path?`<div class="field-row"><div class="field-label">Chemin dossier</div><div class="field-value small">${esc(d.dossier_path)}</div></div>`:''}
       </div>
+
       <div class="card">
-        <div class="card-title">Rapport / Admin</div>
-        <div class="field-row"><div class="field-label">Réf. rapport</div><div class="field-value ${d.rapport_ref?'':'empty'}">${d.rapport_ref||'—'}</div></div>
-        <div class="field-row"><div class="field-label">Réf. devis</div><div class="field-value ${d.devis_ref?'':'empty'}">${d.devis_ref||'—'}</div></div>
-        <div class="field-row"><div class="field-label">Réf. facture</div><div class="field-value ${d.facture_ref?'':'empty'}">${d.facture_ref||'—'}</div></div>
+        <div class="card-title">Suivi</div>
+        <div class="field-row"><div class="field-label">Note réconciliation</div><div class="field-value ${d.note_reconciliation?'':'empty'}">${esc(d.note_reconciliation||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Notes suivi</div><p class="text-block ${d.suivi_notes?'':'empty'}">${esc(d.suivi_notes||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Description</div><p class="text-block ${d.description?'':'empty'}">${esc(d.description||'—')}</p></div>
+        <div class="field-row"><div class="field-label">Observations</div><p class="text-block ${d.observations?'':'empty'}">${esc(d.observations||'—')}</p></div>
       </div>
     </div>
 
@@ -624,36 +657,30 @@ function render(){
     ${renderModuleDrivenHint()}
     ${renderLinkedItemsSection()}
 
-    ${(d.description||d.observations)?`
+    ${hasDstContext?`
     <div class="cards-grid two">
-      ${d.description?`
       <div class="card">
-        <div class="card-title">Description</div>
-        <p class="text-block">${esc(d.description)}</p>
-      </div>`:''}
-      ${d.observations?`
+        <div class="card-title">Contexte DST</div>
+        <div class="field-row"><div class="field-label">Libellé projet DST</div><div class="field-value ${d.dst_libelle_projet?'':'empty'}">${esc(d.dst_libelle_projet||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Société</div><div class="field-value ${d.dst_societe?'':'empty'}">${esc(d.dst_societe||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Direction régionale</div><div class="field-value ${d.dst_direction_regionale?'':'empty'}">${esc(d.dst_direction_regionale||'—')}</div></div>
+        <div class="field-row"><div class="field-label">N° affaire demandeur</div><div class="field-value ${d.dst_affaire_demandeur?'':'empty'}">${esc(d.dst_affaire_demandeur||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Situation géographique</div><div class="field-value ${d.dst_situation_geographique?'':'empty'}">${esc(d.dst_situation_geographique||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Remise souhaitée</div><div class="field-value ${d.dst_remise_souhaitee?'':'empty'}">${esc(d.dst_remise_souhaitee?fd(d.dst_remise_souhaitee):'—')}</div></div>
+      </div>
       <div class="card">
-        <div class="card-title">Observations</div>
-        <p class="text-block">${esc(d.observations)}</p>
-      </div>`:''}
-    </div>`:''}
-
-    ${d.dossier_nom?`
-    <div class="card">
-      <div class="card-title">Dossier</div>
-      <div class="field-row"><div class="field-label">Nom dossier</div><div class="field-value small">${esc(d.dossier_nom)}</div></div>
-      ${d.dossier_path?`<div class="field-row"><div class="field-label">Chemin</div><div class="field-value small">${esc(d.dossier_path)}</div></div>`:''}
-    </div>`:''}
-
-    ${(d.suivi_notes||d.note_reconciliation)?`
-    <div class="card">
-      <div class="card-title">Suivi &amp; Notes</div>
-      ${d.note_reconciliation?`<div class="field-row"><div class="field-label">Note réconciliation</div><div class="field-value">${esc(d.note_reconciliation)}</div></div>`:''}
-      ${d.suivi_notes?`<div class="field-row"><div class="field-label">Notes suivi</div><p class="text-block">${esc(d.suivi_notes)}</p></div>`:''}
+        <div class="card-title">Demande DST</div>
+        <div class="field-row"><div class="field-label">Cadre de la demande</div><div class="field-value ${d.dst_cadre_demande?'':'empty'}">${esc(d.dst_cadre_demande||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Domaine d'étude</div><div class="field-value ${d.dst_domaine_etude?'':'empty'}">${esc(d.dst_domaine_etude||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Type de prestation</div><div class="field-value ${d.dst_type_prestation?'':'empty'}">${esc(d.dst_type_prestation||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Type de demande</div><div class="field-value ${d.dst_type_demande?'':'empty'}">${esc(d.dst_type_demande||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Urgence</div><div class="field-value ${d.dst_urgence?'':'empty'}">${esc(d.dst_urgence||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Origine</div><div class="field-value ${d.dst_origine?'':'empty'}">${esc(d.dst_origine||'—')}</div></div>
+        <div class="field-row"><div class="field-label">Objet / problématique</div><p class="text-block ${d.dst_objet_demande?'':'empty'}">${esc(d.dst_objet_demande||'—')}</p></div>
+      </div>
     </div>`:''}
   `;
 }
-
 function openAffaire(){if(dem)go(`affaire.html?uid=${dem.affaire_rst_id}`);}
 
 function openEdit(){

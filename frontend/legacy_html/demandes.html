@@ -172,6 +172,8 @@ td{padding:9px 14px;vertical-align:middle}
             <th onclick="sortBy('client')">Client</th>
             <th onclick="sortBy('chantier')">Chantier</th>
             <th onclick="sortBy('numero_dst')">N° DST</th>
+            <th onclick="sortBy('numero_etude')">N° étude</th>
+            <th onclick="sortBy('affaire_nge')">N° affaire NGE</th>
             <th onclick="sortBy('nature')">Nature</th>
             <th onclick="sortBy('statut')">Statut</th>
             <th onclick="sortBy('priorite')">Priorité</th>
@@ -179,7 +181,7 @@ td{padding:9px 14px;vertical-align:middle}
             <th onclick="sortBy('demandeur')">Demandeur</th>
           </tr></thead>
           <tbody id="tbody">
-            <tr><td colspan="10"><div class="empty-state">Chargement…</div></td></tr>
+            <tr><td colspan="12"><div class="empty-state">Chargement…</div></td></tr>
           </tbody>
         </table>
       </div>
@@ -200,6 +202,8 @@ td{padding:9px 14px;vertical-align:middle}
           <div class="det-section-title">Affaire</div>
           <div class="det-field"><label>Client</label><span id="d-client">—</span></div>
           <div class="det-field"><label>Chantier</label><span id="d-chantier">—</span></div>
+          <div class="det-field"><label>Site</label><span id="d-site">—</span></div>
+          <div class="det-field"><label>N° étude</label><span id="d-etude">—</span></div>
           <div class="det-field"><label>N° Affaire NGE</label><span id="d-aff-nge">—</span></div>
         </div>
 
@@ -249,6 +253,8 @@ td{padding:9px 14px;vertical-align:middle}
     </div>
     <div class="modal-body">
       <input type="hidden" id="m-uid" value="0"/>
+      <input type="hidden" id="m-source-type" value=""/>
+      <input type="hidden" id="m-source-id" value=""/>
       <div class="form-row">
         <div class="form-section">Identification</div>
         <div class="form-group"><label>Référence</label><input id="m-ref" readonly placeholder="Générée auto"/></div>
@@ -264,6 +270,8 @@ td{padding:9px 14px;vertical-align:middle}
         <div class="form-group"><label>Laboratoire</label>
           <select id="m-labo"><option>SP</option><option>PDC</option><option>CHB</option><option>CLM</option></select>
         </div>
+        <div class="form-group"><label>N° étude</label><input id="m-etude" readonly placeholder="Préremplissage source"/></div>
+        <div class="form-group"><label>N° affaire NGE</label><input id="m-aff-nge" readonly placeholder="Préremplissage source"/></div>
       </div>
       <div class="form-row">
         <div class="form-section">Mission</div>
@@ -310,13 +318,12 @@ td{padding:9px 14px;vertical-align:middle}
 const API='http://127.0.0.1:8000';
 let user=null,token=null,rows=[],affaires=[],selUid=null;
 let sortCol='date_reception',sortAsc=false,srchTimer=null;
+let todayValue=null;
 // Filtre affaire depuis URL (depuis affaire.html)
 const urlParams=new URLSearchParams(location.search);
 const filterAffaireId=urlParams.get('affaire_id');
 const autoCreate=urlParams.get('create')=='1';
 const passationUidParam=urlParams.get('passation_uid');
-const sourceTypeParam=urlParams.get('source_type');
-const sourceIdParam=urlParams.get('source_id');
 let createPrefill=null;
 
 async function init(){
@@ -333,7 +340,7 @@ async function init(){
     if(r.ok) affaires=await r.json();
   }catch{}
   await load();
-  if(autoCreate||passationUidParam||sourceTypeParam) openCreate();
+  if(autoCreate||passationUidParam) openCreate();
 }
 
 async function load(){
@@ -363,7 +370,7 @@ async function load(){
 function renderTable(){
   const tbody=document.getElementById('tbody');
   if(!rows.length){
-    tbody.innerHTML='<tr><td colspan="10"><div class="empty-state">📂 Aucune demande</div></td></tr>';return;
+    tbody.innerHTML='<tr><td colspan="12"><div class="empty-state">📂 Aucune demande</div></td></tr>';return;
   }
   const sorted=[...rows].sort((a,b)=>{
     const va=String(a[sortCol]||'').toLowerCase(),vb=String(b[sortCol]||'').toLowerCase();
@@ -378,6 +385,8 @@ function renderTable(){
       <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.client||'—'}</td>
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${d.chantier||'—'}</td>
       <td style="font-size:12px">${d.numero_dst||'—'}</td>
+      <td style="font-size:12px">${d.numero_etude||'—'}</td>
+      <td style="font-size:12px">${d.affaire_nge||'—'}</td>
       <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px">${d.nature||'—'}</td>
       <td>${bStat(d.statut)}</td>
       <td>${bPrio(d.priorite)}</td>
@@ -397,7 +406,7 @@ function selectRow(uid){
   if(d.a_revoir) badges+=' <span class="badge b-amber">⚠ À revoir</span>';
   if(d.numero_dst) badges+=` <span class="badge b-blue">DST</span>`;
   document.getElementById('d-badges').innerHTML=badges;
-  df('d-client',d.client);df('d-chantier',d.chantier);df('d-aff-nge',d.affaire_nge);
+  df('d-client',d.client);df('d-chantier',d.chantier);df('d-site',d.site);df('d-etude',d.numero_etude);df('d-aff-nge',d.affaire_nge);
   df('d-mission',d.type_mission);df('d-nature',d.nature);df('d-dst',d.numero_dst);
   document.getElementById('d-labo').textContent=laboNom(d.labo_code);
   df('d-demandeur',d.demandeur);
@@ -430,26 +439,6 @@ async function loadPassationPrefill(){
   }
 }
 
-async function loadSourcePrefill(){
-  if(!sourceTypeParam||!sourceIdParam){ createPrefill=null; return null; }
-  const endpointMap={
-    dst:`${API}/api/dst/${encodeURIComponent(sourceIdParam)}/demande-prefill`,
-    affaire_nge:`${API}/api/reference-affaires/${encodeURIComponent(sourceIdParam)}/demande-prefill`,
-    etude:`${API}/api/reference-etudes/${encodeURIComponent(sourceIdParam)}/demande-prefill`,
-  };
-  const endpoint=endpointMap[sourceTypeParam];
-  if(!endpoint){ createPrefill=null; return null; }
-  try{
-    const r=await fetch(endpoint,{headers:ah()});
-    if(!r.ok){ createPrefill=null; return null; }
-    createPrefill=await r.json();
-    return createPrefill;
-  }catch{
-    createPrefill=null;
-    return null;
-  }
-}
-
 function applyCreatePrefill(prefill){
   if(!prefill) return;
   const d=prefill.demande||{};
@@ -460,9 +449,84 @@ function applyCreatePrefill(prefill){
   if(d.demandeur) document.getElementById('m-demandeur').value=d.demandeur;
 }
 
+function readStoredPrefill(){
+  const keys=['ralab_prefill_demande','ralab_prefill'];
+  for(const key of keys){
+    const raw=sessionStorage.getItem(key);
+    if(!raw) continue;
+    try{
+      const parsed=JSON.parse(raw);
+      if(key==='ralab_prefill_demande' || parsed?.target==='demande' || parsed?.kind==='demande'){
+        sessionStorage.removeItem(key);
+        return parsed;
+      }
+    }catch{}
+  }
+  return null;
+}
+
+function defaultDemandeDescription(prefill){
+  const lines=[];
+  const src=prefill?.source||{};
+  const d=prefill?.demande||{};
+  if(d.description) return d.description;
+  if(src.libelle_projet) lines.push(`Projet: ${src.libelle_projet}`);
+  if(src.objet) lines.push(`Objet: ${src.objet}`);
+  if(src.societe) lines.push(`Société: ${src.societe}`);
+  if(src.situation_geographique) lines.push(`Situation géographique: ${src.situation_geographique}`);
+  if(src.remise_souhaitee) lines.push(`Remise souhaitée: ${src.remise_souhaitee}`);
+  return lines.join('\n');
+}
+
+function trySelectMatchingAffaire(prefill){
+  if(!prefill) return;
+  const d=prefill.demande||{};
+  const src=prefill.source||{};
+  const sel=document.getElementById('m-affaire');
+  if(d.affaire_rst_id){
+    sel.value=String(d.affaire_rst_id);
+    return;
+  }
+  const match=affaires.find(a=>
+    (d.numero_etude && a.numero_etude===d.numero_etude) ||
+    (src.numero_etude && a.numero_etude===src.numero_etude) ||
+    (d.numero_affaire_nge && a.affaire_nge===d.numero_affaire_nge) ||
+    (src.numero_affaire_nge && a.affaire_nge===src.numero_affaire_nge)
+  );
+  if(match) sel.value=String(match.uid);
+}
+
+function fillSourceReferenceFields(prefill){
+  const d=prefill?.demande||{};
+  const src=prefill?.source||{};
+  document.getElementById('m-source-type').value=prefill?.source_type||src.source_type||'';
+  document.getElementById('m-source-id').value=String(prefill?.source_id||src.source_id||'');
+  document.getElementById('m-etude').value=d.numero_etude||src.numero_etude||'';
+  document.getElementById('m-aff-nge').value=d.numero_affaire_nge||src.numero_affaire_nge||src.affaire_nge||'';
+}
+
+function applySourcePrefill(prefill){
+  if(!prefill) return;
+  const d=prefill.demande||{};
+  const src=prefill.source||{};
+  fillSourceReferenceFields(prefill);
+  if(d.type_mission) document.getElementById('m-mission').value=d.type_mission;
+  if(d.nature) document.getElementById('m-nature').value=d.nature;
+  else if(src.type_demande) document.getElementById('m-nature').value=src.type_demande;
+  if(d.numero_dst || src.numero_dst) document.getElementById('m-dst').value=d.numero_dst||src.numero_dst;
+  if(d.demandeur || src.demandeur) document.getElementById('m-demandeur').value=d.demandeur||src.demandeur;
+  if(d.date_reception) document.getElementById('m-date').value=(d.date_reception||'').slice(0,10);
+  if(d.date_echeance || src.remise_souhaitee) document.getElementById('m-ech').value=(d.date_echeance||src.remise_souhaitee||'').slice(0,10);
+  if(d.description || src.objet || src.libelle_projet) document.getElementById('m-desc').value=defaultDemandeDescription(prefill);
+  if(d.observations) document.getElementById('m-obs').value=d.observations;
+  trySelectMatchingAffaire(prefill);
+}
+
 async function openCreate(){
   document.getElementById('modal-title').textContent=passationUidParam?'Nouvelle demande (aide passation)':'Nouvelle demande';
   document.getElementById('m-uid').value='0';
+  document.getElementById('m-source-type').value='';
+  document.getElementById('m-source-id').value='';
   // Populate affaire select
   const sel=document.getElementById('m-affaire');
   sel.innerHTML='<option value="">— Sélectionner —</option>'+affaires.map(a=>`<option value="${a.uid}">${a.reference} — ${a.chantier||a.client}</option>`).join('');
@@ -472,6 +536,8 @@ async function openCreate(){
   document.getElementById('m-priorite').value='Normale';
   document.getElementById('m-nature').value='';
   document.getElementById('m-dst').value='';
+  document.getElementById('m-etude').value='';
+  document.getElementById('m-aff-nge').value='';
   document.getElementById('m-demandeur').value='';
   document.getElementById('m-date').value=today();
   document.getElementById('m-ech').value='';
@@ -481,14 +547,12 @@ async function openCreate(){
   document.getElementById('m-note').value='';
   document.getElementById('m-ref').value='';
   if(filterAffaireId) sel.value=filterAffaireId;
-  else if(sourceTypeParam&&sourceIdParam){
-    const prefill=await loadSourcePrefill();
-    if(prefill) applyCreatePrefill(prefill);
-  }
   else if(passationUidParam){
     const prefill=await loadPassationPrefill();
     if(prefill) applyCreatePrefill(prefill);
   }
+  const storedPrefill=readStoredPrefill();
+  if(storedPrefill) applySourcePrefill(storedPrefill);
   // Pré-charger la référence
   try{
     const r=await fetch(`${API}/api/demandes_rst/next-ref?labo_code=SP`,{headers:ah()});
@@ -505,12 +569,16 @@ function openEdit(){
   const sel=document.getElementById('m-affaire');
   sel.innerHTML=affaires.map(a=>`<option value="${a.uid}">${a.reference} — ${a.chantier||a.client}</option>`).join('');
   sel.value=d.affaire_rst_id;
+  document.getElementById('m-source-type').value='';
+  document.getElementById('m-source-id').value='';
   document.getElementById('m-labo').value=d.labo_code||'SP';
   document.getElementById('m-mission').value=d.type_mission||'À définir';
   document.getElementById('m-statut').value=d.statut||'À qualifier';
   document.getElementById('m-priorite').value=d.priorite||'Normale';
   document.getElementById('m-nature').value=d.nature||'';
   document.getElementById('m-dst').value=d.numero_dst||'';
+  document.getElementById('m-etude').value=d.numero_etude||'';
+  document.getElementById('m-aff-nge').value=d.affaire_nge||'';
   document.getElementById('m-demandeur').value=d.demandeur||'';
   document.getElementById('m-date').value=d.date_reception||'';
   document.getElementById('m-ech').value=d.date_echeance||'';
