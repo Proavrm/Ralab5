@@ -5,7 +5,7 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, affairesApi, demandesApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
@@ -118,12 +118,13 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
     if (d.affaire_rst_id) {
       affaire_rst_id = String(d.affaire_rst_id)
     } else {
-      // Essai de matching par numero_etude ou affaire_nge
-      const neKey  = d.numero_etude  || src.numero_etude  || ''
-      const ngeKey = d.numero_affaire_nge || src.numero_affaire_nge || src.affaire_nge || ''
+      // Matching par numero_etude (exact) ou affaire_nge (normalisé)
+      const neKey  = (d.numero_etude  || '').trim()
+      const ngeKey = (d.numero_affaire_nge || '').trim()
+      const normNge = (v) => String(v || '').toUpperCase().replace(/[*\s\-_/.]+/g, '')
       const match = affaires.find(a =>
-        (neKey  && a.numero_etude?.trim() === neKey.trim()) ||
-        (ngeKey && a.affaire_nge?.trim()  === ngeKey.trim())
+        (neKey  && (a.numero_etude || '').trim() === neKey) ||
+        (ngeKey && normNge(a.affaire_nge) === normNge(ngeKey))
       )
       if (match) affaire_rst_id = String(match.uid)
     }
@@ -301,7 +302,6 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
 // ── Page principale ───────────────────────────────────────────────────────────
 export default function DemandesPage() {
   const navigate  = useNavigate()
-  const location  = useLocation()
   const [searchParams] = useSearchParams()
   const qc        = useQueryClient()
 
@@ -323,16 +323,22 @@ export default function DemandesPage() {
   const [sourceMeta,setSourceMeta]= useState(null)
   const timer = useRef(null)
 
-  // Ouvrir modal depuis navigation state (depuis DST / Études / Affaires NGE)
+  // Ouvrir modal — lit sessionStorage['ralab4_source_prefill'] comme le legacy
   useEffect(() => {
-    if (location.state?.openCreate) {
-      setPrefill(location.state.prefill || null)
-      setSourceMeta({ source_type: location.state.source_type, source_id: location.state.source_id })
+    if (autoCreate) {
       setEditDemande(null)
-      setModalOpen(true)
-      window.history.replaceState({}, '')
-    } else if (autoCreate) {
-      setEditDemande(null)
+      // Lire le préfill depuis sessionStorage (stocké par DST / Études / Affaires NGE)
+      const raw = sessionStorage.getItem('ralab4_source_prefill')
+      if (raw) {
+        try {
+          const stored = JSON.parse(raw)
+          if (stored?.target === 'demande_rst' || stored?.prefill) {
+            sessionStorage.removeItem('ralab4_source_prefill')
+            setPrefill({ demande: stored.prefill || {}, source_type: stored.source_type, source_id: stored.source_id })
+            setSourceMeta({ source_type: stored.source_type, source_id: stored.source_id })
+          }
+        } catch {}
+      }
       setModalOpen(true)
     }
   }, [])

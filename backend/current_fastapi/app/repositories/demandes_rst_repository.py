@@ -25,7 +25,12 @@ class DemandesRstRepository:
     def all(self, affaire_rst_id=None, labo_code=None, statut=None,
             type_mission=None, search=None, a_revoir=None) -> list[DemandeRstRecord]:
         sql = """
-            SELECT d.*, a.reference AS affaire_ref, a.client, a.chantier, a.affaire_nge,
+            SELECT d.*, a.reference AS affaire_ref, a.client, a.chantier, a.site,
+                   a.numero_etude, a.affaire_nge, a.filiale, a.titulaire,
+                   a.responsable AS responsable_affaire,
+                   a.statut AS statut_affaire,
+                   a.date_ouverture AS date_ouverture_affaire,
+                   a.date_cloture AS date_cloture_affaire,
                    COUNT(DISTINCT e.id) AS nb_echantillons,
                    COUNT(DISTINCT i.id) AS nb_interventions
             FROM demandes d
@@ -47,8 +52,9 @@ class DemandesRstRepository:
             sql += " AND d.a_revoir = ?"; params.append(1 if a_revoir else 0)
         if search:
             sql += """ AND (d.reference LIKE ? OR d.numero_dst LIKE ? OR d.nature LIKE ?
-                         OR d.demandeur LIKE ? OR a.client LIKE ? OR a.chantier LIKE ?)"""
-            like = f"%{search}%"; params.extend([like]*6)
+                         OR d.demandeur LIKE ? OR a.client LIKE ? OR a.chantier LIKE ?
+                         OR a.affaire_nge LIKE ? OR a.numero_etude LIKE ? OR a.site LIKE ?)"""
+            like = f"%{search}%"; params.extend([like]*9)
         sql += " GROUP BY d.id ORDER BY d.date_reception DESC, d.id DESC"
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
@@ -57,7 +63,12 @@ class DemandesRstRepository:
     def get_by_uid(self, uid: int) -> DemandeRstRecord | None:
         with self._connect() as conn:
             row = conn.execute("""
-                SELECT d.*, a.reference AS affaire_ref, a.client, a.chantier, a.affaire_nge,
+                SELECT d.*, a.reference AS affaire_ref, a.client, a.chantier, a.site,
+                       a.numero_etude, a.affaire_nge, a.filiale, a.titulaire,
+                       a.responsable AS responsable_affaire,
+                       a.statut AS statut_affaire,
+                       a.date_ouverture AS date_ouverture_affaire,
+                       a.date_cloture AS date_cloture_affaire,
                        COUNT(DISTINCT e.id) AS nb_echantillons,
                        COUNT(DISTINCT i.id) AS nb_interventions
                 FROM demandes d
@@ -200,7 +211,12 @@ class DemandesRstRepository:
             uid=r.uid, reference=r.reference, annee=r.annee,
             labo_code=r.labo_code, numero=r.numero,
             affaire_rst_id=r.affaire_rst_id,
-            affaire_ref=r.affaire_ref, client=r.client, chantier=r.chantier, affaire_nge=r.affaire_nge,
+            affaire_ref=r.affaire_ref, client=r.client, chantier=r.chantier, site=r.site,
+            numero_etude=r.numero_etude, affaire_nge=r.affaire_nge, filiale=r.filiale,
+            titulaire=r.titulaire, responsable_affaire=r.responsable_affaire,
+            statut_affaire=r.statut_affaire,
+            date_ouverture_affaire=r.date_ouverture_affaire,
+            date_cloture_affaire=r.date_cloture_affaire,
             numero_dst=r.numero_dst, type_mission=r.type_mission, nature=r.nature,
             description=r.description, observations=r.observations,
             demandeur=r.demandeur, date_reception=r.date_reception,
@@ -227,8 +243,11 @@ class DemandesRstRepository:
     def _row(self, row: sqlite3.Row) -> DemandeRstRecord:
         keys = row.keys()
         return DemandeRstRecord(
-            uid=int(row["id"]), reference=row["reference"],
-            annee=int(row["annee"]), labo_code=row["labo_code"], numero=int(row["numero"]),
+            uid=int(row["id"]),
+            reference=row["reference"] or "",
+            annee=int(row["annee"]),
+            labo_code=row["labo_code"] or "",
+            numero=int(row["numero"]),
             affaire_rst_id=int(row["affaire_rst_id"]),
             numero_dst=row["numero_dst"] or "",
             type_mission=row["type_mission"] or "À définir",
@@ -252,11 +271,20 @@ class DemandesRstRepository:
             devis_ref=row["devis_ref"] or "",
             facture_ref=row["facture_ref"] or "",
             source_legacy_id=row["source_legacy_id"],
-            created_at=row["created_at"] or "", updated_at=row["updated_at"] or "",
-            affaire_ref=row["affaire_ref"] if "affaire_ref" in keys else "",
-            client=row["client"] if "client" in keys else "",
-            chantier=row["chantier"] if "chantier" in keys else "",
-            affaire_nge=row["affaire_nge"] if "affaire_nge" in keys else "",
-            nb_echantillons=int(row["nb_echantillons"]) if "nb_echantillons" in keys else 0,
-            nb_interventions=int(row["nb_interventions"]) if "nb_interventions" in keys else 0,
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+            affaire_ref=(row["affaire_ref"] or "") if "affaire_ref" in keys else "",
+            client=(row["client"] or "") if "client" in keys else "",
+            chantier=(row["chantier"] or "") if "chantier" in keys else "",
+            site=(row["site"] or "") if "site" in keys else "",
+            numero_etude=(row["numero_etude"] or "") if "numero_etude" in keys else "",
+            affaire_nge=(row["affaire_nge"] or "") if "affaire_nge" in keys else "",
+            filiale=(row["filiale"] or "") if "filiale" in keys else "",
+            titulaire=(row["titulaire"] or "") if "titulaire" in keys else "",
+            responsable_affaire=(row["responsable_affaire"] or "") if "responsable_affaire" in keys else "",
+            statut_affaire=(row["statut_affaire"] or "") if "statut_affaire" in keys else "",
+            date_ouverture_affaire=self._parse_date(row["date_ouverture_affaire"]) if "date_ouverture_affaire" in keys else None,
+            date_cloture_affaire=self._parse_date(row["date_cloture_affaire"]) if "date_cloture_affaire" in keys else None,
+            nb_echantillons=int(row["nb_echantillons"]) if "nb_echantillons" in keys and row["nb_echantillons"] is not None else 0,
+            nb_interventions=int(row["nb_interventions"]) if "nb_interventions" in keys and row["nb_interventions"] is not None else 0,
         )

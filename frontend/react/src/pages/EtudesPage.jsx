@@ -1,5 +1,7 @@
 /**
- * EtudesPage.jsx — colonnes réelles: nAffaire, nomAffaire, respEtude, statuAffaire, dept, ville, filiale
+ * EtudesPage.jsx — fidèle à etudes.html
+ * API: GET /reference-etudes/rows → champs snake_case: numero_etude, nom_affaire, responsable_etude…
+ * Prefill: sessionStorage['ralab4_source_prefill'] + navigate('/affaires?create=1&...')
  */
 import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -26,26 +28,37 @@ function DetSection({ title, children }) {
   )
 }
 
+function normalizeEtudeNumber(v) {
+  return String(v || '').trim().toLowerCase()
+}
+
+function formatSite(row) {
+  const ville = String(row?.ville || '').trim()
+  const dept  = String(row?.departement || '').trim()
+  if (ville && dept) return `${ville} (${dept})`
+  return ville || dept || ''
+}
+
 export default function EtudesPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [debounced, setDebounced] = useState('')
   const [selected, setSelected] = useState(null)
-  const [sortCol, setSortCol]   = useState('nAffaire')
-  const [sortAsc, setSortAsc]   = useState(true)
+  const [sortCol, setSortCol] = useState('numero_etude')
+  const [sortAsc, setSortAsc] = useState(true)
   const timer = useRef(null)
 
   function onSearch(v) {
     setSearch(v)
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => setDebouncedSearch(v), 250)
+    timer.current = setTimeout(() => setDebounced(v), 250)
   }
 
   const { data: rows = [], isLoading, refetch } = useQuery({
-    queryKey: ['etudes-rows', debouncedSearch],
+    queryKey: ['etudes-rows', debounced],
     queryFn: () => {
       const p = new URLSearchParams({ limit: '2000' })
-      if (debouncedSearch) p.set('search', debouncedSearch)
+      if (debounced) p.set('search', debounced)
       return api.get(`/reference-etudes/rows?${p}`)
     },
   })
@@ -67,49 +80,64 @@ export default function EtudesPage() {
   })
 
   function findMatchingRst(row) {
-    return affairesRst.find(a =>
-      String(a.numero_etude || '').trim().toLowerCase() ===
-      String(row.nAffaire || '').trim().toLowerCase()
-    )
+    const num = normalizeEtudeNumber(row.numero_etude)
+    if (!num) return null
+    return affairesRst.find(a => normalizeEtudeNumber(a.numero_etude) === num) || null
+  }
+
+  function buildAffaireUrl(row) {
+    const p = new URLSearchParams({
+      create: '1',
+      source_type: 'etude',
+      source_id: String(row.id || ''),
+      chantier: row.nom_affaire || '',
+      site: formatSite(row),
+      numero_etude: row.numero_etude || '',
+      filiale: row.filiale || '',
+      responsable: row.responsable_etude || '',
+      client: '',
+      affaire_nge: '',
+      titulaire: '',
+      statut: 'À qualifier',
+    })
+    return `/affaires?${p}`
   }
 
   function createAffaire() {
     if (!selected) return
-    navigate('/affaires', { state: {
-      openCreate: true,
-      source_type: 'etude',
-      source_id: selected.id,
-      prefill: {
-        chantier:     selected.nomAffaire || '',
-        site:         [selected.ville, selected.dept].filter(Boolean).join(' '),
-        numero_etude: selected.nAffaire || '',
-        filiale:      selected.filiale || '',
-        responsable:  selected.respEtude || '',
-        // client volontairement vide (pas de lien fiable Études → client)
-      }
-    }})
+    navigate(buildAffaireUrl(selected))
   }
 
   function createDemande() {
     if (!selected) return
-    // Rattachement par numero_etude, sinon on passe sans affaire_rst_id
     const affaire = findMatchingRst(selected)
-    navigate('/demandes', { state: {
-      openCreate: true,
+    if (!affaire) {
+      navigate(buildAffaireUrl(selected))
+      return
+    }
+    const site = formatSite(selected)
+    const prefill = {
+      target: 'demande_rst',
       source_type: 'etude',
       source_id: selected.id,
       prefill: {
-        demande: {
-          affaire_rst_id: affaire?.uid || null,
-          numero_etude:   selected.nAffaire || '',
-          type_mission:   'À définir',
-          nature:         'Demande étude',
-          demandeur:      selected.respEtude || '',
-          description:    [selected.nomAffaire, [selected.ville, selected.dept].filter(Boolean).join(' ')].filter(Boolean).join('\n'),
-          observations:   `Préremplie depuis Études ${selected.nAffaire || ''}`.trim(),
-        }
-      }
-    }})
+        affaire_rst_id: affaire.uid,
+        numero_dst: '',
+        numero_etude: selected.numero_etude || '',
+        numero_affaire_nge: '',
+        type_mission: 'À définir',
+        nature: 'Demande liée à une étude',
+        demandeur: selected.responsable_etude || '',
+        chantier: selected.nom_affaire || '',
+        site,
+        filiale: selected.filiale || '',
+        client: '',
+        description: [selected.numero_etude, selected.nom_affaire, site].filter(Boolean).join('\n'),
+        observations: `Préremplie depuis Étude ${selected.numero_etude || ''}`.trim(),
+      },
+    }
+    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(prefill))
+    navigate('/demandes?create=1')
   }
 
   function Th({ col, label }) {
@@ -131,7 +159,7 @@ export default function EtudesPage() {
 
       <div className="flex items-center gap-3 px-6 py-2.5 bg-surface border-b border-border shrink-0">
         <input value={search} onChange={e => onSearch(e.target.value)}
-          placeholder="Rechercher N° étude, chantier, responsable…"
+          placeholder="Rechercher N° étude, nom affaire, ville, filiale…"
           className="flex-1 max-w-[400px] px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent" />
         <span className="text-xs text-text-muted ml-auto">{rows.length} ligne{rows.length !== 1 ? 's' : ''}</span>
       </div>
@@ -146,13 +174,13 @@ export default function EtudesPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <Th col="nAffaire"    label="N° étude" />
-                  <Th col="nomAffaire"  label="Chantier" />
-                  <Th col="filiale"     label="Filiale" />
-                  <Th col="ville"       label="Ville" />
-                  <Th col="dept"        label="Dépt." />
-                  <Th col="respEtude"   label="Resp. étude" />
-                  <Th col="statuAffaire" label="Statut" />
+                  <Th col="numero_etude"    label="N° étude" />
+                  <Th col="nom_affaire"     label="Chantier" />
+                  <Th col="filiale"         label="Filiale" />
+                  <Th col="ville"           label="Ville" />
+                  <Th col="departement"     label="Dépt." />
+                  <Th col="responsable_etude" label="Resp. étude" />
+                  <Th col="statut_affaire"  label="Statut" />
                 </tr>
               </thead>
               <tbody>
@@ -162,13 +190,13 @@ export default function EtudesPage() {
                     className={`border-b border-border cursor-pointer transition-colors ${
                       selected?.id === row.id ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
-                    <td className="px-3 py-2.5"><strong className="text-accent text-xs font-mono">{row.nAffaire || '—'}</strong></td>
-                    <td className="px-3 py-2.5 text-xs max-w-[260px] truncate">{row.nomAffaire || '—'}</td>
+                    <td className="px-3 py-2.5"><strong className="text-accent text-xs font-mono">{row.numero_etude || '—'}</strong></td>
+                    <td className="px-3 py-2.5 text-xs max-w-[260px] truncate">{row.nom_affaire || '—'}</td>
                     <td className="px-3 py-2.5 text-xs">{row.filiale || '—'}</td>
                     <td className="px-3 py-2.5 text-xs">{row.ville || '—'}</td>
-                    <td className="px-3 py-2.5 text-xs">{row.dept || '—'}</td>
-                    <td className="px-3 py-2.5 text-xs">{row.respEtude || '—'}</td>
-                    <td className="px-3 py-2.5 text-xs">{row.statuAffaire || '—'}</td>
+                    <td className="px-3 py-2.5 text-xs">{row.departement || '—'}</td>
+                    <td className="px-3 py-2.5 text-xs">{row.responsable_etude || '—'}</td>
+                    <td className="px-3 py-2.5 text-xs">{row.statut_affaire || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -180,35 +208,35 @@ export default function EtudesPage() {
           <div className="w-[340px] min-w-[300px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
-                <div className="text-[13px] font-bold text-accent">{selected.nAffaire || '—'}</div>
-                <div className="text-[11px] font-semibold text-text mt-0.5">{selected.nomAffaire || '—'}</div>
+                <div className="text-[13px] font-bold text-accent">{selected.numero_etude || '—'}</div>
+                <div className="text-[11px] font-semibold text-text mt-0.5">{selected.nom_affaire || '—'}</div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0"><X size={14} /></button>
             </div>
 
             <div className="flex flex-wrap gap-1.5 px-[18px] pt-3">
               {selected.filiale && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#e6f1fb] text-[#185fa5]">{selected.filiale}</span>}
-              {selected.statuAffaire && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#f1efe8] text-[#5f5e5a]">{selected.statuAffaire}</span>}
+              {selected.statut_affaire && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#f1efe8] text-[#5f5e5a]">{selected.statut_affaire}</span>}
             </div>
 
             <div className="flex flex-col gap-4 px-[18px] py-4 flex-1">
               <DetSection title="Étude">
-                <DetField label="N° étude"  value={selected.nAffaire} />
-                <DetField label="Chantier"  value={selected.nomAffaire} />
-                <DetField label="Site"      value={[selected.ville, selected.dept].filter(Boolean).join(' ')} />
+                <DetField label="N° étude"  value={selected.numero_etude} />
+                <DetField label="Chantier"  value={selected.nom_affaire} />
+                <DetField label="Site"      value={formatSite(selected)} />
                 <DetField label="Filiale"   value={selected.filiale} />
                 <DetField label="Direction" value={selected.direction} />
               </DetSection>
               <DetSection title="Acteurs">
-                <DetField label="Responsable étude"  value={selected.respEtude} />
-                <DetField label="Maître d'ouvrage"   value={selected.maitreOuvrage} />
-                <DetField label="Maître d'œuvre"     value={selected.maitreOuvre} />
+                <DetField label="Responsable étude"  value={selected.responsable_etude} />
+                <DetField label="Maître d'ouvrage"   value={selected.maitre_ouvrage} />
+                <DetField label="Maître d'œuvre"     value={selected.maitre_oeuvre} />
                 <DetField label="Mandataire"         value={selected.mandataire} />
               </DetSection>
               <DetSection title="Suivi">
-                <DetField label="Statut"                       value={selected.statuAffaire} />
-                <DetField label="Date réception dossier"       value={formatDate(selected.dateReceptionDossier)} />
-                <DetField label="Date information attribution" value={formatDate(selected.dateInformationAttribution)} />
+                <DetField label="Statut"                       value={selected.statut_affaire} />
+                <DetField label="Date réception dossier"       value={formatDate(selected.date_reception_dossier)} />
+                <DetField label="Date information attribution" value={formatDate(selected.date_information_attribution)} />
               </DetSection>
             </div>
 

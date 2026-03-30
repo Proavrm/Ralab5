@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { affairesApi } from '@/services/api'
+import { api, affairesApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
@@ -79,6 +79,12 @@ export default function AffairePage() {
     enabled:  !!uid,
   })
 
+  const { data: passations = [] } = useQuery({
+    queryKey: ['affaire-passations', uid],
+    queryFn:  () => api.get(`/passations?affaire_rst_id=${uid}`),
+    enabled:  !!uid,
+  })
+
   const mutation = useMutation({
     mutationFn: (data) => affairesApi.update(uid, data),
     onSuccess: (saved) => {
@@ -87,6 +93,27 @@ export default function AffairePage() {
       setEditOpen(false)
     },
   })
+
+  const [deleteError, setDeleteError] = useState(null)
+
+  async function handleDelete() {
+    if (!affaire) return
+    const links = []
+    if (demandes.length) links.push(`${demandes.length} demande${demandes.length > 1 ? 's' : ''}`)
+    if (passations.length) links.push(`${passations.length} passation${passations.length > 1 ? 's' : ''}`)
+    if (links.length) {
+      setDeleteError(`Impossible de supprimer : cet affaire a ${links.join(' et ')} liée${(demandes.length + passations.length) > 1 ? 's' : ''}.`)
+      return
+    }
+    if (!confirm(`Supprimer l'affaire ${affaire.reference} ? Cette action est irréversible.`)) return
+    try {
+      await affairesApi.delete(uid)
+      qc.invalidateQueries({ queryKey: ['affaires'] })
+      navigate('/affaires')
+    } catch (e) {
+      setDeleteError(e.message || 'Erreur lors de la suppression.')
+    }
+  }
 
   function openEdit() {
     if (!affaire) return
@@ -132,6 +159,7 @@ export default function AffairePage() {
         <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>🤝 Passations</Button>
         <Button size="sm" onClick={() => navigate(`/passations/new?affaire_id=${uid}`)}>+ Passation</Button>
         <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}&create=1`)}>+ Demande</Button>
+        <Button size="sm" variant="danger" onClick={handleDelete}>🗑 Supprimer</Button>
       </div>
 
       <div className="p-7 max-w-[900px] mx-auto w-full flex flex-col gap-5">
@@ -181,13 +209,42 @@ export default function AffairePage() {
           </div>
         </div>
 
+        {/* Delete error */}
+        {deleteError && (
+          <div className="flex items-start gap-2 px-4 py-3 bg-[#fcebeb] border border-[#f0a0a0] rounded-[10px] text-sm text-[#a32d2d]">
+            <span>⛔</span>
+            <div className="flex-1">{deleteError}</div>
+            <button onClick={() => setDeleteError(null)} className="text-[#a32d2d] hover:opacity-70">×</button>
+          </div>
+        )}
+
+        {/* Passations */}
+        {passations.length > 0 && (
+          <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+              <h3 className="text-[13px] font-semibold">🤝 Passations liées ({passations.length})</h3>
+              <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Voir toutes</Button>
+            </div>
+            <div className="divide-y divide-border">
+              {passations.map(p => (
+                <div key={p.uid} className="flex items-center justify-between px-5 py-3 hover:bg-bg transition-colors">
+                  <div>
+                    <span className="text-xs font-semibold text-accent">{p.reference}</span>
+                    <span className="text-xs text-text-muted ml-3">{p.operation_type || '—'} · {p.phase_operation || '—'}</span>
+                  </div>
+                  <Button size="sm" onClick={() => navigate(`/passations/${p.uid}`)}>Fiche →</Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Demandes */}
         <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
             <h3 className="text-[13px] font-semibold">Demandes associées ({demandes.length})</h3>
             <div className="flex gap-2">
               <Button size="sm" variant="primary" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Voir toutes</Button>
-              <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Voir passations</Button>
             </div>
           </div>
           {demandes.length === 0 ? (

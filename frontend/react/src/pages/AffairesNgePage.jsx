@@ -1,5 +1,7 @@
 /**
- * AffairesNgePage.jsx — colonnes réelles: n°affaire, libellé, code_agence, titulaire, responsable, source_sheet
+ * AffairesNgePage.jsx — fidèle à affaires_nge.html
+ * API: GET /reference-affaires/rows → numero_affaire_complet, libelle, code_agence, titulaire, responsable
+ * Prefill: sessionStorage['ralab4_source_prefill'] + navigate('/affaires?create=1&...')
  */
 import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -25,26 +27,34 @@ function DetSection({ title, children }) {
   )
 }
 
+function normalizeAffaireCode(v) {
+  return String(v || '').toUpperCase().replace(/\*/g, '').replace(/[\s\-_/.]+/g, '').trim()
+}
+
+function getFullCode(row) {
+  return String(row?.numero_affaire_complet || row?.numero_affaire || '').trim()
+}
+
 export default function AffairesNgePage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [debounced, setDebounced] = useState('')
   const [selected, setSelected] = useState(null)
-  const [sortCol, setSortCol]   = useState('numero_affaire_complet')
-  const [sortAsc, setSortAsc]   = useState(true)
+  const [sortCol, setSortCol] = useState('numero_affaire_complet')
+  const [sortAsc, setSortAsc] = useState(true)
   const timer = useRef(null)
 
   function onSearch(v) {
     setSearch(v)
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => setDebouncedSearch(v), 250)
+    timer.current = setTimeout(() => setDebounced(v), 250)
   }
 
   const { data: rows = [], isLoading, refetch } = useQuery({
-    queryKey: ['affaires-nge-rows', debouncedSearch],
+    queryKey: ['affaires-nge-rows', debounced],
     queryFn: () => {
       const p = new URLSearchParams({ limit: '2000' })
-      if (debouncedSearch) p.set('search', debouncedSearch)
+      if (debounced) p.set('search', debounced)
       return api.get(`/reference-affaires/rows?${p}`)
     },
   })
@@ -65,50 +75,65 @@ export default function AffairesNgePage() {
     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
   })
 
-  function normCode(v) {
-    return String(v || '').replace(/[*\s\-_/.]/g, '').toLowerCase()
+  function findMatchingRst(row) {
+    const code = normalizeAffaireCode(getFullCode(row))
+    if (!code) return null
+    return affairesRst.find(a => normalizeAffaireCode(a.affaire_nge || '') === code) || null
   }
 
-  function findMatchingRst(row) {
-    const code = normCode(row.numero_affaire_complet || row.numero_affaire)
-    if (!code) return null
-    return affairesRst.find(a => normCode(a.affaire_nge) === code)
+  function buildAffaireUrl(row) {
+    const fullCode = getFullCode(row)
+    const filiales = row.filiales_toutes || row.filiale_principale || row.filiales_resume || ''
+    const p = new URLSearchParams({
+      create: '1',
+      source_type: 'affaire_nge',
+      source_id: String(row.id || ''),
+      chantier: row.libelle || '',
+      affaire_nge: fullCode,
+      titulaire: row.titulaire || '',
+      responsable: row.responsable || '',
+      filiale: filiales,
+      statut: '',
+    })
+    return `/affaires?${p}`
   }
 
   function createAffaire() {
     if (!selected) return
-    navigate('/affaires', { state: {
-      openCreate: true,
-      source_type: 'affaire_nge',
-      source_id: selected.id,
-      prefill: {
-        chantier:    selected.libelle || '',
-        affaire_nge: selected.numero_affaire_complet || selected.numero_affaire || '',
-        titulaire:   selected.titulaire || '',
-        responsable: selected.responsable || '',
-      }
-    }})
+    navigate(buildAffaireUrl(selected))
   }
 
   function createDemande() {
     if (!selected) return
     const affaire = findMatchingRst(selected)
-    navigate('/demandes', { state: {
-      openCreate: true,
+    if (!affaire) {
+      navigate(buildAffaireUrl(selected))
+      return
+    }
+    const fullCode = getFullCode(selected)
+    const filiales = selected.filiales_toutes || selected.filiale_principale || selected.filiales_resume || ''
+    const prefill = {
+      target: 'demande_rst',
       source_type: 'affaire_nge',
       source_id: selected.id,
       prefill: {
-        demande: {
-          affaire_rst_id:       affaire?.uid || null,
-          numero_affaire_nge:   selected.numero_affaire_complet || selected.numero_affaire || '',
-          type_mission:         'À définir',
-          nature:               'Demande affaire NGE',
-          demandeur:            selected.responsable || '',
-          description:          [selected.libelle, selected.titulaire && `Titulaire: ${selected.titulaire}`].filter(Boolean).join('\n'),
-          observations:         `Préremplie depuis Affaires NGE ${selected.numero_affaire_complet || selected.numero_affaire || ''}`.trim(),
-        }
-      }
-    }})
+        affaire_rst_id: affaire.uid,
+        numero_dst: '',
+        numero_affaire_nge: fullCode,
+        numero_etude: '',
+        type_mission: '',
+        nature: 'Demande liée à une affaire NGE',
+        demandeur: selected.responsable || '',
+        filiale: filiales,
+        description: [fullCode, selected.libelle || '', selected.observations || ''].filter(Boolean).join('\n'),
+        observations: [
+          `Préremplie depuis Affaires NGE ${fullCode}`,
+          filiales ? `Filiales: ${filiales}` : '',
+        ].filter(Boolean).join(' | '),
+      },
+    }
+    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(prefill))
+    navigate('/demandes?create=1')
   }
 
   function Th({ col, label }) {
@@ -160,7 +185,7 @@ export default function AffairesNgePage() {
                     className={`border-b border-border cursor-pointer transition-colors ${
                       selected?.id === row.id ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
-                    <td className="px-3 py-2.5"><strong className="text-accent text-xs font-mono">{row.numero_affaire_complet || row.numero_affaire || '—'}</strong></td>
+                    <td className="px-3 py-2.5"><strong className="text-accent text-xs font-mono">{getFullCode(row) || '—'}</strong></td>
                     <td className="px-3 py-2.5 text-xs max-w-[300px] truncate">{row.libelle || '—'}</td>
                     <td className="px-3 py-2.5 text-xs">{row.code_agence || '—'}</td>
                     <td className="px-3 py-2.5 text-xs">
@@ -181,7 +206,7 @@ export default function AffairesNgePage() {
           <div className="w-[340px] min-w-[300px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
-                <div className="text-[13px] font-bold text-accent">{selected.numero_affaire_complet || selected.numero_affaire || '—'}</div>
+                <div className="text-[13px] font-bold text-accent">{getFullCode(selected) || '—'}</div>
                 <div className="text-[11px] font-semibold text-text mt-0.5">{selected.libelle || '—'}</div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0"><X size={14} /></button>
@@ -194,15 +219,16 @@ export default function AffairesNgePage() {
 
             <div className="flex flex-col gap-4 px-[18px] py-4 flex-1">
               <DetSection title="Affaire NGE">
-                <DetField label="N° affaire complet" value={selected.numero_affaire_complet} />
-                <DetField label="N° affaire brut"    value={selected.numero_affaire} />
+                <DetField label="N° affaire complet" value={getFullCode(selected)} />
+                <DetField label="N° affaire brut"    value={selected.numero_affaire_raw || selected.numero_affaire} />
                 <DetField label="Libellé"            value={selected.libelle} />
                 <DetField label="Code agence"        value={selected.code_agence} />
                 <DetField label="Source sheet"       value={selected.source_sheet} />
               </DetSection>
               <DetSection title="Parties">
-                <DetField label="Titulaire"   value={selected.titulaire} />
-                <DetField label="Responsable" value={selected.responsable} />
+                <DetField label="Titulaire"          value={selected.titulaire} />
+                <DetField label="Responsable"        value={selected.responsable} />
+                <DetField label="Filiales"           value={selected.filiales_toutes || selected.filiales_resume} />
               </DetSection>
               <DetSection title="Informations complémentaires">
                 <DetField label="Marché n°"       value={selected.marche_numero} />

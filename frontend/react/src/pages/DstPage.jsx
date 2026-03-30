@@ -125,53 +125,47 @@ export default function DstPage() {
     return affairesRst.find(a => String(a.affaire_nge || '').trim().toLowerCase() === nge) || null
   }
 
+  function buildAffaireUrl(d) {
+    const p = new URLSearchParams({
+      create: '1',
+      chantier:    d['Libellé du projet'] || '',
+      site:        d['Situation Géographique'] || d['Situation géographique projet'] || '',
+      affaire_nge: d['N° affaire demandeur'] || '',
+      client:      d['Société'] || '',
+      responsable: shortName(d['Demandeur']),
+      statut:      'À qualifier',
+    })
+    return `/affaires?${p}`
+  }
+
   function createAffaire() {
     if (!selected) return
-    navigate('/affaires', { state: {
-      openCreate: true,
-      source_type: 'dst',
-      source_id: selected.id,
-      prefill: {
-        chantier:    selected['Libellé du projet'] || '',
-        site:        selected['Situation Géographique'] || selected['Situation géographique projet'] || '',
-        affaire_nge: selected['N° affaire demandeur'] || '',
-        client:      selected['Société'] || '',
-        responsable: shortName(selected['Demandeur']),
-      }
-    }})
+    navigate(buildAffaireUrl(selected))
   }
 
   function createDemande() {
     if (!selected) return
     const affaire = findMatchingRst(selected)
-    const objet = (selected['Objet de la demande (Problématiques, Hypothèses, Objectifs, Remarques)'] || '')
-      .replace(/_x000D_\n/g, '\n').replace(/_x000d_\n/g, '\n').trim()
+    if (!affaire) { navigate(buildAffaireUrl(selected)); return }
     const chrono = selected['N° chrono'] || ''
-    navigate('/demandes', { state: {
-      openCreate: true,
+    const objet = String(selected['Objet de la demande (Problématiques, Hypothèses, Objectifs, Remarques)'] || '')
+      .replace(/_x000D_/gi, '').trim()
+    const prefill = {
+      target: 'demande_rst',
       source_type: 'dst',
       source_id: selected.id,
       prefill: {
-        demande: {
-          affaire_rst_id: affaire?.uid || null,
-          numero_dst:     chrono,
-          type_mission:   'À définir',
-          nature:         selected['Cadre de la demande'] || 'Demande DST',
-          demandeur:      shortName(selected['Demandeur']),
-          date_echeance:  (selected['Remise souhaitée'] || selected['Echéance estimée'] || selected['Echéance'] || '').slice(0, 10),
-          description:    [chrono ? `DST: ${chrono}` : '', selected['Libellé du projet'] || '', objet].filter(Boolean).join('\n'),
-          observations:   chrono ? `Préremplie depuis DST ${chrono}` : 'Préremplie depuis DST',
-        },
-        source: {
-          libelle_projet:         selected['Libellé du projet'] || '',
-          objet,
-          societe:                selected['Société'] || '',
-          situation_geographique: selected['Situation Géographique'] || '',
-          remise_souhaitee:       selected['Remise souhaitée'] || '',
-          numero_dst:             chrono,
-        }
-      }
-    }})
+        affaire_rst_id: affaire.uid,
+        numero_dst:     chrono,
+        type_mission:   'À définir',
+        nature:         selected['Cadre de la demande'] || 'Demande DST',
+        demandeur:      shortName(selected['Demandeur']),
+        description:    [chrono ? `DST: ${chrono}` : '', selected['Libellé du projet'] || '', objet].filter(Boolean).join('\n'),
+        observations:   `Préremplie depuis DST ${chrono}`.trim(),
+      },
+    }
+    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(prefill))
+    navigate('/demandes?create=1')
   }
 
   function handleFileDrop(e) {

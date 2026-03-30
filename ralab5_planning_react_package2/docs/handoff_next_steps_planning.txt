@@ -1,0 +1,35 @@
+RaLab5 planning React package
+
+Files updated:
+- frontend/react/src/pages/PlanningPage.jsx
+- frontend/react/src/pages/planning.css
+- frontend/react/src/services/api.js
+
+What was done:
+- Replaced the PlanningPage placeholder with a real React planning module.
+- Kept the métier centered on demandes, not affaires.
+- Added the 4 legacy views in React structure:
+  - Organiser / Kanban
+  - Agenda Demandes
+  - Agenda Labo
+  - Analyser
+- Added topbar, labo filter, stats filter buttons, left sidebar heatmap/stats, archive strip, and demande popup.
+- Added demande navigation API helper: demandesApi.navigation(uid).
+- Preserved planning context support via ?demande_id=... with targeted banner and lock handling.
+- Planning data still uses /api/planning/demandes and PATCH /api/planning/demandes/{uid}.
+
+Important notes:
+- This is a real React port, not an iframe or embedded full HTML page, so it no longer duplicates the global GUI shell.
+- Agenda Demandes stays centered on demandes.
+- Agenda Labo remains session-side for now for labo slots, like the legacy mock logic.
+- Because the provided node_modules bundle is Windows-oriented and missing Linux rollup optional deps, build validation could not be completed in the container. Final verification must be done on Marco's machine.
+
+Recommended next checks on local machine:
+1. Open /planning and verify the 4 tabs render correctly inside AppLayout.
+2. Check /planning?demande_id=UID targeted context banner.
+3. Verify drag/drop in Kanban.
+4. Verify date move buttons and popup save in Agenda Demandes.
+5. Compare spacing/visual details with legacy_html/planning.html and fine-tune if needed.
+
+Suggested commit message:
+feat(planning): port legacy planning module to React without duplicating app shell

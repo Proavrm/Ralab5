@@ -1,0 +1,33 @@
+RaLab5 - Planning React handoff
+
+What was done
+- The existing legacy planning HTML was mounted inside React to preserve the current visual and behavior.
+- The React page /planning now loads the migrated planning through an iframe.
+- The planning kept the current métier logic centered on demandes, not affaires.
+- Query string forwarding is preserved, so targeted planning contexts like ?demande_id=... still pass through.
+
+Files changed
+- frontend/react/src/pages/PlanningPage.jsx
+- frontend/react/public/planning-legacy.html
+
+Key details
+- This is a faithful first migration step HTML -> React without redesign.
+- Internal legacy navigation was patched:
+  - index.html -> /
+  - demande.html?uid=... -> /demandes/{uid}
+  - planning.html -> /planning
+- The legacy page title/branding was adjusted to RaLab5.
+
+Important limitation observed locally
+- I could not complete a local Vite build inside the container because the shipped node_modules is incomplete for Linux:
+  - vite binary permission issue
+  - missing optional Rollup package @rollup/rollup-linux-x64-gnu
+- So the code changes are done, but runtime validation/build must be done on your machine after reinstalling frontend dependencies if needed.
+
+Recommended next step
+1. In frontend/react, reinstall dependencies cleanly if the build fails on your machine.
+2. Open /planning and verify visual parity with the old HTML version.
+3. Then we can start the real phase 2: replacing the iframe by native React components view by view, without changing the UX.
+
+Suggested commit message
+feat(planning): mount legacy planning inside React route for faithful HTML-to-React transition

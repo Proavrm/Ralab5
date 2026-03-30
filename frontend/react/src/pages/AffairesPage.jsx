@@ -8,7 +8,7 @@
  */
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { affairesApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
@@ -73,7 +73,7 @@ const EMPTY_FORM = {
 
 export default function AffairesPage() {
   const navigate  = useNavigate()
-  const location  = useLocation()
+  const [searchParams] = useSearchParams()
   const qc        = useQueryClient()
 
   // ── Filtres ──────────────────────────────────────────────────────────────
@@ -89,28 +89,27 @@ export default function AffairesPage() {
   const [form, setForm]           = useState(EMPTY_FORM)
   const [isCreating, setIsCreating] = useState(false)
 
-  // Ouvrir modal avec préfill depuis pages source (Études, Affaires NGE, DST)
+  // Ouvrir modal avec préfill depuis pages source (URL params: create=1&chantier=...&source_type=...)
   useEffect(() => {
-    if (location.state?.openCreate) {
-      const pf = location.state.prefill || {}
+    if (searchParams.get('create') === '1') {
       const today = new Date().toISOString().split('T')[0]
       setForm({
         ...EMPTY_FORM,
-        date_ouverture:  today,
-        chantier:        pf.chantier        ?? '',
-        site:            pf.site            ?? '',
-        numero_etude:    pf.numero_etude    ?? '',
-        affaire_nge:     pf.affaire_nge     ?? '',
-        filiale:         pf.filiale         ?? '',
-        titulaire:       pf.titulaire       ?? '',
-        responsable:     pf.responsable     ?? '',
-        client:          pf.client          ?? '',
-        source_type:     location.state.source_type || '',
-        source_id:       location.state.source_id   || '',
+        date_ouverture: today,
+        chantier:       searchParams.get('chantier')    || '',
+        site:           searchParams.get('site')        || '',
+        numero_etude:   searchParams.get('numero_etude')|| '',
+        affaire_nge:    searchParams.get('affaire_nge') || '',
+        filiale:        searchParams.get('filiale')     || '',
+        titulaire:      searchParams.get('titulaire')   || '',
+        responsable:    searchParams.get('responsable') || '',
+        client:         searchParams.get('client')      || '',
+        source_type:    searchParams.get('source_type') || '',
+        source_id:      searchParams.get('source_id')   || '',
+        statut:         searchParams.get('statut')      || 'À qualifier',
       })
       setIsCreating(true)
       setModalOpen(true)
-      window.history.replaceState({}, '')
     }
   }, [])
 
