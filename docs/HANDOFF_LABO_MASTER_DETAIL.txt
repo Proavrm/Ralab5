@@ -1,0 +1,18 @@
+RaLab5 - LaboPage master-detail refinement
+
+What changed
+- Kept current data loading / filters / sorting logic
+- Removed route-opening logic idea
+- Implemented right-side information panel directly inside LaboPage
+- Clicking a row now selects it and fills the right panel
+- The panel changes depending on the active tab:
+  - Interventions
+  - Echantillons
+  - Essais
+- Keeps sticky headers, sorting and current columns
+
+Behavior
+- Table stays on the left
+- Information sheet stays on the right
+- First filtered row is auto-selected
+- Selection is preserved when possible across sorting/filtering

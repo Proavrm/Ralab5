@@ -1,0 +1,30 @@
+RaLab5 - InterventionPage V1
+
+Included
+- frontend/react/src/pages/InterventionPage.jsx
+
+What this page does
+- Supports both creation and editing:
+  - /interventions/new?demande_id=123
+  - /interventions/:uid
+- Uses current API:
+  - interventionsApi.get
+  - interventionsApi.create
+  - api.put for update (because current api.js uses patch for interventions update)
+  - demandesApi.get for context display
+- Keeps compatibility with current backend model by storing extended métier fields inside observations JSON
+
+Main métier sections
+- Administrative context
+- Terrain intervention
+- Code essai and material
+- Localisation and objective
+- Equipment used
+- Safety / anomalies / notes
+- Documentary references
+- Right helper panel with demand context and code referential
+
+Important note
+- This page is already usable even if the rest of the create flows are not wired yet.
+- Later, other pages can simply navigate to:
+  /interventions/new?demande_id=<uid>

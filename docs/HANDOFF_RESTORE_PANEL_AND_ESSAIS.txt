@@ -1,0 +1,34 @@
+Based strictly on the user's CURRENT uploaded files for this repair.
+
+Files included
+- frontend/react/src/pages/LaboPage.jsx
+- backend/current_fastapi/api/essais.py
+
+What this repair does
+1) Restores the right-side info panel behavior in LaboPage
+- click a row -> panel opens
+- panel is not permanently open
+- no extra action logic added
+
+2) Restores Essais table semantics
+- Référence is the first column again
+- Code is the second column again
+- Code no longer falls back to type/libellé fields
+
+3) Restores linked fields for Essais and Echantillons from the backend
+- echantillon_reference
+- demande_reference
+- affaire_reference
+- demande_id / affaire_rst_id
+
+4) Keeps Essai reference fallback
+- if no DB reference exists, backend returns ESSAI-0001 style reference
+
+5) Keeps echantillons date display helper and code extraction from observations JSON
+
+Scope intentionally limited
+- No changes to interventions
+- No new routes
+- No panel action buttons
+- No layout redesign
+- Only restore current labo page click/info behavior and essais/echantillons linked data

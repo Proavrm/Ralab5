@@ -1,0 +1,16 @@
+Fix for InterventionsRequalificationWorkbench render loop.
+
+What was wrong
+- the previous version could trigger repeated state resets from effect/init logic
+- that caused 'Maximum update depth exceeded'
+
+What changed
+- derived lists are now useMemo:
+  - prelevements
+  - interventions
+- editable rows initialization is protected by a source signature ref
+- only re-initializes when server source data actually changes
+
+Also
+- unique zip/output name used for this correction
+- React Router future flag warnings are only warnings, not the blocking bug

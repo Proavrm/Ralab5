@@ -1,0 +1,18 @@
+Workbench update with more information in the table.
+
+Added / improved
+- more decision columns:
+  - affaire / chantier
+  - zone / matériau
+  - technicien / finalité
+  - objectif / notes
+- selection summary panel:
+  - count
+  - demandes
+  - natures
+  - dates
+  - zones / techniciens
+
+Intent
+- help the user decide which rows belong to the same intervention
+- keep the editable intervention assignment directly in the table

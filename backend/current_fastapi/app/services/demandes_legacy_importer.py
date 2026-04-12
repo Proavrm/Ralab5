@@ -145,7 +145,8 @@ class DemandesLegacyImporter:
 
         candidates.append(self.project_root / "01 - Demandes")
         candidates.append(Path.home() / "NGE" / "Labo ARS - Documents" / "01 - Demandes")
-        candidates.append(Path.home() / "OneDrive" / "Área de Trabalho" / "Logiciels labo marco" / "RaLab4" / "01 - Demandes")
+        candidates.append(Path.home() / "OneDrive" / "NGE" / "Labo ARS - Documents" / "01 - Demandes")
+        candidates.append(Path.home() / "OneDrive - NGE" / "Labo ARS - Documents" / "01 - Demandes")
 
         seen: set[str] = set()
 

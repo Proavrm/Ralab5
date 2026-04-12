@@ -1,0 +1,19 @@
+Fix for empty 'Code essai' column in LaboPage > Interventions
+
+Root cause
+- Previous package added the column in React but the backend API patch did not actually extract essai_code from the observations JSON.
+- The DB does contain essai_code for imported interventions.
+
+What this package fixes
+- backend/current_fastapi/api/interventions.py now:
+  - imports json
+  - parses observations JSON when present
+  - exposes:
+    - essai_code
+    - code_essai
+    - essai_label
+- frontend/react/src/pages/LaboPage.jsx is included unchanged from v5 for consistency
+- backend/current_fastapi/api/essais.py is included unchanged from v5 for consistency
+
+Expected result
+- LaboPage > Interventions > 'Code essai' should now show values like PLD / CFE / etc. instead of empty cells.

@@ -1,0 +1,27 @@
+RaLab5 - Labo page corrections (date prélèvement + code essai on interventions)
+
+Included files
+- backend/current_fastapi/api/essais.py
+- backend/current_fastapi/api/interventions.py
+- frontend/react/src/pages/LaboPage.jsx
+
+What changed
+1) /api/essais/echantillons
+- year filter now uses date_prelevement only
+- date alias now points to date_prelevement
+- year alias derived from date_prelevement
+- ordering now uses date_prelevement
+
+2) /api/interventions
+- extracts essai_code and essai_label from imported observations JSON when present
+- exposes both essai_code and code_essai aliases for frontend
+
+3) LaboPage
+- Interventions table keeps existing columns and adds Code essai
+- Echantillons normalization now prioritizes date_prelevement
+- Search includes essai_code too
+
+Intent
+- keep the labo page as a global transverse search page
+- avoid removing existing displayed information
+- make the year logic for echantillons follow operational sampling date

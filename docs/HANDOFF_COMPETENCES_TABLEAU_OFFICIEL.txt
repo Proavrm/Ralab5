@@ -1,0 +1,181 @@
+Tableau officiel de suivi des competences techniciens
+
+Fichier analyse
+- Source utilisee: C:\Users\marco\Downloads\2025-09-29 - ARS - Tableau Suivi des Competences des Techniciens.xlsx
+- Objectif: servir de base au modele RaLab5 pour la future fiche utilisateur / competences.
+
+Structure du workbook
+- Feuille `Listes deroulantes`
+  - Contient les listes de reference:
+    - domaine
+    - labo / chantier
+    - certification
+    - referent norme / expertise
+    - formateur
+    - niveaux technicien
+  - Echelle de niveau detectee:
+    - N0: ne connait pas l'essai
+    - N1: debutant, realise l'essai avec supervision
+    - N2: intermediaire, realise l'essai seul
+    - N3: confirme, realise l'essai seul et fait la saisie
+    - N4: expert, connait parfaitement l'essai
+    - N5: formateur
+
+- Feuille `Liste des essais`
+  - 149 essais detectes dans le tableau actuel.
+  - Colonnes metier:
+    - domaine
+    - labo / chantier
+    - libelle essai
+    - reference
+    - date publication
+    - protocole simplifie
+    - certification
+    - referent norme
+    - impact maj norme
+    - formateur
+  - Usage recommande dans RaLab5: referentiel central des competences / essais.
+
+- Feuilles individuelles technicien (`Pierre`, `Paul`, `Jacques`)
+  - Colonnes A:J = reprise de `Liste des essais`.
+  - Colonnes K+ = evaluations successives du technicien.
+  - Ligne 1 = nom du technicien repete.
+  - Ligne 2 = date d'evaluation pour chaque colonne d'historique.
+  - Chaque cellule d'evaluation contient un niveau `N0` a `N5`.
+  - Un meme essai peut donc avoir plusieurs evaluations datees pour le meme technicien.
+
+- Feuille `Equipe Labo 2025`
+  - Meme base A:J.
+  - Colonnes K+ = matrice equipe par technicien.
+  - Ligne 1 = nom du technicien.
+  - Ligne 2 = date de reference associee a la colonne.
+  - Usage recommande dans RaLab5: vue de synthese / matrice d'equipe.
+
+Constats utiles pour le modele RaLab5
+- Le role de securite (`admin`, `labo`, etc.) ne suffit pas pour decrire les competences.
+- Le patamar / emploi doit rester separe du niveau par essai.
+- Les competences doivent etre historisees, pas seulement stockees en valeur courante.
+- Le niveau est porte par le couple:
+  - utilisateur
+  - essai / competence
+  - date d'evaluation
+
+Modele recommande
+1. `employment_levels`
+   - deja ajoute pour le patamar professionnel global.
+
+2. `competency_catalog`
+   - un enregistrement par essai / competence
+   - champs minimum:
+     - competency_code
+     - domain
+     - context_type (`labo` / `chantier`)
+     - label
+     - reference
+     - publication_date
+     - simplified_protocol
+     - certification
+     - standard_referent
+     - standard_update_impact
+     - trainer_name
+     - is_active
+
+3. `competency_levels`
+   - referentiel N0 a N5
+   - champs minimum:
+     - level_code
+     - sort_order
+     - label
+     - description
+
+4. `user_competency_assessments`
+   - historique des evaluations
+   - champs minimum:
+     - assessment_id
+     - user_email
+     - competency_code
+     - level_code
+     - assessed_at
+     - assessor_name
+     - source_type (`manual`, `excel_import`, `validation`)
+     - source_reference
+     - notes
+
+5. `user_competency_current`
+   - vue ou table derivee pour le niveau courant par utilisateur / competence
+   - calculee depuis la derniere evaluation datee
+
+6. `user_profile_details`
+   - fiche utilisateur complete, separee des permissions
+   - blocs cibles:
+     - identite
+     - poste / emploi
+     - agence / service
+     - manager / referent
+     - dates cle
+     - observations
+     - documents et habilitations
+
+UI cible recommande
+- Dans la fiche utilisateur:
+  - Onglet Identite
+  - Onglet Emploi / parcours
+  - Onglet Competences
+    - vue liste par essai
+    - filtre domaine / labo / chantier
+    - niveau courant
+    - historique des evaluations
+  - Onglet Habilitations / documents
+  - Onglet Synthese
+
+- Dans une vue equipe:
+  - matrice techniciens x essais
+  - couleur par niveau N0 a N5
+  - filtre domaine
+  - export Excel / impression
+
+Strategie d'implementation conseillee
+1. Ajouter le referentiel `competency_catalog` et `competency_levels`.
+2. Ajouter l'historique `user_competency_assessments`.
+3. Construire une fiche utilisateur simple avec liste des competences et niveau courant.
+4. Ajouter ensuite l'import du tableau Excel officiel.
+5. Ajouter enfin la matrice equipe equivalente a `Equipe Labo 2025`.
+
+Etat implemente dans RaLab5 le 2026-04-08
+- Tables ajoutees dans `security.db`:
+  - `competency_levels`
+  - `competency_catalog`
+  - `user_competency_assessments`
+  - vue `user_competency_current`
+  - `user_profile_details`
+- Endpoints admin ajoutes:
+  - `GET /api/admin/competency-levels`
+  - `GET /api/admin/competencies`
+  - `GET /api/admin/users/{email}/competency-assessments/current`
+  - `GET /api/admin/users/{email}/competency-assessments`
+  - `POST /api/admin/users/{email}/competency-assessments`
+  - `GET /api/admin/users/{email}/profile`
+  - `PUT /api/admin/users/{email}/profile`
+- Importeur ajoute:
+  - `backend/current_fastapi/tools/import_competency_catalog.py`
+- UI admin ajoutee:
+  - fiche utilisateur avec onglets `Fiche`, `Compétences`, `Habilitations`
+  - edition du patamar / emploi, des donnees de fiche et ajout d'evaluations par essai
+
+Commande d'import du tableau officiel
+```powershell
+Set-Location backend/current_fastapi
+"c:/Users/marco/OneDrive/Área de Trabalho/Logiciels labo marco/RaLab5/Ralab5.venv/Scripts/python.exe" .\tools\import_competency_catalog.py "C:\Users\marco\Downloads\2025-09-29 - ARS - Tableau Suivi des Compétences des Techniciens.xlsx" --deactivate-missing
+```
+
+Resultat observe sur le fichier officiel analyse
+- 148 competences importees dans `competency_catalog`
+- 1 ligne malformee ignoree: ligne 134 de `Liste des essais`
+- cette ligne contient `Béton | Labo` sans libelle d'essai ni reference
+
+Decision de conception importante
+- La fiche utilisateur ne doit pas melanger:
+  - role de securite
+  - patamar professionnel
+  - competences par essai
+- Ce sont trois axes differents et ils doivent rester modeles separement.

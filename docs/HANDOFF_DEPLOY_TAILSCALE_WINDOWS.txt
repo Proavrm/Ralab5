@@ -1,0 +1,110 @@
+Déploiement le plus simple sans Cloudflare
+
+Choix recommandé sans Cloudflare
+- Serveur: Windows
+- Accès externe: Tailscale
+- Lancement RaLab5: `launch_ralab5_tailscale.cmd`
+
+Quand choisir cette option
+- Tu n'as pas Cloudflare.
+- Tu veux éviter d'ouvrir des ports Internet.
+- Tu acceptes que Clara installe une seule application légère sur son PC.
+
+Pourquoi c'est le plus simple sans Cloudflare
+- Pas besoin de domaine.
+- Pas besoin de reverse proxy public.
+- Pas besoin de redirection de ports sur la box/routeur.
+- Le serveur et le PC de Clara se voient via le réseau privé Tailscale.
+
+Compromis à connaître
+- Clara doit installer Tailscale.
+- Ce n'est pas un lien web public universel; c'est un accès privé entre machines autorisées.
+- Pour ce mode, on utilise RaLab5 en mode privé de test, pas le mode Internet `proxy`.
+
+Principe final
+1. Ton serveur Windows rejoint un réseau Tailscale.
+2. Le PC de Clara rejoint le même réseau Tailscale.
+3. RaLab5 tourne sur le serveur avec `launch_ralab5_tailscale.cmd`.
+4. Clara ouvre dans son navigateur l'adresse Tailscale du serveur sur le port `8000`.
+
+Pré-requis minimum
+- Un PC ou serveur Windows qui restera allumé.
+- Un compte Tailscale.
+- Tailscale installé sur le serveur Windows.
+- Tailscale installé sur le PC de Clara.
+
+Étapes côté serveur Windows
+
+1. Installer Tailscale.
+2. Se connecter avec ton compte Tailscale.
+3. Vérifier que le serveur apparaît bien dans le réseau Tailscale.
+4. Dans le dépôt RaLab5, lancer:
+
+```bat
+launch_ralab5_tailscale.cmd
+```
+
+Ce lanceur:
+- compile le frontend si nécessaire
+- démarre FastAPI sur `0.0.0.0:8000`
+- rend l'application accessible via l'IP Tailscale ou le nom MagicDNS du serveur
+
+Étapes côté Clara
+
+1. Installer Tailscale sur son PC.
+2. Soit:
+   - la connecter au même compte Tailscale
+   - ou l'inviter dans le réseau Tailscale si tu préfères séparer les comptes
+3. Vérifier que le serveur est visible dans Tailscale.
+4. Ouvrir dans le navigateur:
+
+```text
+http://<nom-tailscale-du-serveur>:8000
+```
+
+ou, si besoin:
+
+```text
+http://<ip-tailscale-du-serveur>:8000
+```
+
+Exemples typiques
+
+```text
+http://ralab-server:8000
+http://100.x.y.z:8000
+```
+
+Comment trouver l'adresse à donner à Clara
+
+Sur le serveur, dans Tailscale, relever:
+- soit le nom MagicDNS de la machine
+- soit son IP Tailscale
+
+La meilleure option est généralement le nom de machine Tailscale, car il change moins dans tes notes qu'une IP.
+
+Sécurité de cette option
+
+- L'application n'est pas exposée sur Internet public.
+- Seules les machines autorisées dans le réseau Tailscale peuvent s'y connecter.
+- Pour un test avec Clara, c'est nettement plus simple que de publier un domaine public.
+
+Limite importante
+
+- Le login applicatif reste le login privé actuel de RaLab5.
+- Donc ce mode est adapté au test privé via Tailscale, pas à une publication Internet ouverte.
+- Si plus tard tu veux une vraie URL publique sans installation côté Clara, il faudra revenir à la solution de type Cloudflare Access ou équivalent.
+
+Checklist de validation finale
+
+1. Tailscale est connecté sur le serveur.
+2. Tailscale est connecté sur le PC de Clara.
+3. `launch_ralab5_tailscale.cmd` démarre sans erreur.
+4. Depuis Clara, `http://<nom-ou-ip-tailscale>:8000` s'ouvre.
+5. Clara peut se connecter et tester l'application.
+
+En cas de problème
+
+- Si Clara ne voit pas le serveur, le problème est d'abord Tailscale, pas RaLab5.
+- Si le serveur est visible mais le port `8000` ne répond pas, vérifier que RaLab5 tourne bien sur le serveur.
+- Si la page s'ouvre mais le login ne convient plus, alors il faudra choisir la solution publique avec proxy d'authentification.

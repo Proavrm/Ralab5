@@ -1,16 +1,17 @@
 """
 api/interventions.py — RaLab4
-GET    /api/interventions?demande_id=X
+GET    /api/interventions?demande_id=X&annee=YYYY&labo_code=SP
 GET    /api/interventions/{uid}
 POST   /api/interventions
 PUT    /api/interventions/{uid}
 DELETE /api/interventions/{uid}
 """
 from __future__ import annotations
+import json
 import re, sqlite3
 from datetime import date, datetime
 from typing import Optional
-from app.core.database import get_db_path
+from app.core.database import ensure_ralab4_schema, get_db_path
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -21,10 +22,12 @@ TYPES = ["Visite de contrôle","Auscultation","Levé topographique","Prélèveme
          "Inspection géotechnique","Essai in situ","Réunion de chantier","Autre"]
 STATUTS = ["Planifiée","En cours","Réalisée","Annulée"]
 ALERTES = ["Aucun","Faible","Moyen","Élevé","Critique"]
+DEFAULT_NATURE_REELLE = "Intervention"
 
 
 class InterventionCreate(BaseModel):
     demande_id:        int
+    campaign_id:       Optional[int]   = Field(None)
     type_intervention: str             = Field("Visite de contrôle")
     sujet:             str             = Field("")
     date_intervention: date            = Field(default_factory=date.today)
@@ -41,6 +44,7 @@ class InterventionCreate(BaseModel):
 
 
 class InterventionUpdate(BaseModel):
+    campaign_id:       Optional[int]   = None
     type_intervention: Optional[str]   = None
     sujet:             Optional[str]   = None
     date_intervention: Optional[date]  = None
@@ -57,11 +61,26 @@ class InterventionUpdate(BaseModel):
 
 
 def _conn():
+    ensure_ralab4_schema(DB_PATH)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     return conn
+
+
+def _validate_campaign_for_demande(conn: sqlite3.Connection, campaign_id: Optional[int], demande_id: int) -> Optional[int]:
+    if not campaign_id:
+        return None
+    row = conn.execute(
+        "SELECT id, demande_id FROM intervention_campaigns WHERE id = ?",
+        (campaign_id,),
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, f"Campagne #{campaign_id} introuvable")
+    if int(row["demande_id"] or 0) != int(demande_id):
+        raise HTTPException(400, "La campagne selectionnee n'appartient pas a cette demande")
+    return int(row["id"])
 
 
 def _enabled_module_codes(conn: sqlite3.Connection, demande_id: int) -> set[str]:
@@ -103,30 +122,91 @@ def _next_ref(conn, demande_id: int) -> tuple[str, int, str, int]:
     return f"{prefix}{number:04d}", annee, labo, number
 
 
+
+def _extract_obs_metadata(observations: str) -> tuple[str, str]:
+    if not isinstance(observations, str):
+        return "", ""
+    raw = observations.strip()
+    if not raw or not raw.startswith("{"):
+        return "", ""
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return "", ""
+    essai_code = str(
+        payload.get("essai_code")
+        or payload.get("code_essai")
+        or payload.get("source_essai_code")
+        or ""
+    ).strip()
+    essai_label = str(
+        payload.get("essai_label")
+        or payload.get("label")
+        or payload.get("libelle")
+        or ""
+    ).strip()
+    return essai_code, essai_label
+
+
 def _row_to_dict(row) -> dict:
     data = dict(row)
     data["uid"] = data.pop("id")
+
+    essai_code, essai_label = _extract_obs_metadata(data.get("observations") or "")
+    data["essai_code"] = essai_code
+    data["code_essai"] = essai_code
+    data["essai_label"] = essai_label
+
     return data
 
 
 @router.get("")
 def list_interventions(
     demande_id: Optional[int] = Query(None),
+    annee: Optional[int] = Query(None),
+    labo_code: Optional[str] = Query(None),
     statut: Optional[str] = Query(None),
 ):
     with _conn() as conn:
         if demande_id and not _interventions_enabled(conn, demande_id):
             return []
         sql = """
-            SELECT i.*, d.reference AS demande_ref
+            SELECT
+                i.*,
+                c.code AS campaign_code,
+                c.reference AS campaign_ref,
+                c.label AS campaign_label,
+                c.designation AS campaign_designation,
+                d.id AS demande_id,
+                d.reference AS demande_ref,
+                d.reference AS demande_reference,
+                d.affaire_rst_id AS affaire_rst_id,
+                a.reference AS affaire_ref,
+                a.reference AS affaire_reference,
+                a.client AS client,
+                a.chantier AS chantier,
+                a.site AS site
             FROM interventions i
+            LEFT JOIN intervention_campaigns c ON c.id = i.campaign_id
             JOIN demandes d ON d.id = i.demande_id
+            LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
             WHERE 1=1
         """
         params = []
         if demande_id:
             sql += " AND i.demande_id = ?"
             params.append(demande_id)
+        if annee is not None:
+            sql += """
+                AND COALESCE(
+                    NULLIF(substr(COALESCE(i.date_intervention, ''), 1, 4), ''),
+                    CAST(i.annee AS TEXT)
+                ) = ?
+            """
+            params.append(str(annee))
+        if labo_code:
+            sql += " AND i.labo_code = ?"
+            params.append(labo_code)
         if statut:
             sql += " AND i.statut = ?"
             params.append(statut)
@@ -145,8 +225,25 @@ def get_intervention(uid: int):
     with _conn() as conn:
         row = conn.execute(
             """
-            SELECT i.*, d.reference AS demande_ref
-            FROM interventions i JOIN demandes d ON d.id = i.demande_id
+            SELECT
+                i.*,
+                c.code AS campaign_code,
+                c.reference AS campaign_ref,
+                c.label AS campaign_label,
+                c.designation AS campaign_designation,
+                d.id AS demande_id,
+                d.reference AS demande_ref,
+                d.reference AS demande_reference,
+                d.affaire_rst_id AS affaire_rst_id,
+                a.reference AS affaire_ref,
+                a.reference AS affaire_reference,
+                a.client AS client,
+                a.chantier AS chantier,
+                a.site AS site
+            FROM interventions i
+            LEFT JOIN intervention_campaigns c ON c.id = i.campaign_id
+            JOIN demandes d ON d.id = i.demande_id
+            LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
             WHERE i.id = ?
             """,
             (uid,),
@@ -162,25 +259,26 @@ def create_intervention(body: InterventionCreate):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with _conn() as conn:
         _require_interventions_enabled(conn, body.demande_id)
+        campaign_id = _validate_campaign_for_demande(conn, body.campaign_id, body.demande_id)
         ref, annee, labo, numero = _next_ref(conn, body.demande_id)
         conn.execute(
             """
             INSERT INTO interventions
-            (reference,annee,labo_code,numero,demande_id,
+            (reference,annee,labo_code,numero,demande_id,campaign_id,
              type_intervention,sujet,date_intervention,duree_heures,
              geotechnicien,technicien,observations,
              anomalie_detectee,niveau_alerte,pv_ref,rapport_ref,photos_dossier,
-             statut,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             statut,nature_reelle,tri_updated_at,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
-                ref, annee, labo, numero, body.demande_id,
+                ref, annee, labo, numero, body.demande_id, campaign_id,
                 body.type_intervention, body.sujet,
                 body.date_intervention.isoformat(), body.duree_heures,
                 body.geotechnicien, body.technicien, body.observations,
                 1 if body.anomalie_detectee else 0, body.niveau_alerte,
                 body.pv_ref, body.rapport_ref, body.photos_dossier,
-                body.statut, now, now,
+                body.statut, DEFAULT_NATURE_REELLE, now, now, now,
             ),
         )
         uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -202,7 +300,17 @@ def update_intervention(uid: int, body: InterventionUpdate):
         if demande_id is None:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
         _require_interventions_enabled(conn, demande_id)
+        if "campaign_id" in fields:
+            fields["campaign_id"] = _validate_campaign_for_demande(conn, fields["campaign_id"], demande_id)
         conn.execute(f"UPDATE interventions SET {clause} WHERE id = ?", list(fields.values()) + [uid])
+        conn.execute(
+            """
+            UPDATE interventions
+            SET nature_reelle = ?, tri_updated_at = ?
+            WHERE id = ? AND COALESCE(NULLIF(nature_reelle, ''), '') = ''
+            """,
+            (DEFAULT_NATURE_REELLE, now, uid),
+        )
     return get_intervention(uid)
 
 

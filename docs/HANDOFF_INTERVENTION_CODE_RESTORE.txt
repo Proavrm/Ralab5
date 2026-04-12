@@ -1,0 +1,15 @@
+Why essai code disappeared on InterventionPage
+
+Root cause
+- mergeFormFromIntervention() was rebuilding the form only from observations JSON:
+  essai_code: observations.essai_code || ''
+- On many real interventions, the page now receives essai_code from the backend top-level aliases
+  (data.essai_code / data.code_essai)
+- So the labo list could show the code, but InterventionPage could lose it after loading
+
+Fix
+- mergeFormFromIntervention now falls back in this order:
+  1) observations.essai_code
+  2) data.essai_code
+  3) data.code_essai
+- essai_label also falls back to data.essai_label

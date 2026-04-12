@@ -1,0 +1,50 @@
+RaLab5 - LaboPage V1.2 - real echantillons connected
+
+Included files:
+- frontend/react/src/pages/LaboPage.jsx
+- frontend/react/src/services/api.js
+
+What changed:
+1. LaboPage now loads real echantillons from the existing API route:
+   GET /api/essais/echantillons
+
+2. Added a dedicated echantillonsApi in services/api.js:
+   - list
+   - get
+   - create
+   - update
+   - delete
+
+3. Echantillons tab now shows a real table with:
+   - reference
+   - date
+   - demande linked
+   - affaire linked
+   - chantier/site
+   - nature/material
+   - statut
+
+4. Frontend normalization is tolerant to multiple possible field names:
+   - uid / id / echantillon_id
+   - date / date_reception / date_prelevement / date_creation
+   - demande_reference / demande_ref
+   - affaire_reference / affaire_ref
+   - nature / materiau / material / type_materiau
+
+5. Interventions behavior remains preserved.
+
+Notes:
+- Current scope remains preparation / organization only.
+- Essais tab is still intentionally light and will be connected later.
+- Year and labo filters trigger reloads for both interventions and echantillons.
+- Status filter is applied on the frontend for the active tab.
+
+Recommended tests:
+- Open /labo
+- Check Interventions still load
+- Open Echantillons tab and verify real rows appear
+- Test filters:
+  - year 2025 / 2026
+  - labo SP / PT / CLM / CHB
+  - status values that exist in your DB
+- Check search on reference / demande / affaire / chantier / nature

@@ -1,0 +1,23 @@
+RaLab5 - LaboPage v3 (global transverse search logic)
+
+What changed
+- Reframed LaboPage as a transverse search / consultation page
+- Kept Interventions and Echantillons logic
+- Reworked Essais tab display logic:
+  - first column now prioritizes business code / métier code
+  - shows label when available
+  - shows technical reference only as secondary information
+- Search now also looks into:
+  - display_code
+  - display_label
+  - reference_secondary
+  - linked sample / demande / affaire fields
+
+Why
+- LaboPage is not the detailed working sheet of an essai
+- It is the global page to find an essai among all demandes / echantillons / affaires
+- The detailed linked essai sheet remains a different screen / workflow
+
+No API change included in this package
+- This package only updates frontend/react/src/pages/LaboPage.jsx
+- It expects the already enriched essais API to be in place

@@ -1,0 +1,17 @@
+Workbench update with a two-step workflow.
+
+Main change
+- no longer only essais -> interventions
+- now:
+  essais -> prélèvements -> interventions
+
+Added
+- Prélèvement column in the table
+- mass actions for prélèvements
+- intervention actions only after prélèvement step
+- intervention column disabled if no prélèvement
+- summaries for both prélèvements and interventions
+
+Intent
+- let the user group repeated essais like many MVA into one prélèvement first
+- only after that attach the prélèvement to an intervention

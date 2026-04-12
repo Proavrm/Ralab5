@@ -1,0 +1,23 @@
+Preview pages created without replacing the current ones.
+
+Files
+- frontend/react/src/pages/PreparationPageCard.jsx
+- frontend/react/src/pages/InterventionPageCard.jsx
+- frontend/react/src/pages/InstructionsPage.jsx
+
+Intent
+- Show Preparation and Intervention with a visual logic closer to EchantillonPage
+- Keep the current PreparationPage.jsx and InterventionPage.jsx untouched
+- Make it easy to compare before deciding what to keep
+
+Suggested temporary routes
+- /preparations-card/:uid
+- /interventions-card/:uid
+- /interventions-card/new?demande_id=123&source=preparation-card
+- /instructions-preview
+
+Notes
+- PreparationPageCard keeps the same preparation endpoints
+- InterventionPageCard keeps the same intervention endpoints
+- PreparationPageCard creates preview interventions pointing to /interventions-card/new
+- InstructionsPage is only a lightweight explainer page

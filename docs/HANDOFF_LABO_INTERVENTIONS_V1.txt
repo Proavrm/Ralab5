@@ -1,0 +1,21 @@
+RaLab5 - LaboPage interventions V1
+
+Included files:
+- frontend/react/src/pages/LaboPage.jsx
+- frontend/react/src/services/api.js
+
+What changed:
+- LaboPage now loads real data from the existing /api/interventions endpoint
+- page remains focused on preparation and organization only
+- interventions tab is connected to backend
+- filters year and labo_code are sent to backend
+- status filter stays frontend-side
+- echantillons and essais remain placeholders for next steps
+
+Notes:
+- services/api.js already had interventionsApi; it is included here unchanged for convenience
+- if your current project version already has the same api.js, keep whichever is newest
+- if some rows do not show fields exactly as expected, inspect the JSON and adjust normalizeIntervention()
+
+Next suggested step:
+- connect Echantillons tab to real data with the same approach

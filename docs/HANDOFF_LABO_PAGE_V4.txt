@@ -1,0 +1,23 @@
+RaLab5 - LaboPage v4
+
+Changes made
+- Restored the echantillons table structure from the earlier working version:
+  - Référence
+  - Réception / Prélèvement
+  - Demande liée
+  - Affaire
+  - Nature / Matériau
+  - Statut
+- Added sticky headers for all three tables
+- Added header click sorting for all three tables
+- Table body now scrolls while keeping headers visible
+- Essais kept in a transverse global-search logic
+- Package only contains LaboPage.jsx to avoid overwriting the user's current api.js
+
+Notes
+- Default sorting:
+  - Interventions: date desc
+  - Echantillons: date desc
+  - Essais: display code asc
+- Year/labo filters still go to backend through existing page logic
+- Search stays frontend-side

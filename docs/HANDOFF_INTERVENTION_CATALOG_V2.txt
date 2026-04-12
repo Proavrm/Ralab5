@@ -1,0 +1,30 @@
+RaLab5 - Intervention catalog ready to code
+
+Files included
+- frontend/react/src/data/interventionCatalog.js
+- frontend/react/src/pages/InterventionPage.jsx
+
+What this adds
+1) Ready-to-code référentiel
+- grouped intervention types
+- grouped finalities
+- type -> family mapping
+- type -> suggested finalities mapping
+- helper functions:
+  - getInterventionFamily()
+  - getSuggestedFinalities()
+
+2) InterventionPage updated to use the catalog
+- type select grouped by family
+- finality select grouped
+- family auto-filled from selected type
+- suggested finality chips shown under the mission block
+- keeps intervention logic general and mission-oriented
+- samples/tests stay downstream
+
+Important métier rule encoded
+- Intervention = mission générale
+- Échantillon = matière/support créé ensuite
+- Essai = analyse détaillée ensuite
+- For 'Prelevamento', the finality stays broad:
+  GTR / étude de traitement / contrôle matériaux / pollution / etc.

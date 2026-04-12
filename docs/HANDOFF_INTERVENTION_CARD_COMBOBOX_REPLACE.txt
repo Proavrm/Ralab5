@@ -1,0 +1,16 @@
+Replace the existing InterventionPageCard preview with a much simpler combobox-driven version.
+
+Included
+- frontend/react/src/pages/InterventionPageCard.jsx
+
+Main change
+- removed the many separate middle blocks
+- now the page is basically:
+  1) Intervention
+  2) Ajouter à l’intervention (combobox logic)
+  3) Suites labo
+
+Intent
+- closer to the EchantillonPage spirit
+- simpler
+- one chooser instead of many frames

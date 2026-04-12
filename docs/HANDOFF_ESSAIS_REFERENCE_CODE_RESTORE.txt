@@ -1,0 +1,30 @@
+Minimal repair based only on the CURRENT files the user uploaded.
+
+What was fixed
+1) Essais table column order
+- Référence is first again
+- Code is second again
+- Libellé stays separate
+
+2) Essais code logic
+- Code column stays strict:
+  essai_code -> code_essai -> source_essai_code -> code -> ''
+- It no longer uses type/libellé as the code
+
+3) Essais reference restore
+- For imported essais without a DB reference column, essais.py now rebuilds a usable reference from observations JSON:
+  reference/ref/provenance/destination
+  then signature REF=...
+- Example from current DB:
+  signature ...|REF=S2E2|CODE=ID
+  => Référence=S2E2, Code=ID
+
+4) Sort
+- Essais default sort is back to reference asc
+
+Scope intentionally narrow
+- No panel changes
+- No layout changes
+- No action changes
+- No intervention changes
+- Only Essais reference/code restoration

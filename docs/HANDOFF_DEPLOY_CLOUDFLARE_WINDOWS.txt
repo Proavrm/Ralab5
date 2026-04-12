@@ -1,0 +1,155 @@
+Déploiement recommandé le plus simple pour RaLab5
+
+Choix recommandé
+- Serveur: Windows
+- Accès externe: Cloudflare Tunnel + Cloudflare Access
+- Authentification côté Clara: One-Time PIN par email
+
+Pourquoi c'est le plus simple ici
+- Aucun port du PC/serveur n'a besoin d'être exposé directement sur Internet.
+- Clara n'installe rien: elle ouvre seulement une URL dans son navigateur.
+- Le backend RaLab5 supporte déjà le header Cloudflare Access `Cf-Access-Authenticated-User-Email`.
+- Le projet et les scripts actuels sont déjà orientés Windows.
+
+Plan Cloudflare
+- Pour un test petit volume comme le tien, le plan gratuit Cloudflare + Zero Trust gratuit est suffisant en pratique.
+- Il faut quand même un domaine géré dans Cloudflare.
+- Vérifie seulement les quotas en vigueur au moment de créer le compte, mais pour 1 ou 2 testeurs ce n'est normalement pas le point bloquant.
+
+Principe final
+1. RaLab5 tourne en local sur le serveur Windows via `launch_ralab5_server.cmd`.
+2. Cloudflare Tunnel publie `https://ralab.votre-domaine.tld` vers `http://127.0.0.1:8000`.
+3. Cloudflare Access protège cette URL et vérifie l'email de Clara.
+4. Une fois l'email validé, Cloudflare ajoute le header d'identité.
+5. RaLab5 lit ce header, retrouve `crigo@guintoli.fr`, puis connecte Clara automatiquement.
+
+Pré-requis minimum
+- Un serveur Windows qui restera allumé.
+- Un domaine géré dans Cloudflare.
+- `cloudflared` installé sur le serveur Windows.
+- Le dépôt RaLab5 présent sur ce serveur.
+
+Configuration RaLab5 côté serveur
+
+Ouvrir PowerShell sur le serveur et définir les variables d'environnement:
+
+```powershell
+setx RALAB_AUTH_MODE "proxy"
+setx RALAB_JWT_SECRET "remplacer-par-un-secret-long-prive-et-unique"
+setx RALAB_ALLOWED_HOSTS "ralab.votre-domaine.tld"
+setx RALAB_ALLOWED_ORIGINS "https://ralab.votre-domaine.tld"
+```
+
+Important:
+- Fermer puis rouvrir la console après les `setx`.
+- Ne pas exposer `RALAB_AUTH_MODE=passwordless` sur Internet.
+
+Lancer ensuite RaLab5:
+
+```bat
+launch_ralab5_server.cmd
+```
+
+Ce lanceur fait déjà ce qu'il faut pour un reverse proxy:
+- écoute locale sur `127.0.0.1:8000`
+- `proxy headers` activés côté Uvicorn
+
+Installation Cloudflare Tunnel
+
+1. Installer `cloudflared` sur Windows.
+2. Ouvrir PowerShell en administrateur.
+3. Authentifier le serveur:
+
+```powershell
+cloudflared tunnel login
+```
+
+4. Créer un tunnel:
+
+```powershell
+cloudflared tunnel create ralab5
+```
+
+5. Créer la route DNS:
+
+```powershell
+cloudflared tunnel route dns ralab5 ralab.votre-domaine.tld
+```
+
+6. Créer le fichier de configuration `cloudflared` à partir de:
+- `docs/cloudflared_ralab5_example.yml`
+
+Chemin typique sur Windows:
+
+```text
+C:\Users\<SERVER-USER>\.cloudflared\config.yml
+```
+
+7. Installer le tunnel comme service Windows:
+
+```powershell
+cloudflared service install
+```
+
+Si le service est déjà installé, redémarrer le service après modification du fichier `config.yml`.
+
+Configuration Cloudflare Access
+
+Dans le dashboard Cloudflare:
+
+1. Aller dans Zero Trust.
+2. Ajouter une application Self-hosted.
+3. Domaine protégé:
+
+```text
+ralab.votre-domaine.tld
+```
+
+4. Méthode d'authentification recommandée pour démarrer:
+- One-Time PIN
+
+5. Politique d'accès la plus simple:
+- Allow
+- Emails autorisés:
+
+```text
+crigo@guintoli.fr
+```
+
+Tu peux ajouter d'autres emails ensuite, un par un.
+
+Configuration de tunnel recommandée
+
+Utiliser ce mapping:
+- hostname public: `ralab.votre-domaine.tld`
+- service local: `http://127.0.0.1:8000`
+
+Le backend RaLab5 reconnait déjà Cloudflare Access sans configuration supplémentaire de header.
+
+Ce que Clara fera concrètement
+
+1. Ouvrir `https://ralab.votre-domaine.tld`
+2. Entrer `crigo@guintoli.fr` si Cloudflare Access le demande
+3. Recevoir un code par email
+4. Valider ce code
+5. Arriver directement dans RaLab5
+
+Ce qu'elle n'aura pas besoin de faire
+- pas de VPN
+- pas d'installation Tailscale
+- pas de Python
+- pas de Node.js
+- pas de copie locale du projet
+
+Checklist de validation finale
+
+1. `launch_ralab5_server.cmd` démarre sans erreur sur le serveur.
+2. `cloudflared` publie bien le domaine choisi.
+3. L'application Cloudflare Access protège ce domaine.
+4. L'email `crigo@guintoli.fr` est autorisé dans la policy.
+5. `https://ralab.votre-domaine.tld/api/status` répond.
+6. Clara peut ouvrir l'URL et accéder à l'application.
+
+Si Cloudflare n'est pas possible
+- Deuxième choix le plus simple: Caddy sur Windows avec HTTPS + un vrai système d'auth devant.
+- Ce n'est pas mon premier choix ici, car il faut gérer à la fois l'exposition Internet et l'authentification.

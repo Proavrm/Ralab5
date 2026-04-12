@@ -5,6 +5,7 @@
  * Panel: Identité, Contexte, Suivi, Synthèse
  * Actions: Fiche, Affaire, + Demande, Supprimer
  */
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -74,6 +75,7 @@ export default function PassationsPage() {
       qc.invalidateQueries({ queryKey: ['passations'] })
       setSelected(null)
     },
+    onError: (e) => alert(e.message || 'Suppression impossible.'),
   })
 
   function toggleSort(col) {
@@ -101,11 +103,16 @@ export default function PassationsPage() {
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
     })
 
-  function Th({ col, label }) {
+  const { getColProps } = useResizableColumns([90, 90, 200, 120, 130, 90])
+
+  function Th({ col, label, colIdx }) {
+    const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
-        className="bg-bg px-3.5 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text">
+        style={style}
+        className="relative bg-bg px-3.5 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
         {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+        <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
   }
@@ -168,12 +175,12 @@ export default function PassationsPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <Th col="reference"      label="Réf." />
-                  <Th col="affaire_ref"    label="Affaire" />
-                  <Th col="chantier"       label="Chantier" />
-                  <Th col="source"         label="Source" />
-                  <Th col="operation_type" label="Type" />
-                  <Th col="date_passation" label="Date" />
+                  <Th col="reference" colIdx={0}      label="Réf." />
+                  <Th col="affaire_ref" colIdx={1}    label="Affaire" />
+                  <Th col="chantier" colIdx={2}       label="Chantier" />
+                  <Th col="source" colIdx={3}         label="Source" />
+                  <Th col="operation_type" colIdx={4} label="Type" />
+                  <Th col="date_passation" colIdx={5} label="Date" />
                   <th className="bg-bg px-3.5 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border sticky top-0 z-10">
                     Suivi
                   </th>

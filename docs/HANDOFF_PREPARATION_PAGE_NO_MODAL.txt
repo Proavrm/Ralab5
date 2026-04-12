@@ -1,0 +1,24 @@
+RaLab5 - PreparationPage without modal
+
+Included
+- frontend/react/src/pages/PreparationPage.jsx
+
+What changed
+- PreparationPage is now fully standalone
+- It no longer imports or uses PreparationModal
+- It keeps the same fields and save logic as the old PreparationModal
+- It opens directly on the preparation form, without the intermediary read popup
+
+Important
+- This does NOT modify the métier fields
+- This does NOT change the save endpoints
+- It just removes the modal wrapper and puts the same preparation logic into a normal page
+
+About PreparationModal
+- If DemandesPage already opens PreparationPage
+- and no other page still imports PreparationModal
+- then the modal can be deleted afterwards
+- but safest workflow is:
+  1) replace PreparationPage
+  2) test preparation route
+  3) only then remove PreparationModal if unused

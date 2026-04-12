@@ -1,0 +1,34 @@
+RaLab5 - Fix real essai codes in LaboPage > Interventions
+
+What I verified in the uploaded ralab3.db
+- table: interventions
+- 1322 intervention rows contain observations JSON with essai_code
+- observed codes include:
+  - CFE
+  - DE
+  - SC
+  - SO
+  - PMT
+  - PLD
+  - DF
+
+Why the previous column stayed empty
+- the backend file previously in play did not actually parse observations JSON from interventions rows
+
+What this file does
+- imports json
+- parses interventions.observations
+- exposes:
+  - essai_code
+  - code_essai
+  - essai_label
+- keeps existing aliases useful to LaboPage
+- keeps joins to demande / affaire context
+- supports optional filters:
+  - annee
+  - labo_code
+  - statut
+
+Expected result
+- after replacing this file and restarting the backend,
+  LaboPage > Interventions > Code essai should display real values

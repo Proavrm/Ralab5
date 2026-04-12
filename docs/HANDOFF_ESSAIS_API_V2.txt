@@ -1,0 +1,29 @@
+RaLab5 - essais.py enriched for LaboPage
+
+What changed
+- Kept existing /api/essais route
+- Enriched list_essais() and get_essai() with joins to:
+  - echantillons
+  - demandes
+  - affaires_rst
+- Added aliases useful for LaboPage:
+  - echantillon_reference
+  - demande_ref / demande_reference
+  - affaire_ref / affaire_reference
+  - client
+  - chantier
+  - site
+  - responsable_affaire
+- Added optional filters on /api/essais:
+  - annee
+  - labo_code
+  - statut
+- Added fallback generated reference if essais.reference is empty:
+  - ESSAI-0001 style
+- Added derived:
+  - date
+  - year
+
+Goal
+- Allow LaboPage > Essais to display reference and linked demande / affaire context
+- Stay in a light organisation / preparation logic

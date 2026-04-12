@@ -1,0 +1,24 @@
+Preparation page direct mode
+
+Files included
+- frontend/react/src/components/PreparationModal.jsx
+- frontend/react/src/pages/PreparationPage.jsx
+
+What changed
+1) PreparationModal
+- new optional props:
+  - embedded = false
+  - initialEditing = false
+- existing modal behavior stays unchanged by default
+- when embedded=true, content is rendered directly in the page instead of inside Modal
+- when initialEditing=true, the page opens directly in edit mode after data loads
+
+2) PreparationPage
+- now uses PreparationModal in embedded mode
+- opens directly on the actual preparation form
+- skips the intermediary read popup/info card step
+
+Important safety
+- no métier fields were changed
+- no save logic was changed
+- default modal usage from DemandesPage remains compatible

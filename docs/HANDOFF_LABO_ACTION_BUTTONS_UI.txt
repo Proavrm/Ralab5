@@ -1,0 +1,16 @@
+UI-only patch for LaboPage right-panel action buttons
+
+What changed
+- No data logic touched
+- No table logic touched
+- No panel open/close logic touched
+- Replaced the plain footer buttons with styled action buttons
+
+New look
+- dedicated 'Actions' label in the panel footer
+- primary visual emphasis for 'Fiche'
+- softer secondary pills for:
+  - Demande
+  - Nouvelle intervention
+  - Nouvel essai
+- disabled state kept for unavailable actions

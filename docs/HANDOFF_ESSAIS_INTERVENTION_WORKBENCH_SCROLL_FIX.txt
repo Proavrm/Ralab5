@@ -1,0 +1,11 @@
+Small fix for EssaisInterventionWorkbench table scrolling.
+
+What changed
+- Added vertical scroll to the table container:
+  className="overflow-auto max-h-[62vh]"
+- Made the table header sticky:
+  className="sticky top-0 z-10 ..."
+
+Why
+- lets the user scroll long tables without losing the header
+- keeps the workbench usable when there are many rows

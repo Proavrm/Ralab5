@@ -19,7 +19,7 @@ STATUTS_DEMANDE = [
 
 PRIORITES = ["Basse", "Normale", "Haute", "Critique"]
 
-LABO_CODES = ["SP", "PDC", "CHB", "CLM"]
+LABO_CODES = ["SP", "AUV", "CHB", "CLM", "RST"]
 
 
 @dataclass(slots=True)
@@ -97,6 +97,8 @@ class DemandeRstCreateSchema(BaseModel):
 
 
 class DemandeRstUpdateSchema(BaseModel):
+    reference:              Optional[str]  = None
+    labo_code:              Optional[str]  = None
     numero_dst:             Optional[str]  = None
     type_mission:           Optional[str]  = None
     nature:                 Optional[str]  = None

@@ -1,0 +1,37 @@
+RaLab5 - LaboPage refinement v1
+
+Files included
+- frontend/react/src/pages/LaboPage.jsx
+- backend/current_fastapi/api/essais.py
+
+What changed
+1) LaboPage
+- keeps the current 3 tabs and current API layer
+- keeps current columns and adds a final "Ouvrir" action column on all 3 tables
+- Interventions:
+  - button "Intervention"
+  - button "Demande" when demande_id exists
+- Échantillons:
+  - button "Demande"
+- Essais:
+  - button "Essai"
+  - button "Demande" when demande_id exists
+- adds a collapsible "Référentiel codes labo" block:
+  - search
+  - filter by famille
+  - intended as memo/help for later creation pages
+- keeps sticky headers, sorting, search, year/labo/status filters
+- row counts now show filtered / total
+
+2) essais.py
+- list_essais() and get_essai() now expose:
+  - demande_id
+  - affaire_id
+- list_echantillons() now exposes:
+  - affaire_id
+- this allows the LaboPage action buttons to navigate to the linked demande
+
+Intent
+- keep LaboPage as a transverse search / consultation page
+- make it easier to jump from a found row to the real fiche
+- add the requested code memo area without changing the métier logic

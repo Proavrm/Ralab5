@@ -7,6 +7,7 @@
  * Modal unique : créer ET modifier
  */
 import { useState, useEffect } from 'react'
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { affairesApi } from '@/services/api'
@@ -75,10 +76,11 @@ export default function AffairesPage() {
   const navigate  = useNavigate()
   const [searchParams] = useSearchParams()
   const qc        = useQueryClient()
+  const initialStatutFilter = searchParams.get('create') === '1' ? '' : (searchParams.get('statut') || '')
 
   // ── Filtres ──────────────────────────────────────────────────────────────
   const [search,   setSearch]   = useState('')
-  const [statut,   setStatut]   = useState('')
+  const [statut,   setStatut]   = useState(initialStatutFilter)
   const [titulaire, setTitulaire] = useState('')
   const [sortCol,  setSortCol]  = useState('date_ouverture')
   const [sortAsc,  setSortAsc]  = useState(false)
@@ -144,6 +146,7 @@ export default function AffairesPage() {
       qc.invalidateQueries({ queryKey: ['affaires'] })
       setSelected(null)
     },
+    onError: (e) => alert(e.message || 'Suppression impossible — cet affaire a des éléments liés.'),
   })
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -213,20 +216,34 @@ export default function AffairesPage() {
       return matchStatut && matchTitulaire && matchSearch
     })
     .sort((a, b) => {
+      if (sortCol === 'reference') {
+        const parse = (v) => {
+          const m = String(v ?? '').match(/^(\d{4})-[^-]+-(\d+)$/)
+          return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [0, 0]
+        }
+        const [ay, an] = parse(a.reference)
+        const [by, bn] = parse(b.reference)
+        const cmp = ay !== by ? ay - by : an - bn
+        return sortAsc ? cmp : -cmp
+      }
       const va = String(a[sortCol] ?? '').toLowerCase()
       const vb = String(b[sortCol] ?? '').toLowerCase()
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
     })
 
-  function Th({ col, label, className = '' }) {
+  const { getColProps } = useResizableColumns([90, 90, 100, 180, 120, 100, 80, 120, 100, 90, 90, 60])
+
+  function Th({ col, label, colIdx }) {
+    const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
-        className={`bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text ${className}`}>
+        style={style}
+        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
         {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+        <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
   }
-
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full -m-6">
@@ -281,17 +298,17 @@ export default function AffairesPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <Th col="reference"    label="Référence" />
-                  <Th col="numero_etude" label="N° étude" />
-                  <Th col="affaire_nge"  label="N° aff. NGE" />
-                  <Th col="chantier"     label="Chantier" />
-                  <Th col="site"         label="Site" />
-                  <Th col="client"       label="Client" />
-                  <Th col="responsable"  label="Resp. NGE" />
-                  <Th col="filiale"      label="Filiale" />
-                  <Th col="titulaire"    label="Titulaire" />
-                  <Th col="statut"       label="Statut" />
-                  <Th col="date_ouverture" label="Ouverture" />
+                  <Th col="reference" colIdx={0}    label="Référence" />
+                  <Th col="numero_etude" colIdx={6} label="N° étude" />
+                  <Th col="affaire_nge" colIdx={7}  label="N° aff. NGE" />
+                  <Th col="chantier" colIdx={3}     label="Chantier" />
+                  <Th col="site" colIdx={4}         label="Site" />
+                  <Th col="client" colIdx={5}       label="Client" />
+                  <Th col="responsable" colIdx={9}  label="Resp. NGE" />
+                  <Th col="filiale" colIdx={10}      label="Filiale" />
+                  <Th col="titulaire" colIdx={8}    label="Titulaire" />
+                  <Th col="statut" colIdx={2}       label="Statut" />
+                  <Th col="date_ouverture" colIdx={1} label="Ouverture" />
                   <th className="bg-bg px-3 py-2.5 text-center text-[11px] font-medium text-text-muted border-b border-border sticky top-0 z-10">
                     Dem.
                   </th>

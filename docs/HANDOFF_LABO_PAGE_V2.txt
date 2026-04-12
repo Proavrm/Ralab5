@@ -1,0 +1,21 @@
+RaLab5 - LaboPage v2 aligned with latest api.js
+
+What changed
+- LaboPage now imports and uses:
+  - interventionsApi
+  - echantillonsApi
+  - essaisApi
+- No custom laboApi layer added
+- Interventions / Echantillons / Essais each load through the current shared services/api.js structure
+- Year and labo filters go to backend for all three tabs
+- Status filter is applied for Echantillons and Essais
+- Search stays frontend-side
+- This keeps the app aligned with the latest api.js changes made with Claude
+
+Files included
+- frontend/react/src/pages/LaboPage.jsx
+- frontend/react/src/services/api.js (copied from latest user version for reference consistency)
+
+Next logical step
+- Test the Essais tab with real data
+- Then move to Agenda Labo based on Interventions + Echantillons + Essais already visible in LaboPage

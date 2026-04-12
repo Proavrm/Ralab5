@@ -1,0 +1,20 @@
+Preview workbench to build interventions from the essais table.
+
+Included
+- frontend/react/src/pages/EssaisInterventionWorkbench.jsx
+
+Purpose
+- sort / filter / select rows from the essais table
+- create an intervention from selected rows
+- assign selected rows to an existing intervention
+- edit the intervention assignment directly in the table
+
+Important
+- preview only
+- local state only
+- no backend write yet
+
+Suggested route to add in App.jsx
+import EssaisInterventionWorkbench from '@/pages/EssaisInterventionWorkbench'
+
+<Route path="essais-workbench" element={<P><EssaisInterventionWorkbench /></P>} />

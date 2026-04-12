@@ -1,0 +1,54 @@
+RaLab5 - Labo page V1
+
+Files included
+- frontend/react/src/pages/LaboPage.jsx
+- frontend/react/src/App.jsx
+- frontend/react/src/components/layout/AppLayout.jsx
+
+What was done
+- Added a real /labo route in React.
+- Added a real "Laboratoire" entry in the left sidebar.
+- Created a first LaboPage V1 with 3 operational tabs:
+  - Interventions
+  - Échantillons
+  - Essais
+- Added a clean shell with:
+  - top bar
+  - KPI cards
+  - tabs
+  - filters
+  - table-ready views
+- Kept all data arrays empty on purpose for V1.
+
+Important scope choice
+- This V1 is only the structural base.
+- No DB/API wiring yet.
+- No planning-labo logic yet.
+- No fake legacy iframe or duplicate GUI.
+
+Why this step matters
+- It creates the real labo module entry point.
+- It gives a stable React base before wiring true DB objects.
+- It prepares the future Agenda Labo on a dedicated métier page.
+
+Next logical step
+1. Connect Interventions with real backend data.
+2. Then connect Échantillons.
+3. Then connect Essais.
+4. Then reuse the same backend structure for Agenda Labo.
+
+Suggested future backend direction
+- /api/labo/interventions
+- /api/labo/echantillons
+- /api/labo/essais
+with enriched fields such as:
+- demande_reference
+- affaire_reference
+- chantier
+- site
+- statut
+- labo_code
+- dates
+
+Suggested commit message
+feat(labo): add LaboPage v1 with route, sidebar entry and operational tabs

@@ -1,0 +1,208 @@
+{
+  "generated_at": "2026-04-08T23:58:45",
+  "paths": {
+    "source_db": "C:\\Users\\marco\\OneDrive\\Área de Trabalho\\Logiciels labo marco\\RaLab5\\backend\\current_fastapi\\data\\ralab3.db",
+    "rebuilt_db": "C:\\Users\\marco\\OneDrive\\Área de Trabalho\\Logiciels labo marco\\RaLab5\\backend\\current_fastapi\\data\\ralab_rebuilt_2025_2026_v1.db",
+    "output_db": "C:\\Users\\marco\\OneDrive\\Área de Trabalho\\Logiciels labo marco\\RaLab5\\backend\\current_fastapi\\data\\ralab3_reconciled_20260408_cfe.db",
+    "report_json": "C:\\Users\\marco\\OneDrive\\Área de Trabalho\\Logiciels labo marco\\RaLab5\\backend\\current_fastapi\\data\\ralab3_reconciled_20260408_cfe.report.json",
+    "report_md": "C:\\Users\\marco\\OneDrive\\Área de Trabalho\\Logiciels labo marco\\RaLab5\\backend\\current_fastapi\\data\\ralab3_reconciled_20260408_cfe.report.md"
+  },
+  "interventions_reelles": {
+    "stats": {
+      "inserted": 547
+    }
+  },
+  "prelevements": {
+    "stats": {
+      "inserted": 529
+    }
+  },
+  "interventions": {
+    "stats": {
+      "nature_backfilled": 877,
+      "intervention_reelle_link_backfilled": 877,
+      "rows_updated": 877,
+      "prelevement_link_backfilled": 382
+    },
+    "conflicts_preview": [],
+    "conflicts_total": 0
+  },
+  "essais": {
+    "stats": {
+      "backfilled_from_observations": 276,
+      "normalized_resultats_payload": 8,
+      "already_coded": 7
+    },
+    "unresolved_preview": [],
+    "unresolved_total": 0
+  },
+  "ipi_pr_split": {
+    "stats": {
+      "converted_to_pn": 2,
+      "inserted_ipi_siblings": 2
+    },
+    "skipped_preview": [],
+    "skipped_total": 0
+  },
+  "cfe_materialization": {
+    "stats": {
+      "created_echantillons": 136,
+      "inserted_gr_siblings": 36,
+      "inserted_el_siblings": 142,
+      "inserted_cfe_pages": 136
+    },
+    "skipped_preview": [],
+    "skipped_total": 0
+  },
+  "forms": [
+    {
+      "essai_code": "MVA",
+      "label": "Masse volumique des enrobes",
+      "count": 166,
+      "types": [
+        "Masse volumique des enrobés"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "EL",
+      "label": "Extraction de liant",
+      "count": 142,
+      "types": [
+        "Extraction de liant"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "CFE",
+      "label": "Controle de fabrication enrobes",
+      "count": 136,
+      "types": [
+        "Contrôle de fabrication enrobés"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "ID",
+      "label": "Identification",
+      "count": 80,
+      "types": [
+        "Classification GTR",
+        "Granulométrie d'identification",
+        "Identification",
+        "Paramètres d'identification"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "GR",
+      "label": "Granulométrie",
+      "count": 37,
+      "types": [
+        "Granulométrie"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "WE",
+      "label": "Teneur en eau",
+      "count": 20,
+      "types": [
+        "Teneur en eau",
+        "Teneur en eau naturelle"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "LCP",
+      "label": "Limites d'Atterberg",
+      "count": 8,
+      "types": [
+        "Limites d'Atterberg"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "IPI",
+      "label": "IPI - Indice portant immediat",
+      "count": 3,
+      "types": [
+        "IPI - Indice portant immediat",
+        "IPI — Indice Portant Immédiat"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "PN",
+      "label": "Proctor Normal",
+      "count": 3,
+      "types": [
+        "Proctor Normal"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "IM",
+      "label": "CBRi",
+      "count": 2,
+      "types": [
+        "CBRi"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "CBRI",
+      "equivalent_form_available": true,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "MB",
+      "label": "Valeur au bleu 0/2mm",
+      "count": 1,
+      "types": [
+        "Valeur au bleu 0/2mm"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    },
+    {
+      "essai_code": "VBS",
+      "label": "Bleu de méthylène (sols)",
+      "count": 1,
+      "types": [
+        "Bleu de méthylène (sols)"
+      ],
+      "exact_form_available": true,
+      "equivalent_form_code": "",
+      "equivalent_form_available": false,
+      "needs_new_form": false
+    }
+  ]
+}

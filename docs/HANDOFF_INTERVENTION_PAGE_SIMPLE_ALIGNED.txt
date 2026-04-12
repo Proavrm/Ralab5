@@ -1,0 +1,33 @@
+RaLab5 - Simple InterventionPage aligned with Preparation
+
+Included
+- frontend/react/src/pages/InterventionPage.jsx
+
+What this version does
+- Simplifies the page strongly
+- Hides raw demande_id editing
+- Uses demande context in read-only mode
+- Prefills from Preparation query params:
+  - demande_id
+  - type_intervention
+  - finalite
+  - zone
+  - materiau
+  - objectif
+  - responsable
+  - attribue_a
+
+Editable fields kept simple
+- Type d’intervention
+- Finalité
+- Date d’intervention
+- Technicien / opérateur
+- Zone / localisation
+- Matériau / objet concerné
+- Statut
+- Objectif / remarque
+- Notes terrain
+
+Important
+- Unknown legacy observation keys are preserved on save by merging with original observations.
+- This keeps the page lighter and better aligned with the Preparation -> Intervention flow.

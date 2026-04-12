@@ -1,0 +1,29 @@
+RaLab5 - Echantillons table fix (codes + réception/prélèvement dates)
+
+Included files
+- backend/current_fastapi/api/essais.py
+- frontend/react/src/pages/LaboPage.jsx
+
+What this fixes
+1) Echantillons API
+- parses echantillons.observations JSON
+- exposes:
+  - essai_code
+  - code_essai
+  - nature (from nature_materiau when needed)
+  - date_display
+- keeps year filtering on date_prelevement
+
+2) LaboPage > Echantillons
+- adds a real Code column without removing existing columns
+- restores proper alignment between headers and cells
+- shows date_display in the 'Réception / Prélèvement' column
+  using:
+  - reception / prélèvement when both exist
+  - otherwise whichever date exists
+- keeps sorting on the underlying operational sample date
+
+Why this was needed
+- previous version had a shifted Echantillons row renderer:
+  an extra cell was inserted without a matching header
+- backend also was not exposing source_essai_code from observations JSON

@@ -3,6 +3,7 @@
  * API: GET /reference-etudes/rows → champs snake_case: numero_etude, nom_affaire, responsable_etude…
  * Prefill: sessionStorage['ralab4_source_prefill'] + navigate('/affaires?create=1&...')
  */
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -140,11 +141,16 @@ export default function EtudesPage() {
     navigate('/demandes?create=1')
   }
 
-  function Th({ col, label }) {
+  const { getColProps } = useResizableColumns([90, 200, 100, 100, 70, 140, 100])
+
+  function Th({ col, label, colIdx }) {
+    const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
-        className="bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text">
-        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+        style={style}
+        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
+        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">\u2195</span>}
+        <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
   }
@@ -174,13 +180,13 @@ export default function EtudesPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <Th col="numero_etude"    label="N° étude" />
-                  <Th col="nom_affaire"     label="Chantier" />
-                  <Th col="filiale"         label="Filiale" />
-                  <Th col="ville"           label="Ville" />
-                  <Th col="departement"     label="Dépt." />
-                  <Th col="responsable_etude" label="Resp. étude" />
-                  <Th col="statut_affaire"  label="Statut" />
+                  <Th col="numero_etude" colIdx={0}    label="N° étude" />
+                  <Th col="nom_affaire" colIdx={1}     label="Chantier" />
+                  <Th col="filiale" colIdx={2}         label="Filiale" />
+                  <Th col="ville" colIdx={3}           label="Ville" />
+                  <Th col="departement" colIdx={4}     label="Dépt." />
+                  <Th col="responsable_etude" colIdx={5} label="Resp. étude" />
+                  <Th col="statut_affaire" colIdx={6}  label="Statut" />
                 </tr>
               </thead>
               <tbody>

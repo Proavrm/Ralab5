@@ -1,0 +1,14 @@
+Fix for Vite/Babel parse error in LaboPage.jsx
+
+Issue
+- Mixed || and ?? without parentheses:
+  const rawDate = datePrelevement || row.date ?? dateReceptionLabo ?? row.created_at ?? ''
+
+Fix
+- Wrapped the nullish chain in parentheses:
+  const rawDate = datePrelevement || (row.date ?? dateReceptionLabo ?? row.created_at ?? '')
+
+Scope
+- Frontend only
+- No backend changes
+- Keeps previous echantillons code/date work untouched

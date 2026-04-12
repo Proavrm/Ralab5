@@ -1,0 +1,13 @@
+Fix for the Retour button in InterventionPageCard.
+
+What changed
+- When editing an existing intervention:
+  - Retour now leaves edit mode and goes back to the intervention fiche
+- When creating a new intervention:
+  - Retour still navigates back
+- When viewing (not editing):
+  - Retour still navigates back
+
+Why
+- The user wanted Retour from modify mode to return to the intervention page,
+  not directly to the previous table/history page.

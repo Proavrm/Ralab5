@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS echantillons (
     labo_code TEXT NOT NULL DEFAULT 'SP',
     numero INTEGER NOT NULL DEFAULT 0,
     demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE RESTRICT,
+    prelevement_id INTEGER,
+    intervention_reelle_id INTEGER,
     designation TEXT NOT NULL DEFAULT '',
     profondeur_haut REAL,
     profondeur_bas REAL,
@@ -101,6 +103,7 @@ CREATE TABLE IF NOT EXISTS echantillons (
     statut TEXT NOT NULL DEFAULT 'Reçu',
     date_reception_labo TEXT,
     observations TEXT NOT NULL DEFAULT '',
+    auto_reason TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -217,7 +220,7 @@ def migrate(dry_run=False, reset=False):
 
     dem_counter = {}
     for r in rows:
-        ref = r["reference_base"] or r["reference"] or f"2026-RA-{r['id']:04d}"
+        ref = r["reference_base"] or r["reference"] or f"2026-RA-{r['id']:03d}"
         if " - " in ref: ref = ref.split(" - ")[0].strip()
         annee, region, numero = _parse_ref(ref)
         statut_legacy = r["statut"] or "À qualifier"

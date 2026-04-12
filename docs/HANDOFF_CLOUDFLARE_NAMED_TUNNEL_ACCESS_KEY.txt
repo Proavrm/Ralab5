@@ -1,0 +1,101 @@
+Named Tunnel Cloudflare pour RaLab5 en mode "email + clé d'accès"
+
+Quand utiliser cette variante
+- Tu veux une URL stable qui ne change pas.
+- Tu ne veux pas dépendre d'un Quick Tunnel trycloudflare.
+- Tu veux garder l'authentification actuelle RaLab5 par email + clé partagée.
+- Tu ne veux pas encore mettre Cloudflare Access OTP devant l'application.
+
+Ce qu'il faut obligatoirement avant de commencer
+- Un domaine déjà géré dans Cloudflare.
+- Un PC ou serveur Windows qui restera allumé pendant les tests.
+- `cloudflared` installé sur ce PC.
+- Le dépôt RaLab5 présent sur ce PC.
+
+Point bloquant actuel
+- Sans domaine géré dans Cloudflare, on ne peut pas créer une route DNS stable pour un named tunnel.
+- Tant que ce domaine n'existe pas, il faut continuer avec le Quick Tunnel actuel.
+
+Choix recommandé pour le futur hostname
+- `ralab5-test.<votre-domaine>`
+- ou `ralab.<votre-domaine>`
+
+Ce que tu dois faire côté Cloudflare
+1. Acheter un domaine ou utiliser un domaine déjà existant.
+2. Ajouter ce domaine dans Cloudflare si ce n'est pas déjà fait.
+3. Faire pointer les nameservers du registrar vers Cloudflare.
+4. Attendre que la zone soit active dans Cloudflare.
+
+Ce que je ferai ensuite sur la machine Windows
+1. Login interactif Cloudflare:
+
+```powershell
+cloudflared tunnel login
+```
+
+2. Création du tunnel:
+
+```powershell
+cloudflared tunnel create ralab5
+```
+
+3. Création de la route DNS vers le hostname public:
+
+```powershell
+cloudflared tunnel route dns ralab5 ralab5-test.votre-domaine.tld
+```
+
+4. Installation du tunnel comme service Windows:
+
+```powershell
+cloudflared service install
+```
+
+Configuration RaLab5 recommandée pour cette variante
+- Garder `RALAB_AUTH_MODE=access_key`
+- Garder la clé partagée RaLab5
+- Restreindre ou ouvrir les emails selon la campagne de test
+- Remplacer les `*` par le vrai hostname côté CORS et hosts
+
+Variables d'environnement à définir
+
+```powershell
+setx RALAB_AUTH_MODE "access_key"
+setx RALAB_ACCESS_KEY "remplacer-par-une-cle-longue-et-privee"
+setx RALAB_ACCESS_KEY_ALLOWED_EMAILS "*"
+setx RALAB_JWT_SECRET "remplacer-par-un-secret-jwt-long-prive-et-unique"
+setx RALAB_ALLOWED_HOSTS "ralab5-test.votre-domaine.tld"
+setx RALAB_ALLOWED_ORIGINS "https://ralab5-test.votre-domaine.tld"
+```
+
+Notes importantes
+- Fermer puis rouvrir la console après `setx`.
+- `RALAB_ACCESS_KEY_ALLOWED_EMAILS='*'` est pratique pour une campagne courte avec tous les utilisateurs actifs déjà présents dans `security.db`.
+- Après la campagne, revenir à une liste nominative est préférable.
+
+Commande de lancement RaLab5
+
+```bat
+launch_ralab5_server.cmd
+```
+
+Ce lanceur convient au tunnel nommé parce qu'il écoute déjà en local sur `127.0.0.1:8000`.
+
+Fichier `cloudflared` à préparer
+- Voir `docs/cloudflared_ralab5_access_key_example.yml`
+- Chemin habituel sous Windows:
+
+```text
+C:\Users\<SERVER-USER>\.cloudflared\config.yml
+```
+
+Validation finale attendue
+1. `https://ralab5-test.votre-domaine.tld/login` ouvre RaLab5.
+2. L'écran affiche `Connexion sécurisée`.
+3. L'utilisateur entre son email professionnel.
+4. L'utilisateur entre la clé partagée.
+5. RaLab5 laisse entrer les utilisateurs actifs selon `security.db`.
+
+Différence avec l'autre doc Cloudflare du projet
+- `docs/HANDOFF_DEPLOY_CLOUDFLARE_WINDOWS.txt` décrit le mode `proxy` derrière Cloudflare Access.
+- Ce fichier-ci décrit le mode `access_key` derrière un named tunnel, sans OTP Cloudflare au départ.

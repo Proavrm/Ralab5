@@ -49,6 +49,7 @@ export const api = {
 export const authApi = {
   login:    (credentials) => api.post('/auth/login', credentials),
   hint:     ()            => api.get('/auth/hint'),
+  users:    ()            => api.get('/auth/users'),
 }
 
 // ── Affaires ──────────────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ export const affairesApi = {
   list:     (params = {}) => api.get('/affaires?' + new URLSearchParams(params)),
   get:      (uid)         => api.get(`/affaires/${uid}`),
   create:   (data)        => api.post('/affaires', data),
-  update:   (uid, data)   => api.put(`/affaires/${uid}`, data),   // backend uses PUT
+  update:   (uid, data)   => api.put(`/affaires/${uid}`, data),
   delete:   (uid)         => api.delete(`/affaires/${uid}`),
   nextRef:  ()            => api.get('/affaires/next-ref'),
   demandes: (uid)         => api.get(`/affaires/${uid}/demandes`),
@@ -64,14 +65,13 @@ export const affairesApi = {
 
 // ── Demandes ──────────────────────────────────────────────────────────────────
 export const demandesApi = {
-  list:       (params = {}) => api.get('/demandes?' + new URLSearchParams(params)),
-  get:        (uid)         => api.get(`/demandes/${uid}`),
-  create:     (data)        => api.post('/demandes', data),
-  update:     (uid, data)   => api.patch(`/demandes/${uid}`, data),
-  delete:     (uid)         => api.delete(`/demandes/${uid}`),
-  nextRef:    ()            => api.get('/demandes/next-ref'),
-  filters:    ()            => api.get('/demandes/filters'),
-  navigation: (uid)         => api.get(`/demandes/${uid}/navigation`),
+  list:     (params = {}) => api.get('/demandes_rst?' + new URLSearchParams(params)),
+  get:      (uid)         => api.get(`/demandes_rst/${uid}`),
+  create:   (data)        => api.post('/demandes_rst', data),
+  update:   (uid, data)   => api.put(`/demandes_rst/${uid}`, data),
+  delete:   (uid)         => api.delete(`/demandes_rst/${uid}`),
+  nextRef:  (labo_code = 'SP') => api.get(`/demandes_rst/next-ref?labo_code=${labo_code}`),
+  filters:  ()            => api.get('/demandes_rst/filters'),
 }
 
 // ── Passations ────────────────────────────────────────────────────────────────
@@ -105,8 +105,29 @@ export const interventionsApi = {
   list:   (params = {}) => api.get('/interventions?' + new URLSearchParams(params)),
   get:    (uid)         => api.get(`/interventions/${uid}`),
   create: (data)        => api.post('/interventions', data),
-  update: (uid, data)   => api.patch(`/interventions/${uid}`, data),
+  update: (uid, data)   => api.put(`/interventions/${uid}`, data),
   delete: (uid)         => api.delete(`/interventions/${uid}`),
+}
+
+export const interventionCampaignsApi = {
+  create: (data)        => api.post('/intervention-campaigns', data),
+  update: (uid, data)   => api.patch(`/intervention-campaigns/${uid}`, data),
+}
+
+// ── Échantillons ──────────────────────────────────────────────────────────────
+export const echantillonsApi = {
+  list:   (params = {}) => api.get('/essais/echantillons?' + new URLSearchParams(params)),
+  get:    (uid)         => api.get(`/essais/echantillons/${uid}`),
+  create: (data)        => api.post('/essais/echantillons', data),
+  update: (uid, data)   => api.put(`/essais/echantillons/${uid}`, data),
+  delete: (uid)         => api.delete(`/essais/echantillons/${uid}`),
+}
+
+// ── Prélèvements ──────────────────────────────────────────────────────────────
+export const prelevementsApi = {
+  list:   (params = {}) => api.get('/intervention-requalification/prelevements?' + new URLSearchParams(params)),
+  get:    (uid)         => api.get(`/intervention-requalification/prelevements/${uid}`),
+  update: (uid, data)   => api.patch(`/intervention-requalification/prelevements/${uid}`, data),
 }
 
 // ── Essais ────────────────────────────────────────────────────────────────────
@@ -116,6 +137,34 @@ export const essaisApi = {
   create: (data)        => api.post('/essais', data),
   update: (uid, data)   => api.patch(`/essais/${uid}`, data),
   delete: (uid)         => api.delete(`/essais/${uid}`),
+  syncInterventionEssais: (interventionId) => api.post(`/essais/interventions/${interventionId}/sync`, {}),
+}
+
+// ── PMT ───────────────────────────────────────────────────────────────────────
+export const pmtApi = {
+  listCampaignsByDemande:   (demandeId, preparationPhase = '') => api.get(`/pmt/demandes/${demandeId}/campagnes?preparation_phase=${encodeURIComponent(preparationPhase)}`),
+  getInterventionWorkflow:  (interventionId, preparationPhase = '') => api.get(`/pmt/interventions/${interventionId}/workflow?preparation_phase=${encodeURIComponent(preparationPhase)}`),
+  ensureEssaiForIntervention: (interventionId) => api.post(`/pmt/interventions/${interventionId}/essai`, {}),
+  getEssai:                 (uid) => api.get(`/pmt/essais/${uid}`),
+  updateEssai:              (uid, data) => api.put(`/pmt/essais/${uid}`, data),
+  getRapport:               (uid) => api.get(`/pmt/rapports/${uid}`),
+}
+
+
+// ── Intervention requalification ─────────────────────────────────────────────
+export const interventionRequalificationApi = {
+  listRaw:                (params = {}) => api.get('/intervention-requalification/raw?' + new URLSearchParams(params)),
+  updateRaw:              (uid, data)   => api.patch(`/intervention-requalification/raw/${uid}`, data),
+  bulkNature:             (raw_ids, nature_reelle) => api.post('/intervention-requalification/raw/bulk-nature', { raw_ids, nature_reelle }),
+  listPrelevements:       (params = {}) => api.get('/intervention-requalification/prelevements?' + new URLSearchParams(params)),
+  createPrelevement:      (data)        => api.post('/intervention-requalification/prelevements', data),
+  assignPrelevement:      (raw_ids, prelevement_id) => api.post('/intervention-requalification/prelevements/assign', { raw_ids, prelevement_id }),
+  clearPrelevement:       (raw_ids)     => api.post('/intervention-requalification/prelevements/clear', { raw_ids }),
+  listInterventionsReelles: (params = {}) => api.get('/intervention-requalification/interventions-reelles?' + new URLSearchParams(params)),
+  createInterventionReelle: (data)      => api.post('/intervention-requalification/interventions-reelles', data),
+  assignInterventionReelle: (raw_ids, intervention_reelle_id) => api.post('/intervention-requalification/interventions-reelles/assign', { raw_ids, intervention_reelle_id }),
+  clearInterventionReelle:  (raw_ids)   => api.post('/intervention-requalification/interventions-reelles/clear', { raw_ids }),
+  candidates:               (params = {}) => api.get('/intervention-requalification/candidates?' + new URLSearchParams(params)),
 }
 
 // ── Qualité ───────────────────────────────────────────────────────────────────
@@ -149,10 +198,27 @@ export const qualiteApi = {
 export const adminApi = {
   users: {
     list:   () => api.get('/admin/users'),
+    get:    (email) => api.get(`/admin/users/${encodeURIComponent(email)}`),
     create: (d) => api.post('/admin/users', d),
-    update: (id, d) => api.patch(`/admin/users/${id}`, d),
+    update: (email, d) => api.put(`/admin/users/${encodeURIComponent(email)}`, d),
+    profile: (email) => api.get(`/admin/users/${encodeURIComponent(email)}/profile`),
+    updateProfile: (email, d) => api.put(`/admin/users/${encodeURIComponent(email)}/profile`, d),
+    currentCompetencies: (email) => api.get(`/admin/users/${encodeURIComponent(email)}/competency-assessments/current`),
+    competencyHistory: (email) => api.get(`/admin/users/${encodeURIComponent(email)}/competency-assessments`),
+    createCompetencyAssessment: (email, d) => api.post(`/admin/users/${encodeURIComponent(email)}/competency-assessments`, d),
+    deleteCompetencyAssessment: (email, assessmentId) => api.delete(`/admin/users/${encodeURIComponent(email)}/competency-assessments/${assessmentId}`),
+    toggleActive: (email, active) => api.patch(`/admin/users/${encodeURIComponent(email)}/active`, { is_active: active }),
   },
   roles: {
     list:   () => api.get('/admin/roles'),
+  },
+  employmentLevels: {
+    list: () => api.get('/admin/employment-levels'),
+  },
+  competencyLevels: {
+    list: () => api.get('/admin/competency-levels'),
+  },
+  competencies: {
+    list: () => api.get('/admin/competencies'),
   },
 }

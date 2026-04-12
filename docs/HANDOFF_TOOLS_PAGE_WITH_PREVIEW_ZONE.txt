@@ -1,0 +1,14 @@
+Integrated PreviewAccessZone into the user's current ToolsPage.
+
+Files included
+- frontend/react/src/pages/ToolsPage.jsx
+- frontend/react/src/components/tools/PreviewAccessZone.jsx
+
+What changed
+- imported PreviewAccessZone in ToolsPage
+- inserted it as a full-width card right after the Références section
+- no other tools logic changed
+
+Use
+- fill demande/intervention/prelevement ids
+- click the preview/workbench buttons directly from Tools

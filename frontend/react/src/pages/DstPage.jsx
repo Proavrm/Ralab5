@@ -6,6 +6,7 @@
  * Panel: détail complet + Objet de la demande
  * Modal: import Excel
  */
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -31,6 +32,7 @@ function DetItem({ label, value }) {
     <div className="flex flex-col gap-0.5">
       <label className="text-[10px] text-text-muted">{label}</label>
       <span className={`text-[13px] ${value ? 'font-medium' : 'text-text-muted italic font-normal'}`}>{value || '—'}</span>
+
     </div>
   )
 }
@@ -56,6 +58,8 @@ export default function DstPage() {
   const [importFile, setImportFile]  = useState(null)
   const [sheetName, setSheetName]   = useState('ExcelMergeQuery')
   const [importResult, setImportResult] = useState(null)
+  const [pickAffaire, setPickAffaire] = useState(false)
+  const [pickedAffaire, setPickedAffaire] = useState('')
   const fileInputRef = useRef(null)
   const timer = useRef(null)
 
@@ -143,14 +147,11 @@ export default function DstPage() {
     navigate(buildAffaireUrl(selected))
   }
 
-  function createDemande() {
-    if (!selected) return
-    const affaire = findMatchingRst(selected)
-    if (!affaire) { navigate(buildAffaireUrl(selected)); return }
+  function buildDemandePrefill(affaire) {
     const chrono = selected['N° chrono'] || ''
     const objet = String(selected['Objet de la demande (Problématiques, Hypothèses, Objectifs, Remarques)'] || '')
       .replace(/_x000D_/gi, '').trim()
-    const prefill = {
+    return {
       target: 'demande_rst',
       source_type: 'dst',
       source_id: selected.id,
@@ -164,7 +165,28 @@ export default function DstPage() {
         observations:   `Préremplie depuis DST ${chrono}`.trim(),
       },
     }
-    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(prefill))
+  }
+
+  function createDemande() {
+    if (!selected) return
+    const affaire = findMatchingRst(selected)
+    if (affaire) {
+      // Match direct — on y va
+      sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill(affaire)))
+      navigate('/demandes?create=1')
+    } else {
+      // Pas de match — on demande quelle affaire RST utiliser
+      setPickedAffaire('')
+      setPickAffaire(true)
+    }
+  }
+
+  function confirmPickAffaire() {
+    if (!pickedAffaire) return
+    const affaire = affairesRst.find(a => String(a.uid) === pickedAffaire)
+    if (!affaire) return
+    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill(affaire)))
+    setPickAffaire(false)
     navigate('/demandes?create=1')
   }
 
@@ -174,11 +196,16 @@ export default function DstPage() {
     if (f?.name.match(/\.(xlsx|xls)$/i)) setImportFile(f)
   }
 
-  function Th({ col, label }) {
+  const { getColProps } = useResizableColumns([80, 200, 110, 130, 85, 90, 100, 80])
+
+  function Th({ col, label, colIdx }) {
+    const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
-        className="bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text">
-        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+        style={style}
+        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
+        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">\u2195</span>}
+        <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
   }
@@ -231,14 +258,14 @@ export default function DstPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <Th col="N° chrono"          label="N° chrono" />
-                  <Th col="Libellé du projet"   label="Projet" />
-                  <Th col="Demandeur"           label="Demandeur" />
-                  <Th col="Situation Géographique" label="Localisation" />
-                  <Th col="Ouverture"           label="Ouverture" />
-                  <Th col="Statut"              label="Statut" />
-                  <Th col="Service DST"         label="Service DST" />
-                  <Th col="Direction régionale" label="DR" />
+                  <Th col="N° chrono" colIdx={0}          label="N° chrono" />
+                  <Th col="Libellé du projet" colIdx={1}   label="Projet" />
+                  <Th col="Demandeur" colIdx={2}           label="Demandeur" />
+                  <Th col="Situation Géographique" colIdx={3} label="Localisation" />
+                  <Th col="Ouverture" colIdx={4}           label="Ouverture" />
+                  <Th col="Statut" colIdx={5}              label="Statut" />
+                  <Th col="Service DST" colIdx={6}         label="Service DST" />
+                  <Th col="Direction régionale" colIdx={7} label="DR" />
                 </tr>
               </thead>
               <tbody>
@@ -349,6 +376,44 @@ export default function DstPage() {
           </div>
         </div>
       </Modal>
+      {/* Modal choix affaire RST quand pas de match automatique */}
+      {pickAffaire && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-surface border border-border rounded-xl w-[480px] max-w-[95vw] p-6 shadow-2xl">
+            <div className="text-[15px] font-semibold mb-1">Aucune affaire RST trouvée automatiquement</div>
+            <p className="text-[13px] text-text-muted mb-4">
+              Le N° affaire demandeur <strong>{selected?.['N° affaire demandeur'] || '—'}</strong> ne correspond à aucune affaire RST existante.
+              Sélectionnez une affaire existante ou créez-en une nouvelle.
+            </p>
+            <div className="flex flex-col gap-3">
+              <select
+                value={pickedAffaire}
+                onChange={e => setPickedAffaire(e.target.value)}
+                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
+                <option value="">— Sélectionner une affaire RST existante —</option>
+                {affairesRst.map(a => (
+                  <option key={a.uid} value={a.uid}>{a.reference} — {a.chantier || a.client}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2 text-[12px] text-text-muted">
+                <div className="flex-1 h-px bg-border"></div>
+                <span>ou</span>
+                <div className="flex-1 h-px bg-border"></div>
+              </div>
+              <Button onClick={() => { setPickAffaire(false); navigate(buildAffaireUrl(selected)) }}>
+                📋 Créer une nouvelle affaire RST
+              </Button>
+            </div>
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-border">
+              <Button onClick={() => setPickAffaire(false)}>Annuler</Button>
+              <Button variant="primary" onClick={confirmPickAffaire} disabled={!pickedAffaire}>
+                ✓ Créer la demande
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

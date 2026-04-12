@@ -1,0 +1,46 @@
+RaLab5 - LaboPage refined to behave more like DemandesPage panel
+
+Based on
+- current LaboPage.jsx
+- current DemandesPage.jsx panel pattern
+- current EssaiPage.jsx and InterventionPage.jsx placeholders
+
+What changed
+1) LaboPage right panel
+- no longer always visible
+- opens when a row is selected
+- closable with X
+- layout now behaves like DemandesPage split table + conditional side panel
+
+2) Action bar inside right panel
+- Interventions:
+  - Fiche -> /interventions/:uid
+  - Demande -> /demandes/:demande_id
+  - Affaire -> /affaires/:affaire_rst_id
+- Echantillons:
+  - Demande -> /demandes/:demande_id
+  - Affaire -> /affaires/:affaire_rst_id
+  - no fiche button because there is still no EchantillonPage route
+- Essais:
+  - Fiche -> /essais/:uid
+  - Demande -> /demandes/:demande_id
+  - Affaire -> /affaires/:affaire_rst_id
+
+3) Honest limitation kept visible
+- creation pages do not exist yet for intervention / echantillon / essai
+- added disabled create buttons in the panel footer as placeholders only
+- InterventionPage and EssaiPage are still TODO placeholders
+- there is still no EchantillonPage
+
+4) Backend ids added for navigation
+- essais.py now includes:
+  - demande_id
+  - affaire_rst_id
+  - affair/demande references on echantillons and essais lists/details
+- interventions.py now includes:
+  - affaire_rst_id
+  - demand/affaire references in list/detail
+
+Result
+- the labo panel now behaves closer to the other table+right-panel pages
+- but true creation pages still need to be built later

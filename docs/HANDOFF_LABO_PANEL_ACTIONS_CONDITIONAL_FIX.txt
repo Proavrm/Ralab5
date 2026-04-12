@@ -1,0 +1,15 @@
+Fix for Vite/Babel error in LaboPage.jsx
+
+Issue
+- selectedItem was declared twice in the same component scope
+- this caused:
+  Identifier 'selectedItem' has already been declared
+
+Fix
+- removed the duplicate second declaration only
+- no behavior changes intended
+- keeps:
+  - conditional right panel
+  - close X
+  - fiche/demande actions
+  - create placeholders

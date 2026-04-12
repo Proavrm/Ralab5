@@ -625,7 +625,7 @@ class HistoricalLabImportService:
         sheet_name: str,
         essai_code: str,
     ) -> dict[str, Any]:
-        target_entity = "intervention" if essai_code in {"DE", "CFE", "PLD", "DF", "PMT", "SC", "SO", "SOL", "FTP"} else "echantillon"
+        target_entity = "intervention" if essai_code in {"DE", "PLD", "DF", "PMT", "SC", "SO", "SOL", "FTP"} else "echantillon"
         if essai_code in {"MVA", "DE", "CFE"}:
             import_family = "enrobes"
         elif essai_code in {"PLD", "DF", "PMT", "SC", "SO"}:
@@ -1046,7 +1046,7 @@ class HistoricalLabImportService:
         item = dict(base)
         item["sample_local_ref"] = self._stringify(base.get("sheet_name", "")) or self._stringify(base.get("chrono", ""))
         item["intervention_subject"] = " / ".join(
-            [value for value in [self._label_value(worksheet, "Partie de l'ouvrage :"), base.get("section_controlee", ""), base.get("nature_materiau", "")] if value]
+            [value for value in [self._label_value(worksheet, "Partie de l'ouvrage :"), base.get("section_controlee", "")] if value]
         ) or self._stringify(base.get("sheet_name", ""))
         item["intervention_type"] = "Portances dynaplaque"
         item["result_payload"] = {
@@ -1222,6 +1222,9 @@ class HistoricalLabImportService:
             if any(cell for cell in row):
                 snapshot.append(row)
         return snapshot
+
+    def _extract_header_snapshot(self, worksheet, max_row: int = 18, max_col: int = 12) -> list[list[str]]:
+        return self._sheet_snapshot(worksheet, max_row=max_row, max_col=max_col)
 
 
     def _find_or_create_affaire(self, conn: sqlite3.Connection, candidate: dict[str, Any]) -> tuple[int, bool]:
@@ -1424,7 +1427,7 @@ class HistoricalLabImportService:
         local_ref = candidate["sample_local_ref"].strip() or candidate["sheet_name"].strip()
         existing = conn.execute(
             """
-            SELECT id
+            SELECT id, observations
             FROM echantillons
             WHERE demande_id = ?
               AND COALESCE(designation, '') = ?
@@ -1433,7 +1436,19 @@ class HistoricalLabImportService:
             """,
             (demande_id, local_ref),
         ).fetchone()
+        observations_payload = self._build_echantillon_observations_payload(
+            candidate,
+            local_ref,
+            existing["observations"] if existing else "",
+        )
         if existing:
+            next_observations = json.dumps(observations_payload, ensure_ascii=False)
+            if str(existing["observations"] or "") != next_observations:
+                conn.execute(
+                    "UPDATE echantillons SET observations = ?, updated_at = datetime('now') WHERE id = ?",
+                    (next_observations, int(existing["id"])),
+                )
+                conn.commit()
             return int(existing["id"]), False
 
         year_value = self._extract_year(candidate["date_essai"] or candidate["date_prelevement"] or candidate["date_redaction"]) or 2026
@@ -1441,15 +1456,6 @@ class HistoricalLabImportService:
         localisation = " / ".join(
             [value for value in [candidate.get("provenance", ""), candidate.get("destination", "")] if value]
         )
-
-        observations_payload = {
-            "source_file": candidate["file_name"],
-            "sheet_name": candidate["sheet_name"],
-            "sample_local_ref": local_ref,
-            "nature_materiau": candidate.get("nature_materiau", ""),
-            "import_mode": candidate.get("import_mode", "simple"),
-            "source_essai_code": candidate.get("essai_code", ""),
-        }
 
         cursor = conn.execute(
             """
@@ -1484,6 +1490,63 @@ class HistoricalLabImportService:
         )
         conn.commit()
         return int(cursor.lastrowid), True
+
+
+    def _parse_json_dict(self, raw_value: Any) -> dict[str, Any]:
+        if isinstance(raw_value, dict):
+            return raw_value
+        if not isinstance(raw_value, str):
+            return {}
+        text = raw_value.strip()
+        if not text.startswith("{"):
+            return {}
+        try:
+            payload = json.loads(text)
+        except Exception:
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+
+    def _extract_cfe_temperature(self, candidate: dict[str, Any]) -> float | None:
+        payload = candidate.get("result_payload") if isinstance(candidate.get("result_payload"), dict) else {}
+        moyenne = payload.get("moyenne") if isinstance(payload.get("moyenne"), dict) else {}
+        if moyenne:
+            value = self._safe_float(moyenne.get("temperature_c"))
+            if value is not None:
+                return value
+        rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            value = self._safe_float(row.get("temperature_c"))
+            if value is not None:
+                return value
+        return None
+
+
+    def _build_echantillon_observations_payload(self, candidate: dict[str, Any], local_ref: str, existing_raw: str = "") -> dict[str, Any]:
+        payload = self._parse_json_dict(existing_raw)
+        if not payload and isinstance(existing_raw, str):
+            raw_text = existing_raw.strip()
+            if raw_text and not raw_text.startswith("{"):
+                payload["notes"] = existing_raw
+
+        payload.update(
+            {
+                "source_file": candidate["file_name"],
+                "sheet_name": candidate["sheet_name"],
+                "sample_local_ref": local_ref,
+                "nature_materiau": candidate.get("nature_materiau", ""),
+                "import_mode": candidate.get("import_mode", "simple"),
+                "source_essai_code": candidate.get("essai_code", ""),
+            }
+        )
+        if candidate.get("essai_code") == "CFE":
+            payload["cfe_signature"] = f"SRC_HASH={candidate['file_hash']}|SHEET={candidate['sheet_name']}|CODE=CFE"
+            temperature = self._extract_cfe_temperature(candidate)
+            if temperature is not None:
+                payload["temperature_prelevement_c"] = temperature
+        return payload
 
 
 
@@ -1557,6 +1620,8 @@ class HistoricalLabImportService:
     def _create_essai_if_missing(self, conn: sqlite3.Connection, echantillon_id: int, candidate: dict[str, Any]) -> int:
         if candidate.get("import_mode") == "composite" and candidate.get("essai_code") == "ID":
             return self._create_id_composite_essais(conn, echantillon_id, candidate)
+        if candidate.get("import_mode") == "composite" and candidate.get("essai_code") == "CFE":
+            return self._create_cfe_composite_essais(conn, echantillon_id, candidate)
         return self._create_simple_essai_if_missing(conn, echantillon_id, candidate)
 
     def _create_simple_essai_if_missing(self, conn: sqlite3.Connection, echantillon_id: int, candidate: dict[str, Any]) -> int:
@@ -1579,6 +1644,7 @@ class HistoricalLabImportService:
             "source_file": candidate["file_name"],
             "sheet_name": candidate["sheet_name"],
             "signature": signature,
+            "essai_code": candidate.get("essai_code", ""),
             "destination": candidate.get("destination", ""),
             "provenance": candidate.get("provenance", ""),
             "import_mode": candidate.get("import_mode", "simple"),
@@ -1588,6 +1654,7 @@ class HistoricalLabImportService:
             """
             INSERT INTO essais (
                 echantillon_id,
+                essai_code,
                 type_essai,
                 norme,
                 statut,
@@ -1598,10 +1665,11 @@ class HistoricalLabImportService:
                 observations,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, 'Importé', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            ) VALUES (?, ?, ?, ?, 'Importé', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             """,
             (
                 echantillon_id,
+                candidate.get("essai_code", ""),
                 candidate["essai_label"],
                 candidate["title"],
                 candidate["date_essai"] or candidate["date_redaction"],
@@ -1643,6 +1711,7 @@ class HistoricalLabImportService:
                 "source_file": candidate["file_name"],
                 "sheet_name": candidate["sheet_name"],
                 "signature": signature,
+                "essai_code": subtest.get("essai_code", candidate.get("essai_code", "")),
                 "destination": candidate.get("destination", ""),
                 "provenance": candidate.get("provenance", ""),
                 "import_mode": "composite",
@@ -1655,6 +1724,7 @@ class HistoricalLabImportService:
                 """
                 INSERT INTO essais (
                     echantillon_id,
+                    essai_code,
                     type_essai,
                     norme,
                     statut,
@@ -1665,12 +1735,86 @@ class HistoricalLabImportService:
                     observations,
                     created_at,
                     updated_at
-                ) VALUES (?, ?, ?, 'Importé', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                ) VALUES (?, ?, ?, ?, 'Importé', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
                 """,
                 (
                     echantillon_id,
+                    subtest.get("essai_code", candidate.get("essai_code", "")),
                     subtest["type_essai"],
                     candidate["title"],
+                    candidate["date_essai"] or candidate["date_redaction"],
+                    candidate["date_essai"] or candidate["date_redaction"],
+                    json.dumps(subtest["result_payload"], ensure_ascii=False),
+                    candidate.get("operator", ""),
+                    json.dumps(observations, ensure_ascii=False),
+                ),
+            )
+            created_count += 1
+
+        conn.commit()
+        return created_count
+
+
+    def _create_cfe_composite_essais(self, conn: sqlite3.Connection, echantillon_id: int, candidate: dict[str, Any]) -> int:
+        created_count = self._create_simple_essai_if_missing(conn, echantillon_id, candidate)
+        subtests = candidate.get("composite_subtests", [])
+        if not subtests:
+            return created_count
+
+        for subtest in subtests:
+            signature = (
+                f"SRC_HASH={candidate['file_hash']}|SHEET={candidate['sheet_name']}|REF={candidate['sample_local_ref']}"
+                f"|CODE={candidate['essai_code']}|SUB={subtest['subcode']}"
+            )
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM essais
+                WHERE echantillon_id = ?
+                  AND type_essai = ?
+                  AND COALESCE(observations, '') LIKE ?
+                LIMIT 1
+                """,
+                (echantillon_id, subtest["type_essai"], f"%{signature}%"),
+            ).fetchone()
+            if existing:
+                continue
+
+            observations = {
+                "source_file": candidate["file_name"],
+                "sheet_name": candidate["sheet_name"],
+                "signature": signature,
+                "essai_code": subtest.get("essai_code", ""),
+                "destination": candidate.get("destination", ""),
+                "provenance": candidate.get("provenance", ""),
+                "import_mode": "composite",
+                "parent_essai_code": candidate.get("essai_code", ""),
+                "parent_essai_label": candidate.get("essai_label", ""),
+                "subcode": subtest["subcode"],
+            }
+
+            conn.execute(
+                """
+                INSERT INTO essais (
+                    echantillon_id,
+                    essai_code,
+                    type_essai,
+                    norme,
+                    statut,
+                    date_debut,
+                    date_fin,
+                    resultats,
+                    operateur,
+                    observations,
+                    created_at,
+                    updated_at
+                ) VALUES (?, ?, ?, ?, 'Importé', ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                """,
+                (
+                    echantillon_id,
+                    subtest.get("essai_code", ""),
+                    subtest["type_essai"],
+                    subtest.get("norme", candidate["title"]),
                     candidate["date_essai"] or candidate["date_redaction"],
                     candidate["date_essai"] or candidate["date_redaction"],
                     json.dumps(subtest["result_payload"], ensure_ascii=False),
@@ -1924,45 +2068,216 @@ class HistoricalLabImportService:
 
         return subtests
 
+    def _pick_cfe_passant(self, passants: dict[str, float], targets: tuple[float, ...]) -> float | None:
+        for target in targets:
+            for key, value in passants.items():
+                diameter = self._safe_float(key)
+                passant = self._safe_float(value)
+                if diameter is None or passant is None:
+                    continue
+                if abs(diameter - target) < 1e-9:
+                    return round(passant, 3)
+        return None
+
+    def _has_cfe_granulo_row_data(self, row: dict[str, Any]) -> bool:
+        granulometry = row.get("granulometrie_passants_percent") if isinstance(row.get("granulometrie_passants_percent"), dict) else {}
+        return any(self._safe_float(value) is not None for value in granulometry.values())
+
+    def _has_cfe_liant_row_data(self, row: dict[str, Any]) -> bool:
+        for key in ("teneur_liant_percent", "teneur_liant_ext_percent", "module_richesse", "module_richesse_ext"):
+            value = self._safe_float(row.get(key))
+            if value is not None and abs(value) > 1e-9:
+                return True
+        return False
+
+    def _extract_cfe_valid_rows(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
+        rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+        valid_rows: list[dict[str, Any]] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            if self._has_cfe_granulo_row_data(row) or self._has_cfe_liant_row_data(row):
+                valid_rows.append(row)
+        return valid_rows
+
+    def _build_cfe_gr_result_payload(
+        self,
+        payload: dict[str, Any],
+        row: dict[str, Any] | None = None,
+        replicate_index: int | None = None,
+        replicate_total: int | None = None,
+    ) -> dict[str, Any] | None:
+        valid_rows = self._extract_cfe_valid_rows(payload)
+        row_source = row if isinstance(row, dict) else (valid_rows[0] if valid_rows else ((payload.get("rows") or [{}])[0] if payload.get("rows") else {}))
+        granulometry = row_source.get("granulometrie_passants_percent") if isinstance(row_source.get("granulometrie_passants_percent"), dict) else {}
+        if not granulometry:
+            return None
+
+        passants: dict[str, float] = {}
+        sortable: list[tuple[float, str, float]] = []
+        for key, value in granulometry.items():
+            diameter = self._safe_float(key)
+            passant = self._safe_float(value)
+            if diameter is None or passant is None:
+                continue
+            label = str(key)
+            passants[label] = round(passant, 3)
+            sortable.append((diameter, label, round(passant, 3)))
+        if not sortable:
+            return None
+
+        sortable.sort(key=lambda item: item[0], reverse=True)
+        previous_passant = 100.0
+        tamis: list[dict[str, Any]] = []
+        dmax = None
+        for diameter, _label, passant in sortable:
+            refus = max(0.0, previous_passant - passant)
+            tamis.append({"d": round(diameter, 6), "r": round(refus, 6)})
+            previous_passant = passant
+            if dmax is None and passant < 100.0:
+                dmax = round(diameter, 6)
+        tamis.sort(key=lambda item: float(item["d"]))
+
+        result = {
+            "historical_mode": "passants_only",
+            "source_essai_code": "CFE",
+            "modele": "Enrobés",
+            "m1": "",
+            "m2": "",
+            "m3": "",
+            "mh": 100,
+            "w": 0,
+            "ms": 100,
+            "tamis": tamis,
+            "passants_percent": passants,
+            "passant_80": self._pick_cfe_passant(passants, (0.08, 0.063)),
+            "passant_20": self._pick_cfe_passant(passants, (20.0,)),
+            "dmax": dmax,
+        }
+        if replicate_index is not None:
+            result["replicate_index"] = int(replicate_index)
+            result["replicate_label"] = f"Essai {replicate_index}"
+        if replicate_total is not None:
+            result["replicate_total"] = int(replicate_total)
+        source_row_no = self._stringify(row_source.get("essai_no", ""))
+        if source_row_no:
+            result["source_row_no"] = source_row_no
+        return result
+
+    def _build_cfe_liant_result_payload(
+        self,
+        payload: dict[str, Any],
+        row: dict[str, Any] | None = None,
+        replicate_index: int | None = None,
+        replicate_total: int | None = None,
+    ) -> dict[str, Any] | None:
+        valid_rows = self._extract_cfe_valid_rows(payload)
+        row_source = row if isinstance(row, dict) else (valid_rows[0] if valid_rows else ((payload.get("rows") or [{}])[0] if payload.get("rows") else {}))
+        moyenne = payload.get("moyenne") if isinstance(payload.get("moyenne"), dict) else {}
+        theorique = payload.get("theorique") if isinstance(payload.get("theorique"), dict) else {}
+        thresholds = payload.get("thresholds") if isinstance(payload.get("thresholds"), dict) else {}
+        result = {
+            "historical_mode": "result_only",
+            "source_essai_code": "CFE",
+            "hour": self._stringify(row_source.get("hour", "")),
+            "teneur_liant_percent": self._safe_float(row_source.get("teneur_liant_percent")),
+            "teneur_liant_ext_percent": self._safe_float(row_source.get("teneur_liant_ext_percent")),
+            "module_richesse": self._safe_float(row_source.get("module_richesse")),
+            "module_richesse_ext": self._safe_float(row_source.get("module_richesse_ext")),
+            "surface_specifique": self._safe_float(row_source.get("surface_specifique")),
+            "moyenne": moyenne,
+            "theorique": theorique,
+            "thresholds": thresholds,
+        }
+        if result["teneur_liant_percent"] is None:
+            result["teneur_liant_percent"] = self._safe_float(moyenne.get("teneur_liant_percent"))
+        if result["teneur_liant_ext_percent"] is None:
+            result["teneur_liant_ext_percent"] = self._safe_float(moyenne.get("teneur_liant_ext_percent"))
+        if result["module_richesse"] is None:
+            result["module_richesse"] = self._safe_float(moyenne.get("module_richesse"))
+        if result["module_richesse_ext"] is None:
+            result["module_richesse_ext"] = self._safe_float(moyenne.get("module_richesse_ext"))
+        if result["surface_specifique"] is None:
+            result["surface_specifique"] = self._safe_float(moyenne.get("surface_specifique"))
+        if replicate_index is not None:
+            result["replicate_index"] = int(replicate_index)
+            result["replicate_label"] = f"Essai {replicate_index}"
+        if replicate_total is not None:
+            result["replicate_total"] = int(replicate_total)
+        source_row_no = self._stringify(row_source.get("essai_no", ""))
+        if source_row_no:
+            result["source_row_no"] = source_row_no
+        has_value = any(result.get(key) not in (None, "") for key in (
+            "teneur_liant_percent",
+            "teneur_liant_ext_percent",
+            "module_richesse",
+            "module_richesse_ext",
+            "surface_specifique",
+        ))
+        return result if has_value else None
+
     def _build_cfe_subtests(self, payload: dict[str, Any]) -> list[dict[str, Any]]:
         subtests: list[dict[str, Any]] = []
 
-        first_row = (payload.get("rows") or [{}])[0] if payload.get("rows") else {}
-        granulometry = first_row.get("granulometrie_passants_percent") or {}
-        if granulometry:
-            subtests.append(
-                {
-                    "subcode": "CFE-GRANULO",
-                    "type_essai": "Granulométrie enrobés",
-                    "result_payload": {"passants_percent": granulometry},
-                }
-            )
+        valid_rows = self._extract_cfe_valid_rows(payload)
+        granulo_rows = [row for row in valid_rows if self._has_cfe_granulo_row_data(row)]
+        liant_rows = [row for row in valid_rows if self._has_cfe_liant_row_data(row)]
 
-        binder_payload = {
-            "teneur_liant_percent": first_row.get("teneur_liant_percent"),
-            "teneur_liant_ext_percent": first_row.get("teneur_liant_ext_percent"),
-            "module_richesse": first_row.get("module_richesse"),
-            "module_richesse_ext": first_row.get("module_richesse_ext"),
-            "surface_specifique": first_row.get("surface_specifique"),
-        }
-        if any(value not in (None, "", {}) for value in binder_payload.values()):
-            subtests.append(
-                {
-                    "subcode": "CFE-LIANT",
-                    "type_essai": "Teneur en liant enrobés",
-                    "result_payload": binder_payload,
-                }
-            )
+        if granulo_rows:
+            replicate_total = min(len(granulo_rows), 2)
+            for index, row in enumerate(granulo_rows[:2], start=1):
+                gr_payload = self._build_cfe_gr_result_payload(payload, row=row, replicate_index=index, replicate_total=replicate_total)
+                if not gr_payload:
+                    continue
+                subtests.append(
+                    {
+                        "subcode": f"CFE-GRANULO-{index}",
+                        "essai_code": "GR",
+                        "type_essai": "Granulométrie",
+                        "norme": "NF EN 12697-2",
+                        "result_payload": gr_payload,
+                    }
+                )
+        else:
+            gr_payload = self._build_cfe_gr_result_payload(payload, replicate_index=1, replicate_total=1)
+            if gr_payload:
+                subtests.append(
+                    {
+                        "subcode": "CFE-GRANULO-1",
+                        "essai_code": "GR",
+                        "type_essai": "Granulométrie",
+                        "norme": "NF EN 12697-2",
+                        "result_payload": gr_payload,
+                    }
+                )
 
-        temp_value = first_row.get("temperature_c")
-        if temp_value is not None:
-            subtests.append(
-                {
-                    "subcode": "CFE-TEMP",
-                    "type_essai": "Température enrobés",
-                    "result_payload": {"temperature_c": temp_value},
-                }
-            )
+        if liant_rows:
+            replicate_total = min(len(liant_rows), 2)
+            for index, row in enumerate(liant_rows[:2], start=1):
+                binder_payload = self._build_cfe_liant_result_payload(payload, row=row, replicate_index=index, replicate_total=replicate_total)
+                if not binder_payload:
+                    continue
+                subtests.append(
+                    {
+                        "subcode": f"CFE-LIANT-{index}",
+                        "essai_code": "EL",
+                        "type_essai": "Extraction de liant",
+                        "norme": "NF EN 12697-1",
+                        "result_payload": binder_payload,
+                    }
+                )
+        else:
+            binder_payload = self._build_cfe_liant_result_payload(payload, replicate_index=1, replicate_total=1)
+            if binder_payload:
+                subtests.append(
+                    {
+                        "subcode": "CFE-LIANT-1",
+                        "essai_code": "EL",
+                        "type_essai": "Extraction de liant",
+                        "norme": "NF EN 12697-1",
+                        "result_payload": binder_payload,
+                    }
+                )
 
         return subtests
 

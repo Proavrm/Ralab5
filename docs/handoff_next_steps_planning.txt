@@ -1,35 +1,26 @@
-RaLab5 planning React package
+Planning React update
 
-Files updated:
+Included in this package:
 - frontend/react/src/pages/PlanningPage.jsx
 - frontend/react/src/pages/planning.css
-- frontend/react/src/services/api.js
 
-What was done:
-- Replaced the PlanningPage placeholder with a real React planning module.
-- Kept the métier centered on demandes, not affaires.
-- Added the 4 legacy views in React structure:
-  - Organiser / Kanban
-  - Agenda Demandes
-  - Agenda Labo
-  - Analyser
-- Added topbar, labo filter, stats filter buttons, left sidebar heatmap/stats, archive strip, and demande popup.
-- Added demande navigation API helper: demandesApi.navigation(uid).
-- Preserved planning context support via ?demande_id=... with targeted banner and lock handling.
-- Planning data still uses /api/planning/demandes and PATCH /api/planning/demandes/{uid}.
+What changed:
+- rebuilt PlanningPage as a true React page inside the existing app shell
+- Organiser / Kanban kept centered on demandes, not affaires
+- Agenda Demandes reworked to behave like the legacy weekly demand agenda
+- popup editing preserved
+- drag move + right-handle resize for Agenda Demandes
+- Agenda Labo and Analyser intentionally left as placeholders for the next pass
 
-Important notes:
-- This is a real React port, not an iframe or embedded full HTML page, so it no longer duplicates the global GUI shell.
-- Agenda Demandes stays centered on demandes.
-- Agenda Labo remains session-side for now for labo slots, like the legacy mock logic.
-- Because the provided node_modules bundle is Windows-oriented and missing Linux rollup optional deps, build validation could not be completed in the container. Final verification must be done on Marco's machine.
-
-Recommended next checks on local machine:
-1. Open /planning and verify the 4 tabs render correctly inside AppLayout.
-2. Check /planning?demande_id=UID targeted context banner.
-3. Verify drag/drop in Kanban.
-4. Verify date move buttons and popup save in Agenda Demandes.
-5. Compare spacing/visual details with legacy_html/planning.html and fine-tune if needed.
+Notes:
+- This pass focuses on fixing the part the user explicitly said was important now:
+  Kanban works, Agenda Demandes must match the old behavior much better.
+- No global GUI duplication anymore.
+- No backend changes required for this package.
 
 Suggested commit message:
-feat(planning): port legacy planning module to React without duplicating app shell
+feat(planning): port organiser and agenda demandes to react without duplicating app shell
+
+Quick fix added in v3:
+- restored the missing 'En Attente' column in Kanban/Organiser
+- aligned status colors with the legacy HTML for this column and related badges

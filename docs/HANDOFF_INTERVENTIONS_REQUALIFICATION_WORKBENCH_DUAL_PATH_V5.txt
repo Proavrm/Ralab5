@@ -1,0 +1,17 @@
+Dual path version for interventions requalification workbench.
+
+Main change
+- Essai terrain / Sondage / Intervention can go directly to an Intervention
+- Prélèvement must first be attached to a Prélèvement, then to an Intervention
+
+UI changes
+- row-level hint in Nature réelle column:
+  - Direct intervention
+  - Via prélèvement
+- Prélèvement column disabled unless nature réelle = Prélèvement
+- Intervention column works:
+  - directly for Essai terrain / Sondage / Intervention
+  - only after prelevement assignment for Prélèvement
+
+Selection summary
+- shows direct vs via prélèvement counts

@@ -2,13 +2,16 @@
  * ToolsPage.jsx — fidèle à tools.html legacy
  * Sections: Références, Import DST, État DB, Export, Admin (role-based)
  */
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
 import Button from '@/components/ui/Button'
+import PreviewAccessZone from '@/components/tools/PreviewAccessZone'
 import { RefreshCw } from 'lucide-react'
+import { RESPONSIBLE_LAB_PROFILES, getResponsibleLaboHomeRoute } from '@/lib/responsibleLaboProfiles'
+import { TECHNICIAN_PROFILES, getTechnicianHomeRoute } from '@/lib/technicianProfiles'
 
 function Card({ icon, title, desc, children }) {
   return (
@@ -71,6 +74,7 @@ function DbStatRow({ label, value, warn }) {
 
 export default function ToolsPage() {
   const navigate  = useNavigate()
+  const location  = useLocation()
   const qc        = useQueryClient()
   const { user }  = useAuth()
   const isAdmin   = (user?.permissions || []).includes('manage_users') || user?.role_code === 'admin'
@@ -172,6 +176,14 @@ export default function ToolsPage() {
   const demandes_actives   = demandes.filter(d => !['Terminée','Archivée','Envoyé - Perdu','Fini'].includes(d.statut)).length
   const affaires_qualifier = affaires.filter(a => a.statut === 'À qualifier').length
 
+  useEffect(() => {
+    if (!location.hash) return
+    const element = document.getElementById(location.hash.slice(1))
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [location.hash])
+
   return (
     <div className="flex flex-col gap-6 max-w-[1100px] mx-auto py-2">
       <div className="flex items-center justify-between">
@@ -199,6 +211,44 @@ export default function ToolsPage() {
               Les mises à jour de références se font dans les pages dédiées, pas directement ici.
             </p>
           </Card>
+        </div>
+
+        {isAdmin && (
+          <div id="dashboards-metier" className="col-span-2 scroll-mt-6">
+            <Card icon="🗂️" title="Dashboards par profil" desc="Catalogue des vues métier conservées pour retrouver rapidement les dashboards historiques par responsable ou technicien.">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Responsables laboratoire</p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {RESPONSIBLE_LAB_PROFILES.map((profile) => (
+                      <Button key={profile.slug} variant="ghost" onClick={() => navigate(getResponsibleLaboHomeRoute(profile))}>
+                        🧪 {profile.laboCode} · {profile.displayName}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Techniciens</p>
+                  <div className="mt-3 flex flex-col gap-2">
+                    {TECHNICIAN_PROFILES.map((profile) => (
+                      <Button key={profile.slug} variant="ghost" onClick={() => navigate(getTechnicianHomeRoute(profile))}>
+                        {profile.workstream === 'terrain' ? '🚚' : profile.workstream === 'coordination' ? '📝' : '🧫'} {profile.displayName}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-text-muted">
+                Le dashboard unifié reste l'entrée principale. Ces vues servent d'accès direct par profil quand on veut retrouver l'ancienne lecture métier.
+              </p>
+            </Card>
+          </div>
+        )}
+
+        {/* Préviews / workbench */}
+        <div className="col-span-2">
+          <PreviewAccessZone />
         </div>
 
         {/* Import DST */}

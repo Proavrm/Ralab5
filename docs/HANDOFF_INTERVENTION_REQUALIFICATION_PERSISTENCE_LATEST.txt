@@ -1,0 +1,42 @@
+Based on the latest files provided by the user.
+
+Included modified existing files
+- current_fastapi/api_main.py
+- current_fastapi/app/core/database.py
+- react/src/services/api.js
+- react/src/pages/InterventionsRequalificationWorkbench.jsx
+
+Included new file
+- current_fastapi/api/intervention_requalification.py
+
+Included migration reference
+- current_fastapi/db/migrations/20260406_intervention_requalification.sql
+
+What this package does
+1) Adds DB persistence foundations
+   - interventions raw tri fields
+   - prelevements table
+   - interventions_reelles table
+   - candidates view
+
+2) Adds backend API routes
+   - list / patch raw rows
+   - bulk set nature
+   - create / assign / clear prelevements
+   - create / assign / clear interventions_reelles
+   - list candidates
+
+3) Updates frontend API service
+   - interventionRequalificationApi
+
+4) Makes the workbench persist choices
+   - row nature
+   - row prelevement
+   - row intervention
+   - row tri comment on blur
+   - bulk actions save to DB
+
+Important
+- existing App.jsx route can stay as-is
+- startup ensure_ralab4_schema will create or extend the schema automatically
+- the SQL migration file is included only as a reference; the Python schema helper is the real source of truth here

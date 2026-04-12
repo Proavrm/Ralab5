@@ -1,0 +1,25 @@
+Workbench for 2026 interventions requalification.
+
+Included
+- frontend/react/src/pages/InterventionsRequalificationWorkbench.jsx
+
+Purpose
+- start from the current 2026 interventions
+- reclassify each line into:
+  - Intervention
+  - Prélèvement
+  - Essai terrain
+  - Sondage
+- then assign lines to:
+  - prélèvements
+  - interventions
+
+Important
+- preview only
+- local state only
+- no backend write yet
+
+Suggested route
+import InterventionsRequalificationWorkbench from '@/pages/InterventionsRequalificationWorkbench'
+
+<Route path="interventions-requalification-2026" element={<P><InterventionsRequalificationWorkbench /></P>} />

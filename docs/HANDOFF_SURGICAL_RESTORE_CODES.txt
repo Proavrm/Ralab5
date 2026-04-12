@@ -1,0 +1,34 @@
+Surgical restore based on the user's CURRENT files only
+
+Files patched
+- frontend/react/src/pages/LaboPage.jsx
+- backend/current_fastapi/api/interventions.py
+
+What was wrong in the current files
+1) LaboPage.jsx
+- In normalizeEssais(), the Code column fallback was:
+  code_essai -> code -> type_essai -> type
+- That is why labels like 'Classification GTR' or 'Granulométrie d'identification' could appear in the Code column.
+
+2) interventions.py
+- _row_to_dict() only returned uid and did not extract essai_code from observations JSON.
+- So the Interventions table could not show the real essai code.
+
+What this patch changes
+1) Essais table code logic
+- Code now uses only actual code-like fields:
+  essai_code -> code_essai -> source_essai_code -> code -> ''
+- It no longer falls back to type_essai/type for the Code column.
+
+2) Interventions table code logic
+- _row_to_dict() now extracts from observations JSON:
+  essai_code
+  code_essai
+  essai_label
+
+Scope kept intentionally narrow
+- No layout changes
+- No panel changes
+- No action changes
+- No extra backend logic
+- Only code restoration

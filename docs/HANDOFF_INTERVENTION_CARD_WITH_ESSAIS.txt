@@ -1,0 +1,22 @@
+InterventionPageCard updated with EchantillonPage-like essais logic
+
+Included
+- frontend/react/src/pages/InterventionPageCard.jsx
+
+What changed
+- keeps the card-style intervention preview page
+- adds a real 'Échantillons / Essais' card
+- fetches:
+  - echantillons linked to the demande
+  - essais linked to each echantillon
+- displays them in the same general spirit as EchantillonPage:
+  - card blocks
+  - clickable essai rows
+  - status badges
+  - '+ Nouvel échantillon'
+  - '+ Essai' from each echantillon block
+
+Important
+- this stays a preview/test page
+- it does NOT replace the real InterventionPage.jsx
+- it uses demande-linked context because there is no stricter intervention -> essai relation encoded yet

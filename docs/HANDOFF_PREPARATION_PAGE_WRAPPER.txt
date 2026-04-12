@@ -1,0 +1,31 @@
+RaLab5 - PreparationPage safe wrapper
+
+Included
+- frontend/react/src/pages/PreparationPage.jsx
+
+Goal
+- Create a dedicated Preparation page WITHOUT changing the existing PreparationModal logic.
+
+Approach
+- PreparationPage is only a wrapper around the current PreparationModal.
+- No internal preparation behavior was rewritten.
+- This is the safest first step to move preparation out of DemandesPage without breaking existing logic.
+
+Expected route
+- /preparations/:uid
+Optional query params
+- ?ref=2026-RA-D0001
+
+How to wire later
+1) Add route in App.jsx:
+   <Route path="preparations/:uid" element={<P><PreparationPage /></P>} />
+
+2) Later, in DemandesPage, instead of:
+   setPrepOpen(true)
+   navigate to:
+   /preparations/${selected.uid}?ref=${encodeURIComponent(selected.reference || '')}
+
+Notes
+- This file does not modify PreparationModal.
+- The visual still uses the modal component behavior for now, but inside a dedicated route/page.
+- This is intentional to avoid regressions before a future true PreparationPage refactor.

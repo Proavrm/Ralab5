@@ -1,0 +1,16 @@
+Replace the existing InterventionPageCard preview instead of creating another page.
+
+Included
+- frontend/react/src/pages/InterventionPageCard.jsx
+
+What changed
+- the existing preview route /interventions-card/... keeps working
+- preview logic is upgraded to:
+  intervention
+    -> sondages / prélèvements
+    -> essais terrain
+    -> suites labo
+
+Why
+- avoids multiplying preview pages
+- keeps one single intervention preview file to evolve

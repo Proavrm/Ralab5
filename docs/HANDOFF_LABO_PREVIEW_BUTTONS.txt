@@ -1,0 +1,17 @@
+Minimal LaboPage preview buttons patch
+
+Source used
+- user's current uploaded LaboPage.jsx
+
+What changed
+- Added '🧰 Préparation preview' in the right detail panel when demande_id exists
+  -> navigates to /preparations-card/:demande_id?ref=...
+- Added '🛠️ Intervention preview' in the right detail panel for Interventions
+  -> navigates to /interventions-card/:uid
+
+What did NOT change
+- tables
+- backend
+- existing fiche buttons
+- existing creation buttons
+- echantillon / essai logic

@@ -34,3 +34,18 @@ export function Select({ className, value, children, ...props }) {
     </select>
   )
 }
+
+export function Textarea({ className, value, ...props }) {
+  return (
+    <textarea
+      value={value ?? ''}
+      className={cn(
+        'w-full px-3 py-2 border border-border rounded text-sm bg-bg',
+        'outline-none focus:border-accent focus:bg-surface transition-colors',
+        'placeholder:text-text-muted resize-y',
+        className
+      )}
+      {...props}
+    />
+  )
+}

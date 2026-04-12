@@ -1,0 +1,17 @@
+This fixes the actual current InterventionPageCard.jsx uploaded by the user.
+
+What was wrong in the uploaded current file
+- it still contained:
+  - laboContext query
+  - Suites labo card
+  - echantillon / essais display
+
+What this file changes
+- removes all labo / echantillon logic from InterventionPageCard
+- keeps only:
+  1) Intervention
+  2) Ajouter à l’intervention
+
+Intent
+- intervention page should not show echantillons
+- labo starts from the future Prelevement page

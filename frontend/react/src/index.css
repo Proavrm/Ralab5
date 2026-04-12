@@ -31,3 +31,50 @@
     --radius: 8px;
   }
 }
+
+@media print {
+  @page {
+    margin: 6mm;
+  }
+
+  html,
+  body,
+  #root,
+  .app-shell {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .app-shell {
+    display: block !important;
+  }
+
+  .app-sidebar,
+  .screen-only {
+    display: none !important;
+  }
+
+  .app-main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .labels-print-page {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .prelevement-label-grid {
+    gap: 2.5mm !important;
+  }
+
+  .prelevement-label-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+

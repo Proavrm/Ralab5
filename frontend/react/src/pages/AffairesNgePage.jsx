@@ -3,6 +3,7 @@
  * API: GET /reference-affaires/rows → numero_affaire_complet, libelle, code_agence, titulaire, responsable
  * Prefill: sessionStorage['ralab4_source_prefill'] + navigate('/affaires?create=1&...')
  */
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -136,11 +137,16 @@ export default function AffairesNgePage() {
     navigate('/demandes?create=1')
   }
 
-  function Th({ col, label }) {
+  const { getColProps } = useResizableColumns([110, 240, 80, 120, 130, 100])
+
+  function Th({ col, label, colIdx }) {
+    const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
-        className="bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text">
-        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+        style={style}
+        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
+        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">\u2195</span>}
+        <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
   }
@@ -149,7 +155,7 @@ export default function AffairesNgePage() {
     <div className="flex flex-col h-full -m-6">
       <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0">
         <span className="text-[15px] font-semibold flex-1">Affaires NGE</span>
-        <Button size="sm" variant="warn" onClick={() => navigate('/tools')}>🛠 Maintenance DB</Button>
+        <Button size="sm" variant="warn" onClick={() => navigate('/toolbge.frs')}>🛠 Maintenance DB</Button>
         <Button size="sm" variant="ghost" onClick={() => refetch()}><RefreshCw size={13} /></Button>
       </div>
 
@@ -170,12 +176,12 @@ export default function AffairesNgePage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <Th col="numero_affaire_complet" label="N° affaire" />
-                  <Th col="libelle"     label="Libellé" />
-                  <Th col="code_agence" label="Agence" />
-                  <Th col="titulaire"   label="Titulaire" />
-                  <Th col="responsable" label="Responsable" />
-                  <Th col="source_sheet" label="Feuille" />
+                  <Th col="numero_affaire_complet" colIdx={0} label="N° affaire" />
+                  <Th col="libelle" colIdx={1}     label="Libellé" />
+                  <Th col="code_agence" colIdx={2} label="Agence" />
+                  <Th col="titulaire" colIdx={3}   label="Titulaire" />
+                  <Th col="responsable" colIdx={4} label="Responsable" />
+                  <Th col="source_sheet" colIdx={5} label="Feuille" />
                 </tr>
               </thead>
               <tbody>

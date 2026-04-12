@@ -1,0 +1,25 @@
+LaboPage panel/action refinement based on the current restore-panel version
+
+What changed
+- Right panel is no longer always open
+- Clicking a row opens the panel for that tab
+- Panel can be closed with X
+- Added action buttons inside the panel:
+  - Interventions:
+    - Fiche -> /interventions/:uid
+    - Demande -> /demandes/:demande_id
+    - Nouvelle intervention -> /interventions/new?demande_id=...
+  - Echantillons:
+    - Demande -> /demandes/:demande_id
+    - Nouvelle intervention -> /interventions/new?demande_id=...
+    - Nouvel essai -> /essais/new?echantillon_id=...
+  - Essais:
+    - Fiche -> /essais/:uid
+    - Demande -> /demandes/:demande_id
+    - Nouvelle intervention -> /interventions/new?demande_id=...
+    - Nouvel essai -> /essais/new?echantillon_id=...
+
+Important
+- This package only changes LaboPage.jsx
+- It assumes the current backend already sends demande_id / echantillon_id on echantillons/essais rows as in the current restore backend package
+- No table/layout redesign

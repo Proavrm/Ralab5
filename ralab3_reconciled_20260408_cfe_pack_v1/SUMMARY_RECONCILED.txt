@@ -1,0 +1,49 @@
+Base reconciliee RaLab historique (_cfe)
+=======================================
+
+Source DB: ralab3.db
+Rebuilt DB: ralab_rebuilt_2025_2026_v1.db
+Output DB: ralab3_reconciled_20260408_cfe.db
+
+Included sidecars
+- ralab3_reconciled_20260408_cfe.report.json
+- ralab3_reconciled_20260408_cfe.report.md
+
+Summary counts
+- interventions_raw: 1323
+- echantillons: 317
+- essais_labo: 599
+- prelevements: 529
+- interventions_reelles: 547
+- review_required_raw: 0
+- review_required_interventions_reelles: 0
+
+Key assay counts
+- CFE: 136
+- EL: 142
+- GR: 37
+- ID: 80
+- IPI: 3
+- LCP: 8
+- MVA: 166
+- PN: 3
+
+Applied reconciliation actions
+- Inserted interventions_reelles: 547
+- Inserted prelevements: 529
+- Updated interventions: 877
+- Backfilled intervention nature_reelle: 877
+- Backfilled intervention -> prelevement links: 382
+- Backfilled intervention -> intervention_reelle links: 877
+- Backfilled essai_code from observations: 276
+- Normalized resultats payload: 8
+- Split IPI - PR -> PN: 2
+- Inserted IPI siblings from split: 2
+- Materialized CFE echantillons: 136
+- Inserted GR siblings from CFE: 36
+- Inserted EL siblings from CFE: 142
+- Inserted CFE pages: 136
+- Remaining blank essai_code rows: 0
+
+Important note
+This is the reconciled runtime snapshot with historical forms and CFE materialization applied.

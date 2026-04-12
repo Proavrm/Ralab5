@@ -1,0 +1,7 @@
+tunnel: <TUNNEL-UUID>
+credentials-file: C:\Users\<SERVER-USER>\.cloudflared\<TUNNEL-UUID>.json
+
+ingress:
+  - hostname: ralab5-test.votre-domaine.tld
+    service: http://127.0.0.1:8000
+  - service: http_status:404

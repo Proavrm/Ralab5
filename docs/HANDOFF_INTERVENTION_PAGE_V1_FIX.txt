@@ -1,0 +1,15 @@
+Fix for InterventionPage.jsx syntax/runtime issues
+
+What was broken
+- accidental Python syntax slipped into the React file:
+  - lambda
+  - True / False
+- this caused the page to fail compiling and show blank
+
+What this fixed version does
+- pure React/JS syntax only
+- same métier structure as V1
+- supports:
+  - /interventions/new?demande_id=123
+  - /interventions/:uid
+- save/create logic kept intact

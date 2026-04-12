@@ -1,0 +1,91 @@
+Test externe sans VPN sur le PC de l'entreprise
+
+Quand utiliser ce mode
+- Le PC de Clara ou ton PC de travail bloque l'installation d'un VPN.
+- Tu veux un test rapide via navigateur seulement.
+- Tu acceptes un mode temporaire, prévu pour un test court et limité.
+
+Principe
+1. RaLab5 tourne localement sur ton PC avec `launch_ralab5_public_test.cmd`.
+2. Tu exposes temporairement `http://127.0.0.1:8000` via un tunnel web.
+3. Clara ouvre l'URL du tunnel dans son navigateur.
+4. RaLab5 demande:
+   - son email professionnel
+   - une clé d'accès partagée
+
+Ce que ce mode évite
+- pas de VPN à installer sur le PC de Clara
+- pas de domaine à configurer
+- pas de Cloudflare Access à mettre en place
+
+Limite importante
+- C'est un mode de test temporaire, pas une vraie mise en production.
+- Il faut limiter l'accès à quelques emails autorisés et changer la clé après usage.
+- Pour une campagne courte de validation complète, tu peux aussi autoriser tous les utilisateurs actifs avec `*`.
+
+Variables d'environnement à définir avant de lancer
+
+Exemple PowerShell:
+
+```powershell
+$env:RALAB_AUTH_MODE = 'access_key'
+$env:RALAB_ACCESS_KEY = 'changer-cette-cle-partagee'
+$env:RALAB_ACCESS_KEY_ALLOWED_EMAILS = 'crigo@guintoli.fr,mcostapereira@nge.fr'
+$env:RALAB_JWT_SECRET = 'mettre-ici-un-secret-jwt-long-et-prive'
+$env:RALAB_ALLOWED_HOSTS = '*'
+$env:RALAB_ALLOWED_ORIGINS = '*'
+```
+
+Pour ouvrir le test à tous les utilisateurs actifs déjà créés dans `security.db`:
+
+```powershell
+$env:RALAB_ACCESS_KEY_ALLOWED_EMAILS = '*'
+```
+
+Puis lancer:
+
+```bat
+launch_ralab5_public_test.cmd
+```
+
+Mode de connexion côté Clara
+- Email: `crigo@guintoli.fr`
+- Clé d'accès: la valeur de `RALAB_ACCESS_KEY`
+
+Ton propre poste de travail peut utiliser:
+- Email: `mcostapereira@nge.fr`
+- même clé d'accès
+
+Tunnel web recommandé pour test rapide
+
+Option la plus simple sans compte:
+- `cloudflared` en Quick Tunnel
+
+Commande typique sur ton PC hôte:
+
+```powershell
+cloudflared tunnel --url http://127.0.0.1:8000
+```
+
+Cette commande renvoie une URL HTTPS temporaire.
+Tu donnes cette URL à Clara.
+
+Si tu n'as pas `cloudflared`
+- il faut le télécharger sur le PC hôte uniquement
+- Clara n'a rien à installer
+
+Sécurité minimale à respecter
+- utiliser une clé d'accès longue et non triviale
+- limiter `RALAB_ACCESS_KEY_ALLOWED_EMAILS` aux testeurs réels
+- réserver `RALAB_ACCESS_KEY_ALLOWED_EMAILS = '*'` à une validation courte, puis revenir à une liste nominative
+- arrêter le tunnel après le test
+- changer la clé avant un autre test si nécessaire
+
+Checklist rapide
+
+1. Définir les variables d'environnement.
+2. Lancer `launch_ralab5_public_test.cmd`.
+3. Lancer `cloudflared tunnel --url http://127.0.0.1:8000`.
+4. Envoyer l'URL à Clara.
+5. Lui donner seulement sa clé de test.
+6. Après test, fermer le tunnel et changer la clé si tu veux rejouer plus tard.

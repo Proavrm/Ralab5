@@ -29,6 +29,7 @@ backend/current_fastapi/data/
 *.rar
 *.7z
 RaLab5_*_package/
+ralab_*_pack_v*/
 
 # Frontend
 node_modules/

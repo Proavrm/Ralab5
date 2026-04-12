@@ -1,0 +1,2161 @@
+RaLab - Référentiel métier du service scientifique, technique et laboratoire
+Flux opérationnel complet : affaires, demandes, campagnes, interventions, essais, G3, fiches de suivi et saisie
+Version de travail
+
+====================================================================
+1. OBJET DU DOCUMENT
+====================================================================
+
+Ce document sert de reference metier structurante pour la suite du developpement de RaLab.
+Il decrit le fonctionnement cible d'un service scientifique, technique et laboratoire intervenant :
+- en laboratoire,
+- sur chantier,
+- en reconnaissance geotechnique,
+- en controles d'execution,
+- en diagnostics,
+- en appui technique,
+- en mission G3,
+- en interpretation et restitution technique.
+
+L'objectif n'est pas seulement de decrire un laboratoire d'essais classique, mais un service complet capable de transformer une demande terrain, chantier, etude ou client en action technique planifiee, traçable, interpretable et exploitable.
+
+Ce document doit aider a structurer :
+- le modele metier,
+- les objets de la base de donnees,
+- les ecrans,
+- les statuts,
+- les relations,
+- les fiches de suivi,
+- les formulaires de saisie,
+- les resultats a afficher,
+- les livrables,
+- la logique de validation,
+- la traçabilite.
+
+====================================================================
+2. VISION GENERALE DU FLUX METIER
+====================================================================
+
+Le flux metier cible est le suivant :
+
+Affaire
+-> Demande
+-> Campagne
+-> Preparation de l'intervention
+-> Intervention
+-> Point / prelevement / sondage / controle / observation
+-> Echantillon
+-> Traitement laboratoire
+   -> Preparation d'echantillon
+   -> Essais
+-> Validation technique
+-> Resultats / PV / note / rapport / avis technique
+-> Facturation / archivage / retour d'experience
+
+Points de vigilance importants :
+
+1. La campagne est un objet metier central. Elle se situe entre la demande et les interventions.
+2. La preparation de l'intervention doit etre distinguee de la preparation d'echantillon.
+3. Le service ne se limite pas aux essais. Il couvre aussi l'appui technique et les missions G3.
+4. Le systeme doit permettre une restitution factuelle, mais aussi une interpretation technique.
+5. Les workflows doivent rester utilisables en laboratoire pur, en terrain pur, et en mixte terrain + laboratoire + interpretation.
+
+====================================================================
+3. DEFINITION DES OBJETS METIER
+====================================================================
+
+3.1 Affaire
+
+L'affaire est le cadre global du dossier.
+Elle correspond au contexte contractuel, operationnel et financier dans lequel s'inscrivent les demandes.
+
+Informations a rattacher a l'affaire :
+- reference affaire,
+- client,
+- entreprise responsable / entite interne,
+- chantier,
+- site,
+- localisation,
+- type d'operation,
+- contexte contractuel,
+- devis / commande / accord interne,
+- budget,
+- contacts,
+- documents de reference,
+- responsables,
+- statut global,
+- contraintes specifiques,
+- dates clefs,
+- lien avec dossiers techniques existants.
+
+3.2 Demande
+
+La demande est le besoin technique exprime au service scientifique, technique et laboratoire.
+Elle peut concerner :
+- des essais de laboratoire,
+- des controles terrain,
+- des prelevements,
+- des reconnaissances geotechniques,
+- des controles d'execution,
+- des prestations d'appui technique,
+- des expertises,
+- des diagnostics,
+- des missions G3,
+- des avis techniques,
+- des complements d'investigation.
+
+Exemples de demandes :
+- faire une campagne geotechnique,
+- realiser des essais de plaque sur plateforme,
+- faire des prelevements de GNT et essais de conformite,
+- realiser des carottages enrobes,
+- faire des essais d'identification sur sols,
+- verifier la compacite de remblais,
+- controler un beton frais,
+- faire une reconnaissance de fondation,
+- lancer une expertise suite a non-conformite,
+- realiser un appui geotechnique en phase execution,
+- definir et suivre une mission G3,
+- proposer des reconnaissances complementaires dans le cadre d'une G3,
+- interpreter les resultats d'execution et emettre un avis technique,
+- suivre la conformite geotechnique d'une plateforme, d'un terrassement, d'une couche de forme ou d'un soutenement,
+- verifier un reemploi de materiaux,
+- analyser une pathologie de chaussee,
+- realiser un suivi d'execution de type G3 pour terrassements, fondations, couche de forme ou soutenement.
+
+3.3 Campagne
+
+La campagne est l'objet de pilotage operationnel.
+Elle permet d'organiser la reponse a une demande par zone, phase, periode, lot, objectif ou programme technique.
+
+La campagne n'est ni une simple etiquette, ni une simple vue de regroupement.
+C'est un vrai niveau metier permettant de :
+- definir un objectif technique,
+- structurer le programme d'action,
+- planifier,
+- affecter les moyens,
+- regrouper les interventions,
+- suivre l'avancement,
+- consolider les resultats,
+- produire une synthese.
+
+3.4 Preparation de l'intervention
+
+La preparation de l'intervention couvre toutes les actions realisees avant execution terrain ou laboratoire operationnel.
+Elle comprend :
+- analyse technique du besoin,
+- choix du type d'intervention,
+- definition des points,
+- planification,
+- affectation des ressources,
+- verification des habilitations,
+- verification du materiel,
+- verification metrologique,
+- preparation documentaire,
+- coordination chantier,
+- verification des acces,
+- anticipation HSE,
+- validation technique si necessaire.
+
+3.5 Intervention
+
+L'intervention est l'action concrete planifiee et executee.
+Exemples :
+- visite chantier,
+- essai de plaque,
+- carottage,
+- prelevement,
+- sondage,
+- controle beton frais,
+- recontrole,
+- contre-visite,
+- pose ou releve de materiel,
+- visite G3,
+- reunion technique sur site,
+- visite de constat,
+- campagne de description geotechnique.
+
+3.6 Point / prelevement / sondage / controle / observation
+
+Il s'agit du niveau terrain fin.
+Une intervention peut contenir plusieurs points.
+Selon le cas, un point peut etre :
+- un point d'essai,
+- un point de prelevement,
+- un sondage,
+- un carottage,
+- un point d'observation,
+- un point de controle,
+- un point de mesure,
+- une fouille / un puits,
+- une zone de constat.
+
+3.7 Echantillon
+
+L'echantillon est l'objet matiere et traçabilite.
+Il peut provenir :
+- d'un prelevement chantier,
+- d'un sondage,
+- d'un carottage,
+- d'une livraison au laboratoire,
+- d'un controle production,
+- d'un depot direct par un technicien ou demandeur,
+- d'un doublon ou fractionnement d'un echantillon parent.
+
+3.8 Traitement laboratoire
+
+Le traitement laboratoire regroupe ce qui est fait sur l'echantillon en laboratoire.
+Il comprend :
+- la reception,
+- l'enregistrement,
+- le stockage,
+- la preparation d'echantillon,
+- les essais,
+- le calcul,
+- la validation,
+- la restitution des resultats.
+
+3.9 Preparation d'echantillon
+
+La preparation d'echantillon est distincte de la preparation de l'intervention.
+Elle correspond aux operations physiques realisees sur un echantillon avant ou pendant les essais.
+Exemples :
+- sechage,
+- quartage,
+- reduction,
+- desagregation,
+- tamisage preparatoire,
+- lavage,
+- homogeneïsation,
+- sciage,
+- decoupe,
+- confection d'eprouvettes,
+- cure,
+- remoulage,
+- conditionnement.
+
+3.10 Essai
+
+L'essai est l'operation technique de mesure, controle, caracterisation ou verification.
+Il peut etre :
+- in situ,
+- en laboratoire,
+- interne,
+- sous-traite,
+- simple,
+- calcule,
+- compose,
+- interprete.
+
+3.11 Validation technique
+
+La validation technique couvre :
+- verification de coherence,
+- controle des valeurs,
+- verification des calculs,
+- verification des unites,
+- verification du respect de la methode,
+- visa par personne habilitee,
+- emission ou blocage.
+
+3.12 Restitution
+
+La restitution peut prendre plusieurs formes :
+- fiche terrain,
+- compte rendu d'intervention,
+- PV d'essai,
+- synthese de campagne,
+- rapport de reconnaissance,
+- note d'analyse,
+- avis technique,
+- note G3,
+- alerte non-conformite,
+- tableau de suivi,
+- rapport final.
+
+====================================================================
+4. RELATIONS ENTRE OBJETS
+====================================================================
+
+La logique cible doit permettre au minimum :
+- une affaire peut contenir 0..n demandes,
+- une demande appartient a 1 affaire,
+- une demande peut contenir 0..n campagnes,
+- une campagne appartient a 1 demande,
+- une campagne peut contenir 0..n preparations de l'intervention,
+- une campagne peut contenir 0..n interventions,
+- une intervention appartient a 1 campagne,
+- une intervention peut contenir 0..n points,
+- un point appartient a 1 intervention,
+- un point peut produire 0..n echantillons,
+- un echantillon appartient a 0..1 point ou peut etre cree par reception directe,
+- un echantillon peut avoir 0..n traitements labo,
+- un traitement labo appartient a 1 echantillon,
+- un traitement labo peut contenir 0..n operations de preparation d'echantillon,
+- un traitement labo peut contenir 0..n essais,
+- un essai appartient a 1 traitement labo,
+- un essai peut produire 0..n resultats,
+- une campagne peut etre liee a 0..n livrables,
+- une demande peut etre liee a 0..n livrables,
+- une affaire peut consolider 0..n livrables.
+
+====================================================================
+5. GRANDES PHASES DU PROCESSUS METIER
+====================================================================
+
+5.1 Prise d'affaire
+
+Objectif : comprendre le besoin, qualifier la prestation, cadrer le perimetre, verifier la faisabilite.
+
+Contenu attendu :
+- reception de la sollicitation,
+- identification du demandeur,
+- qualification technique initiale,
+- lecture rapide des pieces disponibles,
+- identification du contexte contractuel,
+- analyse du besoin reel,
+- estimation des moyens,
+- evaluation des risques,
+- verification des delais,
+- chiffrage,
+- validation ou refus,
+- ouverture du dossier.
+
+5.2 Revue technique de la demande
+
+Objectif : transformer le besoin exprime en programme technique clair.
+
+Contenu attendu :
+- lecture des documents,
+- identification des questions techniques,
+- determination des hypotheses,
+- choix des types d'investigation,
+- determination des zones et frequences,
+- determination des types d'essais,
+- identification des risques,
+- identification des limites de mission,
+- qualification du niveau d'urgence,
+- besoin de sous-traitance ou non,
+- choix des livrables.
+
+5.3 Construction de la campagne
+
+Objectif : organiser la reponse a la demande en un programme coherent et pilotable.
+
+Contenu attendu :
+- type de campagne,
+- objectif,
+- zone / secteur / phase / lot,
+- temporalite,
+- interventions prevues,
+- equipe,
+- ressources,
+- materiels,
+- contraintes HSE,
+- dependances chantier,
+- criteres de cloture,
+- documents de reference,
+- livrables attendus.
+
+5.4 Preparation de l'intervention
+
+Objectif : rendre l'execution possible, sure, efficace et tracee.
+
+Contenu attendu :
+- ordre de mission,
+- affectation equipe,
+- verification qualification,
+- verification metrologie,
+- verification disponibilite materiels,
+- preparation EPI,
+- preparation consommables,
+- preparation fiches terrain,
+- plan d'acces,
+- contacts chantier,
+- localisation points,
+- verification autorisations,
+- verification plan de prevention / PPSPS si besoin,
+- verification logistique,
+- coordination horaires,
+- anticipation coactivite,
+- confirmation du programme.
+
+5.5 Realisation de l'intervention
+
+Objectif : executer l'action technique sur le terrain ou en contexte d'exploitation.
+
+Contenu attendu :
+- accueil chantier,
+- consignes securite,
+- verification conditions reelles,
+- adaptation si necessaire,
+- realisation des points,
+- observations,
+- mesures,
+- prelevements,
+- photos,
+- localisation,
+- incidents / ecarts,
+- synthese de fin d'intervention,
+- transfert des echantillons,
+- information immediate en cas d'anomalie critique.
+
+5.6 Traitement laboratoire
+
+Objectif : assurer un traitement trace, fiable et conforme des echantillons.
+
+Contenu attendu :
+- reception,
+- enregistrement,
+- verification de conformite a reception,
+- stockage,
+- preparation d'echantillon,
+- realisation essais,
+- calculs,
+- validation,
+- emission des resultats.
+
+5.7 Interpretation technique et restitution
+
+Objectif : transformer les resultats en information exploitable.
+
+Contenu attendu :
+- verification coherence,
+- comparaison aux criteres,
+- interpretation,
+- decision de conformite,
+- recommandations,
+- besoins complementaires,
+- rapport / note / PV,
+- diffusion,
+- archivage,
+- retour d'experience.
+
+====================================================================
+6. TYPES DE DEMANDES A PREVOIR
+====================================================================
+
+Le systeme doit permettre au minimum les types de demandes suivants :
+
+6.1 Demandes laboratoire materiaux / sols / granulats
+- identification de sols,
+- essais GTR,
+- reemploi de materiaux,
+- caracterisation granulats,
+- controle GNT,
+- controle graves,
+- essais sable / fillers,
+- essais formules,
+- suivi lot de materiau,
+- verification reception materiaux.
+
+6.2 Demandes controles terrassement et plateforme
+- essais de plaque,
+- dynaplaque,
+- PANDA,
+- controle compactage,
+- controle couche de forme,
+- verification PF / arase,
+- controle remblai / remblai technique,
+- verification conditions avant suite travaux.
+
+6.3 Demandes chaussees / enrobes
+- prelevements enrobes,
+- carottages,
+- controle epaisseur,
+- controle compacite,
+- masse volumique,
+- extraction liant,
+- granulometrie apres extraction,
+- controle macrotexture,
+- deflexion,
+- diagnostic de surface,
+- expertise non-conformite de chaussee.
+
+6.4 Demandes beton / GC
+- controle beton frais,
+- confection eprouvettes,
+- resistances,
+- carottages beton,
+- controle de formulation,
+- controle chantier beton.
+
+6.5 Demandes geotechniques
+- campagne de sondages,
+- sondages a la tariere,
+- sondages destructifs,
+- sondages carottes,
+- pressiometre,
+- penetrometre,
+- puits / fouilles,
+- prelevements intacts,
+- reconnaissance de fondation,
+- verification hypothese geotechnique,
+- controle conditions reelles en execution.
+
+6.6 Demandes environnement / pollution
+- plan d'echantillonnage,
+- prelevements sols,
+- prelevements eaux,
+- organisation chaine de possession,
+- pilotage labo externe,
+- interpretation premier niveau,
+- restitution synthese.
+
+6.7 Demandes appui technique / expertise / diagnostic
+- avis technique,
+- note d'analyse,
+- analyse de non-conformite,
+- diagnostic pathologie,
+- appui offre technique,
+- verification de faisabilite,
+- interpretation de resultats,
+- programme d'investigation complementaire.
+
+6.8 Demandes G3
+- definition d'un programme de reconnaissance d'execution,
+- verification geotechnique en phase execution,
+- appui au suivi de terrassements,
+- appui au suivi couche de forme,
+- appui au suivi de soutenements,
+- appui au suivi de fondations,
+- propositions de reconnaissances complementaires,
+- interpretation des resultats en cours de chantier,
+- emission d'avis technique d'adaptation,
+- suivi geotechnique d'execution,
+- production de note G3,
+- appui a la levee de points d'arret,
+- verification de conformite au regard des hypotheses geotechniques.
+
+====================================================================
+7. TYPES DE CAMPAGNES A PREVOIR
+====================================================================
+
+7.1 Campagnes de reconnaissance geotechnique
+- reconnaissance preliminaire,
+- reconnaissance d'execution,
+- campagne penetrometrique,
+- campagne pressiometrique,
+- campagne de sondages,
+- campagne de puits / tranchées,
+- campagne de prelevements intacts,
+- campagne complementaire suite a incertitude.
+
+7.2 Campagnes de controles terrassement
+- controle remblais,
+- controle deblais / reemploi,
+- controle compactage,
+- controle couche de forme,
+- controle PF / arase,
+- suivi de plateforme,
+- recontrole apres reprise,
+- controle de traitements.
+
+7.3 Campagnes chaussées / enrobes
+- campagne de carottages,
+- campagne de prelevements a chaud,
+- campagne de controle de mise en oeuvre,
+- campagne de macrotexture,
+- campagne de deflexion,
+- campagne de diagnostic de surface,
+- campagne de controle de structure,
+- campagne de verification d'epaisseur.
+
+7.4 Campagnes materiaux / reception
+- reception GNT,
+- reception granulats,
+- controle de lots,
+- controle de materiaux de reemploi,
+- qualification materiaux entrants,
+- controle periodique fournisseur.
+
+7.5 Campagnes laboratoire
+- campagne d'identification sols,
+- campagne Proctor / CBR,
+- campagne granulats,
+- campagne enrobes,
+- campagne beton,
+- campagne de cisaillements,
+- campagne d'analyses completes.
+
+7.6 Campagnes diagnostic / litige
+- expertise non-conformite,
+- investigation de portance insuffisante,
+- expertise ravelling / desagregation,
+- expertise de formulation,
+- expertise d'heterogeneite,
+- diagnostic suite a refus MOE / client.
+
+7.7 Campagnes G3 / suivi d'execution
+- campagne de suivi geotechnique terrassements,
+- campagne de suivi couche de forme,
+- campagne de suivi fondations,
+- campagne de suivi soutenement,
+- campagne de controle geotechnique avant poursuite,
+- campagne de verification d'hypotheses d'execution,
+- campagne d'adaptation en cours de chantier,
+- campagne de controle geotechnique post-incident.
+
+====================================================================
+8. TYPES D'INTERVENTIONS A PREVOIR
+====================================================================
+
+8.1 Interventions terrain generales
+- visite chantier,
+- visite de preparation,
+- visite de constat,
+- visite de suivi,
+- contre-visite,
+- reprise de controle,
+- presence technique / assistance terrain.
+
+8.2 Interventions de prelevement
+- prelevement sol remanie,
+- prelevement sol intact,
+- prelevement GNT,
+- prelevement granulat,
+- prelevement sable,
+- prelevement enrobe chaud,
+- prelevement beton frais,
+- prelevement eau,
+- prelevement materiau traite,
+- prelevement de stock,
+- prelevement sur plateforme,
+- prelevement sur tapis / centrale / mise en oeuvre.
+
+8.3 Interventions de controle in situ
+- essai de plaque,
+- dynaplaque,
+- PANDA,
+- penetrometre dynamique,
+- controle densite in situ selon methode disponible,
+- mesure epaisseur,
+- controle temperature,
+- controle macrotexture,
+- mesure de deflexion,
+- inspection visuelle structure.
+
+8.4 Interventions geotechniques
+- sondage tariere,
+- sondage destructif,
+- sondage carotte,
+- pressiometre,
+- penetrometre,
+- puits / fouille,
+- ouverture de tranchée,
+- description geotechnique,
+- relevé nappe,
+- essai infiltration / permeabilite si pertinent,
+- implantation points,
+- controle de fond de fouille.
+
+8.5 Interventions beton / GC
+- controle beton frais,
+- confection eprouvettes,
+- visite coulage,
+- carottage beton,
+- constat technique beton.
+
+8.6 Interventions G3 / appui execution
+- visite geotechnique d'execution,
+- constat en fond de fouille,
+- verification plateforme,
+- verification soutenement,
+- verification traitement,
+- verification adequation sol / projet,
+- visite avec emission d'avis,
+- visite avec programme complementaire,
+- visite de levee de reserve technique.
+
+====================================================================
+9. TYPES DE POINTS / PRELEVEMENTS / SONDAGES / CONTROLES
+====================================================================
+
+Le systeme doit pouvoir distinguer le type fin de point realise.
+Exemples :
+- point d'essai de plaque,
+- point PANDA,
+- point dynaplaque,
+- point de prelevement sol,
+- point de prelevement GNT,
+- point de prelevement enrobe,
+- point de prelevement beton,
+- sondage destructif,
+- sondage a la tariere,
+- sondage carotte,
+- point pressiometrique,
+- puits,
+- fouille,
+- point de constat,
+- point de controle de temperature,
+- point de carottage,
+- point de deflexion,
+- point de macrotexture,
+- point de constat G3,
+- zone d'observation,
+- point d'anomalie.
+
+Pour chaque point, il faut pouvoir tracer :
+- identifiant,
+- type,
+- localisation,
+- date,
+- heure,
+- intervenant,
+- altitude / profondeur si utile,
+- contexte meteo / humidite si pertinent,
+- reference campagne / intervention,
+- observations,
+- photos,
+- anomalie / non-conformite,
+- lien vers echantillons,
+- lien vers essais terrain,
+- conclusion locale.
+
+====================================================================
+10. TYPES D'ECHANTILLONS A PREVOIR
+====================================================================
+
+10.1 Sols
+- remanies,
+- intacts,
+- deblai,
+- remblai,
+- couche de forme,
+- materiau traite,
+- materiau naturel,
+- argileux, limoneux, graveleux, rocheux, heterogene.
+
+10.2 Granulats / GNT / graves
+- GNT 0/31.5,
+- GNT 0/20,
+- 0/80,
+- grave recyclee,
+- sable,
+- granulat concasse,
+- grave naturelle,
+- materiau de plateforme,
+- materiau de purge,
+- materiau de traitement.
+
+10.3 Enrobes
+- prelevement a chaud,
+- carotte enrobe,
+- materiau fraise,
+- echantillon de centrale,
+- echantillon de chantier,
+- liant recupere.
+
+10.4 Beton
+- beton frais,
+- eprouvette,
+- carotte beton,
+- mortier,
+- element durci.
+
+10.5 Geotechnique / environnement
+- eau,
+- lixiviat,
+- sol pollution,
+- roche,
+- echantillon chimique,
+- echantillon externe sous-traite.
+
+====================================================================
+11. TRAITEMENT LABORATOIRE
+====================================================================
+
+Le traitement laboratoire doit permettre :
+- reception et enregistrement,
+- controle de conformite a reception,
+- attribution d'un code echantillon,
+- rattachement a l'affaire / demande / campagne / intervention / point,
+- orientation vers filiere d'essais,
+- gestion priorite,
+- stockage,
+- traitement / preparation,
+- essais,
+- saisie valeurs,
+- calculs automatiques,
+- validation,
+- emission,
+- archivage.
+
+====================================================================
+12. TYPOLOGIE DES ESSAIS A PREVOIR
+====================================================================
+
+12.1 Sols - identification et classification
+- teneur en eau,
+- masse volumique apparente,
+- masse volumique des grains,
+- granulometrie par tamisage,
+- granulometrie fine / sedimentometrie si besoin,
+- limites d'Atterberg,
+- VBS,
+- equivalent de sable si applicable,
+- teneur en matieres organiques,
+- pH,
+- sulfates / analyses chimiques simples selon contexte,
+- classement GTR,
+- description lithologique et geotechnique.
+
+12.2 Sols - aptitude et comportement
+- Proctor normal,
+- Proctor modifie,
+- IPI,
+- CBR / CBRi,
+- gonflement,
+- portance apres immersion,
+- aptitude au traitement,
+- sensibilité a l'eau,
+- resistance de materiau traite.
+
+12.3 Sols - mecanique et geotechnique avancee
+- cisaillement direct,
+- compression simple,
+- triaxial UU,
+- triaxial CU,
+- triaxial CD,
+- oedometre,
+- permeabilite,
+- retrait / gonflement,
+- agressivite chimique,
+- point load / roche selon moyens.
+
+12.4 Granulats / GNT / graves
+- granulometrie,
+- passant 0,063,
+- equivalent de sable,
+- MB / VBS selon famille,
+- teneur en eau,
+- masse volumique,
+- absorption d'eau,
+- coefficient d'aplatissement,
+- proprete,
+- Los Angeles,
+- Micro-Deval,
+- MVR / MV / MVv / MVA selon codifications retenues,
+- gelivite si besoin,
+- conformite a classe granulaire.
+
+12.5 Enrobes / liants / chaussees
+- masse volumique apparente,
+- masse volumique maximale,
+- compacite / vides,
+- extraction du liant,
+- teneur en liant,
+- granulometrie apres extraction,
+- epaisseur par carottage,
+- identification de formule,
+- macrotexture / PMT,
+- deflexion,
+- ornierage si equipement ou sous-traitance,
+- sensibilité a l'eau,
+- module / rigidite,
+- essais de liant recupere si besoin.
+
+12.6 Beton / GC
+- affaissement,
+- temperature,
+- air occlus,
+- masse volumique beton frais,
+- confection eprouvettes,
+- compression,
+- traction par fendage,
+- flexion,
+- masse volumique durcie,
+- carottage,
+- carbonatation si besoin.
+
+12.7 Essais in situ / terrain
+- essai de plaque EV1 / EV2,
+- dynaplaque / PLD,
+- PANDA,
+- penetrometre,
+- pressiometre,
+- mesure de temperature,
+- controle epaisseur,
+- controle de mise en oeuvre,
+- deflexion,
+- PMT,
+- constat technique.
+
+12.8 Environnement / pollution
+- plan de prelevement,
+- chaine de possession,
+- suivi externalisation,
+- integrer resultats labo externe,
+- interpretation premier niveau,
+- restitution comparee aux seuils si applicables.
+
+====================================================================
+13. FICHES DE SUIVI - PRINCIPES GENERAUX
+====================================================================
+
+Une fiche de suivi doit servir a piloter, tracer et verifier l'execution d'une activite.
+Elle n'est pas seulement une feuille de notes.
+Elle doit permettre :
+- la traçabilite,
+- la comprehension rapide,
+- le suivi d'avancement,
+- la verification de completude,
+- la preuve d'execution,
+- la validation,
+- l'archivage,
+- la transmission.
+
+Chaque fiche de suivi doit idealement comporter 4 blocs :
+1. Identification
+2. Preparation / contexte
+3. Execution / suivi
+4. Validation / conclusion
+
+====================================================================
+14. FICHE DE SUIVI CAMPAGNE - CONTENU ATTENDU
+====================================================================
+
+14.1 Identification campagne
+- numero campagne,
+- intitule,
+- affaire,
+- demande,
+- type de campagne,
+- objectif technique,
+- zone / secteur / lot / phase,
+- priorite,
+- statut,
+- responsable technique,
+- responsable planification,
+- demandeur,
+- dates prevues,
+- dates reelles,
+- echeance.
+
+14.2 Contexte technique
+- description du besoin,
+- documents de reference,
+- hypotheses,
+- criteres de controle,
+- limites de mission,
+- type de livrables attendus,
+- risques identifies,
+- dependances chantier.
+
+14.3 Programme prevu
+- type d'interventions prevues,
+- nombre de points prevus,
+- types d'essais prevus,
+- types de prelevements prevus,
+- moyens materiels prevus,
+- equipe prevue,
+- sous-traitance prevue,
+- contraintes d'acces,
+- contraintes HSE,
+- jalons.
+
+14.4 Suivi avancement
+- interventions planifiees,
+- interventions realisees,
+- interventions annulees ou reportees,
+- nb de points realises / prevus,
+- nb de prelevements realises / prevus,
+- nb d'echantillons recus / attendus,
+- nb d'essais lances / termines,
+- anomalies,
+- blocages,
+- demandes complementaires,
+- alertes emises.
+
+14.5 Cloture campagne
+- synthese technique,
+- conformite globale,
+- points de vigilance,
+- besoins complementaires,
+- livrables emis,
+- date de cloture,
+- valideur,
+- commentaires finaux.
+
+====================================================================
+15. FICHE DE SUIVI PREPARATION DE L'INTERVENTION - CONTENU ATTENDU
+====================================================================
+
+15.1 Identification
+- numero preparation,
+- campagne,
+- intervention cible,
+- type d'intervention,
+- objectif,
+- date prevue,
+- equipe prevue,
+- pilote.
+
+15.2 Cadrage technique
+- documents consultes,
+- resume des attentes,
+- points a realiser,
+- essais a effectuer,
+- prelevements a faire,
+- profondeur / quantites / frequences,
+- niveau d'urgence,
+- consignes particulières.
+
+15.3 Cadrage logistique et materiel
+- materiels requis,
+- verification disponibilite,
+- verification etat,
+- verification metrologie,
+- consommables,
+- EPI,
+- vehicule / acces,
+- outils numeriques / formulaires,
+- etiquettes / contenants,
+- appareils photo / tablette / GPS.
+
+15.4 Cadrage HSE / chantier
+- contact chantier,
+- horaire confirme,
+- plan d'acces,
+- autorisations,
+- plan de prevention / PPSPS si besoin,
+- coactivite,
+- zone balisage,
+- contraintes circulation,
+- contraintes meteo,
+- risque specifique.
+
+15.5 Validation prealable
+- preparation complete oui/non,
+- point bloquant oui/non,
+- validation technique,
+- validation logistique,
+- commentaires.
+
+====================================================================
+16. FICHE DE SUIVI INTERVENTION - CONTENU ATTENDU
+====================================================================
+
+16.1 Identification intervention
+- numero intervention,
+- campagne,
+- affaire,
+- demande,
+- type d'intervention,
+- objectif,
+- date,
+- heure debut,
+- heure fin,
+- intervenants,
+- responsable sur site,
+- lieu,
+- chantier / zone.
+
+16.2 Conditions d'intervention
+- meteo,
+- etat du site,
+- accessibilite,
+- securite / accueil,
+- ecarts entre prevu et reel,
+- consignes recues,
+- materiel utilise,
+- verification materiel avant demarrage.
+
+16.3 Realisation
+- liste des points prevus,
+- liste des points realises,
+- points non realises + motif,
+- prelevements effectues,
+- essais in situ realises,
+- observations,
+- photos,
+- incidents,
+- non-conformites,
+- adaptations faites sur site,
+- decision immediate si necessaire.
+
+16.4 Sortie d'intervention
+- synthese de l'intervention,
+- nb echantillons ramenes,
+- destination labo,
+- information au demandeur,
+- alertes emises,
+- piece jointe terrain,
+- signature / validation.
+
+====================================================================
+17. FICHE DE SUIVI POINT / PRELEVEMENT / SONDAGE / CONTROLE
+====================================================================
+
+17.1 Champs d'identification
+- identifiant point,
+- intervention,
+- type de point,
+- numero point terrain,
+- date / heure,
+- operateur,
+- zone,
+- axe / PR / repere / coordonnees,
+- altitude / profondeur si pertinent.
+
+17.2 Contexte
+- materiau apparent,
+- etat hydrique apparent,
+- support,
+- couche / horizon,
+- conditions particulieres,
+- anomalie visuelle,
+- photo.
+
+17.3 Execution / mesures
+- methode appliquee,
+- appareil utilise,
+- reference appareil,
+- valeur(s) mesuree(s),
+- profondeur / epaisseur / niveau,
+- quantite prelevee,
+- observations,
+- difficulte,
+- commentaire operateur.
+
+17.4 Suite
+- echantillon(s) cree(s),
+- essai(s) terrain associe(s),
+- conclusion locale,
+- conforme / doute / non conforme,
+- besoin d'investigation complementaire,
+- lien vers alerte si necessaire.
+
+====================================================================
+18. FICHE DE SUIVI ECHANTILLON - CONTENU ATTENDU
+====================================================================
+
+18.1 Identification
+- code echantillon,
+- type,
+- nature,
+- origine,
+- point source,
+- intervention source,
+- campagne,
+- affaire,
+- date prelevement,
+- date reception,
+- preleveur,
+- recepteur labo.
+
+18.2 Etat a reception
+- quantite,
+- contenant,
+- etat physique,
+- conformite etiquetage,
+- conformite quantite,
+- integrite,
+- reserve a reception,
+- urgence.
+
+18.3 Orientation laboratoire
+- essais demandes,
+- priorite,
+- filiere labo,
+- stockage,
+- sous-traitance oui/non,
+- delai cible.
+
+18.4 Suivi traitement
+- date debut traitement,
+- preparation requise,
+- essais lances,
+- essais termines,
+- validation en cours,
+- cloture.
+
+====================================================================
+19. FICHE DE SUIVI TRAITEMENT LABO - CONTENU ATTENDU
+====================================================================
+
+19.1 Identification
+- numero traitement,
+- echantillon,
+- famille d'essais,
+- date ouverture,
+- operateur,
+- priorite,
+- statut.
+
+19.2 Preparation d'echantillon
+- type(s) de preparation,
+- date(s),
+- operateur,
+- masse avant / apres si utile,
+- observations,
+- anomalie,
+- conformite de preparation.
+
+19.3 Essais
+- liste des essais prevus,
+- liste des essais realises,
+- essais annules / non realisables,
+- date realisation,
+- operateur,
+- appareil,
+- statut saisie,
+- statut calcul,
+- statut validation.
+
+19.4 Validation
+- verification coherence,
+- calculs automatiques effectues,
+- controle des resultats,
+- commentaire technique,
+- valideur,
+- date validation,
+- emission oui/non.
+
+====================================================================
+20. FEUILLES D'INPUT - PRINCIPES GENERAUX
+====================================================================
+
+Chaque feuille d'input ou formulaire de saisie doit au minimum distinguer :
+- identification,
+- contexte,
+- valeurs brutes,
+- calculs,
+- resultats,
+- controle coherence,
+- validation.
+
+Règles generales :
+- afficher les unites,
+- distinguer saisie brute et valeur calculee,
+- bloquer les champs incoherents,
+- permettre des observations,
+- permettre le brouillon,
+- historiser les modifications,
+- indiquer l'operateur,
+- indiquer la date / heure de saisie,
+- tracer la methode / norme / procedure,
+- permettre le rattachement a l'appareil si utile,
+- afficher les alertes metier.
+
+====================================================================
+21. FEUILLES D'INPUT - ESSAI DE PLAQUE
+====================================================================
+
+21.1 Champs d'identification
+- numero essai,
+- campagne,
+- intervention,
+- point,
+- operateur,
+- date,
+- heure,
+- lieu,
+- couche testee,
+- type de support.
+
+21.2 Champs contexte
+- meteo,
+- etat hydrique apparent,
+- couche / plateforme / arase / CF,
+- distance aux bords / influence,
+- remarques chantier,
+- appareil / plaque / reference.
+
+21.3 Valeurs brutes a saisir
+- diametre plaque,
+- paliers de charge,
+- tassements 1er cycle,
+- tassements 2e cycle,
+- observations pendant l'essai,
+- anomalies.
+
+21.4 Calculs / resultats a calculer ou afficher
+- EV1,
+- EV2,
+- rapport EV2/EV1 si pertinent,
+- interpretation,
+- conforme / non conforme selon critere rattache,
+- observation operateur,
+- validation technique.
+
+21.5 Resultats a faire apparaitre
+- EV1,
+- EV2,
+- rapport,
+- commentaire,
+- conclusion locale,
+- critere cible,
+- statut conforme / reserve / non conforme.
+
+====================================================================
+22. FEUILLES D'INPUT - PANDA / PENETROMETRE
+====================================================================
+
+22.1 Identification
+- numero essai,
+- point,
+- campagne,
+- operateur,
+- date,
+- appareil,
+- type d'essai,
+- zone.
+
+22.2 Valeurs brutes
+- profondeur par increment,
+- coups / resistance / qd / valeur issue appareil,
+- observations de couche,
+- refus,
+- eau / heterogeneite.
+
+22.3 Resultats / affichages
+- courbe par profondeur,
+- valeurs caracteristiques,
+- couches interpretees,
+- conclusion vis-a-vis du compactage ou de la structure,
+- commentaire technique.
+
+====================================================================
+23. FEUILLES D'INPUT - DYNAPLAQUE / PLD
+====================================================================
+
+23.1 Identification
+- numero essai,
+- point,
+- intervention,
+- date,
+- operateur,
+- appareil.
+
+23.2 Valeurs brutes
+- valeurs successives mesurees,
+- nombre d'impacts,
+- support,
+- observations.
+
+23.3 Resultats
+- module / indice selon appareil,
+- interpretation,
+- comparaison a seuil,
+- conclusion.
+
+====================================================================
+24. FEUILLES D'INPUT - PRELEVEMENT SOL / GNT / GRANULAT
+====================================================================
+
+24.1 Identification
+- numero prelevement,
+- campagne,
+- intervention,
+- point,
+- date,
+- operateur,
+- localisation,
+- fournisseur / origine si applicable,
+- lot / camion / stock / zone.
+
+24.2 Contexte
+- materiau apparent,
+- etat hydrique apparent,
+- couche / profondeur,
+- mode de prelevement,
+- quantite,
+- contenant,
+- observations.
+
+24.3 Resultats / suivis a afficher
+- code echantillon cree,
+- essais demandes,
+- destination labo,
+- priorite,
+- reserve ou non.
+
+====================================================================
+25. FEUILLES D'INPUT - GRANULOMETRIE
+====================================================================
+
+25.1 Identification
+- numero essai,
+- echantillon,
+- operateur,
+- date,
+- norme / procedure,
+- fraction / preparation,
+- masse initiale.
+
+25.2 Valeurs brutes
+- tamis utilises,
+- masses retenues par tamis,
+- masse passante / refus si methode,
+- perte au lavage si applicable,
+- observations.
+
+25.3 Calculs / resultats
+- pourcentage retenu,
+- pourcentage passant,
+- courbe granulometrique,
+- classification / conformite a fuseau si applicable,
+- commentaire technique.
+
+25.4 Resultats a afficher
+- tableau complet des tamis,
+- % passant,
+- courbe,
+- synthese conformite,
+- anomalie de masse si ecart.
+
+====================================================================
+26. FEUILLES D'INPUT - TENEUR EN EAU
+====================================================================
+
+26.1 Identification
+- numero essai,
+- echantillon,
+- operateur,
+- date,
+- capsule / recipient.
+
+26.2 Valeurs brutes
+- masse recipient vide,
+- masse recipient + echantillon humide,
+- masse recipient + echantillon sec,
+- observations.
+
+26.3 Calculs / resultats
+- masse humide,
+- masse seche,
+- teneur en eau,
+- moyenne si plusieurs determinations,
+- ecart si repetitions.
+
+26.4 Resultats a afficher
+- valeur par determination,
+- moyenne,
+- commentaire,
+- interpretation eventuelle.
+
+====================================================================
+27. FEUILLES D'INPUT - LIMITES D'ATTERBERG
+====================================================================
+
+27.1 Identification
+- numero essai,
+- echantillon,
+- operateur,
+- date,
+- methode.
+
+27.2 Valeurs brutes
+- masse recipients,
+- masses humides / seches,
+- nombre de coups LL,
+- valeurs LP,
+- observations de comportement.
+
+27.3 Calculs / resultats
+- WL,
+- WP,
+- IP,
+- classification,
+- coherence du jeu de points.
+
+27.4 Resultats a afficher
+- valeurs individuelles,
+- courbe si geree,
+- WL / WP / IP,
+- interpretation.
+
+====================================================================
+28. FEUILLES D'INPUT - VBS / MB
+====================================================================
+
+28.1 Identification
+- numero essai,
+- echantillon,
+- operateur,
+- date,
+- coefficient / fraction retenue,
+- type de materiau.
+
+28.2 Valeurs brutes
+- masse humide,
+- teneur en eau si necessaire,
+- masse seche calculee,
+- volumes de bleu successifs,
+- volume final retenu,
+- coefficient applique,
+- observations.
+
+28.3 Calculs / resultats
+- masse seche corrigee,
+- valeur VBS ou MB,
+- moyenne / repetition,
+- interpretation.
+
+28.4 Resultats a afficher
+- tableau des determinations,
+- valeur finale,
+- formule de calcul,
+- commentaire,
+- conformite si seuil rattache.
+
+====================================================================
+29. FEUILLES D'INPUT - EQUIVALENT DE SABLE
+====================================================================
+
+29.1 Valeurs a saisir
+- hauteur sable,
+- hauteur limons / lecture,
+- repetitions,
+- observations.
+
+29.2 Resultats
+- ES par determination,
+- moyenne,
+- conformite.
+
+====================================================================
+30. FEUILLES D'INPUT - PROCTOR
+====================================================================
+
+30.1 Identification
+- numero essai,
+- echantillon,
+- operateur,
+- date,
+- type Proctor,
+- moule,
+- fraction.
+
+30.2 Valeurs brutes
+- teneurs en eau,
+- masses moule + materiau,
+- masses moule vide,
+- energies / couches / coups selon procedure,
+- observations.
+
+30.3 Calculs / resultats
+- masse volumique humide,
+- masse volumique seche,
+- courbe,
+- OPN / OPM,
+- w optimum,
+- gamma d max,
+- interpretation.
+
+30.4 Resultats a afficher
+- tableau complet,
+- courbe Proctor,
+- optimum,
+- densite seche max,
+- commentaire.
+
+====================================================================
+31. FEUILLES D'INPUT - CBR / CBRI
+====================================================================
+
+31.1 Valeurs a saisir
+- donnees eprouvette,
+- compactage,
+- masse,
+- immersion si applicable,
+- gonflement,
+- valeurs penetration / charge,
+- observations.
+
+31.2 Resultats
+- CBR a 2,5 mm,
+- CBR a 5 mm,
+- valeur retenue,
+- CBRi si applicable,
+- commentaire,
+- interpretation usage.
+
+====================================================================
+32. FEUILLES D'INPUT - LOS ANGELES / MICRO-DEVAL
+====================================================================
+
+32.1 Valeurs a saisir
+- masse initiale,
+- fraction,
+- masse finale,
+- pertes,
+- observations.
+
+32.2 Resultats
+- coefficient LA,
+- coefficient MDE,
+- conformite a seuil,
+- commentaire.
+
+====================================================================
+33. FEUILLES D'INPUT - MASSES VOLUMIQUES / ABSORPTION
+====================================================================
+
+33.1 Valeurs a saisir
+- masses seches,
+- masses immergees,
+- masses saturees essuyees,
+- temperature si utile,
+- observations.
+
+33.2 Resultats
+- masse volumique apparente,
+- masse volumique reelle,
+- absorption,
+- interpretation.
+
+====================================================================
+34. FEUILLES D'INPUT - ENROBES / EXTRACTION / DENSITE / EPAISSEUR
+====================================================================
+
+34.1 Identification
+- numero essai,
+- echantillon / carotte,
+- couche,
+- lot,
+- date,
+- operateur.
+
+34.2 Valeurs brutes
+- masse initiale,
+- masse apres extraction,
+- masses specifiques,
+- dimensions carotte,
+- epaisseurs mesurees,
+- observations visuelles,
+- temperature si prelevement a chaud.
+
+34.3 Calculs / resultats
+- teneur en liant,
+- granulometrie apres extraction,
+- masse volumique apparente,
+- masse volumique maximale,
+- taux de vides,
+- taux de compactage,
+- epaisseur moyenne,
+- formule presumee / comparaison,
+- commentaire.
+
+34.4 Resultats a afficher
+- tableau des mesures,
+- valeurs finales,
+- conclusion de conformite,
+- anomalie structurelle,
+- photo carotte si utile.
+
+====================================================================
+35. FEUILLES D'INPUT - BETON FRAIS
+====================================================================
+
+35.1 Valeurs a saisir
+- heure prelevement,
+- temperature,
+- affaissement / etalement,
+- air,
+- masse volumique,
+- observations visuelles,
+- identification camion / lot / zone coulee.
+
+35.2 Resultats
+- valeurs mesurees,
+- conformite a la formule / classe / consigne,
+- eprouvettes confectionnees,
+- commentaire.
+
+====================================================================
+36. FEUILLES D'INPUT - RESISTANCE BETON
+====================================================================
+
+36.1 Valeurs a saisir
+- eprouvette,
+- age,
+- dimensions,
+- surface,
+- charge rupture,
+- observations.
+
+36.2 Resultats
+- resistance,
+- moyenne serie,
+- conforme / non conforme,
+- commentaire.
+
+====================================================================
+37. FEUILLES D'INPUT - SONDAGES / PRESSIOMETRE / GEOTECHNIQUE
+====================================================================
+
+37.1 Sondage - champs principaux
+- numero sondage,
+- type,
+- implantation,
+- date,
+- operateurs,
+- profondeur finale,
+- niveaux rencontres,
+- eau,
+- observations,
+- echantillons preleves,
+- incidents.
+
+37.2 Description geotechnique
+- horizon / couche,
+- profondeur debut / fin,
+- nature,
+- couleur,
+- compacite / consistance,
+- humidite,
+- elements particuliers,
+- odeur / pollution,
+- blocs / racines / heterogeneite,
+- interpretation.
+
+37.3 Pressiometre
+- profondeur,
+- lecture appareil,
+- pL,
+- EM,
+- interpretation,
+- anomalie.
+
+37.4 Resultats a afficher
+- log sondage,
+- coupe,
+- parametres geotechniques,
+- interpretation,
+- coherence generale,
+- recommandations si niveau technique attendu.
+
+====================================================================
+38. FEUILLES D'INPUT - G3 / APPUI TECHNIQUE
+====================================================================
+
+La partie G3 ne doit pas etre traitee comme un simple essai. Elle doit avoir ses propres fiches de suivi.
+
+38.1 Fiche de suivi mission G3 / appui execution
+- reference mission,
+- affaire,
+- demande,
+- campagne,
+- objet de la mission,
+- phase travaux,
+- lot concerne,
+- zone,
+- documents de reference,
+- hypotheses geotechniques de reference,
+- points d'arret / points de vigilance,
+- intervenants,
+- dates de visites,
+- constats,
+- ecarts entre hypothese et terrain reel,
+- essais et reconnaissances realises,
+- interpretation en cours,
+- recommandations,
+- actions demandees a l'entreprise,
+- besoins complementaires,
+- avis emis,
+- statut de la mission,
+- note / CR / rapport associe.
+
+38.2 Feuille d'input constat G3 terrain
+- date,
+- zone,
+- niveau / profondeur,
+- type d'ouvrage,
+- situation observee,
+- adequation ou non avec hypothese,
+- presence d'eau,
+- nature du sol / materiau observe,
+- conditions d'execution,
+- essai associe,
+- photo,
+- risque identifie,
+- recommandation immediate,
+- besoin d'arret / poursuite / adaptation.
+
+38.3 Resultats / restitutions G3 a afficher
+- synthese des visites,
+- constats majeurs,
+- conformite / non conformite avec hypothese,
+- adaptations proposees,
+- reconnaissance complementaire demandee,
+- avis technique,
+- point bloquant ou non,
+- statut de levee de reserve,
+- historique des avis.
+
+====================================================================
+39. RESULTATS A AFFICHER - PRINCIPES GENERAUX
+====================================================================
+
+Pour chaque essai ou famille d'essais, RaLab doit distinguer :
+- valeurs brutes,
+- valeurs calculees,
+- valeur finale retenue,
+- unite,
+- norme / procedure,
+- commentaire operateur,
+- commentaire valideur,
+- conformite / non conformite / reserve / non interprete,
+- critere rattache si applicable,
+- date d'essai,
+- date de validation,
+- operateur,
+- valideur,
+- piece jointe / courbe / photo si utile.
+
+====================================================================
+40. LIVRABLES A PREVOIR
+====================================================================
+
+40.1 Livrables factuels
+- fiche d'intervention,
+- fiche terrain,
+- bordereau de prelevement,
+- PV d'essai,
+- PV multi-essais,
+- tableau de resultats,
+- log de sondage,
+- fiche beton frais.
+
+40.2 Livrables interpretes
+- synthese de campagne,
+- note d'analyse,
+- note de conformite,
+- note de non-conformite,
+- avis technique,
+- rapport de reconnaissance,
+- rapport d'expertise,
+- note G3,
+- compte rendu de visite technique,
+- note de recommandations,
+- synthese client / chantier.
+
+====================================================================
+41. STATUTS METIER A PREVOIR
+====================================================================
+
+41.1 Demande
+- brouillon,
+- recue,
+- en revue,
+- a completer,
+- validee,
+- refusee,
+- annulee,
+- cloturee.
+
+41.2 Campagne
+- brouillon,
+- a valider,
+- validee,
+- planifiee,
+- en cours,
+- partiellement realisee,
+- en attente labo,
+- en interpretation,
+- cloturee,
+- annulee.
+
+41.3 Intervention
+- a preparer,
+- prete,
+- planifiee,
+- en cours,
+- realisee,
+- partielle,
+- reportee,
+- annulee,
+- cloturee.
+
+41.4 Echantillon
+- attendu,
+- recu,
+- en preparation,
+- en essai,
+- en validation,
+- cloture,
+- archive,
+- detruit,
+- sous-traite.
+
+41.5 Essai
+- a faire,
+- en cours,
+- en saisie,
+- a verifier,
+- valide,
+- bloque,
+- annule,
+- emis.
+
+41.6 Mission G3 / appui technique
+- ouverte,
+- en cours,
+- en attente terrain,
+- en attente resultats,
+- avis emis,
+- a completer,
+- cloturee.
+
+====================================================================
+42. DONNEES TRANSVERSES A GERER
+====================================================================
+
+42.1 Competences
+- fiche competence par technicien,
+- essais autorises,
+- autonomie,
+- qualifications,
+- habilitations,
+- recyclages,
+- tutorat,
+- polyvalence,
+- limitations.
+
+42.2 Metrologie
+- parc materiel,
+- reference,
+- localisation,
+- statut,
+- date verification,
+- date prochaine verification,
+- maintenance,
+- indisponibilite,
+- historique.
+
+42.3 QSSE
+- risques activite,
+- exigences HSE,
+- plans de prevention,
+- non-conformites,
+- incidents,
+- actions correctives,
+- audits,
+- trace des validations.
+
+42.4 Photos / pieces jointes
+- photos terrain,
+- photos echantillons,
+- plans,
+- CR,
+- fiches instrument,
+- rapports externes,
+- PDF clients,
+- documents de reference.
+
+====================================================================
+43. INDICATEURS DE PILOTAGE A PREVOIR
+====================================================================
+
+- delai demande -> validation,
+- delai validation -> 1ere intervention,
+- delai prelevement -> resultat,
+- delai resultat -> validation,
+- charge par technicien,
+- nb campagnes en cours,
+- nb echantillons en attente,
+- nb essais bloques,
+- taux de retours pour manque d'information,
+- taux de non-conformites,
+- taux de recontrole,
+- taux de materiel indisponible,
+- part terrain / laboratoire / G3,
+- charge urgente / planifiee,
+- temps moyen par type d'essai,
+- temps moyen par type d'intervention,
+- marge / cout par famille si gestion economique souhaitee.
+
+====================================================================
+44. PRINCIPES STRUCTURANTS POUR RALAB
+====================================================================
+
+1. Ne pas modeliser le service comme un simple catalogue d'essais.
+2. Maintenir la distinction entre demande, campagne et intervention.
+3. Integrer nativement la logique terrain + labo + interpretation.
+4. Integrer nativement la logique G3 / appui technique.
+5. Distinguer preparation de l'intervention et preparation d'echantillon.
+6. Regrouper preparation d'echantillon + essais dans un bloc traitement laboratoire.
+7. Permettre un usage simple pour l'operateur, sans perdre la finesse metier.
+8. Permettre des workflows incomplets ou progressifs sans casser la traçabilite.
+9. Permettre la saisie rapide terrain et la validation differée.
+10. Permettre la restitution factuelle et la restitution interpretee.
+11. Permettre l'historisation, les reprises, les complements et les avis successifs.
+12. Faire du logiciel un outil d'aide a la decision technique, pas seulement un registre de valeurs.
+
+====================================================================
+45. RESUME FINAL
+====================================================================
+
+Le service cible de RaLab doit etre compris comme un service scientifique, technique, laboratoire et geotechnique complet.
+Il ne doit pas etre limite a la production de resultats d'essais.
+Il doit permettre :
+- de recevoir une demande,
+- de la qualifier,
+- de la transformer en campagne,
+- de preparer et executer des interventions,
+- de tracer les points et les echantillons,
+- de gerer le traitement laboratoire,
+- de saisir et calculer les resultats,
+- de valider techniquement,
+- de restituer des PV, notes, rapports et avis,
+- d'integrer les missions G3,
+- d'assurer la traçabilite complete,
+- de structurer la decision technique.
+
+Ce document doit servir de socle metier pour la suite du developpement RaLab.
+
+====================================================================
+46. MATRICE DE RATTACHEMENT METIER DES ESSAIS
+====================================================================
+
+Important :
+Le bon raisonnement n'est pas seulement par support final de l'essai.
+Le bon raisonnement est par chaine metier complete.
+
+La base commune reste :
+Affaire -> Demande -> Campagne -> Intervention
+
+Ensuite, selon le type d'essai, la chaine continue via :
+- point terrain,
+- ouvrage / troncon,
+- prelevement,
+- echantillon,
+- lot / fabrication,
+- fiche de synthese.
+
+Rappels de logique :
+- un PMT ne doit pas etre rattache directement a un echantillon ; il passe par un point terrain,
+- une granulometrie de sol ne doit pas etre rattachee directement a l'intervention ; elle passe par prelevement puis echantillon,
+- un IM doit suivre la chaine : Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai IM,
+- une fiche ID n'est pas un essai brut ; c'est une synthese d'essais sources,
+- un essai de production ou de fabrication doit pouvoir passer par un objet lot / fabrication.
+
+Colonnes de lecture du tableau ci-dessous :
+- Code = code metier ou code d'essai,
+- Libelle metier = nom operationnel a retenir,
+- Famille = famille technique,
+- Nature = terrain / laboratoire / production / synthese,
+- Chaine metier complete = sequence logique complete avant l'essai,
+- Support final de l'essai = objet parent direct pertinent pour l'essai,
+- Sortie principale = type de restitution principal.
+
+Tableau final de rattachement metier
+
+| Code | Libelle metier | Famille | Nature | Chaine metier complete | Support final de l'essai | Sortie principale |
+|---|---|---|---|---|---|---|
+| PMT | Profondeur de macrotexture | Chaussees / enrobes | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain PMT -> Essai PMT | Point terrain | Rapport / PV |
+| DE | Densite des enrobes en place au gammadensimetre | Chaussees / enrobes | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain DE -> Essai DE | Point terrain | Rapport / PV |
+| DF | Deflexions | Chaussees / terrassements | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain DF -> Essai DF | Point terrain | Rapport / PV |
+| DS | Densite des sols en place | Terrassements | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain DS -> Essai DS | Point terrain | Rapport / PV |
+| PL | Portance de plateforme | Terrassements | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain PL -> Essai PL | Point terrain | Rapport / PV |
+| PDL | Plaque dynamique legere / EV2 | Terrassements | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain PDL -> Essai PDL | Point terrain | Rapport / PV |
+| PLD | Portance dynaplaque | Terrassements | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain PLD -> Essai PLD | Point terrain | Rapport / PV |
+| EA-EAU | Etancheite a l'eau | Assainissement | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Ouvrage / troncon -> Essai EA eau | Ouvrage / troncon | Rapport |
+| EA-AIR | Etancheite a l'air | Assainissement | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Ouvrage / troncon -> Essai EA air | Ouvrage / troncon | Rapport |
+| ECA | Essai de conduite d'alimentation | Assainissement | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Ouvrage / troncon -> Essai ECA | Ouvrage / troncon | Rapport |
+| R3M | Mesure a la regle de 3 m | Chaussees / enrobes | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain regle 3 m -> Essai R3M | Point terrain | PV / Rapport |
+| PER | Percolation | Assainissement | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain percolation -> Essai PER | Point terrain | Rapport |
+| PO-PER | Puits / point de percolation ou variante PO | Assainissement | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point terrain percolation -> Essai PO | Point terrain | Rapport |
+| PA | Penetrometre | Geotechnique / assainissement | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Point penetrometre -> Essai PA | Point terrain | Rapport |
+| SO | Coupe de sondage | Geotechnique / terrassements | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Sondage / point terrain -> Essai SO | Point terrain / sondage | Rapport |
+| SC | Coupe de sondage carotte | Chaussees / enrobes | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Carottage / point carotte -> Essai SC | Point terrain / carottage | Rapport |
+| INF-FOR | Infiltration forage | Geotechnique | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Forage / point INF -> Essai INF forage | Point terrain / forage | Rapport |
+| INF-MAT | Permeabilite charge variable type Matsuo | Geotechnique | Terrain | Affaire -> Demande -> Campagne -> Intervention -> Forage / point INF -> Essai INF Matsuo | Point terrain / forage | Rapport |
+| WE | Teneur en eau ponderale | Sols / labo | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai WE | Echantillon | PV / Rapport |
+| GR | Granulometrie | Sols / granulats / enrobes | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai GR | Echantillon | PV / Rapport |
+| GRANULO | Granulometrie generique | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai granulometrie | Echantillon | PV / Rapport |
+| ES | Equivalent de sable | Sols / granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai ES | Echantillon | PV / Rapport |
+| VB | Valeur au bleu | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai VB | Echantillon | PV / Rapport |
+| VBS | Valeur au bleu / bleu de methylene | Sols / granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai VBS | Echantillon | PV / Rapport |
+| BM | Bleu de methylene, code app actuel | Sols / granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai BM | Echantillon | PV / Rapport |
+| MB | Masse de bleu | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai MB | Echantillon | PV / Rapport |
+| MBF | Masse de bleu des fines | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai MBF | Echantillon | PV / Rapport |
+| LCC | Limites d'Atterberg a la coupelle | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai LCC | Echantillon | PV / Rapport |
+| LPC | Limites d'Atterberg au cone | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai LPC | Echantillon | PV / Rapport |
+| LCP | Limites d'Atterberg, code app actuel | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai LCP | Echantillon | PV / Rapport |
+| PN | Proctor normal / modifie | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai PN | Echantillon | PV / Rapport |
+| PR | Proctor ressuage / variante IPI PR | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai PR | Echantillon | PV / Rapport |
+| IPI | Indice portant immediat | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai IPI | Echantillon | PV / Rapport |
+| IM | Indice CBR apres immersion | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai IM | Echantillon | PV / Rapport |
+| CBRI | CBR immediat | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai CBRi | Echantillon | PV / Rapport |
+| CBR | CBR apres immersion | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai CBR | Echantillon | PV / Rapport |
+| PO-CBR | Poinconnement IPI / CBR | Sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai poinconnement IPI/CBR | Echantillon | PV / Rapport |
+| REA | Reactivite de la chaux | Traitement des sols | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai REA | Echantillon | PV / Rapport |
+| MVA | Masse volumique apparente enrobes par carottage | Enrobes | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Carottage / prelevement -> Echantillon -> Essai MVA | Echantillon | PV / Rapport |
+| MV-ENR | Masse volumique element de roche, usage enrobes | Enrobes / granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai MV | Echantillon | PV / Rapport |
+| MV-GRA | Masse volumique element de roche, usage granulats | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai MV | Echantillon | PV / Rapport |
+| MVR | Masse volumique reelle | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai MVR | Echantillon | PV / Rapport |
+| WA24 | Coefficient d'absorption | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai WA24 | Echantillon | PV / Rapport |
+| MVv | Masse volumique en vrac | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai MVv | Echantillon | PV / Rapport |
+| IV | Indice de vide | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai indice de vide | Echantillon | PV / Rapport |
+| DV-VRAC | Densite materiaux vrac | Granulats / terrassements | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai DV vrac | Echantillon | PV / Rapport |
+| DV-VIDE | Porosite et indice de vide | Granulats / terrassements | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai DV porosite | Echantillon | PV / Rapport |
+| AB | Abrasivite et broyabilite | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai AB | Echantillon | PV / Rapport |
+| CFS | Friabilite des sables | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai CFS | Echantillon | PV / Rapport |
+| DG | Degradabilite | Granulats / materiaux | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai DG | Echantillon | PV / Rapport |
+| FR | Fragmentabilite | Granulats / materiaux | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai FR | Echantillon | PV / Rapport |
+| LA | Los Angeles | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai LA | Echantillon | PV / Rapport |
+| MDE | Micro-Deval | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai MDE | Echantillon | PV / Rapport |
+| RFU | Fragmentation / usure, famille RFU | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai RFU | Echantillon | PV / Rapport |
+| SULF | Teneur en sulfate soluble dans l'eau | Sols / granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai sulfate | Echantillon | PV / Rapport |
+| GR-CHAUSS | Gravillons pour chaussees | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai GR chaussee | Echantillon | PV / Rapport |
+| GR3 | Gravillons pour chaussees type 3 | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai GR3 | Echantillon | PV / Rapport |
+| SG | Sable et grave pour chaussees | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai SG | Echantillon | PV / Rapport |
+| SG3 | Sable et grave pour chaussees type 3 | Granulats | Laboratoire | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai SG3 | Echantillon | PV / Rapport |
+| CFE | Fabrication des enrobes | Enrobes / production | Production | Affaire -> Demande -> Campagne -> Intervention -> Lot / fabrication -> Essai CFE | Lot / fabrication | Rapport |
+| TEL | Taux d'epandage du liant | Enrobes / production | Terrain / production | Affaire -> Demande -> Campagne -> Intervention -> Lot / zone d'application -> Essai TEL | Lot / zone | Rapport |
+| TEG | Taux d'epandage des granulats | Enrobes / production | Terrain / production | Affaire -> Demande -> Campagne -> Intervention -> Lot / zone d'application -> Essai TEG | Lot / zone | Rapport |
+| IFE | Identification du filler d'apport | Enrobes / production | Labo / production | Affaire -> Demande -> Campagne -> Intervention -> Lot / prelevement -> Echantillon -> Essai IFE | Lot puis echantillon | Rapport / PV |
+| PEN | Penetrabilite | Liants / enrobes | Labo / production | Affaire -> Demande -> Campagne -> Intervention -> Lot / prelevement liant -> Echantillon -> Essai penetrabilite | Echantillon | PV / Rapport |
+| TBA | Temperature bille-anneau | Liants / enrobes | Labo / production | Affaire -> Demande -> Campagne -> Intervention -> Lot / prelevement liant -> Echantillon -> Essai TBA | Echantillon | PV / Rapport |
+| ID | Identification GTR / fiche d'identification | Sols | Synthese | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essais sources WE + GR + LCC/LPC/LCP + VB/VBS -> Fiche ID | Fiche synthese echantillon | Rapport / fiche synthese |
+| ET | Etude de traitement a la chaux / CaO | Traitement des sols | Synthese labo | Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essais sources -> Fiche ET | Fiche synthese echantillon | Rapport |
+| STS | Suivi de traitement des sols | Traitement des sols | Synthese mixte | Affaire -> Demande -> Campagne -> Intervention -> Prelevements + echantillons + essais sources + constats terrain -> Fiche STS | Fiche synthese campagne | Rapport |
+
+Lecture simple a garder
+
+Famille 1. Essais terrain directs
+Chaine type :
+Affaire -> Demande -> Campagne -> Intervention -> Point terrain -> Essai
+
+Essais concernes :
+PMT, DE, DF, DS, PL, PDL, PLD, R3M
+
+Famille 2. Essais terrain sur ouvrage / troncon
+Chaine type :
+Affaire -> Demande -> Campagne -> Intervention -> Ouvrage / troncon / point specifique -> Essai
+
+Essais concernes :
+EA eau, EA air, ECA, PER, PO-PER, PA, SO, SC, INF
+
+Famille 3. Essais labo sur echantillon
+Chaine type :
+Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essai
+
+Essais concernes :
+WE, GR, ES, VB, VBS, BM, MB, MBF, LCC, LPC, LCP, PN, PR, IPI, IM, CBRi, CBR, REA, MVA, MVR, WA24, MVv, LA, MDE, etc.
+
+Famille 4. Essais production / lot
+Chaine type :
+Affaire -> Demande -> Campagne -> Intervention -> Lot / fabrication -> prelevement eventuel -> echantillon eventuel -> essai
+
+Essais concernes :
+CFE, TEL, TEG, IFE, PEN, TBA
+
+Famille 5. Fiches de synthese
+Chaine type :
+Affaire -> Demande -> Campagne -> Intervention -> Prelevement -> Echantillon -> Essais sources -> Fiche synthese
+
+Essais concernes :
+ID, ET
+
+Et pour STS :
+Affaire -> Demande -> Campagne -> Intervention -> constats terrain + prelevements + essais sources -> fiche STS
+
+Ce que cela verrouille pour la suite
+- un essai ne se cree pas toujours depuis le meme parent,
+- il faut gerer plusieurs supports finals,
+- mais la chaine amont reste ordonnee et commune : Affaire -> Demande -> Campagne -> Intervention,
+- ensuite on bifurque selon le cas vers point_terrain, ouvrage_troncon, prelevement, echantillon, lot_fabrication ou fiche_synthese.

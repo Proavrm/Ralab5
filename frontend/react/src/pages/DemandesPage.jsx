@@ -3,6 +3,7 @@
  * Fidèle à demandes.html legacy avec préfill depuis pages source (DST, Études, Affaires NGE)
  * Le préfill arrive via location.state: { openCreate, prefill, source_type, source_id }
  */
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -18,6 +19,8 @@ const LABOS     = ['SP','PDC','CHB','CLM']
 const MISSIONS  = ['À définir','Études G1','Études G2','Exploitation G3','Essais Labo','Avis Technique','Externe','Autre']
 const PRIORITES = ['Basse','Normale','Haute','Critique']
 const LABO_NOM  = { SP:'Saint-Priest', PDC:'Pont-du-Château', CHB:'Chambéry', CLM:'Clermont' }
+const DEMANDE_ACTIVE_FILTER_VALUE = '__active__'
+const DEMANDE_CLOSED_STATUSES = ['Fini', 'Envoyé - Perdu', 'Archivée']
 
 const STAT_CLS = {
   'À qualifier':'bg-[#f1efe8] text-[#5f5e5a]','Demande':'bg-[#e6f1fb] text-[#185fa5]',
@@ -310,10 +313,10 @@ export default function DemandesPage() {
   const passationUid    = searchParams.get('passation_uid') || null
 
   const [search,    setSearch]    = useState('')
-  const [statut,    setStatut]    = useState('')
-  const [labo,      setLabo]      = useState('')
-  const [mission,   setMission]   = useState('')
-  const [aRevoir,   setARevoir]   = useState(false)
+  const [statut,    setStatut]    = useState(autoCreate ? '' : (searchParams.get('statut') || ''))
+  const [labo,      setLabo]      = useState(searchParams.get('labo_code') || '')
+  const [mission,   setMission]   = useState(searchParams.get('type_mission') || '')
+  const [aRevoir,   setARevoir]   = useState(searchParams.get('a_revoir') === 'true')
   const [sortCol,   setSortCol]   = useState('date_reception')
   const [sortAsc,   setSortAsc]   = useState(false)
   const [selected,  setSelected]  = useState(null)
@@ -348,7 +351,7 @@ export default function DemandesPage() {
     queryFn: () => {
       const p = {}
       if (filterAffaireId) p.affaire_rst_id = filterAffaireId
-      if (statut)   p.statut       = statut
+      if (statut && statut !== DEMANDE_ACTIVE_FILTER_VALUE) p.statut = statut
       if (labo)     p.labo_code    = labo
       if (mission)  p.type_mission = mission
       if (aRevoir)  p.a_revoir     = 'true'
@@ -374,6 +377,7 @@ export default function DemandesPage() {
       qc.invalidateQueries({ queryKey: ['demandes'] })
       setSelected(null)
     },
+    onError: (e) => alert(e.message || 'Suppression impossible.'),
   })
 
   function onSearchChange(v) {
@@ -403,17 +407,26 @@ export default function DemandesPage() {
     deleteMutation.mutate(selected.uid)
   }
 
-  const sorted = [...demandes].sort((a, b) => {
+  const visibleDemandes = statut === DEMANDE_ACTIVE_FILTER_VALUE
+    ? demandes.filter((demande) => !DEMANDE_CLOSED_STATUSES.includes(demande.statut))
+    : demandes
+
+  const sorted = [...visibleDemandes].sort((a, b) => {
     const va = String(a[sortCol] ?? '').toLowerCase()
     const vb = String(b[sortCol] ?? '').toLowerCase()
     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
   })
 
-  function Th({ col, label }) {
+  const { getColProps } = useResizableColumns([100, 80, 100, 140, 80, 80, 80, 120, 90, 80, 90, 100])
+
+  function Th({ col, label, colIdx }) {
+    const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
-        className="bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text">
-        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+        style={style}
+        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
+        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">\u2195</span>}
+        <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
   }
@@ -444,6 +457,7 @@ export default function DemandesPage() {
         />
         <Select value={statut} onChange={e => setStatut(e.target.value)} className="text-xs py-1.5">
           <option value="">Tous statuts</option>
+          <option value={DEMANDE_ACTIVE_FILTER_VALUE}>Demandes actives</option>
           {STATUTS.map(s => <option key={s}>{s}</option>)}
         </Select>
         <Select value={labo} onChange={e => setLabo(e.target.value)} className="text-xs py-1.5">
@@ -458,7 +472,7 @@ export default function DemandesPage() {
           <input type="checkbox" checked={aRevoir} onChange={e => setARevoir(e.target.checked)} className="accent-[#ef9f27]" />
           À revoir
         </label>
-        <span className="text-xs text-text-muted ml-auto">{demandes.length} demande{demandes.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-text-muted ml-auto">{sorted.length} demande{sorted.length !== 1 ? 's' : ''}</span>
       </div>
 
       {/* Split */}
@@ -473,18 +487,18 @@ export default function DemandesPage() {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr>
-                  <Th col="reference"     label="Référence" />
-                  <Th col="affaire_ref"   label="Affaire" />
-                  <Th col="client"        label="Client" />
-                  <Th col="chantier"      label="Chantier" />
-                  <Th col="numero_dst"    label="N° DST" />
-                  <Th col="numero_etude"  label="N° étude" />
-                  <Th col="affaire_nge"   label="N° NGE" />
-                  <Th col="nature"        label="Nature" />
-                  <Th col="statut"        label="Statut" />
-                  <Th col="priorite"      label="Priorité" />
-                  <Th col="date_echeance" label="Échéance" />
-                  <Th col="demandeur"     label="Demandeur" />
+                  <Th col="reference" colIdx={0}     label="Référence" />
+                  <Th col="affaire_ref" colIdx={1}   label="Affaire" />
+                  <Th col="client" colIdx={2}        label="Client" />
+                  <Th col="chantier" colIdx={3}      label="Chantier" />
+                  <Th col="numero_dst" colIdx={4}    label="N° DST" />
+                  <Th col="numero_etude" colIdx={5}  label="N° étude" />
+                  <Th col="affaire_nge" colIdx={6}   label="N° NGE" />
+                  <Th col="nature" colIdx={7}        label="Nature" />
+                  <Th col="statut" colIdx={8}        label="Statut" />
+                  <Th col="priorite" colIdx={9}      label="Priorité" />
+                  <Th col="date_echeance" colIdx={10} label="Échéance" />
+                  <Th col="demandeur" colIdx={11}     label="Demandeur" />
                 </tr>
               </thead>
               <tbody>
@@ -563,6 +577,7 @@ export default function DemandesPage() {
 
             <div className="flex flex-wrap gap-2 px-[18px] py-3.5 border-t border-border shrink-0">
               <Button size="sm" variant="primary" onClick={() => navigate(`/demandes/${selected.uid}`)}>📋 Fiche</Button>
+              <Button size="sm" onClick={() => navigate(`/preparations/${selected.uid}?ref=${encodeURIComponent(selected.reference || '')}`)}>⚙️ Préparation</Button>
               <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>
               <Button size="sm" onClick={() => navigate(`/affaires/${selected.affaire_rst_id}`)}>📁 Affaire</Button>
               <Button size="sm" variant="danger" onClick={handleDelete}>🗑</Button>

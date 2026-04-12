@@ -1,0 +1,33 @@
+Preview access zone for Tools page
+
+Included
+- frontend/react/src/components/tools/PreviewAccessZone.jsx
+
+Purpose
+- add a small zone in the existing Tools page
+- user enters what they want to open:
+  - demande uid
+  - demande reference
+  - intervention uid
+  - prelevement uid
+- then clicks direct access buttons
+
+Buttons included
+- Préparation preview
+- Nouvelle intervention preview
+- Intervention preview
+- Prélèvement preview
+- Essais workbench
+- Instructions preview
+
+How to use in the existing Tools page
+1) import:
+import PreviewAccessZone from '@/components/tools/PreviewAccessZone'
+
+2) render somewhere in the page:
+<PreviewAccessZone />
+
+Why this approach
+- safe
+- no need to patch the unknown current Tools page blindly
+- easy to remove later

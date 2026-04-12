@@ -1,0 +1,25 @@
+RaLab5 - Fix empty Code column in LaboPage > Essais
+
+What was happening
+- The Essais table already had a Code column in the frontend
+- But the backend payload often did not expose the official code
+- In the real DB, many essais store the code only inside observations JSON > signature
+  Example:
+  SRC_HASH=...|SHEET=S2E2|REF=S2E2|CODE=ID
+
+What this file changes
+- backend/current_fastapi/api/essais.py only
+- _row() now extracts code from:
+  1) source_essai_code
+  2) essai_code
+  3) code_essai
+  4) signature pattern CODE=...
+- exposes:
+  - essai_code
+  - code_essai
+  - essai_label
+
+Expected result
+- LaboPage > Essais > Code should now be filled with real métier codes
+  like ID, MVA, WE, etc.
+- No need to change the frontend table for this fix

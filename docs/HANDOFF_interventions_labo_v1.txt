@@ -1,0 +1,37 @@
+RaLab5 / Labo page / interventions API enrichment
+
+Files:
+- api/interventions.py -> replace with interventions_enriched.py content
+
+What changed:
+- kept the existing /api/interventions endpoint
+- enriched the SELECT with demande + affaire context
+- added convenience aliases useful for LaboPage:
+  - uid
+  - demande_reference
+  - affaire_reference
+  - chantier
+  - site
+  - client
+  - responsable_affaire
+  - year
+  - date
+- kept current module guard logic
+- added optional filters:
+  - labo_code
+  - annee
+- added 'Importée' to STATUTS because existing DB data contains that value
+
+Important:
+- this stays in a preparation / organisation logic
+- no essais execution workflow added yet
+
+Useful quick test:
+- GET /api/interventions
+- GET /api/interventions?annee=2025
+- GET /api/interventions?labo_code=SP
+- inspect payload for demande_reference / affaire_reference / chantier / site
+
+Next logical step:
+- wire LaboPage -> Interventions tab to /api/interventions
+- normalize the response only if the frontend still expects different field names

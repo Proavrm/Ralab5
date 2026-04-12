@@ -2,6 +2,23 @@ from pathlib import Path
 import sqlite3
 
 
+EMPLOYMENT_LEVELS = (
+    ("directeur_ingenierie", "Directeur de l'ingénierie", 10),
+    ("directeur_scientifique_technique", "Directeur scientifique et technique", 20),
+    ("directeur_etudes_techniques", "Directeur études techniques", 30),
+    ("responsable_scientifique_technique", "Responsable scientifique et technique", 40),
+    ("referent_scientifique_technique", "Référent scientifique et technique", 50),
+    ("chef_section_laboratoire_principal", "Chef de section laboratoire principal", 60),
+    ("referent_scientifique_technique_adjoint", "Référent scientifique et technique adjoint", 60),
+    ("chef_section_laboratoire", "Chef de section laboratoire", 70),
+    ("technicien_laboratoire_principal", "Technicien laboratoire principal", 70),
+    ("technicien_laboratoire_confirme", "Technicien laboratoire confirmé", 80),
+    ("technicien_laboratoire", "Technicien laboratoire", 90),
+    ("operateur_laboratoire", "Opérateur laboratoire", 100),
+    ("aide_operateur_laboratoire", "Aide opérateur laboratoire", 110),
+)
+
+
 class SecurityRepository:
     def __init__(self, db_path: Path | None = None) -> None:
         self.db_path = db_path or self._default_db_path()
@@ -19,19 +36,82 @@ class SecurityRepository:
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
+        self._ensure_schema_updates(connection)
         return connection
+
+    def _ensure_schema_updates(self, connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS employment_levels (
+                employment_level_code TEXT PRIMARY KEY,
+                label TEXT NOT NULL,
+                sort_order INTEGER NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_profile_details (
+                user_email TEXT PRIMARY KEY,
+                phone TEXT,
+                agency_name TEXT,
+                location_name TEXT,
+                manager_name TEXT,
+                professional_title TEXT,
+                employee_reference TEXT,
+                employment_start_date TEXT,
+                last_reviewed_at TEXT,
+                next_review_due_date TEXT,
+                certifications_notes TEXT,
+                authorizations_notes TEXT,
+                training_notes TEXT,
+                documents_notes TEXT,
+                profile_notes TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.executemany(
+            """
+            INSERT OR IGNORE INTO employment_levels (employment_level_code, label, sort_order)
+            VALUES (?, ?, ?)
+            """,
+            EMPLOYMENT_LEVELS,
+        )
+
+        user_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(users)").fetchall()
+        }
+        if "employment_level_code" not in user_columns:
+            connection.execute("ALTER TABLE users ADD COLUMN employment_level_code TEXT")
+
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_users_employment_level_code ON users(employment_level_code)"
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_user_profile_details_agency_name ON user_profile_details(agency_name)"
+        )
+        connection.commit()
 
     def list_active_users(self) -> list[sqlite3.Row]:
         query = """
             SELECT
-                email,
-                display_name,
-                role_code,
-                service_code,
-                is_active
+                users.email,
+                users.display_name,
+                users.role_code,
+                users.service_code,
+                users.is_active,
+                users.employment_level_code,
+                employment_levels.label AS employment_level_label,
+                employment_levels.sort_order AS employment_level_sort_order
             FROM users
-            WHERE is_active = 1
-            ORDER BY display_name COLLATE NOCASE
+            LEFT JOIN employment_levels
+                ON employment_levels.employment_level_code = users.employment_level_code
+            WHERE users.is_active = 1
+            ORDER BY COALESCE(employment_levels.sort_order, 9999), users.display_name COLLATE NOCASE
         """
 
         with self._connect() as connection:
@@ -40,13 +120,18 @@ class SecurityRepository:
     def list_all_users(self) -> list[sqlite3.Row]:
         query = """
             SELECT
-                email,
-                display_name,
-                role_code,
-                service_code,
-                is_active
+                users.email,
+                users.display_name,
+                users.role_code,
+                users.service_code,
+                users.is_active,
+                users.employment_level_code,
+                employment_levels.label AS employment_level_label,
+                employment_levels.sort_order AS employment_level_sort_order
             FROM users
-            ORDER BY display_name COLLATE NOCASE
+            LEFT JOIN employment_levels
+                ON employment_levels.employment_level_code = users.employment_level_code
+            ORDER BY COALESCE(employment_levels.sort_order, 9999), users.display_name COLLATE NOCASE
         """
 
         with self._connect() as connection:
@@ -59,6 +144,19 @@ class SecurityRepository:
                 label
             FROM roles
             ORDER BY role_code
+        """
+
+        with self._connect() as connection:
+            return connection.execute(query).fetchall()
+
+    def list_employment_levels(self) -> list[sqlite3.Row]:
+        query = """
+            SELECT
+                employment_level_code,
+                label,
+                sort_order
+            FROM employment_levels
+            ORDER BY sort_order, label COLLATE NOCASE
         """
 
         with self._connect() as connection:
@@ -107,18 +205,148 @@ class SecurityRepository:
     def get_user_by_email(self, email: str) -> sqlite3.Row | None:
         query = """
             SELECT
-                email,
-                display_name,
-                role_code,
-                service_code,
-                is_active
+                users.email,
+                users.display_name,
+                users.role_code,
+                users.service_code,
+                users.is_active,
+                users.employment_level_code,
+                employment_levels.label AS employment_level_label,
+                employment_levels.sort_order AS employment_level_sort_order
             FROM users
-            WHERE lower(email) = lower(?)
+            LEFT JOIN employment_levels
+                ON employment_levels.employment_level_code = users.employment_level_code
+            WHERE lower(users.email) = lower(?)
             LIMIT 1
         """
 
         with self._connect() as connection:
             return connection.execute(query, (email,)).fetchone()
+
+    def get_employment_level(self, employment_level_code: str) -> sqlite3.Row | None:
+        query = """
+            SELECT employment_level_code, label, sort_order
+            FROM employment_levels
+            WHERE employment_level_code = ?
+            LIMIT 1
+        """
+
+        with self._connect() as connection:
+            return connection.execute(query, (employment_level_code.strip(),)).fetchone()
+
+    def get_user_profile(self, email: str) -> sqlite3.Row | None:
+        query = """
+            SELECT
+                user_email,
+                phone,
+                agency_name,
+                location_name,
+                manager_name,
+                professional_title,
+                employee_reference,
+                employment_start_date,
+                last_reviewed_at,
+                next_review_due_date,
+                certifications_notes,
+                authorizations_notes,
+                training_notes,
+                documents_notes,
+                profile_notes,
+                created_at,
+                updated_at
+            FROM user_profile_details
+            WHERE lower(user_email) = lower(?)
+            LIMIT 1
+        """
+
+        with self._connect() as connection:
+            return connection.execute(query, (email.strip().lower(),)).fetchone()
+
+    def upsert_user_profile(
+        self,
+        *,
+        user_email: str,
+        phone: str | None = None,
+        agency_name: str | None = None,
+        location_name: str | None = None,
+        manager_name: str | None = None,
+        professional_title: str | None = None,
+        employee_reference: str | None = None,
+        employment_start_date: str | None = None,
+        last_reviewed_at: str | None = None,
+        next_review_due_date: str | None = None,
+        certifications_notes: str | None = None,
+        authorizations_notes: str | None = None,
+        training_notes: str | None = None,
+        documents_notes: str | None = None,
+        profile_notes: str | None = None,
+    ) -> None:
+        def normalized(value: str | None) -> str | None:
+            if value is None:
+                return None
+            cleaned = value.strip()
+            return cleaned or None
+
+        query = """
+            INSERT INTO user_profile_details (
+                user_email,
+                phone,
+                agency_name,
+                location_name,
+                manager_name,
+                professional_title,
+                employee_reference,
+                employment_start_date,
+                last_reviewed_at,
+                next_review_due_date,
+                certifications_notes,
+                authorizations_notes,
+                training_notes,
+                documents_notes,
+                profile_notes,
+                created_at,
+                updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_email) DO UPDATE SET
+                phone = excluded.phone,
+                agency_name = excluded.agency_name,
+                location_name = excluded.location_name,
+                manager_name = excluded.manager_name,
+                professional_title = excluded.professional_title,
+                employee_reference = excluded.employee_reference,
+                employment_start_date = excluded.employment_start_date,
+                last_reviewed_at = excluded.last_reviewed_at,
+                next_review_due_date = excluded.next_review_due_date,
+                certifications_notes = excluded.certifications_notes,
+                authorizations_notes = excluded.authorizations_notes,
+                training_notes = excluded.training_notes,
+                documents_notes = excluded.documents_notes,
+                profile_notes = excluded.profile_notes,
+                updated_at = CURRENT_TIMESTAMP
+        """
+
+        with self._connect() as connection:
+            connection.execute(
+                query,
+                (
+                    user_email.strip().lower(),
+                    normalized(phone),
+                    normalized(agency_name),
+                    normalized(location_name),
+                    normalized(manager_name),
+                    normalized(professional_title),
+                    normalized(employee_reference),
+                    normalized(employment_start_date),
+                    normalized(last_reviewed_at),
+                    normalized(next_review_due_date),
+                    normalized(certifications_notes),
+                    normalized(authorizations_notes),
+                    normalized(training_notes),
+                    normalized(documents_notes),
+                    normalized(profile_notes),
+                ),
+            )
+            connection.commit()
 
     def get_role_by_code(self, role_code: str) -> sqlite3.Row | None:
         query = """
@@ -182,8 +410,10 @@ class SecurityRepository:
         role_code: str,
         service_code: str,
         is_active: bool,
+        employment_level_code: str | None = None,
     ) -> None:
         normalized_email = email.strip().lower()
+        normalized_employment_level_code = employment_level_code.strip() if employment_level_code else None
 
         query = """
             INSERT INTO users (
@@ -192,10 +422,12 @@ class SecurityRepository:
                 role_code,
                 service_code,
                 is_active,
+                employment_level_code,
                 created_at,
                 updated_at
             )
             VALUES (
+                ?,
                 ?,
                 ?,
                 ?,
@@ -209,6 +441,7 @@ class SecurityRepository:
                 role_code = excluded.role_code,
                 service_code = excluded.service_code,
                 is_active = excluded.is_active,
+                employment_level_code = excluded.employment_level_code,
                 updated_at = CURRENT_TIMESTAMP
         """
 
@@ -221,6 +454,7 @@ class SecurityRepository:
                     role_code.strip(),
                     service_code.strip(),
                     1 if is_active else 0,
+                    normalized_employment_level_code,
                 ),
             )
             connection.commit()

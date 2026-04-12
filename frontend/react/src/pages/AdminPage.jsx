@@ -2,12 +2,13 @@
  * AdminPage.jsx — fidèle à admin.html legacy
  * 2 tabs: Utilisateurs + Rôles & Permissions
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/services/api'
+import { adminApi, api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
+import UserProfileModal from '@/components/admin/UserProfileModal'
 
 const ROLES = ['admin', 'labo', 'etudes', 'consult']
 const ROLE_LABEL = { admin: 'Administrateur', labo: 'Laboratoire', etudes: 'Études', consult: 'Consultation' }
@@ -26,15 +27,37 @@ function FG({ label, children, hint }) {
   )
 }
 
+function buildUserForm(editUser) {
+  if (editUser) {
+    return {
+      email: editUser.email,
+      display_name: editUser.display_name,
+      role_code: editUser.role_code,
+      service_code: editUser.service_code || '',
+      employment_level_code: editUser.employment_level_code || '',
+      is_active: editUser.is_active,
+    }
+  }
+
+  return {
+    email: '',
+    display_name: '',
+    role_code: 'labo',
+    service_code: '',
+    employment_level_code: '',
+    is_active: true,
+  }
+}
+
 // ── User Modal ─────────────────────────────────────────────────────────────────
-function UserModal({ open, onClose, editUser }) {
+function UserModal({ open, onClose, editUser, employmentLevels }) {
   const qc = useQueryClient()
   const isEdit = !!editUser
-  const [form, setForm] = useState(() => editUser ? {
-    email: editUser.email, display_name: editUser.display_name,
-    role_code: editUser.role_code, service_code: editUser.service_code || '',
-    is_active: editUser.is_active,
-  } : { email: '', display_name: '', role_code: 'labo', service_code: '', is_active: true })
+  const [form, setForm] = useState(() => buildUserForm(editUser))
+
+  useEffect(() => {
+    if (open) setForm(buildUserForm(editUser))
+  }, [editUser, open])
 
   const mutation = useMutation({
     mutationFn: (data) => isEdit
@@ -66,6 +89,14 @@ function UserModal({ open, onClose, editUser }) {
           <Input value={form.service_code} onChange={e => set('service_code', e.target.value)}
             placeholder="SP, PDC, CHB…" />
         </FG>
+        <FG label="Emploi / niveau" hint="Patamar professionnel utilisé para tri e futura ficha de compétences">
+          <Select value={form.employment_level_code} onChange={e => set('employment_level_code', e.target.value)} className="w-full">
+            <option value="">Non renseigné</option>
+            {employmentLevels.map(level => (
+              <option key={level.employment_level_code} value={level.employment_level_code}>{level.label}</option>
+            ))}
+          </Select>
+        </FG>
         {isEdit && (
           <FG label="Statut">
             <Select value={String(form.is_active)} onChange={e => set('is_active', e.target.value === 'true')} className="w-full">
@@ -94,12 +125,17 @@ export default function AdminPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState('users')
   const [userModalOpen, setUserModalOpen] = useState(false)
-  const [editUser, setEditUser] = useState(null)
+  const [profileUserEmail, setProfileUserEmail] = useState('')
   const [matrixDirty, setMatrixDirty] = useState({}) // { role_code: Set<perm> }
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['admin-users'],
-    queryFn: () => api.get('/admin/users'),
+    queryFn: () => adminApi.users.list(),
+  })
+
+  const { data: employmentLevels = [] } = useQuery({
+    queryKey: ['admin-employment-levels'],
+    queryFn: () => adminApi.employmentLevels.list(),
   })
 
   const { data: roles = [] } = useQuery({
@@ -115,7 +151,7 @@ export default function AdminPage() {
   })
 
   const toggleActiveMutation = useMutation({
-    mutationFn: ({ email, active }) => api.patch(`/admin/users/${encodeURIComponent(email)}/active`, { is_active: active }),
+    mutationFn: ({ email, active }) => adminApi.users.toggleActive(email, active),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
   })
 
@@ -124,8 +160,10 @@ export default function AdminPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-roles'] }); setMatrixDirty({}) },
   })
 
-  function openCreate() { setEditUser(null); setUserModalOpen(true) }
-  function openEdit(u) { setEditUser(u); setUserModalOpen(true) }
+  const selectedUser = users.find((candidate) => candidate.email === profileUserEmail) || null
+
+  function openCreate() { setUserModalOpen(true) }
+  function openEdit(u) { setProfileUserEmail(u.email) }
 
   // Matrix state — starts from loaded roles, modified locally
   const matrixState = {}
@@ -194,7 +232,7 @@ export default function AdminPage() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr>
-                {['Nom','Email','Rôle','Service','Statut','Permissions','Actions'].map(h => (
+                {['Nom','Email','Rôle','Emploi / niveau','Service','Statut','Permissions','Actions'].map(h => (
                   <th key={h} className="bg-bg px-4 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border">
                     {h}
                   </th>
@@ -203,9 +241,9 @@ export default function AdminPage() {
             </thead>
             <tbody>
               {usersLoading ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-xs text-text-muted">Chargement…</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-xs text-text-muted">Chargement…</td></tr>
               ) : users.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-xs text-text-muted">Aucun utilisateur</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-xs text-text-muted">Aucun utilisateur</td></tr>
               ) : users.map(u => (
                 <tr key={u.email} className="border-b border-border hover:bg-bg transition-colors">
                   <td className="px-4 py-3">
@@ -218,6 +256,7 @@ export default function AdminPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-text-muted">{u.email}</td>
                   <td className="px-4 py-3 text-xs">{ROLE_LABEL[u.role_code] || u.role_code}</td>
+                  <td className="px-4 py-3 text-xs">{u.employment_level_label || '—'}</td>
                   <td className="px-4 py-3 text-xs">{u.service_code || '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
@@ -292,7 +331,15 @@ export default function AdminPage() {
       <UserModal
         open={userModalOpen}
         onClose={() => setUserModalOpen(false)}
-        editUser={editUser}
+        editUser={null}
+        employmentLevels={employmentLevels}
+      />
+
+      <UserProfileModal
+        open={Boolean(profileUserEmail)}
+        onClose={() => setProfileUserEmail('')}
+        user={selectedUser}
+        employmentLevels={employmentLevels}
       />
     </div>
   )

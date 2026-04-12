@@ -1,0 +1,27 @@
+RaLab5 - Simple PreparationPage
+
+Included
+- frontend/react/src/pages/PreparationPage.jsx
+
+What this version does
+- Keeps preparation simple and focused on the future intervention
+- Uses a minimal structure:
+  1) Contexte
+  2) Préparation de la mission
+  3) Organisation
+  4) Contraintes / remarques
+- Preserves hidden legacy preparation fields when saving by merging:
+  { ...originalPrep, ...form }
+- Keeps module activation available
+- Adds button:
+  'Créer une intervention'
+  which opens:
+  /interventions/new?... with prefill query params
+
+Important
+- No modal
+- No technicien field here
+- No detailed essai logic here
+- Keeps the idea:
+  Préparation = organiser
+  Intervention = exécuter

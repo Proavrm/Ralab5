@@ -9,6 +9,14 @@ from app.core.database import get_db_path
 from app.models.demande_rst import DemandeRstRecord, DemandeRstResponseSchema
 
 
+def _pick_text(*values) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
 class DemandesRstRepository:
     def __init__(self, db_path = None):
         self.db_path = db_path or get_db_path()
@@ -83,11 +91,18 @@ class DemandesRstRepository:
     def get_navigation_payload(self, uid: int) -> dict:
         with self._connect() as conn:
             interventions = conn.execute("""
-                SELECT id, reference, date_intervention, type_intervention, sujet, geotechnicien,
-                       technicien, niveau_alerte, anomalie_detectee, statut, pv_ref, rapport_ref, photos_dossier
-                FROM interventions
-                WHERE demande_id = ?
-                ORDER BY date_intervention DESC, id DESC
+                SELECT i.id, i.reference, i.date_intervention, i.type_intervention, i.sujet, i.geotechnicien,
+                       i.technicien, i.niveau_alerte, i.anomalie_detectee, i.statut, i.pv_ref, i.rapport_ref,
+                       i.photos_dossier, i.nature_reelle, i.intervention_reelle_id,
+                       ir.reference AS intervention_reelle_reference,
+                       ir.date_intervention AS intervention_reelle_date,
+                       ir.type_intervention AS intervention_reelle_type,
+                       ir.zone AS intervention_reelle_zone,
+                       ir.statut AS intervention_reelle_statut
+                FROM interventions i
+                LEFT JOIN interventions_reelles ir ON ir.id = i.intervention_reelle_id
+                WHERE i.demande_id = ?
+                ORDER BY i.date_intervention DESC, i.id DESC
             """, (uid,)).fetchall()
 
             echantillons = conn.execute("""
@@ -118,7 +133,58 @@ class DemandesRstRepository:
                 result.append(item)
             return result
 
-        interventions_data = _rows(interventions)
+        def _present_interventions(items: list[dict]) -> list[dict]:
+            presented: list[dict] = []
+            grouped_sondages: dict[int, dict] = {}
+
+            for item in items:
+                raw_count = 1
+                if item.get("nature_reelle") == "Sondage" and item.get("intervention_reelle_id"):
+                    group_key = int(item["intervention_reelle_id"])
+                    group = grouped_sondages.get(group_key)
+                    if group is None:
+                        group = {
+                            "uid": item["uid"],
+                            "reference": item.get("intervention_reelle_reference") or item.get("reference") or "",
+                            "date_intervention": item.get("intervention_reelle_date") or item.get("date_intervention") or "",
+                            "type_intervention": item.get("intervention_reelle_type") or item.get("type_intervention") or "",
+                            "sujet": _pick_text(item.get("intervention_reelle_zone"), item.get("sujet"), item.get("type_intervention"), "Sondage"),
+                            "geotechnicien": item.get("geotechnicien") or "",
+                            "technicien": item.get("technicien") or "",
+                            "niveau_alerte": item.get("niveau_alerte") or "Aucun",
+                            "anomalie_detectee": bool(item.get("anomalie_detectee")),
+                            "statut": item.get("intervention_reelle_statut") or item.get("statut") or "",
+                            "pv_ref": item.get("pv_ref") or "",
+                            "rapport_ref": item.get("rapport_ref") or "",
+                            "photos_dossier": item.get("photos_dossier") or "",
+                            "nature_reelle": item.get("nature_reelle") or "",
+                            "intervention_reelle_id": item.get("intervention_reelle_id"),
+                            "raw_intervention_count": 0,
+                            "grouped_raw_uids": [],
+                        }
+                        grouped_sondages[group_key] = group
+                        presented.append(group)
+
+                    group["raw_intervention_count"] += 1
+                    group["grouped_raw_uids"].append(item["uid"])
+                    group["anomalie_detectee"] = bool(group["anomalie_detectee"] or item.get("anomalie_detectee"))
+                    if item.get("niveau_alerte") and item.get("niveau_alerte") != "Aucun":
+                        group["niveau_alerte"] = item["niveau_alerte"]
+                    if not group.get("geotechnicien") and item.get("geotechnicien"):
+                        group["geotechnicien"] = item["geotechnicien"]
+                    if not group.get("technicien") and item.get("technicien"):
+                        group["technicien"] = item["technicien"]
+                    if not group.get("sujet"):
+                        group["sujet"] = _pick_text(item.get("sujet"), item.get("type_intervention"), "Sondage")
+                    continue
+
+                item["raw_intervention_count"] = raw_count
+                item["grouped_raw_uids"] = [item["uid"]]
+                presented.append(item)
+
+            return presented
+
+        interventions_data = _present_interventions(_rows(interventions))
         echantillons_data = _rows(echantillons)
         essais_data = _rows(essais)
 
@@ -135,15 +201,17 @@ class DemandesRstRepository:
 
     def next_reference(self, labo_code: str = "SP", annee: int | None = None) -> str:
         year = annee or datetime.now().year
-        prefix = f"{year}-{labo_code}-D"
+        # Compteur global partagé — tous codes confondus, ex: 2026-SP-D0024, 2026-RST-D0025
+        global_prefix = f"{year}-"
         with self._connect() as conn:
             rows = conn.execute("SELECT reference FROM demandes WHERE reference LIKE ?",
-                                (f"{prefix}%",)).fetchall()
+                                (f"{global_prefix}%",)).fetchall()
         numbers = []
         for r in rows:
-            m = re.match(rf"^{re.escape(prefix)}(\d+)$", r[0])
+            m = re.match(rf"^{re.escape(global_prefix)}[^-]+-D(\d+)$", r[0])
             if m: numbers.append(int(m.group(1)))
-        return f"{prefix}{max(numbers, default=0)+1:04d}"
+        next_num = max(numbers, default=0) + 1
+        return f"{year}-{labo_code}-D{next_num:04d}"
 
     def distinct_values(self, column: str) -> list[str]:
         allowed = {"statut", "type_mission", "priorite", "labo_code", "demandeur"}
@@ -193,6 +261,13 @@ class DemandesRstRepository:
                 fields[k] = fields[k].strftime("%Y-%m-%d")
         if "a_revoir" in fields: fields["a_revoir"] = 1 if fields["a_revoir"] else 0
         if "rapport_envoye" in fields: fields["rapport_envoye"] = 1 if fields["rapport_envoye"] else 0
+        if "labo_code" in fields and fields["labo_code"]:
+            current = self.get_by_uid(uid)
+            if current and fields["labo_code"] != current.labo_code:
+                new_ref = self.next_reference(fields["labo_code"], current.annee)
+                m = re.match(r"^\d{4}-[^-]+-D(\d+)$", new_ref)
+                fields["reference"] = new_ref
+                if m: fields["numero"] = int(m.group(1))
         fields["updated_at"] = now
         clause = ", ".join(f"{k} = ?" for k in fields)
         with self._connect() as conn:

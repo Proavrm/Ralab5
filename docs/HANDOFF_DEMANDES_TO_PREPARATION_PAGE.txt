@@ -1,0 +1,17 @@
+RaLab5 - DemandesPage opens PreparationPage instead of PreparationModal
+
+Scope intentionally minimal
+- no preparation logic changed
+- no modal internals changed
+- only DemandesPage behavior changed
+
+What changed
+1) removed PreparationModal import
+2) removed prepOpen state
+3) button '⚙️ Préparation' now navigates to:
+   /preparations/${selected.uid}?ref=${encodeURIComponent(selected.reference || '')}
+4) removed the old PreparationModal render block at the bottom
+
+Result
+- DemandesPage no longer opens the preparation modal
+- it opens the dedicated PreparationPage route instead

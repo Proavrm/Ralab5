@@ -1,0 +1,20 @@
+Minimal LaboPage fix
+
+Changed only the Échantillons action footer behavior.
+
+What changed
+- In the Échantillons detail panel:
+  - removed the accidental '➕ Nouvelle intervention' action
+  - added '🧪 Fiche échantillon' instead
+- The new button navigates to:
+  /echantillons/:uid
+
+What stayed unchanged
+- Interventions actions
+- Essais actions
+- panel behavior
+- table behavior
+- backend untouched
+
+Expected next step
+- Once EchantillonPage.jsx route exists in App.jsx, the new button will open the dedicated Echantillon page.

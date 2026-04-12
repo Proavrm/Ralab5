@@ -1,0 +1,11 @@
+Workbench update with even more decision information.
+
+Added
+- Échantillon column
+- Demande / client
+- Labo / statut
+- richer selection summary now includes echantillons
+
+Goal
+- help decide whether rows are associated with each other
+- especially by seeing whether multiple essais belong to the same échantillon

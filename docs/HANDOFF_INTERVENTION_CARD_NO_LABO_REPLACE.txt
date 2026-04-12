@@ -1,0 +1,16 @@
+Replace the existing InterventionPageCard preview with a simpler version.
+
+Included
+- frontend/react/src/pages/InterventionPageCard.jsx
+
+What changed
+- removed the labo block completely
+- page now focuses only on:
+  1) Intervention
+  2) Ajouter à l’intervention
+
+Key logic
+- Intervention page does NOT show echantillons
+- labo starts from the future Prelevement page
+- Add button is active only for 'Prélèvement'
+  and routes to /prelevements-card/new?... for preview flow

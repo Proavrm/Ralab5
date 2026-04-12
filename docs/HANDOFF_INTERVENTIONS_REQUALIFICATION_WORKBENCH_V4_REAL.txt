@@ -1,0 +1,12 @@
+This replaces the current InterventionsRequalificationWorkbench.jsx with the usable v4 version.
+
+Why this is needed
+- the current project file is still the old fixed version
+- it still pre-fills interventionKey from row.reference
+- it does not contain the visible year filter + row counters version
+- that explains why the screen does not match the expected workbench
+
+Markers to confirm the good file is loaded
+- subtitle contains: 'Version usable v4'
+- visible filter: 'Année'
+- visible counters: 'Lignes chargées / visibles / sélection'

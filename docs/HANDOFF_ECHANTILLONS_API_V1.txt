@@ -1,0 +1,40 @@
+RaLab5 - API echantillons enriched for LaboPage V1
+
+Files included:
+- backend/current_fastapi/api/essais.py
+
+What changed:
+- Kept existing /api/essais/echantillons route.
+- Enriched only the echantillons listing/detail payload for labo preparation / organization.
+- Added joins to demandes + affaires_rst to expose context fields needed by the future LaboPage.
+- Added optional filters:
+  - demande_id
+  - annee
+  - labo_code
+  - statut
+- Added practical aliases in JSON output:
+  - uid
+  - demande_ref / demande_reference
+  - affaire_ref / affaire_reference
+  - client
+  - chantier
+  - site
+  - responsable_affaire
+  - affaire_statut
+  - date
+  - year
+
+Important notes:
+- Essais routes were intentionally left light and untouched in behavior.
+- This step is only for the echantillons list, not for loading essais in bulk.
+- If an SQL error appears, verify real table names:
+  - demandes
+  - affaires_rst
+  - echantillons
+- The active DB should normally be the one returned by get_db_path().
+
+Suggested quick tests:
+- /api/essais/echantillons
+- /api/essais/echantillons?annee=2025
+- /api/essais/echantillons?labo_code=SP
+- /api/essais/echantillons?statut=Reçu

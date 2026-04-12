@@ -1,0 +1,16 @@
+Usable requalification workbench.
+
+Main fixes
+- no render loop
+- no hidden hard 2026 data loss
+- explicit year filter
+- row counters visible
+- raw source reference kept only as source info
+- target intervention starts blank and can now really be built in the UI
+
+Why previous version felt like it did nothing
+- some rows could be filtered out silently
+- current reference was reused as intervention target
+- actions were not obvious enough
+
+This version is meant to be actually manipulable.
