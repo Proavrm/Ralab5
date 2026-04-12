@@ -112,8 +112,6 @@ export default function PreparationPageCard() {
         () => searchParams.get('ref') || searchParams.get('reference') || '',
         [searchParams]
     )
-    const typeOptions = useMemo(() => buildInterventionTypeOptions(form.type_intervention_prevu), [form.type_intervention_prevu])
-
     const [editing, setEditing] = useState(false)
     const [interventionModalOpen, setInterventionModalOpen] = useState(false)
     const [form, setForm] = useState({
@@ -128,6 +126,7 @@ export default function PreparationPageCard() {
         remarques: '',
     })
     const [mods, setMods] = useState({})
+    const typeOptions = useMemo(() => buildInterventionTypeOptions(form.type_intervention_prevu), [form.type_intervention_prevu])
 
     const { data: nav, isLoading, isError } = useQuery({
         queryKey: ['demande-nav-card', demandeUid],
