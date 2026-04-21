@@ -38,6 +38,9 @@ const EssaiDetailPage = lazy(() => import('@/pages/EssaiDetailPage'))
 const EchantillonPage = lazy(() => import('@/pages/EchantillonPage'))
 const PmtRapportPage = lazy(() => import('@/pages/PmtRapportPage'))
 const VBSPage = lazy(() => import('@/pages/VBSPage'))
+const PlanImplantationPage = lazy(() => import('@/pages/PlanImplantationPage'))
+const NivellementPage = lazy(() => import('@/pages/NivellementPage'))
+const FeuilleTerrainPage = lazy(() => import('@/pages/FeuilleTerrainPage'))
 
 
 function ProtectedRoute({ children }) {
@@ -85,6 +88,9 @@ export default function App() {
                 <Route path="echantillons/:uid" element={<P><EchantillonPage /></P>} />
                 <Route path="essai/:uid" element={<P><EssaiDetailPage /></P>} />
                 <Route path="pmt/rapports/:uid" element={<P><PmtRapportPage /></P>} />
+                <Route path="plans-implantation/:uid" element={<P><PlanImplantationPage /></P>} />
+                <Route path="nivellements/:uid" element={<P><NivellementPage /></P>} />
+                <Route path="feuilles-terrain/:uid" element={<P><FeuilleTerrainPage /></P>} />
                 <Route path="tools" element={<P><ToolsPage /></P>} />
                 <Route path="admin" element={<P><AdminPage /></P>} />
                 <Route path="preparations/:uid" element={<P><PreparationPage /></P>} />

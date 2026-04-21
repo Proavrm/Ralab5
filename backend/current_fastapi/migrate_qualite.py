@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS qualite_equipment (
     verification_interval INTEGER,
     presence              TEXT,
     notes                 TEXT,
+    m_tare                REAL,
+    volume_cm3            REAL,
+    division              TEXT,
+    precision             TEXT,
+    capacite              REAL,
+    sensibilite           REAL,
+    facteur_k             REAL,
     created_at            TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
 );

@@ -97,6 +97,61 @@ function DetailPanel({ visible, onClose, children }) {
   )
 }
 
+function getEquipmentProfile(item) {
+  const label = String(item?.label || '').toLowerCase()
+  const domain = String(item?.domain || '').toLowerCase()
+
+  if (label.includes('comparateur') && !label.includes('support')) return 'comparateur'
+  if (label.includes('anneau') || label.includes('dynamom') || label.includes('capteur')) return 'anneau'
+  if (label.includes('moule') || label.includes('corps de') || domain.includes('moule') || domain.includes('cbr') || domain.includes('proctor') || domain.includes(' pn')) return 'moule'
+
+  return 'generic'
+}
+
+function parseOptionalFloat(value) {
+  return value === '' || value == null ? null : parseFloat(value)
+}
+
+function parseOptionalText(value) {
+  const normalized = String(value || '').trim()
+  return normalized || null
+}
+
+function buildEquipmentPayload(form) {
+  const profile = getEquipmentProfile(form)
+  const payload = {
+    ...form,
+    division: parseOptionalText(form.division),
+    precision: parseOptionalText(form.precision),
+    m_tare: parseOptionalFloat(form.m_tare),
+    volume_cm3: parseOptionalFloat(form.volume_cm3),
+    capacite: parseOptionalFloat(form.capacite),
+    sensibilite: parseOptionalFloat(form.sensibilite),
+    facteur_k: parseOptionalFloat(form.facteur_k),
+  }
+
+  if (profile === 'comparateur') {
+    payload.m_tare = null
+    payload.volume_cm3 = null
+    payload.capacite = null
+    payload.sensibilite = null
+    payload.facteur_k = null
+  } else if (profile === 'moule') {
+    payload.division = null
+    payload.precision = null
+    payload.capacite = null
+    payload.sensibilite = null
+    payload.facteur_k = null
+  } else if (profile === 'anneau') {
+    payload.division = null
+    payload.precision = null
+    payload.m_tare = null
+    payload.volume_cm3 = null
+  }
+
+  return payload
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // STATS BAR
 // ═══════════════════════════════════════════════════════════════════════════
@@ -196,18 +251,30 @@ function TabEquipements({ meta, onStatsChange }) {
 
   function openCreate() {
     setEditItem(null)
-    setForm({ code:'', label:'', category:'Labo', status:'En service', domain:'', serial_number:'', supplier:'', purchase_date:'', lieu:'', etalonnage_interval:'', verification_interval:'', notes:'', m_tare:'', volume_cm3:'', capacite:'', sensibilite:'', facteur_k:'' })
+    setForm({ code:'', label:'', category:'Labo', status:'En service', domain:'', serial_number:'', supplier:'', purchase_date:'', lieu:'', etalonnage_interval:'', verification_interval:'', notes:'', m_tare:'', volume_cm3:'', division:'', precision:'', capacite:'', sensibilite:'', facteur_k:'' })
     setModalOpen(true)
   }
   function openEdit() {
     setEditItem(selected)
-    setForm({ ...selected, etalonnage_interval: selected.etalonnage_interval??'', verification_interval: selected.verification_interval??'' })
+    setForm({
+      ...selected,
+      division: selected?.division ?? '',
+      precision: selected?.precision ?? '',
+      etalonnage_interval: selected.etalonnage_interval??'',
+      verification_interval: selected.verification_interval??'',
+    })
     setModalOpen(true)
   }
   function openMetro(m=null) {
     setEditMetro(m)
     setMform(m ? { ...m } : { control_type:'Étalonnage', status:'Valide', reference:'', provider:'', performed_on:'', valid_until:'', notes:'' })
     setMetroOpen(true)
+  }
+
+  const selectedProfile = getEquipmentProfile(selected)
+  const selectedComparator = {
+    division: selected?.division ?? null,
+    precision: selected?.precision ?? null,
   }
 
   return (
@@ -275,9 +342,18 @@ function TabEquipements({ meta, onStatsChange }) {
             <DF label="Lieu" value={selected.lieu}/>
             <DF label="Intervalle étalonnage" value={selected.etalonnage_interval ? `${selected.etalonnage_interval} mois` : null}/>
             <DF label="Intervalle vérification" value={selected.verification_interval ? `${selected.verification_interval} mois` : null}/>
-            <DF label="Masse à vide M_tare (g)" value={selected.m_tare != null ? `${selected.m_tare} g` : null}/>
-            <DF label="Volume (cm³)" value={selected.volume_cm3 != null ? `${selected.volume_cm3} cm³` : null}/>
-            {(selected.capacite != null || selected.facteur_k != null) && (
+            {selectedProfile !== 'comparateur' && (selectedProfile === 'moule' || selected.m_tare != null || selected.volume_cm3 != null) && <>
+              <DF label="Masse à vide M_tare (g)" value={selected.m_tare != null ? `${selected.m_tare} g` : null}/>
+              <DF label="Volume (cm³)" value={selected.volume_cm3 != null ? `${selected.volume_cm3} cm³` : null}/>
+            </>}
+            {selectedProfile === 'comparateur' && (
+              <div className="mt-2 pt-2 border-t border-border">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Comparateur</span>
+                <DF label="Division" value={selectedComparator.division}/>
+                <DF label="Précision" value={selectedComparator.precision}/>
+              </div>
+            )}
+            {selectedProfile !== 'comparateur' && (selectedProfile === 'anneau' || selected.capacite != null || selected.sensibilite != null || selected.facteur_k != null) && (
               <div className="mt-2 pt-2 border-t border-border">
                 <span className="text-[10px] font-bold uppercase tracking-wide text-text-muted">Anneau / Capteur</span>
                 <DF label="Capacité (kN)" value={selected.capacite != null ? `${selected.capacite} kN` : null}/>
@@ -335,13 +411,20 @@ function TabEquipements({ meta, onStatsChange }) {
           <FG label="Fournisseur"><Input value={form.supplier||''} onChange={e=>set('supplier',e.target.value)}/></FG>
           {/* Moule OU Anneau selon le label — label a priorité sur domain */}
           {(()=>{
-            const lbl=(form.label||'').toLowerCase()
-            const dom=(form.domain||'').toLowerCase()
-            const isAnneau=lbl.includes('anneau')||lbl.includes('dynamom')||lbl.includes('capteur')
-            const isMoule=!isAnneau&&(lbl.includes('moule')||lbl.includes('corps de')||dom.includes('moule')||dom.includes('cbr')||dom.includes('proctor')||dom.includes(' pn'))
-            const showM=isMoule||(!isAnneau&&!isMoule)
-            const showA=isAnneau||(!isAnneau&&!isMoule)
+            const profile = getEquipmentProfile(form)
+            const showM = profile === 'moule' || profile === 'generic'
+            const showA = profile === 'anneau' || profile === 'generic'
+            const showC = profile === 'comparateur'
             return (<>
+              {showC&&<>
+                <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">Comparateur</div>
+                <FG label="Division">
+                  <Input value={form.division||''} onChange={e=>set('division',e.target.value)} placeholder="ex: 25 mm"/>
+                </FG>
+                <FG label="Précision">
+                  <Input value={form.precision||''} onChange={e=>set('precision',e.target.value)} placeholder="ex: ±0,01"/>
+                </FG>
+              </>}
               {showM&&<>
                 <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">Moule — Proctor / CBR</div>
                 <FG label="Masse à vide M_tare (g)">
@@ -381,14 +464,7 @@ function TabEquipements({ meta, onStatsChange }) {
             }</p>}
         <div className="flex justify-end gap-2 pt-3">
           <Button onClick={()=>setModalOpen(false)}>Annuler</Button>
-          <Button variant="primary" onClick={()=>saveMut.mutate({
-              ...form,
-              m_tare: form.m_tare===''||form.m_tare==null ? null : parseFloat(form.m_tare),
-              volume_cm3: form.volume_cm3===''||form.volume_cm3==null ? null : parseFloat(form.volume_cm3),
-              capacite: form.capacite===''||form.capacite==null ? null : parseFloat(form.capacite),
-              sensibilite: form.sensibilite===''||form.sensibilite==null ? null : parseFloat(form.sensibilite),
-              facteur_k: form.facteur_k===''||form.facteur_k==null ? null : parseFloat(form.facteur_k),
-            })} disabled={!form.code||!form.label||saveMut.isPending}>
+          <Button variant="primary" onClick={()=>saveMut.mutate(buildEquipmentPayload(form))} disabled={!form.code||!form.label||saveMut.isPending}>
             {saveMut.isPending?'…':'Enregistrer'}
           </Button>
         </div>

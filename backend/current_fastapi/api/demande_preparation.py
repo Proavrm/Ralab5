@@ -31,6 +31,7 @@ def _ensure_demande(demande_id: int) -> None:
 def configuration_catalog():
 	return {
 		"phase_options": PREPARATION_PHASE_OPTIONS,
+		"families": _repo.family_catalog(),
 		"modules": _repo.module_catalog(),
 	}
 

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Briefcase, ClipboardList, ShieldCheck, Trash2, UserRound } from 'lucide-react'
+import { Briefcase, ClipboardList, PenTool, ShieldCheck, Trash2, Upload, UserRound } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import Input, { Select, Textarea } from '@/components/ui/Input'
@@ -26,6 +26,7 @@ const LEVEL_TONES = {
 
 const TAB_OPTIONS = [
   { key: 'fiche', label: 'Fiche', icon: UserRound },
+  { key: 'signatures', label: 'Signatures', icon: PenTool },
   { key: 'competences', label: 'Compétences', icon: ClipboardList },
   { key: 'habilitations', label: 'Habilitations', icon: ShieldCheck },
 ]
@@ -47,6 +48,13 @@ function emptyProfile(email = '') {
     training_notes: '',
     documents_notes: '',
     profile_notes: '',
+    signature_display_name: '',
+    signature_role_title: '',
+    signature_image_data: '',
+    signature_notes: '',
+    signature_scale_percent: 100,
+    signature_offset_x: 0,
+    signature_offset_y: 0,
   }
 }
 
@@ -87,6 +95,9 @@ function buildProfileForm(profile, email = '') {
     employment_start_date: normalizeDateInput(profile.employment_start_date),
     last_reviewed_at: normalizeDateInput(profile.last_reviewed_at),
     next_review_due_date: normalizeDateInput(profile.next_review_due_date),
+    signature_scale_percent: Number(profile.signature_scale_percent ?? 100),
+    signature_offset_x: Number(profile.signature_offset_x ?? 0),
+    signature_offset_y: Number(profile.signature_offset_y ?? 0),
   }
 }
 
@@ -100,6 +111,27 @@ function buildAssessmentForm() {
     source_reference: '',
     notes: '',
   }
+}
+
+function clampNumber(value, min, max, fallback) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return fallback
+  return Math.min(max, Math.max(min, numeric))
+}
+
+function readImageFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+        return
+      }
+      reject(new Error('Format d’image non pris en charge.'))
+    }
+    reader.onerror = () => reject(new Error('Impossible de lire le fichier sélectionné.'))
+    reader.readAsDataURL(file)
+  })
 }
 
 function FieldGroup({ label, hint, children }) {
@@ -166,6 +198,8 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
   const [catalogSearch, setCatalogSearch] = useState('')
   const [domainFilter, setDomainFilter] = useState('')
   const [contextFilter, setContextFilter] = useState('')
+  const [signatureError, setSignatureError] = useState('')
+  const signatureInputRef = useRef(null)
 
   const profileQuery = useQuery({
     queryKey: ['admin-user-profile', email],
@@ -205,6 +239,7 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
     setCatalogSearch('')
     setDomainFilter('')
     setContextFilter('')
+    setSignatureError('')
   }, [open, user])
 
   useEffect(() => {
@@ -245,6 +280,13 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
         training_notes: profileForm.training_notes,
         documents_notes: profileForm.documents_notes,
         profile_notes: profileForm.profile_notes,
+        signature_display_name: profileForm.signature_display_name,
+        signature_role_title: profileForm.signature_role_title,
+        signature_image_data: profileForm.signature_image_data,
+        signature_notes: profileForm.signature_notes,
+        signature_scale_percent: clampNumber(profileForm.signature_scale_percent, 30, 200, 100),
+        signature_offset_x: clampNumber(profileForm.signature_offset_x, -160, 160, 0),
+        signature_offset_y: clampNumber(profileForm.signature_offset_y, -120, 120, 0),
       })
     },
     onSuccess: async () => {
@@ -320,6 +362,69 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
 
   const displayedCompetencies = filteredCompetencies.slice(0, 80)
   const selectedCompetency = competencies.find((item) => String(item.competency_id) === String(assessmentForm.competency_id))
+
+  async function handleSignatureFileChange(event) {
+    const input = event.target
+    const file = input.files?.[0]
+    input.value = ''
+    if (!file) return
+
+    const allowedTypes = new Set(['image/png', 'image/jpeg', 'image/webp'])
+    if (!allowedTypes.has(file.type)) {
+      setSignatureError('Formats acceptés : PNG, JPG ou WebP.')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setSignatureError('Image trop lourde. Limite fixée à 2 Mo.')
+      return
+    }
+
+    try {
+      const dataUrl = await readImageFileAsDataUrl(file)
+      setSignatureError('')
+      setProfileForm((current) => ({
+        ...current,
+        signature_image_data: dataUrl,
+        signature_display_name: current.signature_display_name || baseForm.display_name || user.display_name || '',
+        signature_role_title: current.signature_role_title || current.professional_title || '',
+        signature_scale_percent: 100,
+        signature_offset_x: 0,
+        signature_offset_y: 0,
+      }))
+    } catch (error) {
+      setSignatureError(error instanceof Error ? error.message : 'Impossible de charger la signature.')
+    }
+  }
+
+  function handleClearSignature() {
+    setSignatureError('')
+    if (signatureInputRef.current) {
+      signatureInputRef.current.value = ''
+    }
+    setProfileForm((current) => ({
+      ...current,
+      signature_image_data: '',
+      signature_scale_percent: 100,
+      signature_offset_x: 0,
+      signature_offset_y: 0,
+    }))
+  }
+
+  function setSignatureSetting(key, value, min, max, fallback) {
+    setProfileForm((current) => ({
+      ...current,
+      [key]: clampNumber(value, min, max, fallback),
+    }))
+  }
+
+  function resetSignatureAdjustments() {
+    setProfileForm((current) => ({
+      ...current,
+      signature_scale_percent: 100,
+      signature_offset_x: 0,
+      signature_offset_y: 0,
+    }))
+  }
 
   function handleDeleteAssessment(assessment) {
     const confirmed = window.confirm(
@@ -456,6 +561,198 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
                 </Button>
               </div>
             </div>
+          </div>
+        ) : null}
+
+        {activeTab === 'signatures' ? (
+          <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+            <SectionCard title="Signature visuelle" description="Image stockée sur la fiche utilisateur pour un futur usage sur rapports, devis et visas de validation.">
+              <div className="flex flex-col gap-4">
+                <div className="rounded-2xl border border-dashed border-border bg-white p-4 min-h-[260px] flex items-center justify-center">
+                  {profileForm.signature_image_data ? (
+                    <div className="w-full flex flex-col gap-4">
+                      <div className="relative h-[220px] overflow-hidden rounded-xl border border-[#d9ddd7] bg-[#fbfcfe] shadow-inner">
+                        <div className="absolute left-5 top-4 text-[10px] font-medium uppercase tracking-[0.14em] text-text-muted">Aperçu d’insertion</div>
+                        <div className="absolute inset-x-5 bottom-14 border-b border-dashed border-[#bcc6d4]" />
+                        <div className="absolute left-5 bottom-4 text-[10px] text-text-muted">Zone de signature document</div>
+                        <div
+                          className="absolute left-5 bottom-[56px]"
+                          style={{
+                            transform: `translate(${profileForm.signature_offset_x}px, ${profileForm.signature_offset_y}px) scale(${profileForm.signature_scale_percent / 100})`,
+                            transformOrigin: 'left bottom',
+                          }}
+                        >
+                          <img
+                            src={profileForm.signature_image_data}
+                            alt={`Signature de ${profileForm.signature_display_name || baseForm.display_name || user.display_name}`}
+                            className="max-h-[120px] max-w-[320px] object-contain select-none pointer-events-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-sm font-semibold text-text">
+                          {profileForm.signature_display_name || baseForm.display_name || user.display_name}
+                        </div>
+                        <div className="text-xs text-text-muted">
+                          {profileForm.signature_role_title || profileForm.professional_title || user.employment_level_label || 'Titre non renseigné'}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center text-text-muted">
+                      <PenTool size={28} className="mx-auto mb-3 opacity-60" />
+                      <p className="text-sm font-medium text-text">Aucune signature enregistrée</p>
+                      <p className="mt-1 text-xs">Ajoute ici l’image de signature à réutiliser plus tard dans les documents générés.</p>
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  ref={signatureInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleSignatureFileChange}
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="primary" onClick={() => signatureInputRef.current?.click()}>
+                    <Upload size={14} />
+                    {profileForm.signature_image_data ? 'Remplacer l’image' : 'Importer une signature'}
+                  </Button>
+                  {profileForm.signature_image_data ? (
+                    <Button variant="secondary" onClick={handleClearSignature}>
+                      <Trash2 size={14} />
+                      Retirer l’image
+                    </Button>
+                  ) : null}
+                </div>
+
+                <div className="rounded-2xl border border-[#d9ddd7] bg-[#f8fbfa] px-3 py-3 text-[11px] text-text-muted">
+                  Formats acceptés : PNG, JPG ou WebP. Taille conseillée : signature sur fond transparent, largeur raisonnable, maximum 2 Mo.
+                </div>
+
+                {signatureError ? <p className="text-xs text-danger">{signatureError}</p> : null}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Paramètres de signature" description="Nom, titre et notes à réutiliser lorsque la signature sera injectée dans les rapports, devis ou autres validations métier.">
+              <div className="grid gap-3 md:grid-cols-2">
+                <FieldGroup label="Nom affiché sous la signature">
+                  <Input
+                    value={profileForm.signature_display_name}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, signature_display_name: event.target.value }))}
+                    placeholder={baseForm.display_name || user.display_name || 'Nom du signataire'}
+                  />
+                </FieldGroup>
+                <FieldGroup label="Titre / fonction affichée">
+                  <Input
+                    value={profileForm.signature_role_title}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, signature_role_title: event.target.value }))}
+                    placeholder={profileForm.professional_title || user.employment_level_label || 'Fonction du signataire'}
+                  />
+                </FieldGroup>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <FieldGroup label="Échelle" hint={`${clampNumber(profileForm.signature_scale_percent, 30, 200, 100)} %`}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="30"
+                      max="200"
+                      step="5"
+                      value={clampNumber(profileForm.signature_scale_percent, 30, 200, 100)}
+                      onChange={(event) => setSignatureSetting('signature_scale_percent', event.target.value, 30, 200, 100)}
+                      className="flex-1 accent-accent"
+                    />
+                    <Input
+                      type="number"
+                      min="30"
+                      max="200"
+                      step="5"
+                      value={clampNumber(profileForm.signature_scale_percent, 30, 200, 100)}
+                      onChange={(event) => setSignatureSetting('signature_scale_percent', event.target.value, 30, 200, 100)}
+                      className="w-20"
+                    />
+                  </div>
+                </FieldGroup>
+                <FieldGroup label="Décalage horizontal" hint={`${clampNumber(profileForm.signature_offset_x, -160, 160, 0)} px`}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="-160"
+                      max="160"
+                      step="2"
+                      value={clampNumber(profileForm.signature_offset_x, -160, 160, 0)}
+                      onChange={(event) => setSignatureSetting('signature_offset_x', event.target.value, -160, 160, 0)}
+                      className="flex-1 accent-accent"
+                    />
+                    <Input
+                      type="number"
+                      min="-160"
+                      max="160"
+                      step="2"
+                      value={clampNumber(profileForm.signature_offset_x, -160, 160, 0)}
+                      onChange={(event) => setSignatureSetting('signature_offset_x', event.target.value, -160, 160, 0)}
+                      className="w-20"
+                    />
+                  </div>
+                </FieldGroup>
+                <FieldGroup label="Décalage vertical" hint={`${clampNumber(profileForm.signature_offset_y, -120, 120, 0)} px`}>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="-120"
+                      max="120"
+                      step="2"
+                      value={clampNumber(profileForm.signature_offset_y, -120, 120, 0)}
+                      onChange={(event) => setSignatureSetting('signature_offset_y', event.target.value, -120, 120, 0)}
+                      className="flex-1 accent-accent"
+                    />
+                    <Input
+                      type="number"
+                      min="-120"
+                      max="120"
+                      step="2"
+                      value={clampNumber(profileForm.signature_offset_y, -120, 120, 0)}
+                      onChange={(event) => setSignatureSetting('signature_offset_y', event.target.value, -120, 120, 0)}
+                      className="w-20"
+                    />
+                  </div>
+                </FieldGroup>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={resetSignatureAdjustments} disabled={!profileForm.signature_image_data}>
+                  Réinitialiser l’ajustement
+                </Button>
+              </div>
+
+              <div className="mt-3 grid gap-3">
+                <FieldGroup label="Notes d’usage / périmètre">
+                  <Textarea
+                    rows={6}
+                    value={profileForm.signature_notes}
+                    onChange={(event) => setProfileForm((current) => ({ ...current, signature_notes: event.target.value }))}
+                    placeholder="Ex. signature utilisée para rapports géotechniques, devis, visa interne, validation laboratoire..."
+                  />
+                </FieldGroup>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-[#d9ddd7] bg-[#fafaf8] p-3 text-xs text-text-muted">
+                <p className="font-semibold text-text">Préparation future</p>
+                <p className="mt-1">Cette zone centralise à la fois l’image et son réglage d’insertion. Les paramètres enregistrés pourront ensuite être repris dans les rapports, devis et autres documents selon le validateur choisi.</p>
+              </div>
+
+              <div className="mt-5 flex items-center justify-end gap-2">
+                {saveProfileMutation.error ? <p className="mr-auto text-xs text-danger">{saveProfileMutation.error.message}</p> : null}
+                <Button variant="secondary" onClick={onClose}>Fermer</Button>
+                <Button variant="primary" onClick={() => saveProfileMutation.mutate('signatures')} disabled={saveProfileMutation.isPending}>
+                  {saveProfileMutation.isPending ? 'Enregistrement…' : 'Enregistrer la signature'}
+                </Button>
+              </div>
+            </SectionCard>
           </div>
         ) : null}
 

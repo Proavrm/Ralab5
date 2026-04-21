@@ -4,16 +4,85 @@
  * API: GET /demandes_rst/{uid}  + GET /demandes_rst/{uid}/navigation
  * 2 modaux: édition demande + configuration préparation/modules
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, demandesApi, essaisApi, interventionCampaignsApi } from '@/services/api'
+import { api, demandesApi, interventionCampaignsApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { applyInterventionTypeToPath } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { buildLocationTarget, buildPathWithReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
+
+
+const DEMANDE_UI_STORAGE_PREFIX = 'ralab5:demande-ui:'
+
+function getDemandeUiStorageKey(uid) {
+  return `${DEMANDE_UI_STORAGE_PREFIX}${uid || 'unknown'}`
+}
+
+function loadDemandeUiState(uid) {
+  if (typeof window === 'undefined') return { expanded: {}, scrollY: 0 }
+  try {
+    const raw = window.sessionStorage.getItem(getDemandeUiStorageKey(uid))
+    if (!raw) return { expanded: {}, scrollY: 0 }
+    const parsed = JSON.parse(raw)
+    return {
+      expanded: parsed?.expanded && typeof parsed.expanded === 'object' ? parsed.expanded : {},
+      scrollY: Number.isFinite(Number(parsed?.scrollY)) ? Number(parsed.scrollY) : 0,
+    }
+  } catch {
+    return { expanded: {}, scrollY: 0 }
+  }
+}
+
+function persistDemandeUiState(uid, nextState) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(
+      getDemandeUiStorageKey(uid),
+      JSON.stringify({
+        expanded: nextState?.expanded && typeof nextState.expanded === 'object' ? nextState.expanded : {},
+        scrollY: Number.isFinite(Number(nextState?.scrollY)) ? Number(nextState.scrollY) : 0,
+      })
+    )
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+const RELATED_NODE_TONES = [
+  {
+    shell: 'border-[#d8e6f6] bg-gradient-to-r from-[#f8fbff] to-[#eef5fd]',
+    title: 'text-[#185fa5]',
+    meta: 'text-[#58718d]',
+    action: 'hover:border-[#8db8e3] hover:text-[#185fa5]',
+  },
+  {
+    shell: 'border-[#dbead8] bg-gradient-to-r from-[#fbfdf8] to-[#eef7ea]',
+    title: 'text-[#3b6d11]',
+    meta: 'text-[#617756]',
+    action: 'hover:border-[#9fc78d] hover:text-[#3b6d11]',
+  },
+  {
+    shell: 'border-[#efe3d5] bg-gradient-to-r from-[#fffaf5] to-[#f9efe4]',
+    title: 'text-[#9a5b12]',
+    meta: 'text-[#8a6b47]',
+    action: 'hover:border-[#d8b183] hover:text-[#9a5b12]',
+  },
+  {
+    shell: 'border-[#e7ddf2] bg-gradient-to-r from-[#fcf9ff] to-[#f3ecfb]',
+    title: 'text-[#6d47a8]',
+    meta: 'text-[#7a6993]',
+    action: 'hover:border-[#b9a1dd] hover:text-[#6d47a8]',
+  },
+]
+
+function getRelatedNodeTone(level = 0) {
+  return RELATED_NODE_TONES[Math.min(level, RELATED_NODE_TONES.length - 1)]
+}
+
 
 const STATUTS   = ['À qualifier','Demande','En Cours','Répondu','Fini','Envoyé - Perdu']
 const LABOS     = ['SP','AUV','CHB','CLM','RST']
@@ -185,11 +254,15 @@ function buildCampaignFormState(campaign) {
     designation: normalizeNonEmpty(campaign?.designation),
     zone_scope: normalizeNonEmpty(campaign?.zone_scope),
     temporalite: normalizeNonEmpty(campaign?.temporalite),
+    programme_specifique:   normalizeNonEmpty(campaign?.programme_specifique),
+    nb_points_prevus:       normalizeNonEmpty(campaign?.nb_points_prevus),
+    types_essais_prevus:    normalizeNonEmpty(campaign?.types_essais_prevus),
     notes:                 normalizeNonEmpty(campaign?.notes),
     date_debut_prevue:     normalizeNonEmpty(campaign?.date_debut_prevue),
     date_fin_prevue:       normalizeNonEmpty(campaign?.date_fin_prevue),
     priorite:              campaign?.priorite              || 'Normale',
     responsable_technique: normalizeNonEmpty(campaign?.responsable_technique),
+    attribue_a:            normalizeNonEmpty(campaign?.attribue_a),
     criteres_controle:     normalizeNonEmpty(campaign?.criteres_controle),
     livrables_attendus:    normalizeNonEmpty(campaign?.livrables_attendus),
   }
@@ -206,11 +279,11 @@ function buildCampaignCreateDefaults(campaign, preparation, demande) {
     finalite: codeDefaults.finalite || normalizeNonEmpty(preparation?.finalite),
     zone: getCampaignLocationDefault(campaign, preparation, demande),
     materiau: codeDefaults.materiau || normalizeNonEmpty(preparation?.materiau_objet),
-    objectif: [normalizeNonEmpty(campaign?.designation), sharedTail || normalizeNonEmpty(campaign?.reference)]
+    objectif: [normalizeNonEmpty(campaign?.programme_specifique), normalizeNonEmpty(campaign?.designation), sharedTail || normalizeNonEmpty(campaign?.reference)]
       .filter(Boolean)
       .join(' · ') || normalizeNonEmpty(preparation?.objectif_mission) || normalizeNonEmpty(demande?.nature),
-    responsable: normalizeNonEmpty(preparation?.responsable_referent),
-    attribue_a: normalizeNonEmpty(preparation?.attribue_a),
+    responsable: normalizeNonEmpty(campaign?.responsable_technique) || normalizeNonEmpty(preparation?.responsable_referent),
+    attribue_a: normalizeNonEmpty(campaign?.attribue_a) || normalizeNonEmpty(preparation?.attribue_a),
   }
 }
 
@@ -224,6 +297,13 @@ function buildCreateInterventionHref(demandeUid, preparation, campaign, demande,
   if (campaign?.code) params.set('campaign_code', campaign.code)
   if (campaign?.label) params.set('campaign_label', campaign.label)
   if (campaign?.designation) params.set('campaign_designation', campaign.designation)
+  if (campaign?.programme_specifique) params.set('campaign_programme', campaign.programme_specifique)
+  if (campaign?.zone_scope) params.set('campaign_zone', campaign.zone_scope)
+  if (campaign?.temporalite) params.set('campaign_temporalite', campaign.temporalite)
+  if (campaign?.nb_points_prevus != null && campaign?.nb_points_prevus !== '') params.set('campaign_nb_points', String(campaign.nb_points_prevus))
+  if (campaign?.types_essais_prevus) params.set('campaign_essais', campaign.types_essais_prevus)
+  if (campaign?.responsable_technique) params.set('campaign_responsable', campaign.responsable_technique)
+  if (campaign?.attribue_a) params.set('campaign_attribue_a', campaign.attribue_a)
 
   if (defaults.type_intervention) params.set('type_intervention', defaults.type_intervention)
   if (defaults.finalite) params.set('finalite', defaults.finalite)
@@ -236,73 +316,152 @@ function buildCreateInterventionHref(demandeUid, preparation, campaign, demande,
   return buildPathWithReturnTo(`/interventions/new?${params.toString()}`, detailReturnTo)
 }
 
-function InterventionEssaisList({ intervention, detailReturnTo, navigate, enabled, onLoadedCount }) {
-  const hasImportedEssais = Number(intervention?.pmt_essai_count || 0) > 0 || (intervention?.pmt_essai_reference || '') !== ''
+function getInterventionObjectLabel(item) {
+  if (item?.kind === 'plan_implantation') return "Plan d'implantation"
+  if (item?.kind === 'nivellement') return 'Nivellement'
+  if (item?.kind === 'feuille_terrain') return 'Feuille terrain'
+  if (item?.kind === 'prelevement') return 'Prélèvement'
+  if (item?.kind === 'echantillon') return 'Échantillon'
+  if (item?.kind === 'essai') return 'Essai labo'
+  return 'Objet lié'
+}
 
-  const { data: essais = [], isLoading, error } = useQuery({
-    queryKey: ['demande-inline-essais', intervention?.uid],
-    queryFn: async () => {
-      if (hasImportedEssais) {
-        await essaisApi.syncInterventionEssais(intervention.uid)
-      }
-      return await essaisApi.list({ intervention_id: intervention.uid })
-    },
-    enabled: Boolean(enabled && intervention?.uid),
-    staleTime: 60000,
-  })
+function getRelatedNodeKey(item) {
+  return `related:${item?.kind || 'item'}:${item?.uid || item?.reference || 'unknown'}`
+}
 
-  useEffect(() => {
-    if (enabled && !isLoading && !error) {
-      onLoadedCount?.(essais.length)
-    }
-  }, [enabled, isLoading, error, essais, onLoadedCount])
+function openRelatedObject(navigate, item, detailReturnTo) {
+  if (!item?.uid) return
+  if (item.kind === 'plan_implantation') {
+    navigate(buildPathWithReturnTo(`/plans-implantation/${item.uid}`, detailReturnTo))
+    return
+  }
+  if (item.kind === 'nivellement') {
+    navigate(buildPathWithReturnTo(`/nivellements/${item.uid}`, detailReturnTo))
+    return
+  }
+  if (item.kind === 'feuille_terrain') {
+    navigate(buildPathWithReturnTo(`/feuilles-terrain/${item.uid}`, detailReturnTo))
+    return
+  }
+  if (item.kind === 'prelevement') {
+    navigate(buildPathWithReturnTo(`/prelevements/${item.uid}`, detailReturnTo))
+    return
+  }
+  if (item.kind === 'echantillon') {
+    navigate(buildPathWithReturnTo(`/echantillons/${item.uid}`, detailReturnTo))
+    return
+  }
+  if (item.kind === 'essai') {
+    navigate(buildPathWithReturnTo(`/essais/${item.uid}`, detailReturnTo))
+  }
+}
 
-  if (!enabled) return null
+function RelatedObjectNode({
+  item,
+  navigate,
+  detailReturnTo,
+  level = 0,
+  getExpandedState,
+  setExpandedState,
+}) {
+  const children = Array.isArray(item?.children) ? item.children : []
+  const hasChildren = children.length > 0
+  const isNavigable = ['plan_implantation', 'nivellement', 'feuille_terrain', 'prelevement', 'echantillon', 'essai'].includes(item?.kind)
+  const nodeKey = getRelatedNodeKey(item)
+  const isOpen = getExpandedState(nodeKey, false)
+  const tone = getRelatedNodeTone(level)
+
+  const mainContent = (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className={`text-[12px] font-semibold ${isNavigable ? tone.title : 'text-text'}`}>
+            {item.reference || getInterventionObjectLabel(item)}
+          </div>
+          <div className={`mt-1 text-[11px] ${tone.meta}`}>
+            {[getInterventionObjectLabel(item), item.title, item.subtitle].filter(Boolean).join(' · ')}
+          </div>
+        </div>
+        <div className={`text-[11px] ${tone.meta}`}>{formatDate(item.date) || item.statut || '—'}</div>
+      </div>
+      {(item.result_label || item.result_value || item.statut) ? (
+        <div className={`mt-1 flex flex-wrap items-center gap-2 text-[11px] ${tone.meta}`}>
+          {item.statut ? (
+            <span className="inline-flex items-center rounded-full border border-white/70 bg-white/70 px-2 py-0.5 text-[10px] font-medium text-text-muted">
+              {item.statut}
+            </span>
+          ) : null}
+          {item.result_label ? <span>{item.result_label}</span> : null}
+          {item.result_value ? <span>{item.result_value}</span> : null}
+        </div>
+      ) : null}
+    </>
+  )
+
+  if (!hasChildren) {
+    return (
+      <div className={`rounded-lg border ${tone.shell}`} style={{ marginLeft: level > 0 ? `${level * 14}px` : 0 }}>
+        {isNavigable ? (
+          <button
+            type="button"
+            onClick={() => openRelatedObject(navigate, item, detailReturnTo)}
+            className="w-full px-3 py-2 text-left transition-colors hover:bg-white/40 rounded-lg"
+          >
+            {mainContent}
+          </button>
+        ) : (
+          <div className="px-3 py-2">{mainContent}</div>
+        )}
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted">Essais liés</div>
-        <div className="text-[11px] text-text-muted">
-          {isLoading ? 'Chargement…' : `${essais.length} essai${essais.length > 1 ? 's' : ''}`}
+    <div className={`rounded-lg border ${tone.shell}`} style={{ marginLeft: level > 0 ? `${level * 14}px` : 0 }}>
+      <div className="flex items-start gap-2 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => {
+            if (isNavigable) openRelatedObject(navigate, item, detailReturnTo)
+            else setExpandedState(nodeKey, !isOpen)
+          }}
+          className="flex-1 text-left transition-colors hover:bg-white/30 rounded-lg px-1 py-0.5"
+        >
+          {mainContent}
+        </button>
+        <div className="flex items-center gap-2 pt-0.5 shrink-0">
+          {isNavigable ? (
+            <button
+              type="button"
+              onClick={() => openRelatedObject(navigate, item, detailReturnTo)}
+              className={`px-2.5 py-1 rounded border border-white/70 bg-white/70 text-[11px] font-medium text-text-muted transition-colors ${tone.action}`}
+            >
+              Ouvrir
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setExpandedState(nodeKey, !isOpen)}
+            className={`h-7 w-7 rounded border border-white/70 bg-white/70 text-[13px] text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''} ${tone.action}`}
+            aria-label={isOpen ? 'Replier' : 'Déplier'}
+          >
+            ▾
+          </button>
         </div>
       </div>
-
-      {error ? (
-        <div className="rounded-lg border border-[#f2d1d1] bg-[#fcebeb] px-3 py-2 text-[12px] text-danger">
-          {error.message || 'Impossible de charger les essais liés.'}
-        </div>
-      ) : null}
-
-      {!error && !isLoading && essais.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-bg px-3 py-2 text-[12px] text-text-muted">
-          Aucun essai lié pour cette intervention.
-        </div>
-      ) : null}
-
-      {!error && essais.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          {essais.map((essai) => (
-            <button
-              key={essai.uid}
-              type="button"
-              onClick={() => navigate(buildPathWithReturnTo(`/essais/${essai.uid}`, detailReturnTo))}
-              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-left transition-colors hover:border-accent hover:bg-surface"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-[12px] font-semibold text-accent">{essai.reference || `ESSAI-${String(essai.uid).padStart(4, '0')}`}</div>
-                <div className="text-[11px] text-text-muted">{formatDate(essai.date_debut) || 'Date à préciser'}</div>
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
-                <span>{essai.type_essai || essai.essai_code || 'Essai'}</span>
-                {essai.source_label ? <span>{essai.source_label}</span> : null}
-                {essai.statut ? (
-                  <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-text-muted">
-                    {essai.statut}
-                  </span>
-                ) : null}
-              </div>
-            </button>
+      {isOpen ? (
+        <div className="px-3 pb-3 flex flex-col gap-2">
+          {children.map((child) => (
+            <RelatedObjectNode
+              key={`${child.kind}-${child.uid}`}
+              item={child}
+              navigate={navigate}
+              detailReturnTo={detailReturnTo}
+              level={level + 1}
+              getExpandedState={getExpandedState}
+              setExpandedState={setExpandedState}
+            />
           ))}
         </div>
       ) : null}
@@ -310,21 +469,120 @@ function InterventionEssaisList({ intervention, detailReturnTo, navigate, enable
   )
 }
 
-function InterventionAccordion({ intervention, detailReturnTo, navigate }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [loadedEssaiCount, setLoadedEssaiCount] = useState(null)
-  const importedEssaiCount = Math.max(
-    Number(intervention?.pmt_essai_count || 0),
-    Array.isArray(intervention?.pmt_essais) ? intervention.pmt_essais.length : 0,
-    intervention?.pmt_essai_reference ? 1 : 0,
-  )
-  const essaiCount = loadedEssaiCount ?? importedEssaiCount
-  const essaiSummary = loadedEssaiCount != null
-    ? (essaiCount > 0 ? `${essaiCount} essai${essaiCount > 1 ? 's' : ''} lié${essaiCount > 1 ? 's' : ''}` : 'Aucun essai lié')
-    : (essaiCount > 0 ? `${essaiCount} essai${essaiCount > 1 ? 's' : ''} lié${essaiCount > 1 ? 's' : ''}` : 'Essais visibles dans le détail')
+function InterventionRelatedObjectsList({
+  intervention,
+  detailReturnTo,
+  navigate,
+  enabled,
+  onLoadedCount,
+  getExpandedState,
+  setExpandedState,
+}) {
+  const relatedObjects = Array.isArray(intervention?.related_objects) ? intervention.related_objects : []
+
+  useEffect(() => {
+    if (enabled) {
+      onLoadedCount?.(relatedObjects.length)
+    }
+  }, [enabled, relatedObjects, onLoadedCount])
+
+  const groupedObjects = useMemo(() => {
+    const groups = {
+      support: [],
+      terrain: [],
+      prelevement: [],
+      echantillon: [],
+      essai: [],
+    }
+
+    relatedObjects.forEach((item) => {
+      const category = item?.category || 'support'
+      if (!groups[category]) groups[category] = []
+      groups[category].push(item)
+    })
+
+    return groups
+  }, [relatedObjects])
+
+  const sections = [
+    { key: 'support', label: 'Fiches support de campagne' },
+    { key: 'terrain', label: 'Feuilles terrain' },
+    { key: 'prelevement', label: 'Chaîne prélèvement → échantillon → essai' },
+    { key: 'echantillon', label: 'Échantillons orphelins / directs' },
+    { key: 'essai', label: 'Essais labo directs' },
+  ]
+
+  if (!enabled) return null
 
   return (
-    <details className="rounded-[10px] border border-border bg-surface group/intervention" onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted">Objets liés</div>
+        <div className="text-[11px] text-text-muted">
+          {`${relatedObjects.length} objet${relatedObjects.length > 1 ? 's' : ''}`}
+        </div>
+      </div>
+
+      {relatedObjects.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border bg-bg px-3 py-2 text-[12px] text-text-muted">
+          Aucun objet lié pour cette intervention.
+        </div>
+      ) : null}
+
+      {sections.map((section) => {
+        const items = groupedObjects[section.key] || []
+        if (!items.length) return null
+
+        return (
+          <div key={section.key} className="flex flex-col gap-2">
+            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">{section.label}</div>
+            <div className="flex flex-col gap-2">
+              {items.map((item) => (
+                <RelatedObjectNode
+                  key={`${item.kind}-${item.uid}`}
+                  item={item}
+                  navigate={navigate}
+                  detailReturnTo={detailReturnTo}
+                  getExpandedState={getExpandedState}
+                  setExpandedState={setExpandedState}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function InterventionAccordion({
+  intervention,
+  detailReturnTo,
+  navigate,
+  getExpandedState,
+  setExpandedState,
+}) {
+  const [loadedEssaiCount, setLoadedEssaiCount] = useState(null)
+  const accordionKey = `intervention:${intervention?.uid || 'unknown'}`
+  const isOpen = getExpandedState(accordionKey, false)
+  const importedObjectCount = Math.max(Number(intervention?.related_object_count || 0), Number(intervention?.essai_count || 0))
+  const objectCount = loadedEssaiCount ?? importedObjectCount
+  const summaryParts = []
+  if (intervention?.support_object_count) summaryParts.push(`${intervention.support_object_count} support`)
+  if (intervention?.terrain_sheet_count) summaryParts.push(`${intervention.terrain_sheet_count} feuille${intervention.terrain_sheet_count > 1 ? 's' : ''} terrain`)
+  if (intervention?.prelevement_count) summaryParts.push(`${intervention.prelevement_count} prélèvement${intervention.prelevement_count > 1 ? 's' : ''}`)
+  if (intervention?.echantillon_count) summaryParts.push(`${intervention.echantillon_count} éch.`)
+  if (intervention?.essai_count) summaryParts.push(`${intervention.essai_count} essai${intervention.essai_count > 1 ? 's' : ''}`)
+  const essaiSummary = loadedEssaiCount != null
+    ? (objectCount > 0 ? `${objectCount} objet${objectCount > 1 ? 's' : ''} lié${objectCount > 1 ? 's' : ''}` : 'Aucun objet lié')
+    : (objectCount > 0 ? `${objectCount} objet${objectCount > 1 ? 's' : ''} lié${objectCount > 1 ? 's' : ''}` : 'Objets visibles dans le détail')
+
+  return (
+    <details
+      open={isOpen}
+      className="rounded-[10px] border border-border bg-surface group/intervention"
+      onToggle={(event) => setExpandedState(accordionKey, event.currentTarget.open)}
+    >
       <summary className="list-none cursor-pointer px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -337,11 +595,7 @@ function InterventionAccordion({ intervention, detailReturnTo, navigate }) {
             </div>
             <div className="mt-1 text-[13px] text-text line-clamp-2">{intervention.sujet || intervention.type_intervention || '—'}</div>
             <div className="mt-1 text-[11px] text-text-muted">
-              {essaiSummary}
-              {intervention.pmt_measure_count ? ` · ${intervention.pmt_measure_count} mesure(s)` : ''}
-              {intervention.pmt_macrotexture_average_mm != null
-                ? ` · moy. ${Number(intervention.pmt_macrotexture_average_mm).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} mm`
-                : ''}
+              {[essaiSummary, ...summaryParts].filter(Boolean).join(' · ')}
             </div>
           </div>
           <span className="text-[14px] text-text-muted transition-transform group-open/intervention:rotate-180">▾</span>
@@ -353,19 +607,16 @@ function InterventionAccordion({ intervention, detailReturnTo, navigate }) {
           <Button size="sm" variant="secondary" onClick={() => navigate(buildPathWithReturnTo(`/interventions/${intervention.uid}`, detailReturnTo))}>
             Intervention
           </Button>
-          {intervention.pmt_report_uid ? (
-            <Button size="sm" variant="secondary" onClick={() => navigate(buildPathWithReturnTo(`/pmt/rapports/${intervention.pmt_report_uid}`, detailReturnTo))}>
-              Rapport PMT
-            </Button>
-          ) : null}
         </div>
 
-        <InterventionEssaisList
+        <InterventionRelatedObjectsList
           intervention={intervention}
           detailReturnTo={detailReturnTo}
           navigate={navigate}
           enabled={isOpen}
           onLoadedCount={setLoadedEssaiCount}
+          getExpandedState={getExpandedState}
+          setExpandedState={setExpandedState}
         />
       </div>
     </details>
@@ -378,9 +629,18 @@ function CampaignAccordion({
   navigate,
   onCreateIntervention,
   onEditCampaign,
+  getExpandedState,
+  setExpandedState,
 }) {
+  const accordionKey = `campaign:${campaign?.uid || campaign?.reference || 'unknown'}`
+  const isOpen = getExpandedState(accordionKey, false)
+
   return (
-    <details className="rounded-[10px] border border-border bg-bg group">
+    <details
+      open={isOpen}
+      className="rounded-[10px] border border-border bg-bg group"
+      onToggle={(event) => setExpandedState(accordionKey, event.currentTarget.open)}
+    >
       <summary className="list-none cursor-pointer px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
@@ -398,7 +658,9 @@ function CampaignAccordion({
                 </span>
               ) : null}
             </div>
-            <div className="mt-1 text-[12px] text-text-muted line-clamp-2">{campaign.designation || campaign.zone_scope || campaign.temporalite || 'Campagne à cadrer'}</div>
+            <div className="mt-1 text-[12px] text-text-muted line-clamp-2">
+              {campaign.programme_specifique || campaign.designation || campaign.zone_scope || campaign.temporalite || 'Campagne à cadrer'}
+            </div>
           </div>
           <div className="flex items-center gap-2 text-[12px] text-text-muted">
             <span>{campaign.preparation_status || campaign.statut || '—'}</span>
@@ -410,14 +672,33 @@ function CampaignAccordion({
       <div className="border-t border-border px-4 py-4 flex flex-col gap-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[12px]">
           <div className="rounded-lg border border-border bg-surface px-3 py-2">
-            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Cadre campagne</div>
-            <div className="mt-1 text-text">{campaign.zone_scope || `${campaign.source_label || 'Origine à préciser'} → ${campaign.target_label || 'Cible à préciser'}`}</div>
-            <div className="mt-1 text-[11px] text-text-muted">{campaign.temporalite || 'Temporalité à préciser'}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Programme concret</div>
+            <div className="mt-1 text-text">{campaign.programme_specifique || campaign.designation || 'Programme à préciser'}</div>
+            <div className="mt-1 text-[11px] text-text-muted">
+              {campaign.zone_scope || 'Zone à préciser'}{campaign.temporalite ? ` · ${campaign.temporalite}` : ''}
+            </div>
           </div>
           <div className="rounded-lg border border-border bg-surface px-3 py-2">
             <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Pilotage</div>
             <div className="mt-1 text-text">{campaign.statut || 'À cadrer'}</div>
-            <div className="mt-1 text-[11px] text-text-muted">{campaign.workflow_label || campaign.next_step || '—'}</div>
+            <div className="mt-1 text-[11px] text-text-muted">
+              {[campaign.responsable_technique, campaign.attribue_a, campaign.priorite].filter(Boolean).join(' · ') || campaign.workflow_label || campaign.next_step || '—'}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[12px]">
+          <div className="rounded-lg border border-border bg-surface px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Cadre technique</div>
+            <div className="mt-1 text-text">{campaign.types_essais_prevus || 'Types d’essais à préciser'}</div>
+            <div className="mt-1 text-[11px] text-text-muted">
+              {campaign.nb_points_prevus ? `${campaign.nb_points_prevus} point(s) prévus` : 'Nombre de points non précisé'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border bg-surface px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Critères et livrables</div>
+            <div className="mt-1 text-text">{campaign.criteres_controle || 'Critères de contrôle à préciser'}</div>
+            <div className="mt-1 text-[11px] text-text-muted">{campaign.livrables_attendus || 'Livrables à préciser'}</div>
           </div>
         </div>
 
@@ -444,6 +725,8 @@ function CampaignAccordion({
                 intervention={item}
                 detailReturnTo={detailReturnTo}
                 navigate={navigate}
+                getExpandedState={getExpandedState}
+                setExpandedState={setExpandedState}
               />
             ))}
           </div>
@@ -507,14 +790,18 @@ function CampaignModal({ open, onClose, demande, campaign, onSaved }) {
       designation:           normalizeNonEmpty(form.designation),
       zone_scope:            normalizeNonEmpty(form.zone_scope),
       temporalite:           normalizeNonEmpty(form.temporalite),
+      programme_specifique:  normalizeNonEmpty(form.programme_specifique),
+      nb_points_prevus:      normalizeNonEmpty(form.nb_points_prevus),
+      types_essais_prevus:   normalizeNonEmpty(form.types_essais_prevus),
       notes:                 normalizeNonEmpty(form.notes),
       date_debut_prevue:     normalizeNonEmpty(form.date_debut_prevue),
       date_fin_prevue:       normalizeNonEmpty(form.date_fin_prevue),
       priorite:              form.priorite || 'Normale',
       responsable_technique: normalizeNonEmpty(form.responsable_technique),
+      attribue_a:            normalizeNonEmpty(form.attribue_a),
       criteres_controle:     normalizeNonEmpty(form.criteres_controle),
       livrables_attendus:    normalizeNonEmpty(form.livrables_attendus),
-      statut:                campaign?.statut || 'À cadrer',
+      statut:                campaign?.statut || '\u00c0 cadrer',
     }
 
     mutation.mutate({
@@ -536,7 +823,7 @@ function CampaignModal({ open, onClose, demande, campaign, onSaved }) {
     >
       <div className="flex flex-col gap-4">
         <div className="rounded-lg border border-border bg-bg px-4 py-3 text-[12px] text-text-muted">
-          La campagne cadre le programme d’intervention: type, objectif, zone et temporalité. Les interventions se rattachent ensuite à ce cadre.
+          La campagne cadre un programme concret: zone, cadence, contenu technique, responsable et livrables. Les interventions se rattachent ensuite à ce cadre.
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -578,6 +865,21 @@ function CampaignModal({ open, onClose, demande, campaign, onSaved }) {
               placeholder="Ex. phase 1, durant les enrobés, hebdomadaire..."
             />
           </FG>
+          <FG label="Programme spécifique" full>
+            <textarea
+              value={form.programme_specifique}
+              onChange={(event) => set('programme_specifique', event.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+              placeholder="Ce que cette campagne doit couvrir concrètement."
+            />
+          </FG>
+          <FG label="Nb points prévus">
+            <Input value={form.nb_points_prevus} onChange={(event) => set('nb_points_prevus', event.target.value)} placeholder="Ex. 6" />
+          </FG>
+          <FG label="Types d'essais prévus">
+            <Input value={form.types_essais_prevus} onChange={(event) => set('types_essais_prevus', event.target.value)} placeholder="PANDA, PL, WE..." />
+          </FG>
           <FG label="Date début prévue">
             <Input type="date" value={form.date_debut_prevue} onChange={(event) => set('date_debut_prevue', event.target.value)} />
           </FG>
@@ -591,6 +893,27 @@ function CampaignModal({ open, onClose, demande, campaign, onSaved }) {
           </FG>
           <FG label="Responsable technique" full>
             <Input value={form.responsable_technique} onChange={(event) => set('responsable_technique', event.target.value)} placeholder="Nom du responsable technique" />
+          </FG>
+          <FG label="Attribué à" full>
+            <Input value={form.attribue_a} onChange={(event) => set('attribue_a', event.target.value)} placeholder="Equipe ou personne cible" />
+          </FG>
+          <FG label="Critères de contrôle" full>
+            <textarea
+              value={form.criteres_controle}
+              onChange={(event) => set('criteres_controle', event.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+              placeholder="Critères d'acceptation ou de conformité."
+            />
+          </FG>
+          <FG label="Livrables attendus" full>
+            <textarea
+              value={form.livrables_attendus}
+              onChange={(event) => set('livrables_attendus', event.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+              placeholder="PV, note, rapport, synthèse..."
+            />
           </FG>
           <FG label="Notes de cadrage" full>
             <textarea
@@ -746,6 +1069,7 @@ function EditModal({ open, onClose, demande, onSaved }) {
 function ConfigModal({ open, onClose, uid, nav }) {
   const prep   = nav?.preparation || {}
   const modules = nav?.modules || []
+  const qc = useQueryClient()
 
   const [form, setForm] = useState({})
   const [mods, setMods] = useState([])
@@ -753,17 +1077,17 @@ function ConfigModal({ open, onClose, uid, nav }) {
   useEffect(() => {
     if (open) {
       setForm({
-        phase_operation:       prep.phase_operation        || '',
-        attentes_client:       prep.attentes_client        || '',
-        contexte_operationnel: prep.contexte_operationnel  || '',
-        objectifs:             prep.objectifs              || '',
-        points_vigilance:      prep.points_vigilance       || '',
-        acces_site:            prep.acces_site             || '',
-        contraintes_delais:    prep.contraintes_delais     || '',
-        hse:                   prep.hse                    || '',
-        programme_investigations: prep.programme_investigations || '',
-        ressources:            prep.ressources             || '',
-        comments:              prep.comments               || '',
+        phase_operation:          prep.phase_operation          || '',
+        attentes_client:          prep.attentes_client          || '',
+        contexte_operationnel:    prep.contexte_operationnel    || '',
+        objectifs:                prep.objectifs                || '',
+        points_vigilance:         prep.points_vigilance         || '',
+        contraintes_acces:        prep.contraintes_acces        || '',
+        contraintes_delais:       prep.contraintes_delais       || '',
+        contraintes_hse:          prep.contraintes_hse          || '',
+        programme_previsionnel:   prep.programme_previsionnel   || '',
+        ressources_notes:         prep.ressources_notes         || '',
+        commentaires:             prep.commentaires             || '',
       })
       setMods(modules.map(m => ({ ...m })))
     }
@@ -774,7 +1098,11 @@ function ConfigModal({ open, onClose, uid, nav }) {
   })
   const modsMutation = useMutation({
     mutationFn: (data) => api.put(`/demandes_rst/${uid}/enabled-modules`, data),
-    onSuccess: () => onClose(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
+      qc.invalidateQueries({ queryKey: ['demande-nav-card', uid] })
+      onClose()
+    },
   })
 
   function handleSave() {
@@ -803,12 +1131,12 @@ function ConfigModal({ open, onClose, uid, nav }) {
             ['contexte_operationnel',    'Contexte opérationnel'],
             ['objectifs',                'Objectifs'],
             ['points_vigilance',         'Points de vigilance'],
-            ['acces_site',               'Accès site'],
+            ['contraintes_acces',        'Accès site / contraintes accès'],
             ['contraintes_delais',       'Contraintes / délais'],
-            ['hse',                      'HSE'],
-            ['programme_investigations', 'Programme d\'investigations'],
-            ['ressources',               'Ressources'],
-            ['comments',                 'Commentaires'],
+            ['contraintes_hse',          'HSE'],
+            ['programme_previsionnel',   'Programme d\'investigations'],
+            ['ressources_notes',         'Ressources'],
+            ['commentaires',             'Commentaires'],
           ].map(([k, label]) => (
             <FG key={k} label={label} full>
               <textarea value={form[k] || ''} onChange={e => set(k, e.target.value)} rows={2}
@@ -819,7 +1147,12 @@ function ConfigModal({ open, onClose, uid, nav }) {
 
         {mods.length > 0 && (
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted mb-2">Modules activés</div>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted">Modules disponibles</div>
+              <div className="text-[11px] text-text-muted">
+                {mods.filter((item) => item.is_enabled).length} activé{mods.filter((item) => item.is_enabled).length > 1 ? 's' : ''} / {mods.length}
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               {mods.map(m => (
                 <label key={m.module_code} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
@@ -857,6 +1190,9 @@ export default function DemandePage() {
   const [refEditOpen, setRefEditOpen] = useState(false)
   const [refEditVal,  setRefEditVal]  = useState('')
   const [demande, setDemande] = useState(null)
+  const [uiState, setUiState] = useState(() => loadDemandeUiState(uid))
+  const uiStateRef = useRef(loadDemandeUiState(uid))
+  const hasRestoredScrollRef = useRef(false)
 
   const { data: raw, isLoading, isError } = useQuery({
     queryKey: ['demande', uid],
@@ -872,6 +1208,45 @@ export default function DemandePage() {
 
   useEffect(() => { if (raw) setDemande(raw) }, [raw])
 
+  useEffect(() => {
+    const nextState = loadDemandeUiState(uid)
+    setUiState(nextState)
+    uiStateRef.current = nextState
+    hasRestoredScrollRef.current = false
+  }, [uid])
+
+  useEffect(() => {
+    uiStateRef.current = uiState
+    persistDemandeUiState(uid, uiState)
+  }, [uid, uiState])
+
+  useEffect(() => {
+    if (!uid || typeof window === 'undefined') return undefined
+
+    const handleScroll = () => {
+      persistDemandeUiState(uid, {
+        ...uiStateRef.current,
+        scrollY: window.scrollY || window.pageYOffset || 0,
+      })
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      handleScroll()
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [uid])
+
+  useEffect(() => {
+    if (!uid || isLoading || hasRestoredScrollRef.current || typeof window === 'undefined') return
+    const savedState = loadDemandeUiState(uid)
+    const scrollY = Number(savedState?.scrollY || 0)
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY, behavior: 'auto' })
+    })
+    hasRestoredScrollRef.current = true
+  }, [uid, isLoading, nav?.campagnes?.length])
+
   if (isLoading) return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
   if (isError || !demande) return (
     <div className="text-center py-16">
@@ -882,15 +1257,43 @@ export default function DemandePage() {
 
   const d = demande
   const detailReturnTo = buildLocationTarget(location)
+
+  function getExpandedState(key, fallback = false) {
+    const value = uiState?.expanded?.[key]
+    return typeof value === 'boolean' ? value : fallback
+  }
+
+  function setExpandedState(key, isOpen) {
+    setUiState((current) => ({
+      ...current,
+      expanded: {
+        ...(current?.expanded || {}),
+        [key]: isOpen,
+      },
+    }))
+  }
   const visibility = nav?.visibility || {}
   const counts = nav?.counts || {}
-  const campaigns = nav?.campagnes || []
+  const navigationInterventions = nav?.interventions || []
+  const interventionsByUid = new Map(navigationInterventions.map((item) => [Number(item.uid), item]))
+  const campaigns = (nav?.campagnes || []).map((campaign) => ({
+    ...campaign,
+    interventions: (campaign?.interventions || []).map((item) => ({
+      ...item,
+      ...(interventionsByUid.get(Number(item.uid)) || {}),
+    })),
+  }))
   const preparation = nav?.preparation || {}
+  const familyCatalog = nav?.family_catalog || []
+  const familyLabelMap = Object.fromEntries(familyCatalog.map((item) => [item.family_code, item.label]))
   const enabledModules = (nav?.modules || []).filter((item) => item.is_enabled)
+  const selectedFamilyLabels = (preparation.familles_prevues || []).map((code) => familyLabelMap[code] || code)
+
+  const phaseOperationMeaningful = Boolean(preparation.phase_operation && !['À qualifier', 'A qualifier'].includes(preparation.phase_operation))
   const demandDate = formatDate(d.date_reception)
   const createdDate = formatDate(d.created_at)
   const hasPreparationData = Boolean(
-    preparation.phase_operation
+    phaseOperationMeaningful
     || preparation.attentes_client
     || preparation.contexte_operationnel
     || preparation.objectifs
@@ -904,6 +1307,15 @@ export default function DemandePage() {
     || preparation.ressources
     || preparation.commentaires
     || preparation.comments
+    || preparation.type_intervention_prevu
+    || preparation.finalite
+    || preparation.zone_localisation
+    || preparation.materiau_objet
+    || preparation.objectif_mission
+    || preparation.responsable_referent
+    || preparation.attribue_a
+    || preparation.remarques
+    || selectedFamilyLabels.length > 0
     || enabledModules.length > 0
   )
   const discreetCounts = [
@@ -913,7 +1325,7 @@ export default function DemandePage() {
   ].filter(Boolean)
 
   const preparationRefParam = d.reference ? `?ref=${encodeURIComponent(d.reference)}` : ''
-  const preparationPreviewHref = buildPathWithReturnTo(`/preparations-card/${uid}${preparationRefParam}`, detailReturnTo)
+  const preparationPreviewHref = buildPathWithReturnTo(`/preparations/${uid}${preparationRefParam}`, detailReturnTo)
   const preparationEditHref = buildPathWithReturnTo(`/preparations/${uid}${preparationRefParam}`, detailReturnTo)
   const urgDate = d.date_echeance && !['Fini','Envoyé - Perdu','Archivée'].includes(d.statut)
     ? (new Date(d.date_echeance) - new Date()) / 86400000
@@ -1002,7 +1414,7 @@ export default function DemandePage() {
                 <div className="text-[12px] font-semibold text-text">Préparation liée</div>
                 <div className="text-[11px] text-text-muted mt-0.5">
                   {preparation.phase_operation || (hasPreparationData ? 'Préparation renseignée' : 'Préparation à initialiser')}
-                  {enabledModules.length ? ` · ${enabledModules.map((item) => item.label || item.module_code).join(', ')}` : ''}
+                  {selectedFamilyLabels.length ? ` · ${selectedFamilyLabels.join(', ')}` : ''}
                 </div>
               </div>
               <span className="text-[14px] text-text-muted transition-transform group-open:rotate-180">▾</span>
@@ -1025,19 +1437,38 @@ export default function DemandePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <FieldRow label="Phase opération" value={preparation.phase_operation} />
+                  <FieldRow label="Familles prévues" value={selectedFamilyLabels.join(', ')} />
                   <FieldRow label="Attentes client" value={preparation.attentes_client} />
                   <FieldRow label="Contexte opérationnel" value={preparation.contexte_operationnel} />
                   <FieldRow label="Objectifs" value={preparation.objectifs} />
+                  <FieldRow label="Objectif mission" value={preparation.objectif_mission} />
                   <FieldRow label="Points de vigilance" value={preparation.points_vigilance} />
                 </div>
                 <div className="space-y-1.5">
+                  <FieldRow label="Finalité" value={preparation.finalite} />
+                  <FieldRow label="Zone / localisation" value={preparation.zone_localisation} />
+                  <FieldRow label="Matériau / objet" value={preparation.materiau_objet} />
                   <FieldRow label="Accès / contraintes" value={preparation.contraintes_acces || preparation.acces_site} />
                   <FieldRow label="Délais" value={preparation.contraintes_delais} />
                   <FieldRow label="HSE" value={preparation.contraintes_hse || preparation.hse} />
                   <FieldRow label="Programme / ressources" value={[preparation.programme_previsionnel || preparation.programme_investigations, preparation.ressources_notes || preparation.ressources].filter(Boolean).join('\n\n')} />
-                  <FieldRow label="Commentaires" value={preparation.commentaires || preparation.comments} />
+                  <FieldRow label="Pilotage" value={[preparation.responsable_referent, preparation.attribue_a, preparation.priorite].filter(Boolean).join(' · ')} />
+                  <FieldRow label="Commentaires" value={[preparation.commentaires || preparation.comments, preparation.remarques].filter(Boolean).join('\n\n')} />
                 </div>
               </div>
+
+              {selectedFamilyLabels.length > 0 ? (
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted mb-2">Familles prévues</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedFamilyLabels.map((label) => (
+                      <span key={label} className="inline-flex items-center px-2.5 py-1 border border-border rounded-full bg-surface text-[12px] font-medium">
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {enabledModules.length > 0 ? (
                 <div>
@@ -1076,6 +1507,8 @@ export default function DemandePage() {
                     navigate={navigate}
                     onEditCampaign={openEditCampaignModal}
                     onCreateIntervention={() => openInterventionTypeModal(buildCreateInterventionHref(uid, preparation, campaign, d, detailReturnTo), campaign)}
+                    getExpandedState={getExpandedState}
+                    setExpandedState={setExpandedState}
                   />
                 ))}
               </div>

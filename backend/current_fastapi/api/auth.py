@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Optional
 
 import jwt
@@ -48,6 +49,9 @@ PROXY_AUTH_HEADERS = tuple(
     ).split(",")
     if header.strip()
 )
+CLOUDFLARE_ACCESS_JWT_HEADER = "cf-access-jwt-assertion"
+CLOUDFLARE_ACCESS_COOKIE = "CF_Authorization"
+CLOUDFLARE_ACCESS_ISSUER_SUFFIX = ".cloudflareaccess.com"
 
 ACCESS_KEY_ENV_VAR = "RALAB_ACCESS_KEY"
 ACCESS_KEY_ALLOWED_EMAILS_ENV_VAR = "RALAB_ACCESS_KEY_ALLOWED_EMAILS"
@@ -105,6 +109,8 @@ if AUTH_MODE == AUTH_MODE_ACCESS_KEY:
 JWT_DECODE_SECRETS = [JWT_SECRET]
 if JWT_SECRET != JWT_LEGACY_SECRET:
     JWT_DECODE_SECRETS.append(JWT_LEGACY_SECRET)
+
+LOCAL_USERNAME_HINT_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 _sec_repo = SecurityRepository()
 
@@ -188,12 +194,133 @@ def require_permission(permission: str):
     return checker
 
 
+@lru_cache(maxsize=8)
+def _get_cloudflare_jwk_client(issuer: str) -> jwt.PyJWKClient | None:
+    issuer = issuer.strip().rstrip("/")
+    if not issuer.startswith("https://"):
+        return None
+
+    issuer_host = issuer.removeprefix("https://")
+    if not issuer_host.endswith(CLOUDFLARE_ACCESS_ISSUER_SUFFIX):
+        return None
+
+    return jwt.PyJWKClient(f"{issuer}/cdn-cgi/access/certs")
+
+
+def _decode_cloudflare_access_token(token: str) -> dict | None:
+    token = token.strip()
+    if not token:
+        return None
+
+    try:
+        unverified_claims = jwt.decode(
+            token,
+            options={
+                "verify_signature": False,
+                "verify_exp": False,
+                "verify_aud": False,
+                "verify_iss": False,
+            },
+        )
+    except jwt.InvalidTokenError:
+        return None
+
+    issuer = str(unverified_claims.get("iss", "")).strip().rstrip("/")
+    if not issuer:
+        return None
+
+    jwk_client = _get_cloudflare_jwk_client(issuer)
+    if jwk_client is None:
+        return None
+
+    try:
+        signing_key = jwk_client.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            options={"verify_aud": False},
+        )
+    except Exception:
+        return None
+
+    token_type = str(claims.get("type", "")).strip().lower()
+    if token_type and token_type != "app":
+        return None
+
+    return claims
+
+
+def _extract_cloudflare_access_email(request: Request) -> str:
+    token_candidates = [
+        request.headers.get(CLOUDFLARE_ACCESS_JWT_HEADER, ""),
+        request.cookies.get(CLOUDFLARE_ACCESS_COOKIE, ""),
+    ]
+
+    for token in token_candidates:
+        claims = _decode_cloudflare_access_token(token)
+        if not claims:
+            continue
+
+        email = str(claims.get("email", "")).strip()
+        if email:
+            return email
+
+    return ""
+
+
 def _extract_proxy_identifier(request: Request) -> str:
     for header in PROXY_AUTH_HEADERS:
         value = request.headers.get(header, "").strip()
         if value:
             return value
+    cloudflare_email = _extract_cloudflare_access_email(request)
+    if cloudflare_email:
+        return cloudflare_email
     return ""
+
+
+def _normalize_request_host(value: str) -> str:
+    raw = value.split(",", 1)[0].strip().lower()
+    if not raw:
+        return ""
+    if raw.startswith("["):
+        closing_bracket = raw.find("]")
+        if closing_bracket != -1:
+            return raw[1:closing_bracket]
+    if raw.count(":") == 1:
+        return raw.split(":", 1)[0]
+    return raw
+
+
+def _can_use_local_windows_hint(request: Request) -> bool:
+    candidates = [
+        request.headers.get("x-forwarded-host", ""),
+        request.headers.get("host", ""),
+    ]
+    if request.client and request.client.host:
+        candidates.append(request.client.host)
+
+    normalized_candidates = {
+        _normalize_request_host(candidate)
+        for candidate in candidates
+        if candidate and _normalize_request_host(candidate)
+    }
+    return bool(normalized_candidates & LOCAL_USERNAME_HINT_HOSTS)
+
+
+def _resolve_request_auth_context(request: Request) -> tuple[str, str]:
+    if AUTH_MODE != AUTH_MODE_PROXY:
+        return AUTH_MODE, ""
+
+    proxy_identity = _extract_proxy_identifier(request)
+    if proxy_identity:
+        return AUTH_MODE_PROXY, proxy_identity
+
+    if _can_use_local_windows_hint(request):
+        return AUTH_MODE_PASSWORDLESS, ""
+
+    return AUTH_MODE_PROXY, ""
 
 
 # ── Resolução utilizador ──────────────────────────────────────────────────────
@@ -276,16 +403,17 @@ def _resolve_access_key_user(identifier: str):
 @router.get(
     "/hint",
     response_model=HintResponse,
-    summary="Auto-detecção utilizador Windows",
-    description="Lê o USERNAME do Windows e tenta fazer match com um utilizador do sistema.",
+    summary="Auto-detecção local do utilizador Windows",
+    description="Lê o USERNAME do Windows apenas em acesso local e tenta fazer match com um utilizador do sistema.",
 )
 def auth_hint(request: Request):
-    if AUTH_MODE == AUTH_MODE_PROXY:
-        proxy_identity = _extract_proxy_identifier(request)
+    effective_auth_mode, proxy_identity = _resolve_request_auth_context(request)
+
+    if effective_auth_mode == AUTH_MODE_PROXY:
         user = _resolve_proxy_user(proxy_identity) if proxy_identity else None
 
         return HintResponse(
-            auth_mode=AUTH_MODE,
+            auth_mode=effective_auth_mode,
             windows_username="",
             proxy_identity=proxy_identity or None,
             matched_email=user["email"] if user and int(user["is_active"]) == 1 else None,
@@ -294,9 +422,9 @@ def auth_hint(request: Request):
             access_key_allows_all_users=False,
         )
 
-    if AUTH_MODE == AUTH_MODE_ACCESS_KEY:
+    if effective_auth_mode == AUTH_MODE_ACCESS_KEY:
         return HintResponse(
-            auth_mode=AUTH_MODE,
+            auth_mode=effective_auth_mode,
             windows_username="",
             proxy_identity=None,
             matched_email=None,
@@ -305,11 +433,22 @@ def auth_hint(request: Request):
             access_key_allows_all_users=ACCESS_KEY_ALLOW_ALL,
         )
 
+    if not _can_use_local_windows_hint(request):
+        return HintResponse(
+            auth_mode=effective_auth_mode,
+            windows_username="",
+            proxy_identity=None,
+            matched_email=None,
+            matched_name=None,
+            can_auto_login=False,
+            access_key_allows_all_users=False,
+        )
+
     windows_username = os.environ.get("USERNAME", "").strip()
 
     if not windows_username:
         return HintResponse(
-            auth_mode=AUTH_MODE,
+            auth_mode=effective_auth_mode,
             windows_username="",
             proxy_identity=None,
             matched_email=None,
@@ -322,7 +461,7 @@ def auth_hint(request: Request):
 
     if user and int(user["is_active"]) == 1:
         return HintResponse(
-            auth_mode=AUTH_MODE,
+            auth_mode=effective_auth_mode,
             windows_username=windows_username,
             proxy_identity=None,
             matched_email=user["email"],
@@ -332,7 +471,7 @@ def auth_hint(request: Request):
         )
 
     return HintResponse(
-        auth_mode=AUTH_MODE,
+        auth_mode=effective_auth_mode,
         windows_username=windows_username,
         proxy_identity=None,
         matched_email=None,
@@ -348,8 +487,10 @@ def auth_hint(request: Request):
     summary="Lista de utilizadores activos",
     description="Para fallback — mostra lista de utilizadores se auto-detecção falhar.",
 )
-def list_users():
-    if AUTH_MODE in {AUTH_MODE_PROXY, AUTH_MODE_ACCESS_KEY}:
+def list_users(request: Request):
+    effective_auth_mode, _ = _resolve_request_auth_context(request)
+
+    if effective_auth_mode in {AUTH_MODE_PROXY, AUTH_MODE_ACCESS_KEY}:
         raise HTTPException(status_code=403, detail="Annuaire désactivé en mode proxy.")
 
     rows = _sec_repo.list_active_users()
@@ -373,15 +514,17 @@ def list_users():
     summary="Login por username Windows ou email",
 )
 def login(body: LoginRequest, request: Request):
-    if AUTH_MODE == AUTH_MODE_PROXY:
-        identifier = _extract_proxy_identifier(request)
+    effective_auth_mode, proxy_identity = _resolve_request_auth_context(request)
+
+    if effective_auth_mode == AUTH_MODE_PROXY:
+        identifier = proxy_identity
         if not identifier:
             raise HTTPException(
                 status_code=401,
                 detail="Aucune identité d'authentification fournie par le proxy.",
             )
         user = _resolve_proxy_user(identifier)
-    elif AUTH_MODE == AUTH_MODE_ACCESS_KEY:
+    elif effective_auth_mode == AUTH_MODE_ACCESS_KEY:
         identifier = (body.identifier or "").strip().lower()
         access_key = (body.access_key or "").strip()
         if not identifier:

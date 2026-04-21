@@ -5,9 +5,33 @@
  */
 
 const BASE_URL = '/api' // proxy Vite → http://127.0.0.1:8000
+const CLOUDFLARE_ACCESS_TITLE = 'Cloudflare Access'
 
 function getToken() {
   return localStorage.getItem('ralab_token')
+}
+
+function redirectToCloudflareAccess() {
+  const target = `${window.location.pathname}${window.location.search}${window.location.hash}` || '/'
+  window.location.assign(target)
+}
+
+async function parseResponse(res) {
+  const contentType = res.headers.get('content-type') || ''
+
+  if (contentType.includes('text/html')) {
+    const html = await res.text()
+
+    if (html.includes(CLOUDFLARE_ACCESS_TITLE)) {
+      redirectToCloudflareAccess()
+      throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+    }
+
+    throw new Error('Le serveur a renvoyé une page HTML inattendue.')
+  }
+
+  if (res.status === 204) return null
+  return res.json()
 }
 
 async function request(method, path, body = null) {
@@ -18,6 +42,7 @@ async function request(method, path, body = null) {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers,
+    credentials: 'same-origin',
     body: body ? JSON.stringify(body) : undefined,
   })
 
@@ -29,12 +54,11 @@ async function request(method, path, body = null) {
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ detail: res.statusText }))
+    const error = await parseResponse(res).catch((parseError) => ({ detail: parseError.message || res.statusText }))
     throw new Error(error.detail || `Erreur ${res.status}`)
   }
 
-  if (res.status === 204) return null
-  return res.json()
+  return parseResponse(res)
 }
 
 export const api = {
@@ -61,6 +85,10 @@ export const affairesApi = {
   delete:   (uid)         => api.delete(`/affaires/${uid}`),
   nextRef:  ()            => api.get('/affaires/next-ref'),
   demandes: (uid)         => api.get(`/affaires/${uid}/demandes`),
+  dossierRoot: ()         => api.get('/affaires/dossiers-root'),
+  dossierStatus: (uid)    => api.get(`/affaires/${uid}/dossier-status`),
+  syncDossier: (uid)      => api.post(`/affaires/${uid}/sync-dossier`, {}),
+  openDossier: (uid)      => api.get(`/affaires/${uid}/open-dossier`),
 }
 
 // ── Demandes ──────────────────────────────────────────────────────────────────
@@ -98,6 +126,8 @@ export const dstApi = {
 export const planningApi = {
   list:   ()            => api.get('/planning/demandes'),
   update: (uid, data)   => api.patch(`/planning/demandes/${uid}`, data),
+  listItems: ()         => api.get('/planning/items'),
+  updateItem: (kind, uid, data) => api.patch(`/planning/items/${encodeURIComponent(kind)}/${uid}`, data),
 }
 
 // ── Interventions ─────────────────────────────────────────────────────────────
@@ -221,4 +251,32 @@ export const adminApi = {
   competencies: {
     list: () => api.get('/admin/competencies'),
   },
+}
+
+
+export const feuillesTerrainApi = {
+  get:          (uid) => api.get(`/feuilles-terrain/${uid}`),
+  createPoint:  (uid, data) => api.post(`/feuilles-terrain/${uid}/points`, data),
+  updatePoint:  (uid, pointUid, data) => api.put(`/feuilles-terrain/${uid}/points/${pointUid}`, data),
+  deletePoint:  (uid, pointUid) => api.delete(`/feuilles-terrain/${uid}/points/${pointUid}`),
+  createCouche: (uid, pointUid, data) => api.post(`/feuilles-terrain/${uid}/points/${pointUid}/couches`, data),
+  updateCouche: (uid, pointUid, coucheUid, data) => api.put(`/feuilles-terrain/${uid}/points/${pointUid}/couches/${coucheUid}`, data),
+  deleteCouche: (uid, pointUid, coucheUid) => api.delete(`/feuilles-terrain/${uid}/points/${pointUid}/couches/${coucheUid}`),
+  createPrelevementForCouche: (uid, pointUid, coucheUid, data) => api.post(`/feuilles-terrain/${uid}/points/${pointUid}/couches/${coucheUid}/prelevements`, data),
+  updatePrelevement: (uid, prelevUid, data) => api.patch(`/feuilles-terrain/${uid}/prelevements/${prelevUid}`, data),
+  deletePrelevement: (uid, prelevUid) => api.delete(`/feuilles-terrain/${uid}/prelevements/${prelevUid}`),
+  getCustomValues: (champ) => api.get(`/feuilles-terrain/custom-values/${champ}`),
+  getAllCustomValues: () => api.get('/feuilles-terrain/custom-values'),
+  saveCustomValue: (champ, valeur) => api.post('/feuilles-terrain/custom-values', { champ, valeur }),
+  deleteCustomValue: (champ, valeur) => api.delete(`/feuilles-terrain/custom-values/${encodeURIComponent(champ)}/${encodeURIComponent(valeur)}`),
+}
+
+// ── Nivellements ──────────────────────────────────────────────────────────────
+export const nivellementsApi = {
+  get: (uid) => api.get(`/nivellements/${uid}`),
+}
+
+// ── Plans d'implantation ──────────────────────────────────────────────────────
+export const plansImplantationApi = {
+  get: (uid) => api.get(`/plans-implantation/${uid}`),
 }

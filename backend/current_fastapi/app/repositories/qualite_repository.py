@@ -45,6 +45,8 @@ class EquipmentRepository:
             presence=r["presence"], notes=r["notes"],
             m_tare=r["m_tare"] if "m_tare" in k else None,
             volume_cm3=r["volume_cm3"] if "volume_cm3" in k else None,
+            division=r["division"] if "division" in k else None,
+            precision=r["precision"] if "precision" in k else None,
             capacite=r["capacite"] if "capacite" in k else None,
             sensibilite=r["sensibilite"] if "sensibilite" in k else None,
             facteur_k=r["facteur_k"] if "facteur_k" in k else None,
@@ -104,12 +106,13 @@ class EquipmentRepository:
             """INSERT INTO qualite_equipment
                (code,label,category,domain,status,serial_number,supplier,
                 purchase_date,lieu,etalonnage_interval,verification_interval,presence,notes,
-                m_tare,volume_cm3,capacite,sensibilite,facteur_k)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                m_tare,volume_cm3,division,precision,capacite,sensibilite,facteur_k)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             [data.code, data.label, data.category, data.domain, data.status,
              data.serial_number, data.supplier, data.purchase_date, data.lieu,
              data.etalonnage_interval, data.verification_interval, data.presence, data.notes,
              getattr(data, 'm_tare', None), getattr(data, 'volume_cm3', None),
+             getattr(data, 'division', None), getattr(data, 'precision', None),
              getattr(data, 'capacite', None), getattr(data, 'sensibilite', None),
              getattr(data, 'facteur_k', None)]
         )
@@ -117,7 +120,7 @@ class EquipmentRepository:
         return self.get(uid)
 
     def update(self, uid: int, data: EquipmentUpdateSchema) -> Optional[EquipmentRecord]:
-        fields = {k: v for k, v in data.model_dump(exclude_none=True).items()}
+        fields = data.model_dump(exclude_unset=True)
         if not fields: return self.get(uid)
         fields["updated_at"] = datetime.now().isoformat()
         sets = ", ".join(f"{k}=?" for k in fields)

@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '@/components/ui/Button'
-import { buildInterventionTypeOptions } from '@/components/interventions/InterventionTypeModal'
+import InterventionTypeModal, { buildInterventionTypeOptions } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
 import { api, demandesApi, echantillonsApi, essaisApi, interventionRequalificationApi, interventionsApi, prelevementsApi } from '@/services/api'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
@@ -97,6 +97,78 @@ const DIRECT_ESSAI_TEMPLATE_BY_CODE = DIRECT_ESSAI_TEMPLATES.reduce((accumulator
     return accumulator
 }, {})
 
+const INTERVENTION_TYPE_SUGGESTED_FINALITY = {
+    'Visite chantier': 'Suivi d\'exécution',
+    'Visite de constat': 'Diagnostic d\'anomalie',
+    'Recontrôle': 'Réception technique',
+    'Contre-visite': 'Réception technique',
+    'Visite G3': 'Suivi d\'exécution',
+    'Réunion technique sur site': 'Suivi d\'exécution',
+    'Essai de plaque': 'Contrôle de plateforme / portance',
+    'Prélèvement': 'Prélèvement pour laboratoire',
+    'Sondage': 'Identification / classification',
+    'Carottage': 'Prélèvement pour laboratoire',
+    'Campagne de description géotechnique': 'Identification / classification',
+    'Contrôle béton frais': 'Contrôle de matériaux',
+    'Pose de matériel': 'Réception technique',
+    'Relevé de matériel': 'Réception technique',
+}
+
+const DIRECT_ESSAIS_BY_INTERVENTION_TYPE = {
+    'Essai de plaque': ['PL', 'PLD'],
+    'Sondage': ['SO', 'SC', 'PA'],
+    'Carottage': ['SC', 'SO'],
+    'Campagne de description géotechnique': ['SO', 'SC', 'PA'],
+    'Prélèvement': [],
+    'Contrôle béton frais': ['GEN'],
+    'Visite chantier': [],
+    'Visite de constat': [],
+    'Recontrôle': [],
+    'Contre-visite': [],
+    'Visite G3': [],
+    'Réunion technique sur site': [],
+    'Pose de matériel': [],
+    'Relevé de matériel': [],
+    'Autre': ['GEN'],
+}
+
+const DIRECT_ESSAIS_BY_HISTORICAL_CODE = {
+    PMT: ['PMT'],
+    DF: ['DF'],
+    PLD: ['PLD'],
+    DE: ['DE'],
+    SO: ['SO'],
+    SC: ['SC'],
+}
+
+function inferDirectEssaiCodes(source = {}) {
+    const normalizedType = String(source?.type_intervention || '').trim()
+    const historicalCode = String(source?.historicalCode || '').trim().toUpperCase()
+    const explicitLabel = String(source?.historicalLabel || '').toLowerCase()
+
+    const byType = DIRECT_ESSAIS_BY_INTERVENTION_TYPE[normalizedType]
+    if (Array.isArray(byType) && byType.length) return byType
+
+    const byHistoricalCode = DIRECT_ESSAIS_BY_HISTORICAL_CODE[historicalCode]
+    if (Array.isArray(byHistoricalCode) && byHistoricalCode.length) return byHistoricalCode
+
+    if (explicitLabel.includes('macrotexture')) return ['PMT']
+    if (explicitLabel.includes('déflex') || explicitLabel.includes('deflex')) return ['DF']
+    if (explicitLabel.includes('dynaplaque')) return ['PLD']
+    if (explicitLabel.includes('densité enrobés') || explicitLabel.includes('densite enrobes')) return ['DE']
+
+    return []
+}
+
+function getDirectEssaiTemplatesForIntervention(source = {}) {
+    const allowedCodes = inferDirectEssaiCodes(source)
+    if (!allowedCodes.length) return []
+
+    return allowedCodes
+        .map((code) => DIRECT_ESSAI_TEMPLATE_BY_CODE[code])
+        .filter(Boolean)
+}
+
 function guessDirectEssaiCode(source = null) {
     const typeIntervention = String(source?.type_intervention || '').toLowerCase()
     const finalite = String(source?.finalite_intervention || '').toLowerCase()
@@ -111,7 +183,100 @@ function guessDirectEssaiCode(source = null) {
     return 'GEN'
 }
 
+function normalizeEssaiFollowupItem(source) {
+    if (!source) return null
+
+    if (typeof source === 'string') {
+        const trimmed = source.trim()
+        if (!trimmed) return null
+        const byCode = DIRECT_ESSAI_TEMPLATE_BY_CODE[trimmed.toUpperCase()]
+        const byLabel = DIRECT_ESSAI_TEMPLATES.find((item) => item.label.toLowerCase() === trimmed.toLowerCase())
+        const template = byCode || byLabel || null
+        return {
+            code: template?.code || '',
+            label: template?.label || trimmed,
+            norme: template?.norme || '',
+        }
+    }
+
+    if (typeof source !== 'object') return null
+
+    const rawCode = String(source.code || source.essai_code || '').trim().toUpperCase()
+    const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[rawCode] || null
+    const label = String(source.label || source.type_essai || template?.label || rawCode || '').trim()
+    const norme = String(source.norme || template?.norme || '').trim()
+
+    if (!label && !rawCode) return null
+
+    return {
+        code: template?.code || rawCode || '',
+        label: label || template?.label || rawCode,
+        norme,
+    }
+}
+
+function normalizeEssaiFollowupList(rawValue, fallbackText = '') {
+    const directItems = Array.isArray(rawValue)
+        ? rawValue
+        : []
+
+    const fallbackItems = !directItems.length && typeof fallbackText === 'string' && fallbackText.trim()
+        ? fallbackText
+            .split(/\r?\n|,/)
+            .map((item) => item.trim())
+            .filter(Boolean)
+        : []
+
+    return [...directItems, ...fallbackItems]
+        .map((item) => normalizeEssaiFollowupItem(item))
+        .filter(Boolean)
+}
+
+function buildEssaiFollowupKey(item) {
+    return [
+        String(item?.code || '').trim().toUpperCase(),
+        String(item?.label || '').trim().toLowerCase(),
+        String(item?.norme || '').trim().toLowerCase(),
+    ].join('::')
+}
+
+function Card({ title, children }) {
+    return (
+        <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
+            {title ? (
+                <div className="px-4 py-2.5 border-b border-border bg-bg">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{title}</span>
+                </div>
+            ) : null}
+            <div className="p-4">{children}</div>
+        </div>
+    )
+}
+
+function FG({ label, children, full = false }) {
+    return (
+        <div className={full ? 'col-span-2 flex flex-col gap-1' : 'flex flex-col gap-1'}>
+            <label className="text-[11px] font-medium text-text-muted">{label}</label>
+            {children}
+        </div>
+    )
+}
+
+function FR({ label, value }) {
+    return (
+        <div className="flex flex-col gap-0.5 mb-2">
+            <span className="text-[10px] text-text-muted">{label}</span>
+            <span className={`text-[13px] font-medium ${!value ? 'text-text-muted italic font-normal' : ''}`}>{value || '—'}</span>
+        </div>
+    )
+}
+
 function Section({ title, children, right }) {
+    const hiddenTitleFragments = ['Sortie d', 'Fiche d', 'Détails enregistr', 'DÃ©tails enregistr', 'Fiches de sondage', 'Fiche sondage composite']
+    if (hiddenTitleFragments.some((fragment) => String(title || '').includes(fragment))) {
+        return null
+    }
+
     return (
         <section className="bg-surface border border-border rounded-[10px] overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border bg-bg flex items-center justify-between gap-3">
@@ -164,6 +329,24 @@ function Badge({ children }) {
         <span className="inline-flex items-center px-2.5 py-1 border border-border rounded-full bg-bg text-[12px] font-medium">
             {children}
         </span>
+    )
+}
+
+function PlanningCheckpoint({ label, detail, done }) {
+    return (
+        <div className={`rounded-lg border px-3 py-3 ${done ? 'border-[#bfe5db] bg-[#eaf6f1]' : 'border-border bg-surface'}`}>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="text-[12px] font-semibold text-text">{label}</div>
+                    <div className="mt-1 text-[12px] leading-5 text-text-muted">
+                        {detail || 'À préciser'}
+                    </div>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.05em] ${done ? 'border-[#9fd8c8] bg-white text-[#0f6e56]' : 'border-border bg-bg text-text-muted'}`}>
+                    {done ? 'OK' : 'À faire'}
+                </span>
+            </div>
+        </div>
     )
 }
 
@@ -801,6 +984,9 @@ function buildObservationsPayload(form, baseObservations = {}) {
         prep_preparation_complete:   form.prep_preparation_complete || '',
         prep_point_bloquant:         form.prep_point_bloquant || '',
         prep_point_bloquant_desc:    form.prep_point_bloquant_desc || '',
+        suite_nb_essais_prevus:      form.suite_nb_essais_prevus || '',
+        suite_essais_prevus:         [],
+        suite_essais_realises:       normalizeEssaiFollowupList(form.suite_essais_realises),
         // Conditions
         cond_meteo:            form.cond_meteo || '',
         cond_etat_site:        form.cond_etat_site || '',
@@ -854,6 +1040,13 @@ function mergeFormFromIntervention(data) {
         prep_preparation_complete:   observations.prep_preparation_complete || '',
         prep_point_bloquant:         observations.prep_point_bloquant || '',
         prep_point_bloquant_desc:    observations.prep_point_bloquant_desc || '',
+        suite_nb_essais_prevus:      String(
+            observations.suite_nb_essais_prevus
+            ?? normalizeEssaiFollowupList(observations.suite_essais_prevus, observations.prep_essais_a_effectuer).length
+            ?? ''
+        ),
+        suite_essais_prevus:         [],
+        suite_essais_realises:       normalizeEssaiFollowupList(observations.suite_essais_realises),
         // Conditions
         cond_meteo:           observations.cond_meteo || '',
         cond_etat_site:       observations.cond_etat_site || '',
@@ -897,6 +1090,9 @@ function prefillFromQuery(searchParams) {
         prep_materiels_requis: '', prep_metrologie_ok: '', prep_consommables_epi: '',
         prep_contact_chantier: '', prep_plan_prevention: '', prep_contraintes_acces: '',
         prep_preparation_complete: '', prep_point_bloquant: '', prep_point_bloquant_desc: '',
+        suite_nb_essais_prevus: '',
+        suite_essais_prevus: [],
+        suite_essais_realises: [],
         cond_meteo: '', cond_etat_site: '', cond_ecarts: '', cond_materiel_utilise: '',
         real_nb_points_prevus: '', real_nb_points_realises: '', real_points_non_realises_motif: '',
         real_incidents: '', real_non_conformites: '', real_adaptations: '', real_decision_immediate: '',
@@ -970,6 +1166,9 @@ export default function InterventionPage() {
         prep_preparation_complete: '',
         prep_point_bloquant: '',
         prep_point_bloquant_desc: '',
+        suite_nb_essais_prevus: '',
+        suite_essais_prevus: [],
+        suite_essais_realises: [],
         // Conditions réelles (terrain)
         cond_meteo: '',
         cond_etat_site: '',
@@ -1011,14 +1210,23 @@ export default function InterventionPage() {
     const [quickEssaiForm, setQuickEssaiForm] = useState(buildQuickEssaiForm())
     const [creatingPrelevement, setCreatingPrelevement] = useState(false)
     const [creatingEchantillons, setCreatingEchantillons] = useState(false)
+    const [typePickerOpen, setTypePickerOpen] = useState(false)
 
     const demandeId = form.demande_id || ''
     const campaignInfo = useMemo(() => ({
+        source: searchParams.get('source') || '',
         uid: searchParams.get('campaign_uid') || String(interventionInfo?.campaign_id || ''),
         reference: searchParams.get('campaign_ref') || interventionInfo?.campaign_ref || '',
         code: searchParams.get('campaign_code') || interventionInfo?.campaign_code || '',
         label: searchParams.get('campaign_label') || interventionInfo?.campaign_label || '',
         designation: searchParams.get('campaign_designation') || interventionInfo?.campaign_designation || '',
+        programme: searchParams.get('campaign_programme') || '',
+        zone_scope: searchParams.get('campaign_zone') || '',
+        temporalite: searchParams.get('campaign_temporalite') || '',
+        nb_points_prevus: searchParams.get('campaign_nb_points') || '',
+        types_essais_prevus: searchParams.get('campaign_essais') || '',
+        responsable_technique: searchParams.get('campaign_responsable') || '',
+        attribue_a: searchParams.get('campaign_attribue_a') || '',
     }), [searchParams, interventionInfo])
     const childReturnTo = buildLocationTarget(location)
     const fallbackReturnTo = resolveReturnTo(
@@ -1038,6 +1246,93 @@ export default function InterventionPage() {
         [quickEssaiForm.essai_code]
     )
     const typeOptions = useMemo(() => buildInterventionTypeOptions(form.type_intervention), [form.type_intervention])
+    const missionWindow = useMemo(() => {
+        const hours = [form.heure_debut, form.heure_fin].filter(Boolean).join(' - ')
+        return [form.date_intervention, hours].filter(Boolean).join(' · ')
+    }, [form.date_intervention, form.heure_debut, form.heure_fin])
+    const interventionSourceLabel = useMemo(() => {
+        if (campaignInfo.source === 'preparation') return 'Issue de la préparation de la demande'
+        if (campaignInfo.reference || campaignInfo.code || campaignInfo.label || campaignInfo.designation) return 'Issue d\'une campagne'
+        return ''
+    }, [campaignInfo])
+    const demandeContextItems = useMemo(() => {
+        return [
+            { label: 'Demande', value: demandeInfo?.reference || demandeId || '' },
+            { label: 'Affaire', value: demandeInfo?.affaire_ref || demandeInfo?.affaire_reference || '' },
+            { label: 'Client', value: demandeInfo?.client || '' },
+            { label: 'Chantier / site', value: [demandeInfo?.chantier, demandeInfo?.site].filter(Boolean).join(' · ') },
+        ].filter((item) => hasHistoricalValue(item.value))
+    }, [demandeInfo, demandeId])
+    const campaignContextItems = useMemo(() => {
+        return [
+            { label: 'Source', value: interventionSourceLabel },
+            { label: 'Campagne', value: campaignInfo.reference || campaignInfo.code || '' },
+            { label: 'Contexte', value: [campaignInfo.label, campaignInfo.designation].filter(Boolean).join(' · ') },
+            { label: 'Programme', value: campaignInfo.programme || '' },
+            { label: 'Zone / temporalité', value: [campaignInfo.zone_scope, campaignInfo.temporalite].filter(Boolean).join(' · ') },
+            {
+                label: 'Points / essais',
+                value: [
+                    campaignInfo.nb_points_prevus ? `${campaignInfo.nb_points_prevus} point(s) prévus` : '',
+                    campaignInfo.types_essais_prevus || '',
+                ].filter(Boolean).join(' · '),
+            },
+            {
+                label: 'Responsable campagne',
+                value: [campaignInfo.responsable_technique, campaignInfo.attribue_a].filter(Boolean).join(' · '),
+            },
+        ].filter((item) => hasHistoricalValue(item.value))
+    }, [campaignInfo, interventionSourceLabel])
+    const planningChecklistItems = useMemo(() => {
+        return [
+            {
+                label: 'Action terrain choisie',
+                detail: form.type_intervention || 'Choisir le type d\'intervention',
+                done: Boolean(form.type_intervention),
+            },
+            {
+                label: 'But de la mission',
+                detail: form.objectif_intervention || form.finalite_intervention || 'Préciser la finalité ou l\'objectif concret',
+                done: Boolean(form.objectif_intervention || form.finalite_intervention),
+            },
+            {
+                label: 'Zone et matériau',
+                detail: [form.zone_intervention, form.nature_materiau].filter(Boolean).join(' · ') || 'Localiser la zone et l\'objet concerné',
+                done: Boolean(form.zone_intervention || form.nature_materiau),
+            },
+            {
+                label: 'Créneau',
+                detail: missionWindow || 'Fixer une date et si possible un créneau',
+                done: Boolean(form.date_intervention),
+            },
+            {
+                label: 'Pilote',
+                detail: [form.technicien, form.responsable_referent, form.attribue_a].filter(Boolean).join(' · ') || 'Désigner l\'opérateur ou le référent',
+                done: Boolean(form.technicien || form.responsable_referent || form.attribue_a),
+            },
+            {
+                label: 'Programme terrain',
+                detail: [
+                    form.prep_points_a_realiser,
+                    form.prep_essais_a_effectuer,
+                ].filter(Boolean).join(' · ') || 'Lister points, essais ou prélèvements prévus',
+                done: Boolean(form.prep_points_a_realiser || form.prep_essais_a_effectuer),
+            },
+            {
+                label: 'Accès / blocages',
+                detail: [
+                    form.prep_contraintes_acces,
+                    form.prep_plan_prevention,
+                    form.prep_point_bloquant === 'Oui' ? form.prep_point_bloquant_desc || 'Point bloquant signalé' : '',
+                ].filter(Boolean).join(' · ') || 'Renseigner les contraintes d\'accès et les risques de blocage',
+                done: Boolean(form.prep_contraintes_acces || form.prep_plan_prevention || form.prep_point_bloquant),
+            },
+        ]
+    }, [form, missionWindow])
+    const planningChecklistDoneCount = useMemo(
+        () => planningChecklistItems.filter((item) => item.done).length,
+        [planningChecklistItems]
+    )
 
     async function fetchDirectLinkedEchantillons(interventionReelleId) {
         if (!interventionReelleId) return []
@@ -1348,6 +1643,35 @@ export default function InterventionPage() {
         ].filter((item) => hasHistoricalValue(item.value))
     }, [form])
 
+    const interventionSummaryItems = useMemo(() => {
+        return [
+            { label: 'Type d’intervention', value: form.type_intervention },
+            { label: 'Finalité', value: form.finalite_intervention },
+            { label: 'Date / créneau', value: missionWindow },
+            { label: 'Technicien / opérateur', value: form.technicien },
+            { label: 'Zone / localisation', value: form.zone_intervention },
+            { label: 'Matériau / objet concerné', value: form.nature_materiau },
+            { label: 'Statut', value: form.statut },
+            { label: 'Responsable / référent', value: form.responsable_referent },
+            { label: 'Attribué à', value: form.attribue_a },
+            { label: 'Objectif / remarque', value: form.objectif_intervention },
+            { label: 'Notes terrain', value: form.notes_terrain },
+        ].filter((item) => hasHistoricalValue(item.value))
+    }, [form, missionWindow])
+    const allowedDirectEssaiTemplates = useMemo(
+        () => getDirectEssaiTemplatesForIntervention({
+            type_intervention: form.type_intervention,
+            historicalCode,
+            historicalLabel: historicalObservations?.essai_label || interventionInfo?.essai_label || interventionInfo?.type_intervention || '',
+        }),
+        [form.type_intervention, historicalCode, historicalObservations, interventionInfo]
+    )
+    const canCreateDirectEssai = allowedDirectEssaiTemplates.length > 0
+    const contextDemandeLabel = demandeInfo?.reference || (demandeId ? `#${demandeId}` : '')
+    const contextCampaignLabel = campaignInfo.reference || campaignInfo.code || campaignInfo.label || campaignInfo.designation || ''
+    const hasContextBanner = Boolean(contextDemandeLabel || contextCampaignLabel)
+    const hasDirectObjectsCard = Boolean(!isCreate && (!isSondageComposite || linkedEchantillons.length || linkedPrelevements.length || canCreateDirectEchantillons))
+
     function setField(key, value) {
         setForm((prev) => ({ ...prev, [key]: value }))
         setSuccess('')
@@ -1365,11 +1689,107 @@ export default function InterventionPage() {
 
     function setQuickEssaiCode(value) {
         const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[value] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
-        setQuickEssaiForm({
+        setQuickEssaiForm((prev) => ({
             essai_code: template.code,
             norme: template.norme || '',
-        })
+            target_status: prev?.target_status || 'realise',
+        }))
         setSuccess('')
+    }
+
+    useEffect(() => {
+        if (!allowedDirectEssaiTemplates.length) return
+
+        const currentAllowed = allowedDirectEssaiTemplates.some((item) => item.code === quickEssaiForm.essai_code)
+        if (currentAllowed) return
+
+        const fallback = allowedDirectEssaiTemplates[0]
+        if (!fallback) return
+
+        setQuickEssaiForm((prev) => ({
+            ...prev,
+            essai_code: fallback.code,
+            norme: fallback.norme || '',
+        }))
+    }, [allowedDirectEssaiTemplates, quickEssaiForm.essai_code])
+
+    async function persistInlineForm(nextForm, successMessage = 'Intervention mise à jour.') {
+        if (isCreate || !uid) {
+            setForm(nextForm)
+            return
+        }
+
+        try {
+            setSaving(true)
+            setError('')
+            setSuccess('')
+            const saved = await api.put(`/interventions/${uid}`, buildSavePayload(nextForm))
+            const mergedSaved = mergeFormFromIntervention(saved)
+            setInterventionInfo(saved)
+            setForm(mergedSaved)
+            setOriginalObservations(parseObservations(saved?.observations || ''))
+            setSuccess(successMessage)
+        } catch (err) {
+            setError(err.message || "Impossible d'enregistrer l'intervention.")
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    async function addRealizedEssai() {
+        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[quickEssaiForm.essai_code] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
+        const nextItem = normalizeEssaiFollowupItem({
+            code: template.code,
+            label: template.label,
+            norme: quickEssaiForm.norme || template.norme || '',
+        })
+
+        if (!nextItem) return
+
+        const currentItems = normalizeEssaiFollowupList(form.suite_essais_realises)
+        const nextKey = buildEssaiFollowupKey(nextItem)
+        const alreadyExists = currentItems.some((item) => buildEssaiFollowupKey(item) === nextKey)
+        if (alreadyExists) return
+
+        const nextForm = {
+            ...form,
+            suite_essais_realises: [...currentItems, nextItem],
+        }
+
+        if (!editing && !isCreate) {
+            await persistInlineForm(nextForm, 'Essai réalisé ajouté.')
+            return
+        }
+
+        setForm(nextForm)
+        setSuccess('')
+    }
+
+    async function removeRealizedEssai(indexToRemove) {
+        const currentItems = normalizeEssaiFollowupList(form.suite_essais_realises)
+        const nextForm = {
+            ...form,
+            suite_essais_realises: currentItems.filter((_, index) => index !== indexToRemove),
+        }
+
+        if (!editing && !isCreate) {
+            await persistInlineForm(nextForm, 'Essai réalisé retiré.')
+            return
+        }
+
+        setForm(nextForm)
+        setSuccess('')
+    }
+
+    function handleSelectInterventionType(value) {
+        const suggestedFinality = INTERVENTION_TYPE_SUGGESTED_FINALITY[value] || ''
+        setForm((prev) => ({
+            ...prev,
+            type_intervention: value,
+            finalite_intervention: prev.finalite_intervention || suggestedFinality,
+        }))
+        setSuccess('')
+        setTypePickerOpen(false)
     }
 
     function buildSavePayload(sourceForm = form) {
@@ -1573,6 +1993,14 @@ export default function InterventionPage() {
                 if (campaignInfo.code) createdParams.set('campaign_code', campaignInfo.code)
                 if (campaignInfo.label) createdParams.set('campaign_label', campaignInfo.label)
                 if (campaignInfo.designation) createdParams.set('campaign_designation', campaignInfo.designation)
+                if (campaignInfo.source) createdParams.set('source', campaignInfo.source)
+                if (campaignInfo.programme) createdParams.set('campaign_programme', campaignInfo.programme)
+                if (campaignInfo.zone_scope) createdParams.set('campaign_zone', campaignInfo.zone_scope)
+                if (campaignInfo.temporalite) createdParams.set('campaign_temporalite', campaignInfo.temporalite)
+                if (campaignInfo.nb_points_prevus) createdParams.set('campaign_nb_points', campaignInfo.nb_points_prevus)
+                if (campaignInfo.types_essais_prevus) createdParams.set('campaign_essais', campaignInfo.types_essais_prevus)
+                if (campaignInfo.responsable_technique) createdParams.set('campaign_responsable', campaignInfo.responsable_technique)
+                if (campaignInfo.attribue_a) createdParams.set('campaign_attribue_a', campaignInfo.attribue_a)
                 const createdPath = createdParams.toString()
                     ? `/interventions/${saved.uid}?${createdParams.toString()}`
                     : `/interventions/${saved.uid}`
@@ -1677,7 +2105,534 @@ export default function InterventionPage() {
                     </div>
                 ) : null}
 
-                {showLinkedEssaisSection ? (
+                {false && hasContextBanner ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#cfe4f6] bg-[#eef6fd] px-4 py-3 text-sm text-[#185fa5]">
+                        <div>
+                            Cette intervention est rattachée
+                            {contextDemandeLabel ? ` à la demande ${contextDemandeLabel}` : ''}
+                            {contextDemandeLabel && contextCampaignLabel ? ' et ' : ''}
+                            {contextCampaignLabel ? `à la campagne ${contextCampaignLabel}` : ''}.
+                        </div>
+                        {demandeId ? (
+                            <Button size="sm" variant="secondary" onClick={() => navigate(`/demandes/${demandeId}`)}>
+                                Ouvrir la demande
+                            </Button>
+                        ) : null}
+                    </div>
+                ) : null}
+
+                {false && !editing && (showHistoricalImportedResult || historicalFiches.length > 0 || historicalSummaryItems.length > 0) ? (
+                    <Card title="Source importée">
+                        <div className="flex flex-col gap-3">
+                            {historicalFiches.length > 0 ? (
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    {historicalFiches.map((item) => (
+                                        <div key={item.key} className="rounded-lg border border-border bg-bg px-3 py-3">
+                                            <div className="text-[13px] font-semibold text-text">{item.label}</div>
+                                            <div className="mt-1 text-[12px] text-text-muted">
+                                                {[item.ref, item.date, item.fileName].filter(Boolean).join(' · ') || 'Fiche importée'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : null}
+
+                            {importedResultMeta.length > 0 || historicalSummaryItems.length > 0 ? (
+                                <div className="grid grid-cols-2 gap-x-8">
+                                    <div>
+                                        {importedResultMeta.map((item, index) => (
+                                            <FR key={`meta-${item.label}-${index}`} label={item.label} value={item.value} />
+                                        ))}
+                                    </div>
+                                    <div>
+                                        {historicalSummaryItems.map((item, index) => (
+                                            <FR key={`summary-${item.label}-${index}`} label={item.label} value={item.value} />
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
+                    </Card>
+                ) : null}
+
+                <Card title={editing || isCreate ? 'Intervention' : 'Intervention / mission terrain'}>
+                    {editing || isCreate ? (
+                        <div className="grid grid-cols-2 gap-3">
+                            <FG label="Type d'intervention" full>
+                                <div className="flex flex-wrap gap-2">
+                                    <Select
+                                        value={form.type_intervention}
+                                        onChange={(e) => setField('type_intervention', e.target.value)}
+                                        className="min-w-[220px] flex-1"
+                                    >
+                                        <option value="">—</option>
+                                        {typeOptions.map((item) => (
+                                            <option key={item} value={item}>{item}</option>
+                                        ))}
+                                    </Select>
+                                    <Button variant="secondary" onClick={() => setTypePickerOpen(true)}>
+                                        Choix guidé
+                                    </Button>
+                                </div>
+                            </FG>
+
+                            <FG label="Finalité">
+                                <Select value={form.finalite_intervention} onChange={(e) => setField('finalite_intervention', e.target.value)}>
+                                    <option value="">—</option>
+                                    {FINALITY_OPTIONS.map((item) => (
+                                        <option key={item} value={item}>{item}</option>
+                                    ))}
+                                </Select>
+                            </FG>
+
+                            <FG label="Statut">
+                                <Select value={form.statut} onChange={(e) => setField('statut', e.target.value)}>
+                                    {STATUTS.map((item) => (
+                                        <option key={item} value={item}>{item}</option>
+                                    ))}
+                                </Select>
+                            </FG>
+
+                            <FG label="Date / créneau" full>
+                                <div className="grid gap-2 md:grid-cols-3">
+                                    <Input type="date" value={form.date_intervention} onChange={(e) => setField('date_intervention', e.target.value)} />
+                                    <Input type="time" value={form.heure_debut} onChange={(e) => setField('heure_debut', e.target.value)} />
+                                    <Input type="time" value={form.heure_fin} onChange={(e) => setField('heure_fin', e.target.value)} />
+                                </div>
+                            </FG>
+
+                            <FG label="Technicien / opérateur">
+                                <Input value={form.technicien} onChange={(e) => setField('technicien', e.target.value)} />
+                            </FG>
+
+                            <FG label="Responsable / référent">
+                                <Input value={form.responsable_referent} onChange={(e) => setField('responsable_referent', e.target.value)} />
+                            </FG>
+
+                            <FG label="Attribué à">
+                                <Input value={form.attribue_a} onChange={(e) => setField('attribue_a', e.target.value)} />
+                            </FG>
+
+                            <FG label="Zone / localisation">
+                                <Input value={form.zone_intervention} onChange={(e) => setField('zone_intervention', e.target.value)} />
+                            </FG>
+
+                            <FG label="Matériau / objet concerné">
+                                <Select value={form.nature_materiau} onChange={(e) => setField('nature_materiau', e.target.value)}>
+                                    <option value="">—</option>
+                                    {MATERIAL_OPTIONS.map((item) => (
+                                        <option key={item} value={item}>{item}</option>
+                                    ))}
+                                </Select>
+                            </FG>
+
+                            <FG label="Objectif terrain" full>
+                                <Textarea
+                                    value={form.objectif_intervention}
+                                    onChange={(value) => setField('objectif_intervention', value)}
+                                    rows={3}
+                                    placeholder="Décrire simplement ce qui sera fait ou constaté."
+                                />
+                            </FG>
+
+                            <FG label="Notes terrain" full>
+                                <Textarea
+                                    value={form.notes_terrain}
+                                    onChange={(value) => setField('notes_terrain', value)}
+                                    rows={4}
+                                    placeholder="Consignes, remarques, suites à suivre…"
+                                />
+                            </FG>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-x-8">
+                            <div>
+                                <FR label="Référence" value={interventionInfo?.reference || ''} />
+                                <FR label="Demande" value={contextDemandeLabel} />
+                                <FR label="Campagne" value={contextCampaignLabel} />
+                                <FR label="Type d'intervention" value={form.type_intervention} />
+                                <FR label="Finalité" value={form.finalite_intervention} />
+                                <FR label="Date / créneau" value={missionWindow} />
+                                <FR label="Technicien / opérateur" value={form.technicien} />
+                            </div>
+                            <div>
+                                <FR label="Zone / localisation" value={form.zone_intervention} />
+                                <FR label="Matériau / objet concerné" value={form.nature_materiau} />
+                                <FR label="Statut" value={form.statut} />
+                                <FR label="Responsable / référent" value={form.responsable_referent} />
+                                <FR label="Attribué à" value={form.attribue_a} />
+                                <FR label="Objectif terrain" value={form.objectif_intervention} />
+                                <FR label="Notes terrain" value={form.notes_terrain} />
+                            </div>
+
+                        </div>
+                    )}
+                </Card>
+
+                {false ? (
+                <Card title="Préparation / réalisation">
+                    {editing ? (
+                        <div className="grid grid-cols-2 gap-3">
+                            <FG label="Points à réaliser" full>
+                                <Textarea value={form.prep_points_a_realiser} onChange={(value) => setField('prep_points_a_realiser', value)} rows={2} placeholder="Localisation, nature, quantité…" />
+                            </FG>
+
+                            <FG label="Essais à effectuer" full>
+                                <Textarea value={form.prep_essais_a_effectuer} onChange={(value) => setField('prep_essais_a_effectuer', value)} rows={2} placeholder="PL, CBR, prélèvements…" />
+                            </FG>
+
+                            <FG label="Matériels requis" full>
+                                <Textarea value={form.prep_materiels_requis} onChange={(value) => setField('prep_materiels_requis', value)} rows={2} placeholder="Appareils, EPI, contenants…" />
+                            </FG>
+
+                            <FG label="Contact chantier / accès">
+                                <Input value={form.prep_contact_chantier} onChange={(e) => setField('prep_contact_chantier', e.target.value)} placeholder="Nom, téléphone, horaires…" />
+                            </FG>
+
+                            <FG label="Plan de prévention requis">
+                                <Select value={form.prep_plan_prevention} onChange={(e) => setField('prep_plan_prevention', e.target.value)}>
+                                    <option value="">—</option>
+                                    <option>Non requis</option>
+                                    <option>Requis — en cours</option>
+                                    <option>Requis — validé</option>
+                                </Select>
+                            </FG>
+
+                            <FG label="Contraintes accès / coactivité" full>
+                                <Textarea value={form.prep_contraintes_acces} onChange={(value) => setField('prep_contraintes_acces', value)} rows={2} placeholder="Balisage, circulation, coactivité…" />
+                            </FG>
+
+                            <FG label="Préparation complète">
+                                <Select value={form.prep_preparation_complete} onChange={(e) => setField('prep_preparation_complete', e.target.value)}>
+                                    <option value="">—</option>
+                                    <option>Oui</option>
+                                    <option>Non</option>
+                                </Select>
+                            </FG>
+
+                            <FG label="Point bloquant">
+                                <Select value={form.prep_point_bloquant} onChange={(e) => setField('prep_point_bloquant', e.target.value)}>
+                                    <option value="">—</option>
+                                    <option>Non</option>
+                                    <option>Oui</option>
+                                </Select>
+                            </FG>
+
+                            {form.prep_point_bloquant === 'Oui' ? (
+                                <FG label="Description point bloquant" full>
+                                    <Textarea value={form.prep_point_bloquant_desc} onChange={(value) => setField('prep_point_bloquant_desc', value)} rows={2} />
+                                </FG>
+                            ) : null}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-x-8">
+                            <div>
+                                <FR label="Points à réaliser" value={form.prep_points_a_realiser} />
+                                <FR label="Essais à effectuer" value={form.prep_essais_a_effectuer} />
+                                <FR label="Matériels requis" value={form.prep_materiels_requis} />
+                                <FR label="Contact chantier / accès" value={form.prep_contact_chantier} />
+                            </div>
+                            <div>
+                                <FR label="Plan de prévention" value={form.prep_plan_prevention} />
+                                <FR label="Contraintes accès / coactivité" value={form.prep_contraintes_acces} />
+                                <FR label="Préparation complète" value={form.prep_preparation_complete} />
+                                <FR label="Point bloquant" value={form.prep_point_bloquant ? `${form.prep_point_bloquant}${form.prep_point_bloquant_desc ? ` — ${form.prep_point_bloquant_desc}` : ''}` : ''} />
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="border-t border-border mt-4 pt-4">
+                        <div className="mb-3 text-[11px] font-bold uppercase tracking-wide text-text-muted">Réalisation / bilan</div>
+                    {editing ? (
+                        <div className="grid grid-cols-2 gap-3">
+                            <FG label="Météo">
+                                <Input value={form.cond_meteo} onChange={(e) => setField('cond_meteo', e.target.value)} placeholder="Beau, pluie, température…" />
+                            </FG>
+
+                            <FG label="État du site">
+                                <Input value={form.cond_etat_site} onChange={(e) => setField('cond_etat_site', e.target.value)} placeholder="Humide, saturé, accessible…" />
+                            </FG>
+
+                            <FG label="Nb points prévus">
+                                <Input type="number" value={form.real_nb_points_prevus} onChange={(e) => setField('real_nb_points_prevus', e.target.value)} />
+                            </FG>
+
+                            <FG label="Nb points réalisés">
+                                <Input type="number" value={form.real_nb_points_realises} onChange={(e) => setField('real_nb_points_realises', e.target.value)} />
+                            </FG>
+
+                            <FG label="Écarts prévu / réel" full>
+                                <Textarea value={form.cond_ecarts} onChange={(value) => setField('cond_ecarts', value)} rows={2} placeholder="Points non réalisés, changements de programme…" />
+                            </FG>
+
+                            <FG label="Motif points non réalisés" full>
+                                <Textarea value={form.real_points_non_realises_motif} onChange={(value) => setField('real_points_non_realises_motif', value)} rows={2} />
+                            </FG>
+
+                            <FG label="Incidents / anomalies" full>
+                                <Textarea value={form.real_incidents} onChange={(value) => setField('real_incidents', value)} rows={2} />
+                            </FG>
+
+                            <FG label="Non-conformités" full>
+                                <Textarea value={form.real_non_conformites} onChange={(value) => setField('real_non_conformites', value)} rows={2} />
+                            </FG>
+
+                            <FG label="Adaptations sur site" full>
+                                <Textarea value={form.real_adaptations} onChange={(value) => setField('real_adaptations', value)} rows={2} />
+                            </FG>
+
+                            <FG label="Nb échantillons ramenés">
+                                <Input type="number" value={form.sortie_nb_echantillons} onChange={(e) => setField('sortie_nb_echantillons', e.target.value)} />
+                            </FG>
+
+                            <FG label="Destination labo">
+                                <Input value={form.sortie_destination_labo} onChange={(e) => setField('sortie_destination_labo', e.target.value)} placeholder="SP, AUV, CHB…" />
+                            </FG>
+
+                            <FG label="Alerte émise">
+                                <Select value={form.sortie_alerte} onChange={(e) => setField('sortie_alerte', e.target.value)}>
+                                    <option value="">—</option>
+                                    <option>Non</option>
+                                    <option>Oui</option>
+                                </Select>
+                            </FG>
+
+                            <FG label="Information demandeur">
+                                <Select value={form.sortie_info_demandeur} onChange={(e) => setField('sortie_info_demandeur', e.target.value)}>
+                                    <option value="">—</option>
+                                    <option>Non</option>
+                                    <option>Oui</option>
+                                </Select>
+                            </FG>
+
+                            {form.sortie_alerte === 'Oui' ? (
+                                <FG label="Description alerte" full>
+                                    <Textarea value={form.sortie_alerte_desc} onChange={(value) => setField('sortie_alerte_desc', value)} rows={2} />
+                                </FG>
+                            ) : null}
+
+                            <FG label="Synthèse de l'intervention" full>
+                                <Textarea value={form.sortie_synthese} onChange={(value) => setField('sortie_synthese', value)} rows={3} placeholder="Bilan rapide, constats, suites à donner…" />
+                            </FG>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-x-8">
+                            <div>
+                                <FR label="Météo" value={form.cond_meteo} />
+                                <FR label="État du site" value={form.cond_etat_site} />
+                                <FR label="Pts prévus / réalisés" value={form.real_nb_points_prevus || form.real_nb_points_realises ? `${form.real_nb_points_prevus || '?'} / ${form.real_nb_points_realises || '?'}` : ''} />
+                                <FR label="Écarts prévu / réel" value={form.cond_ecarts} />
+                                <FR label="Motif points non réalisés" value={form.real_points_non_realises_motif} />
+                                <FR label="Incidents / anomalies" value={form.real_incidents} />
+                                <FR label="Non-conformités" value={form.real_non_conformites} />
+                            </div>
+                            <div>
+                                <FR label="Adaptations sur site" value={form.real_adaptations} />
+                                <FR label="Échantillons ramenés" value={form.sortie_nb_echantillons} />
+                                <FR label="Destination labo" value={form.sortie_destination_labo} />
+                                <FR label="Alerte" value={form.sortie_alerte ? `${form.sortie_alerte}${form.sortie_alerte_desc ? ` — ${form.sortie_alerte_desc}` : ''}` : ''} />
+                                <FR label="Information demandeur" value={form.sortie_info_demandeur} />
+                                <FR label="Synthèse de l'intervention" value={form.sortie_synthese} />
+                            </div>
+                        </div>
+                    )}
+                    </div>
+                </Card>
+                ) : null}
+
+                {!isCreate ? (
+                    <Card title={`Essais (${linkedEssais.length})`}>
+                        <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border flex-wrap">
+                            <Select
+                                value={canCreateDirectEssai ? quickEssaiForm.essai_code : ''}
+                                onChange={(e) => setQuickEssaiCode(e.target.value)}
+                                className="text-sm"
+                                disabled={!canCreateDirectEssai}
+                            >
+                                {canCreateDirectEssai ? (
+                                    allowedDirectEssaiTemplates.map((item) => (
+                                        <option key={item.code} value={item.code}>{item.label}</option>
+                                    ))
+                                ) : (
+                                    <option value="">Aucun essai direct lié à ce type d'intervention</option>
+                                )}
+                            </Select>
+                            <Button variant="primary" size="sm" onClick={handleOpenDirectEssaiDraft} disabled={saving || !canCreateDirectEssai}>
+                                + Créer cet essai
+                            </Button>
+                        </div>
+
+                        <LinkedEssaisContent
+                            items={linkedEssais}
+                            loading={linkedEssaisLoading}
+                            error={linkedEssaisError}
+                            onOpen={(essaiUid) => navigateWithReturnTo(navigate, `/essais/${essaiUid}`, childReturnTo)}
+                            emptyMessage={showHistoricalImportedResult
+                                ? 'Aucune fiche d’essai n’a encore été matérialisée pour cette intervention importée.'
+                                : 'Aucun essai'}
+                        />
+                    </Card>
+                ) : null}
+
+                {false ? (
+                    <Card title="Objets liés">
+                        <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border flex-wrap">
+                            {!isSondageComposite ? (
+                                <Button variant="secondary" onClick={handleCreatePrelevement} disabled={creatingPrelevement || saving}>
+                                    {creatingPrelevement ? 'Création…' : 'Créer un prélèvement'}
+                                </Button>
+                            ) : null}
+                            <Button variant="primary" onClick={handleOpenDirectEssaiDraft}>
+                                Créer un essai direct
+                            </Button>
+                            {linkedPrelevements[0] ? (
+                                <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${linkedPrelevements[0].uid}`, childReturnTo)}>
+                                    Ouvrir le prélèvement
+                                </Button>
+                            ) : null}
+                        </div>
+
+                        {canCreateDirectEchantillons ? (
+                            <details className="rounded-lg border border-border bg-bg px-3 py-3 mb-4">
+                                <summary className="cursor-pointer text-[12px] font-semibold text-text">
+                                    Créer des groupes d'essais directs
+                                </summary>
+                                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                    <FG label="Groupes à créer" full>
+                                        <Textarea
+                                            value={quickEchantillonForm.designation_lines}
+                                            onChange={(value) => setQuickEchantillonField('designation_lines', value)}
+                                            rows={4}
+                                            placeholder={"Ex: Contrôle plateforme zone A\nEssai compactage piste nord"}
+                                        />
+                                    </FG>
+
+                                    <FG label="Localisation initiale">
+                                        <Input
+                                            value={quickEchantillonForm.localisation}
+                                            onChange={(e) => setQuickEchantillonField('localisation', e.target.value)}
+                                            placeholder="Zone ou localisation du groupe"
+                                        />
+                                    </FG>
+
+                                    <FG label="Statut initial">
+                                        <Select value={quickEchantillonForm.statut} onChange={(e) => setQuickEchantillonField('statut', e.target.value)}>
+                                            {['Reçu', 'En attente', 'En cours', 'Terminé', 'Rejeté'].map((item) => (
+                                                <option key={item} value={item}>{item}</option>
+                                            ))}
+                                        </Select>
+                                    </FG>
+
+                                    <div className="md:col-span-2 rounded-lg border border-border bg-surface px-3 py-3 text-[12px] text-text-muted">
+                                        {quickEchantillonLines.length
+                                            ? `${quickEchantillonLines.length} groupe(s) prêt(s) à créer depuis ${interventionInfo?.reference || 'cette intervention'}.`
+                                            : 'Ajoute au moins une ligne pour créer un groupe d’essais direct.'}
+                                    </div>
+
+                                    <div className="md:col-span-2 flex flex-wrap gap-2">
+                                        <Button
+                                            variant="secondary"
+                                            onClick={() => handleCreateDirectEchantillons(false)}
+                                            disabled={!quickEchantillonLines.length || creatingEchantillons}
+                                        >
+                                            {creatingEchantillons ? 'Création…' : directCreateButtonLabel}
+                                        </Button>
+
+                                        {quickEchantillonLines.length === 1 ? (
+                                            <Button variant="primary" onClick={() => handleCreateDirectEchantillons(true)} disabled={creatingEchantillons}>
+                                                Ouvrir après création
+                                            </Button>
+                                        ) : null}
+                                    </div>
+                                </div>
+                            </details>
+                        ) : null}
+
+                        <div className="grid gap-4 lg:grid-cols-2">
+                            {!isSondageComposite ? (
+                                <div>
+                                    <div className="flex items-center justify-between gap-3 mb-3">
+                                        <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Prélèvements liés</span>
+                                        <Badge>{linkedPrelevements.length}</Badge>
+                                    </div>
+                                    <LinkedPrelevementsContent
+                                        items={linkedPrelevements}
+                                        loading={linkedPrelevementsLoading}
+                                        error={linkedPrelevementsError}
+                                        onOpen={(prelevementUid) => navigateWithReturnTo(navigate, `/prelevements/${prelevementUid}`, childReturnTo)}
+                                        emptyMessage="Aucun prélèvement n’est encore rattaché à cette intervention."
+                                    />
+                                </div>
+                            ) : null}
+
+                            <div>
+                                <div className="flex items-center justify-between gap-3 mb-3">
+                                    <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Groupes d'essais directs</span>
+                                    <Badge>{linkedEchantillons.length}</Badge>
+                                </div>
+                                <LinkedEchantillonsContent
+                                    items={linkedEchantillons}
+                                    loading={linkedEchantillonsLoading}
+                                    error={linkedEchantillonsError}
+                                    onOpen={(echantillonUid) => navigateWithReturnTo(navigate, `/echantillons/${echantillonUid}`, childReturnTo)}
+                                    emptyMessage="Aucun groupe d’essais direct n’est encore rattaché à cette intervention."
+                                />
+                            </div>
+                        </div>
+                    </Card>
+                ) : null}
+
+                {false ? (<>
+                <Section title="Essais">
+                    <div className="flex flex-col gap-4">
+                        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                            <Field label="Essai réalisé">
+                                <Select value={quickEssaiForm.essai_code} onChange={(e) => setQuickEssaiCode(e.target.value)}>
+                                    {DIRECT_ESSAI_TEMPLATES.map((item) => (
+                                        <option key={item.code} value={item.code}>{item.label}</option>
+                                    ))}
+                                </Select>
+                            </Field>
+
+                            <div className="flex">
+                                <Button className="w-full justify-center" variant="primary" onClick={() => addRealizedEssai()} disabled={saving}>
+                                    Ajouter
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="rounded-lg border border-border bg-bg px-4 py-4 flex flex-col gap-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="text-[11px] font-bold uppercase tracking-[.05em] text-text-muted">Essais réalisés</div>
+                                <Badge>{form.suite_essais_realises.length}</Badge>
+                            </div>
+
+                            {form.suite_essais_realises.length ? (
+                                <div className="flex flex-col gap-2">
+                                    {form.suite_essais_realises.map((item, index) => (
+                                        <div key={`realise-${item.code || item.label}-${index}`} className="rounded-lg border border-border bg-surface px-3 py-3 flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="text-[13px] font-semibold text-text">{item.label || item.code || 'Essai'}</div>
+                                                <div className="mt-1 text-[12px] text-text-muted">
+                                                    {[item.code || '', item.norme || ''].filter(Boolean).join(' · ') || 'Essai réalisé'}
+                                                </div>
+                                            </div>
+                                            <Button size="sm" variant="ghost" onClick={() => removeRealizedEssai(index)} disabled={saving}>
+                                                Retirer
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-[13px] leading-6 text-text-muted">
+                                    Aucun essai n’est encore marqué comme réalisé sur cette intervention.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Section>
+
+                {false ? (
                     <Section title="Essais terrain liés" right={<Badge>{linkedEssais.length}</Badge>}>
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1754,8 +2709,208 @@ export default function InterventionPage() {
                     </Section>
                 ) : null}
 
-                <Section title={editing || isCreate ? 'Intervention' : 'Fiche intervention'}>
+                <Section title="Cadre de départ" right={<Badge>{`${planningChecklistDoneCount}/${planningChecklistItems.length}`}</Badge>}>
+                    <div className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr]">
+                        <div className="flex flex-col gap-3">
+                            <div className="rounded-lg border border-[#d8e6e1] bg-[#f6fbf9] px-4 py-4">
+                                <div className="text-[16px] font-semibold text-text">
+                                    {form.type_intervention || 'Qualifier l’action concrète à exécuter'}
+                                </div>
+                                <div className="mt-1 text-[13px] leading-6 text-text-muted">
+                                    Cette page sert d’abord à cadrer l’action terrain: type d’intervention, but, zone, créneau,
+                                    personnes et contraintes. Les points terrain, prélèvements, groupes et essais viennent ensuite.
+                                </div>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div className="rounded-lg border border-border bg-bg px-4 py-4">
+                                    <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted">Demande / affaire</div>
+                                    <div className="mt-3">
+                                        {demandeContextItems.length > 0 ? (
+                                            demandeContextItems.map((item) => (
+                                                <InfoLine key={item.label} label={item.label} value={item.value} />
+                                            ))
+                                        ) : (
+                                            <div className="text-[13px] leading-6 text-text-muted">
+                                                Aucune demande de contexte n’est encore disponible pour cette intervention.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg border border-border bg-bg px-4 py-4">
+                                    <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted">Campagne / cadre source</div>
+                                    <div className="mt-3">
+                                        {campaignContextItems.length > 0 ? (
+                                            campaignContextItems.map((item) => (
+                                                <InfoLine key={item.label} label={item.label} value={item.value} />
+                                            ))
+                                        ) : (
+                                            <div className="text-[13px] leading-6 text-text-muted">
+                                                Cette intervention n’est pas encore documentée par un cadre de campagne explicite.
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-lg border border-border bg-bg px-4 py-4 flex flex-col gap-3">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted">Repères de cadrage</div>
+                                    <div className="mt-1 text-[13px] leading-6 text-text-muted">
+                                        Les informations minimales pour que l’intervention soit claire avant exécution.
+                                    </div>
+                                </div>
+                                <div className="text-[20px] font-semibold text-text">{planningChecklistDoneCount}/{planningChecklistItems.length}</div>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                {planningChecklistItems.map((item) => (
+                                    <PlanningCheckpoint
+                                        key={item.label}
+                                        label={item.label}
+                                        detail={item.detail}
+                                        done={item.done}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </Section>
+
+                <Section title="Ce qui sera fait">
                     {editing ? (
+                        <div className="grid gap-3 md:grid-cols-2">
+                            <Field label="Action terrain">
+                                <div className="flex flex-wrap gap-2">
+                                    <Select
+                                        value={form.type_intervention}
+                                        onChange={(e) => setField('type_intervention', e.target.value)}
+                                        className="min-w-[220px] flex-1"
+                                    >
+                                        <option value="">—</option>
+                                        {typeOptions.map((item) => (
+                                            <option key={item} value={item}>{item}</option>
+                                        ))}
+                                    </Select>
+                                    <Button variant="secondary" onClick={() => setTypePickerOpen(true)}>
+                                        Choix guidé
+                                    </Button>
+                                </div>
+                            </Field>
+
+                            <Field label="Finalité">
+                                <Select value={form.finalite_intervention} onChange={(e) => setField('finalite_intervention', e.target.value)}>
+                                    <option value="">—</option>
+                                    {FINALITY_OPTIONS.map((item) => (
+                                        <option key={item} value={item}>{item}</option>
+                                    ))}
+                                </Select>
+                            </Field>
+
+                            <Field label="Objectif concret" full>
+                                <Textarea
+                                    value={form.objectif_intervention}
+                                    onChange={(value) => setField('objectif_intervention', value)}
+                                    rows={3}
+                                    placeholder="Décrire simplement ce qui sera fait ou constaté pendant cette intervention."
+                                />
+                            </Field>
+
+                            <Field label="Zone / localisation">
+                                <Input
+                                    value={form.zone_intervention}
+                                    onChange={(e) => setField('zone_intervention', e.target.value)}
+                                    placeholder="Zone nord, plateforme A, regard 12..."
+                                />
+                            </Field>
+
+                            <Field label="Matériau / objet concerné">
+                                <Select value={form.nature_materiau} onChange={(e) => setField('nature_materiau', e.target.value)}>
+                                    <option value="">—</option>
+                                    {MATERIAL_OPTIONS.map((item) => (
+                                        <option key={item} value={item}>{item}</option>
+                                    ))}
+                                </Select>
+                            </Field>
+
+                            <Field label="Date et créneau" full>
+                                <div className="grid gap-2 md:grid-cols-3">
+                                    <Input type="date" value={form.date_intervention} onChange={(e) => setField('date_intervention', e.target.value)} />
+                                    <Input type="time" value={form.heure_debut} onChange={(e) => setField('heure_debut', e.target.value)} />
+                                    <Input type="time" value={form.heure_fin} onChange={(e) => setField('heure_fin', e.target.value)} />
+                                </div>
+                            </Field>
+
+                            <Field label="Technicien / opÃ©rateur">
+                                <Input value={form.technicien} onChange={(e) => setField('technicien', e.target.value)} />
+                            </Field>
+
+                            <Field label="Statut">
+                                <Select value={form.statut} onChange={(e) => setField('statut', e.target.value)}>
+                                    {STATUTS.map((item) => (
+                                        <option key={item} value={item}>{item}</option>
+                                    ))}
+                                </Select>
+                            </Field>
+
+                            <Field label="Responsable / rÃ©fÃ©rent">
+                                <Input value={form.responsable_referent} onChange={(e) => setField('responsable_referent', e.target.value)} />
+                            </Field>
+
+                            <Field label="AttribuÃ© Ã ">
+                                <Input value={form.attribue_a} onChange={(e) => setField('attribue_a', e.target.value)} />
+                            </Field>
+
+                            <Field label="Notes terrain" full>
+                                <Textarea
+                                    value={form.notes_terrain}
+                                    onChange={(value) => setField('notes_terrain', value)}
+                                    rows={3}
+                                    placeholder="Consignes terrain, points dâ€™attention, suites Ã  suivreâ€¦"
+                                />
+                            </Field>
+                        </div>
+                    ) : (
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            <div className="rounded-lg border border-border bg-bg px-4 py-3">
+                                <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-text-muted">Action</div>
+                                <div className="mt-1 text-[14px] font-semibold text-text">{form.type_intervention || '—'}</div>
+                            </div>
+                            <div className="rounded-lg border border-border bg-bg px-4 py-3">
+                                <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-text-muted">Finalité</div>
+                                <div className="mt-1 text-[14px] font-semibold text-text">{form.finalite_intervention || '—'}</div>
+                            </div>
+                            <div className="rounded-lg border border-border bg-bg px-4 py-3">
+                                <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-text-muted">Créneau</div>
+                                <div className="mt-1 text-[14px] font-semibold text-text">{missionWindow || '—'}</div>
+                            </div>
+                            <div className="rounded-lg border border-border bg-bg px-4 py-3 md:col-span-2 xl:col-span-3">
+                                <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-text-muted">Objectif</div>
+                                <div className="mt-1 text-[13px] leading-6 text-text">{form.objectif_intervention || '—'}</div>
+                            </div>
+                            <div className="rounded-lg border border-border bg-bg px-4 py-3">
+                                <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-text-muted">Zone</div>
+                                <div className="mt-1 text-[13px] font-medium text-text">{form.zone_intervention || '—'}</div>
+                            </div>
+                            <div className="rounded-lg border border-border bg-bg px-4 py-3">
+                                <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-text-muted">Matériau / objet</div>
+                                <div className="mt-1 text-[13px] font-medium text-text">{form.nature_materiau || '—'}</div>
+                            </div>
+                        </div>
+                    )}
+                </Section>
+
+                <Section title={editing || isCreate ? 'Fiche détaillée' : 'Détails enregistrés'}>
+                    {editing ? (
+                        <div className="flex flex-col gap-4">
+                            <div className="rounded-lg border border-[#d8e6e1] bg-[#f6fbf9] px-4 py-3 text-[13px] leading-6 text-text-muted">
+                                Ici, on précise ce qui sera réellement fait pendant cette intervention.
+                                Commencer par le type d’action, puis le but concret, la zone, le créneau et les personnes.
+                            </div>
+
                         <div className="grid gap-3 md:grid-cols-2">
                             <Field label="Type d’intervention">
                                 <Select value={form.type_intervention} onChange={(e) => setField('type_intervention', e.target.value)}>
@@ -1830,15 +2985,16 @@ export default function InterventionPage() {
                                 />
                             </Field>
                         </div>
-                    ) : interventionDisplayItems.length > 0 ? (
+                        </div>
+                    ) : interventionSummaryItems.length > 0 ? (
                         <div className="grid gap-x-8 md:grid-cols-2">
                             <div>
-                                {interventionDisplayItems.slice(0, Math.ceil(interventionDisplayItems.length / 2)).map((item) => (
+                                {interventionSummaryItems.slice(0, Math.ceil(interventionSummaryItems.length / 2)).map((item) => (
                                     <InfoLine key={item.label} label={item.label} value={item.value} />
                                 ))}
                             </div>
                             <div>
-                                {interventionDisplayItems.slice(Math.ceil(interventionDisplayItems.length / 2)).map((item) => (
+                                {interventionSummaryItems.slice(Math.ceil(interventionSummaryItems.length / 2)).map((item) => (
                                     <InfoLine key={item.label} label={item.label} value={item.value} />
                                 ))}
                             </div>
@@ -2007,20 +3163,6 @@ export default function InterventionPage() {
                     )}
                 </Section>
 
-                <Section title="Demande liée">
-                    <div className="grid gap-x-8 md:grid-cols-2">
-                        <div>
-                            <InfoLine label="Demande" value={demandeInfo?.reference || demandeId} />
-                            <InfoLine label="Campagne" value={campaignInfo.reference || campaignInfo.code} />
-                            <InfoLine label="Affaire" value={demandeInfo?.affaire_ref || demandeInfo?.affaire_reference || ''} />
-                        </div>
-                        <div>
-                            <InfoLine label="Contexte campagne" value={[campaignInfo.label, campaignInfo.designation].filter(Boolean).join(' · ')} />
-                            <InfoLine label="Chantier / Site" value={demandeInfo?.chantier || demandeInfo?.site || ''} />
-                        </div>
-                    </div>
-                </Section>
-
                 {historicalFiches.length > 0 && isSondageComposite ? (
                     <Section title="Fiches de sondage importées" right={<Badge>{historicalFiches.length}</Badge>}>
                         <div className="grid gap-3 md:grid-cols-2">
@@ -2075,35 +3217,109 @@ export default function InterventionPage() {
                     </Section>
                 ) : null}
 
-                {!isCreate ? (
-                    <Section title={showHistoricalImportedResult ? 'Chaîne suivante' : 'Suite opérationnelle'}>
-                        {showLinkedEssaisSection ? (
-                            <>
-                                <div className="text-[13px] leading-6 text-text-muted">
-                                    {showHistoricalImportedResult
-                                        ? 'Cette intervention importée débouche directement sur des fiches d’essais terrain. La suite métier se fait depuis ces fiches, pas depuis un tableau de résultats affiché dans l’intervention.'
-                                        : 'La suite métier se fait depuis les fiches d’essais liées à cette intervention.'}
+                {showLinkedEssaisSection ? (
+                    <Section title="Essais terrain liés" right={<Badge>{linkedEssais.length}</Badge>}>
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div className="max-w-3xl">
+                                    <div className="text-[16px] font-semibold text-text">
+                                        {historicalObservations?.essai_label || interventionInfo?.essai_label || interventionInfo?.type_intervention || HISTORICAL_CODE_LABELS[historicalCode] || 'Essais liés à l’intervention'}
+                                    </div>
+                                    <div className="mt-1 text-[13px] leading-6 text-text-muted">
+                                        {showHistoricalImportedResult
+                                            ? (interventionInfo?.sujet || 'Chaque fiche source importée devient ici une fiche d’essai liée, à ouvrir ensuite dans EssaiPage.')
+                                            : (interventionInfo?.sujet || 'Cette intervention porte déjà des fiches d’essais liées à reprendre dans EssaiPage.')}
+                                    </div>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
+                                    <Button variant="primary" onClick={handleRefreshLinkedEssais} disabled={linkedEssaisLoading || saving}>
+                                        {linkedEssaisLoading ? 'Synchronisation...' : linkedEssaiActionLabel}
+                                    </Button>
                                     {linkedEssais[0] ? (
-                                        <Button variant="primary" onClick={() => navigateWithReturnTo(navigate, `/essais/${linkedEssais[0].uid}`, childReturnTo)}>
+                                        <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/essais/${linkedEssais[0].uid}`, childReturnTo)}>
                                             Ouvrir le premier essai
                                         </Button>
                                     ) : null}
-                                    <Button variant="secondary" onClick={handleRefreshLinkedEssais} disabled={linkedEssaisLoading || saving}>
-                                        {linkedEssaisLoading ? 'Synchronisation…' : linkedEssaiActionLabel}
-                                    </Button>
                                 </div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="text-[13px] leading-6 text-text-muted">
-                                    {showHistoricalImportedResult
-                                        ? 'Même logique de fiche que sur EchantillonPage: on lit d’abord, puis on crée la suite seulement si elle est utile.'
-                                        : 'Depuis ici, on ouvre la suite utile: prélèvement s’il y a une prise physique, ou groupe d’essais direct quand la chaîne existe déjà.'}
-                                </div>
+                            </div>
 
+                            {importedResultMeta.length > 0 ? (
                                 <div className="grid gap-3 md:grid-cols-2">
+                                    {importedResultMeta.map((item) => (
+                                        <InfoLine key={item.label} label={item.label} value={item.value} />
+                                    ))}
+                                </div>
+                            ) : null}
+
+                            <LinkedEssaisContent
+                                items={linkedEssais}
+                                loading={linkedEssaisLoading}
+                                error={linkedEssaisError}
+                                onOpen={(essaiUid) => navigateWithReturnTo(navigate, `/essais/${essaiUid}`, childReturnTo)}
+                                emptyMessage={showHistoricalImportedResult
+                                    ? 'Aucune fiche d’essai n’a encore été matérialisée pour cette intervention importée.'
+                                    : 'Aucune fiche d’essai n’est encore liée directement à cette intervention.'}
+                            />
+
+                            {(historicalFiches.length > 0 || historicalSummaryItems.length > 0) ? (
+                                <details className="rounded-lg border border-border bg-bg px-3 py-3">
+                                    <summary className="cursor-pointer text-[12px] font-semibold text-text">
+                                        Source import et métadonnées
+                                    </summary>
+                                    <div className="mt-3 flex flex-col gap-3">
+                                        {historicalFiches.length > 0 ? (
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                                {historicalFiches.map((item) => (
+                                                    <div key={item.key} className="rounded-lg border border-border bg-surface px-3 py-3">
+                                                        <div className="text-[13px] font-semibold text-text">{item.label}</div>
+                                                        <div className="mt-1 text-[12px] text-text-muted">
+                                                            {[item.ref, item.date, item.fileName].filter(Boolean).join(' · ') || 'Fiche historique importée'}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : null}
+
+                                        {historicalSummaryItems.length > 0 ? (
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                                {historicalSummaryItems.map((item, index) => (
+                                                    <InfoLine key={`${item.label}-${index}`} label={item.label} value={item.value} />
+                                                ))}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </details>
+                            ) : null}
+                        </div>
+                    </Section>
+                ) : null}
+
+                {false ? (
+                    <Section title="Actions suivantes">
+                        <div className="flex flex-col gap-4">
+                            <div className="rounded-lg border border-[#d8e6e1] bg-[#f6fbf9] px-4 py-3 text-[13px] leading-6 text-text-muted">
+                                La demande et la campagne sont déjà rappelées en haut. Ici, on ne garde que la suite utile à partir de cette intervention.
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <Button variant="secondary" onClick={handleCreatePrelevement} disabled={creatingPrelevement || saving}>
+                                    {creatingPrelevement ? 'Création…' : 'Créer un prélèvement'}
+                                </Button>
+                                <Button variant="primary" onClick={handleOpenDirectEssaiDraft}>
+                                    Créer un essai direct
+                                </Button>
+                                {linkedPrelevements[0] ? (
+                                    <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${linkedPrelevements[0].uid}`, childReturnTo)}>
+                                        Ouvrir le prélèvement principal
+                                    </Button>
+                                ) : null}
+                            </div>
+
+                            <details className="rounded-lg border border-border bg-bg px-3 py-3">
+                                <summary className="cursor-pointer text-[12px] font-semibold text-text">
+                                    Préparer un essai direct
+                                </summary>
+                                <div className="mt-3 grid gap-3 md:grid-cols-2">
                                     <Field label="Essai direct à préparer">
                                         <Select value={quickEssaiForm.essai_code} onChange={(e) => setQuickEssaiCode(e.target.value)}>
                                             {DIRECT_ESSAI_TEMPLATES.map((item) => (
@@ -2120,30 +3336,19 @@ export default function InterventionPage() {
                                         />
                                     </Field>
 
-                                    <div className="col-span-2 rounded-lg border border-border bg-bg px-3 py-3 text-[12px] text-text-muted">
-                                        Ouvre un brouillon EssaiPage rattaché directement à cette intervention pour {selectedDirectEssaiTemplate.label.toLowerCase()}. L’essai n’est créé en base qu’au premier enregistrement.
-                                    </div>
-
-                                    <div className="col-span-2 flex flex-wrap gap-2">
-                                        <Button variant="primary" onClick={handleOpenDirectEssaiDraft}>
-                                            Créer un essai direct
-                                        </Button>
+                                    <div className="md:col-span-2 rounded-lg border border-border bg-surface px-3 py-3 text-[12px] text-text-muted">
+                                        Ouvre un brouillon EssaiPage rattaché directement à cette intervention pour {selectedDirectEssaiTemplate.label.toLowerCase()}.
+                                        L’essai n’est créé en base qu’au premier enregistrement.
                                     </div>
                                 </div>
+                            </details>
 
-                                <div className="flex flex-wrap gap-2">
-                                    <Button variant="secondary" onClick={handleCreatePrelevement} disabled={creatingPrelevement || saving}>
-                                        {creatingPrelevement ? 'Création…' : 'Créer un prélèvement'}
-                                    </Button>
-                                    {linkedPrelevements[0] ? (
-                                        <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${linkedPrelevements[0].uid}`, childReturnTo)}>
-                                            Ouvrir le prélèvement principal
-                                        </Button>
-                                    ) : null}
-                                </div>
-
-                                {canCreateDirectEchantillons ? (
-                                    <div className="grid gap-3 md:grid-cols-2">
+                            {canCreateDirectEchantillons ? (
+                                <details className="rounded-lg border border-border bg-bg px-3 py-3">
+                                    <summary className="cursor-pointer text-[12px] font-semibold text-text">
+                                        Créer des groupes d’essais directs
+                                    </summary>
+                                    <div className="mt-3 grid gap-3 md:grid-cols-2">
                                         <Field label="Groupes directs à créer" full>
                                             <Textarea
                                                 value={quickEchantillonForm.designation_lines}
@@ -2169,13 +3374,13 @@ export default function InterventionPage() {
                                             </Select>
                                         </Field>
 
-                                        <div className="col-span-2 rounded-lg border border-border bg-bg px-3 py-3 text-[12px] text-text-muted">
+                                        <div className="md:col-span-2 rounded-lg border border-border bg-surface px-3 py-3 text-[12px] text-text-muted">
                                             {quickEchantillonLines.length
                                                 ? `${quickEchantillonLines.length} groupe(s) prêt(s) à créer depuis ${interventionInfo?.reference || 'cette intervention'}.`
                                                 : 'Ajoute au moins une ligne pour créer un groupe d’essais direct.'}
                                         </div>
 
-                                        <div className="col-span-2 flex flex-wrap gap-2">
+                                        <div className="md:col-span-2 flex flex-wrap gap-2">
                                             <Button
                                                 variant="secondary"
                                                 onClick={() => handleCreateDirectEchantillons(false)}
@@ -2191,16 +3396,12 @@ export default function InterventionPage() {
                                             ) : null}
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="text-[13px] leading-6 text-text-muted">
-                                        {showHistoricalImportedResult
-                                            ? 'Aucun rattachement direct n’est encore consolidé pour cette intervention. La fiche reste donc en lecture tant qu’un prélèvement ou un groupe n’est pas créé.'
-                                            : 'Ici, la suite la plus sûre passe par le prélèvement. Les groupes d’essais directs apparaissent seulement quand l’intervention parent est déjà consolidée dans la chaîne.'}
-                                    </div>
-                                )}
+                                </details>
+                            ) : null}
 
+                            <div className="grid gap-4 lg:grid-cols-2">
                                 {!isSondageComposite ? (
-                                    <div className="flex flex-col gap-3 pt-2 border-t border-border">
+                                    <div className="rounded-lg border border-border bg-bg px-3 py-3 flex flex-col gap-3">
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="text-[11px] font-bold uppercase tracking-[.05em] text-text-muted">Prélèvements liés</div>
                                             <Badge>{linkedPrelevements.length}</Badge>
@@ -2215,7 +3416,7 @@ export default function InterventionPage() {
                                     </div>
                                 ) : null}
 
-                                <div className="flex flex-col gap-3 pt-2 border-t border-border">
+                                <div className="rounded-lg border border-border bg-bg px-3 py-3 flex flex-col gap-3">
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="text-[11px] font-bold uppercase tracking-[.05em] text-text-muted">Groupes d’essais directs</div>
                                         <Badge>{linkedEchantillons.length}</Badge>
@@ -2228,10 +3429,20 @@ export default function InterventionPage() {
                                         emptyMessage="Aucun groupe d’essais direct n’est encore rattaché à cette intervention."
                                     />
                                 </div>
-                            </>
-                        )}
+                            </div>
+                        </div>
                     </Section>
                 ) : null}
+
+                </>) : null}
+
+                <InterventionTypeModal
+                    open={typePickerOpen}
+                    onClose={() => setTypePickerOpen(false)}
+                    onSelect={handleSelectInterventionType}
+                    title="Choisir l’action terrain"
+                    subtitle={campaignInfo.reference || campaignInfo.label || demandeInfo?.reference || ''}
+                />
             </div>
         </div>
     )

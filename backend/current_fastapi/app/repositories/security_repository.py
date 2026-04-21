@@ -67,6 +67,13 @@ class SecurityRepository:
                 training_notes TEXT,
                 documents_notes TEXT,
                 profile_notes TEXT,
+                signature_display_name TEXT,
+                signature_role_title TEXT,
+                signature_image_data TEXT,
+                signature_notes TEXT,
+                signature_scale_percent INTEGER NOT NULL DEFAULT 100,
+                signature_offset_x INTEGER NOT NULL DEFAULT 0,
+                signature_offset_y INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
@@ -85,8 +92,28 @@ class SecurityRepository:
             row["name"]
             for row in connection.execute("PRAGMA table_info(users)").fetchall()
         }
+        profile_columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(user_profile_details)").fetchall()
+        }
         if "employment_level_code" not in user_columns:
             connection.execute("ALTER TABLE users ADD COLUMN employment_level_code TEXT")
+        for column_name in (
+            "signature_display_name",
+            "signature_role_title",
+            "signature_image_data",
+            "signature_notes",
+        ):
+            if column_name not in profile_columns:
+                connection.execute(f"ALTER TABLE user_profile_details ADD COLUMN {column_name} TEXT")
+        numeric_profile_columns = {
+            "signature_scale_percent": "INTEGER NOT NULL DEFAULT 100",
+            "signature_offset_x": "INTEGER NOT NULL DEFAULT 0",
+            "signature_offset_y": "INTEGER NOT NULL DEFAULT 0",
+        }
+        for column_name, ddl_tail in numeric_profile_columns.items():
+            if column_name not in profile_columns:
+                connection.execute(f"ALTER TABLE user_profile_details ADD COLUMN {column_name} {ddl_tail}")
 
         connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_users_employment_level_code ON users(employment_level_code)"
@@ -252,6 +279,13 @@ class SecurityRepository:
                 training_notes,
                 documents_notes,
                 profile_notes,
+                signature_display_name,
+                signature_role_title,
+                signature_image_data,
+                signature_notes,
+                signature_scale_percent,
+                signature_offset_x,
+                signature_offset_y,
                 created_at,
                 updated_at
             FROM user_profile_details
@@ -280,12 +314,27 @@ class SecurityRepository:
         training_notes: str | None = None,
         documents_notes: str | None = None,
         profile_notes: str | None = None,
+        signature_display_name: str | None = None,
+        signature_role_title: str | None = None,
+        signature_image_data: str | None = None,
+        signature_notes: str | None = None,
+        signature_scale_percent: int | None = None,
+        signature_offset_x: int | None = None,
+        signature_offset_y: int | None = None,
     ) -> None:
         def normalized(value: str | None) -> str | None:
             if value is None:
                 return None
             cleaned = value.strip()
             return cleaned or None
+
+        def normalized_integer(value: int | str | None, fallback: int) -> int:
+            if value is None:
+                return fallback
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return fallback
 
         query = """
             INSERT INTO user_profile_details (
@@ -304,9 +353,16 @@ class SecurityRepository:
                 training_notes,
                 documents_notes,
                 profile_notes,
+                signature_display_name,
+                signature_role_title,
+                signature_image_data,
+                signature_notes,
+                signature_scale_percent,
+                signature_offset_x,
+                signature_offset_y,
                 created_at,
                 updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT(user_email) DO UPDATE SET
                 phone = excluded.phone,
                 agency_name = excluded.agency_name,
@@ -322,6 +378,13 @@ class SecurityRepository:
                 training_notes = excluded.training_notes,
                 documents_notes = excluded.documents_notes,
                 profile_notes = excluded.profile_notes,
+                signature_display_name = excluded.signature_display_name,
+                signature_role_title = excluded.signature_role_title,
+                signature_image_data = excluded.signature_image_data,
+                signature_notes = excluded.signature_notes,
+                signature_scale_percent = excluded.signature_scale_percent,
+                signature_offset_x = excluded.signature_offset_x,
+                signature_offset_y = excluded.signature_offset_y,
                 updated_at = CURRENT_TIMESTAMP
         """
 
@@ -344,6 +407,13 @@ class SecurityRepository:
                     normalized(training_notes),
                     normalized(documents_notes),
                     normalized(profile_notes),
+                    normalized(signature_display_name),
+                    normalized(signature_role_title),
+                    normalized(signature_image_data),
+                    normalized(signature_notes),
+                    normalized_integer(signature_scale_percent, 100),
+                    normalized_integer(signature_offset_x, 0),
+                    normalized_integer(signature_offset_y, 0),
                 ),
             )
             connection.commit()

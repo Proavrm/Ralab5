@@ -16,11 +16,9 @@ from app.models.demande import (
 )
 from app.repositories.demandes_repository import DemandesRepository
 from app.services.demande_folder_naming import build_demande_folder_name
-from app.services.demande_folder_service import DemandeFolderService
 
 router = APIRouter()
 _repo = DemandesRepository()
-_folders = DemandeFolderService()
 
 
 def _record_to_response(record: DemandeRecord) -> DemandeResponseSchema:
@@ -89,11 +87,12 @@ def filter_values():
 # ── GET /api/demandes/dossiers-root ──────────────────────────────────────────
 @router.get("/dossiers-root", summary="Chemin racine des dossiers demandes")
 def get_dossiers_root():
-    """Retourne le chemin racine utilisé pour les dossiers demandes."""
-    root = _folders.get_root()
     return {
-        "root": str(root),
-        "exists": root.exists(),
+        "root": "",
+        "exists": False,
+        "disabled": True,
+        "managed_by": "affaires",
+        "message": "La creation physique des dossiers n'est plus pilotee par les demandes.",
     }
 
 
@@ -144,11 +143,6 @@ def create_demande(body: DemandeCreateSchema):
         source_legacy_id=body.source_legacy_id,
     )
 
-    # Créer le dossier physique
-    folder_result = _folders.sync_folder(record)
-    # On ne bloque pas la création si le dossier échoue — on log simplement
-    # (le dossier peut être sur un réseau temporairement inaccessible)
-
     created = _repo.add(record)
     return _record_to_response(created)
 
@@ -160,18 +154,7 @@ def update_demande(uid: int, body: DemandeUpdateSchema):
     if not record:
         raise HTTPException(status_code=404, detail=f"Demande #{uid} introuvable")
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
-    updated = _repo.update(uid, fields)
-
-    # Synchroniser le dossier si le nom a changé
-    _folders.sync_folder(updated)
-    # Sauvegarder le chemin mis à jour
-    if updated.dossier_path_actuel or updated.dossier_nom_actuel:
-        _repo.update(uid, {
-            "dossier_nom_actuel":  updated.dossier_nom_actuel,
-            "dossier_path_actuel": updated.dossier_path_actuel,
-        })
-
-    return _record_to_response(updated)
+    return _record_to_response(_repo.update(uid, fields))
 
 
 # ── DELETE /api/demandes/{uid} ────────────────────────────────────────────────
@@ -188,26 +171,16 @@ def delete_demande(uid: int):
 )
 def sync_folder(uid: int):
     """
-    Crée le dossier physique si absent, ou le renomme si le nom a changé.
-    Appelé depuis index.html après création/modification d'une demande.
+    Endpoint legacy neutralise : la creation physique est geree par l'affaire.
     """
-    record = _repo.get_by_uid(uid)
-    if not record:
+    if not _repo.get_by_uid(uid):
         raise HTTPException(404, f"Demande #{uid} introuvable")
-
-    result = _folders.sync_folder(record)
-
-    # Mettre à jour les chemins en DB si changement
-    if result.success and result.action in ("created", "renamed"):
-        _repo.update(uid, {
-            "dossier_nom_actuel":  record.dossier_nom_actuel,
-            "dossier_path_actuel": record.dossier_path_actuel,
-        })
-
-    if not result.success:
-        raise HTTPException(500, detail=result.error or "Erreur dossier")
-
-    return result.to_dict()
+    return {
+        "success": False,
+        "action": "disabled",
+        "error": "La gestion des dossiers des demandes est desactivee. Passe par l'affaire RST.",
+        "managed_by": "affaires",
+    }
 
 
 # ── GET /api/demandes/{uid}/open-folder ───────────────────────────────────────
@@ -217,20 +190,11 @@ def sync_folder(uid: int):
 )
 def open_folder(uid: int):
     """
-    Ouvre le dossier de la demande dans l'explorateur de fichiers
-    (Windows Explorer / Finder / Nautilus).
-    Fonctionne uniquement quand le serveur tourne sur la même machine
-    que l'utilisateur (usage local).
+    Endpoint legacy neutralise : l'ouverture locale se fait depuis l'affaire.
     """
-    record = _repo.get_by_uid(uid)
-    if not record:
+    if not _repo.get_by_uid(uid):
         raise HTTPException(404, f"Demande #{uid} introuvable")
-
-    result = _folders.open_folder(record)
-    if not result.success:
-        raise HTTPException(404, detail=result.error or "Dossier introuvable")
-
-    return result.to_dict()
+    raise HTTPException(409, detail="La gestion locale des dossiers est maintenant pilotee depuis l'affaire RST.")
 
 
 # ── GET /api/demandes/{uid}/folder-status ─────────────────────────────────────
@@ -239,16 +203,17 @@ def open_folder(uid: int):
     summary="Statut du dossier physique",
 )
 def folder_status(uid: int):
-    """Vérifie si le dossier physique de la demande existe."""
+    """Statut legacy neutralise pour les demandes."""
     record = _repo.get_by_uid(uid)
     if not record:
         raise HTTPException(404, f"Demande #{uid} introuvable")
 
-    exists = _folders.folder_exists(record)
     return {
         "uid": uid,
-        "exists": exists,
+        "exists": False,
         "dossier_nom": record.dossier_nom_actuel,
         "dossier_path": record.dossier_path_actuel,
-        "root": str(_folders.get_root()),
+        "root": "",
+        "disabled": True,
+        "managed_by": "affaires",
     }

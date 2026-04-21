@@ -106,32 +106,6 @@ const TYPES_ESSAI = [
   { code: 'CBR',  label: 'CBR — après immersion 4 jours',     norme: 'NF P 94-090-1' },
   { code: 'ID',   label: 'Identification GTR',                norme: 'NF P 11-300' },
   { code: 'MVA',  label: 'Masse volumique des enrobés',       norme: 'NF EN 12697-6' },
-  { code: 'LCC',  label: "Limites d'Atterberg — Coupelle",    norme: 'NF P 94-051' },
-  { code: 'LPC',  label: "Limites d'Atterberg — Cône",        norme: 'NF P 94-051' },
-  { code: 'ET',   label: 'Étude de traitement (CaO / liant)', norme: 'GTS 2000' },
-  { code: 'REA',  label: 'Réactivité de la chaux',            norme: 'EN 459-2' },
-  { code: 'STS',  label: 'Suivi de traitement des sols',      norme: 'GTS 2000' },
-  { code: 'IM',   label: 'Gonflement après immersion',        norme: 'NF P 94-078' },
-  { code: 'DS',   label: 'Densité sols — Gammadensimètre',    norme: 'NF P 98-241-1' },
-  { code: 'DE',   label: 'Densité enrobés — Gammadensimètre', norme: 'NF P 98-241-3' },
-  { code: 'QS',   label: 'Contrôle du compactage (GTR)',      norme: 'GTR 2000' },
-  { code: 'PL',   label: 'Portances EV1/EV2',                 norme: 'NF P 94-117-1' },
-  { code: 'PLD',  label: 'Dynaplaque EVd',                    norme: 'NF P 98-167' },
-  { code: 'PDL',  label: 'Plaque dynamique légère EVd',       norme: 'XP P 94-063' },
-  { code: 'PA',   label: 'Pénétromètre / PANDA',              norme: 'NF P 94-063' },
-  { code: 'PMT',  label: 'Profondeur de macrotexture',        norme: 'NF EN 13036-1' },
-  { code: 'DF',   label: 'Déflexions',                        norme: 'NF P 98-200' },
-  { code: 'R3M',  label: 'Règle de 3 m',                      norme: 'NF EN 13036-7' },
-  { code: 'RFU',  label: 'Los Angeles + Micro-Deval',         norme: 'NF EN 1097-1/2' },
-  { code: 'MVR',  label: 'Masse volumique réelle + WA24',     norme: 'NF EN 1097-6' },
-  { code: 'MVv',  label: 'Masse volumique en vrac',           norme: 'NF EN 1097-3' },
-  { code: 'DV',   label: 'Densité vrac / porosité',           norme: 'NF EN 1097-3' },
-  { code: 'EA',   label: 'Étanchéité réseau (eau / air)',     norme: '' },
-  { code: 'INF',  label: 'Infiltration / Perméabilité',       norme: '' },
-  { code: 'PER',  label: 'Percolation Porchet',               norme: '' },
-  { code: 'SO',   label: 'Coupe de sondage',                  norme: 'NF P 11-300' },
-  { code: 'SC',   label: 'Coupe de sondage carotté',          norme: 'NF P 11-300' },
-  { code: 'GEN',  label: 'Essai générique',                   norme: '' },
 ]
 
 function parseResults(raw) {
@@ -526,104 +500,6 @@ function getResultat(e, allEssais = [], echantillon = null) {
       const formulaCode = String(r.formula_code || '').trim()
       return formulaCode || null
     }
-    if (['LCC','LPC'].includes(codeUpper)) {
-      const ip = parseResultNumber(r.ip)
-      const wl = parseResultNumber(r.wl)
-      if (ip != null) return `IP = ${formatFixed2(ip)} %`
-      if (wl != null) return `WL = ${formatFixed2(wl)} %`
-      return null
-    }
-    if (codeUpper === 'ET') {
-      const ipi = parseResultNumber(r.ipi_max)
-      if (ipi != null) return `IPI max = ${ipi}% (${r.dosage_optimal ?? '?'}% ${r.produit ?? ''})`
-      return null
-    }
-    if (codeUpper === 'REA') {
-      const t = parseResultNumber(r.t_max)
-      return t != null ? `T max = ${t} °C` : null
-    }
-    if (codeUpper === 'STS') {
-      const c = parseResultNumber(r.compacite_moy)
-      return c != null ? `Comp. moy = ${formatFixed2(c)} %` : null
-    }
-    if (['DS','DE'].includes(codeUpper)) {
-      const c = parseResultNumber(r.compacite_moy)
-      return c != null ? `Comp. moy = ${formatFixed2(c)} %` : null
-    }
-    if (codeUpper === 'QS') {
-      const pts = Array.isArray(r.rows) ? r.rows : []
-      const nb = pts.filter(p => p.pos).length
-      const c = pts.filter(p => p.ok === 'C').length
-      const nc = pts.filter(p => p.ok === 'NC').length
-      return nb > 0 ? `${nb} pts — C:${c} NC:${nc}` : null
-    }
-    if (['PL','PL2','PLW2'].includes(codeUpper)) {
-      const ev2 = parseResultNumber(r.ev2_moy)
-      return ev2 != null ? `EV2 moy = ${ev2} MPa` : null
-    }
-    if (['PLD','PDL','PDL1','PDL2'].includes(codeUpper)) {
-      const evd = parseResultNumber(r.evd_moy)
-      return evd != null ? `EVd moy = ${evd} MPa` : null
-    }
-    if (codeUpper === 'PA') {
-      const qd = parseResultNumber(r.qd_moy)
-      return qd != null ? `qd moy = ${qd} MPa` : null
-    }
-    if (codeUpper === 'PMT') {
-      const pmt = parseResultNumber(r.pmt_moy)
-      return pmt != null ? `PMT = ${pmt} mm` : null
-    }
-    if (codeUpper === 'DF') {
-      const d = parseResultNumber(r.defl_moy)
-      return d != null ? `D0 moy = ${d} (1/100mm)` : null
-    }
-    if (codeUpper === 'R3M') {
-      const e2 = parseResultNumber(r.ecart_moy)
-      return e2 != null ? `Écart moy = ${e2} mm` : null
-    }
-    if (codeUpper === 'RFU') {
-      const la = parseResultNumber(r.coef_la)
-      const mde = parseResultNumber(r.coef_mde)
-      return [la!=null?`LA=${la}`:null, mde!=null?`MDE=${mde}`:null].filter(Boolean).join(' / ') || null
-    }
-    if (['LA','MDE'].includes(codeUpper)) {
-      const v = parseResultNumber(r.coef_la ?? r.coef_mde)
-      return v != null ? `${codeUpper} = ${v}` : null
-    }
-    if (['MVR','WA24','MV-GRA'].includes(codeUpper)) {
-      const mvr = parseResultNumber(r.mvr_moy)
-      const wa = parseResultNumber(r.wa24_moy)
-      if (mvr != null) return `MVR = ${mvr} Mg/m³${wa != null ? ` — WA24=${wa}%` : ''}`
-      return null
-    }
-    if (['MVv','DV-VRAC','DV'].includes(codeUpper)) {
-      const mv = parseResultNumber(r.mvv_moy ?? r.mv_vrac)
-      return mv != null ? `MVv = ${mv} Mg/m³` : null
-    }
-    if (['DV-VIDE','IV'].includes(codeUpper)) {
-      const e3 = parseResultNumber(r.indice_vide)
-      const n = parseResultNumber(r.porosite)
-      if (e3 != null) return `e = ${e3}${n != null ? ` — n=${n}%` : ''}`
-      return null
-    }
-    if (['EA','EA-EAU','EA-AIR'].includes(codeUpper)) {
-      const p = parseResultNumber(r.perte)
-      const ok = r.conforme
-      if (p != null) return `Perte = ${p}${ok != null ? ` — ${ok ? 'C' : 'NC'}` : ''}`
-      return null
-    }
-    if (['INF','INF-FOR','INF-MAT','PER','PER-PO','PO-PER'].includes(codeUpper)) {
-      return r.k != null ? `k = ${r.k} m/s` : null
-    }
-    if (['SO','SC'].includes(codeUpper)) {
-      const nb = parseResultNumber(r.nb_couches)
-      return nb != null ? `${nb} couches${r.profondeur_finale != null ? ` — ${r.profondeur_finale}m` : ''}` : null
-    }
-    if (codeUpper === 'GEN') {
-      const val = r.valeur_retenue
-      if (val != null) return `${r.titre ? r.titre + ' = ' : ''}${val} ${r.unite_res ?? ''}`.trim()
-      return null
-    }
     // AJOUTER ICI: résultat principal des autres types
   } catch {}
   return null
@@ -736,7 +612,7 @@ export default function EchantillonPage() {
       norme:          type?.norme || '',
       init_resultats: type?.init_resultats || '{}',
     })
-    navigate(`/essais/new?${params.toString()}`)
+    navigateWithReturnTo(navigate, `/essais/new?${params.toString()}`, childReturnTo)
   }
 
   useEffect(() => {
@@ -971,7 +847,7 @@ export default function EchantillonPage() {
                         : `${tone.row} cursor-pointer`
                     }`}>
                       <div onClick={deleteMode ? undefined : () => {
-                        navigate(`/essais/${e.uid}`)
+                        navigateWithReturnTo(navigate, `/essais/${e.uid}`, childReturnTo)
                       }} className={deleteMode ? '' : 'flex-1'}>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-[12px] font-bold font-mono ${tone.label}`}>{getAssayLabel(e)}</span>

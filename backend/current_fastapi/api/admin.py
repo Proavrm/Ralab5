@@ -155,6 +155,13 @@ class UserProfileOut(BaseModel):
     training_notes: Optional[str] = None
     documents_notes: Optional[str] = None
     profile_notes: Optional[str] = None
+    signature_display_name: Optional[str] = None
+    signature_role_title: Optional[str] = None
+    signature_image_data: Optional[str] = None
+    signature_notes: Optional[str] = None
+    signature_scale_percent: int = 100
+    signature_offset_x: int = 0
+    signature_offset_y: int = 0
 
 
 class UserProfileUpdateSchema(BaseModel):
@@ -172,6 +179,13 @@ class UserProfileUpdateSchema(BaseModel):
     training_notes: Optional[str] = None
     documents_notes: Optional[str] = None
     profile_notes: Optional[str] = None
+    signature_display_name: Optional[str] = None
+    signature_role_title: Optional[str] = None
+    signature_image_data: Optional[str] = None
+    signature_notes: Optional[str] = None
+    signature_scale_percent: Optional[int] = None
+    signature_offset_x: Optional[int] = None
+    signature_offset_y: Optional[int] = None
 
 
 class RolePermissionsUpdateSchema(BaseModel):
@@ -253,6 +267,13 @@ def _build_user_profile_out(user_email: str, row) -> UserProfileOut:
         training_notes=row["training_notes"],
         documents_notes=row["documents_notes"],
         profile_notes=row["profile_notes"],
+        signature_display_name=row["signature_display_name"],
+        signature_role_title=row["signature_role_title"],
+        signature_image_data=row["signature_image_data"],
+        signature_notes=row["signature_notes"],
+        signature_scale_percent=int(row["signature_scale_percent"]) if row["signature_scale_percent"] is not None else 100,
+        signature_offset_x=int(row["signature_offset_x"]) if row["signature_offset_x"] is not None else 0,
+        signature_offset_y=int(row["signature_offset_y"]) if row["signature_offset_y"] is not None else 0,
     )
 
 
@@ -545,6 +566,13 @@ def update_user_profile(email: str, body: UserProfileUpdateSchema, _=AdminUser):
         training_notes=body.training_notes,
         documents_notes=body.documents_notes,
         profile_notes=body.profile_notes,
+        signature_display_name=body.signature_display_name,
+        signature_role_title=body.signature_role_title,
+        signature_image_data=body.signature_image_data,
+        signature_notes=body.signature_notes,
+        signature_scale_percent=body.signature_scale_percent,
+        signature_offset_x=body.signature_offset_x,
+        signature_offset_y=body.signature_offset_y,
     )
     row = _repo.get_user_profile(email)
     return _build_user_profile_out(email, row)

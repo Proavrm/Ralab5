@@ -28,6 +28,8 @@ class EquipmentRecord:
     presence: Optional[str]; notes: Optional[str]
     # Champs moule (Proctor / CBR)
     m_tare: Optional[float] = None; volume_cm3: Optional[float] = None
+    # Champs comparateur
+    division: Optional[str] = None; precision: Optional[str] = None
     # Champs anneau dynamométrique / capteur de force (IPI / CBR)
     capacite: Optional[float] = None       # Capacité maximale (kN)
     sensibilite: Optional[float] = None    # Sensibilité nominale (kN/div ou kN/mV)
@@ -43,6 +45,7 @@ class EquipmentCreateSchema(BaseModel):
     etalonnage_interval: Optional[int] = None; verification_interval: Optional[int] = None
     presence: Optional[str] = None; notes: Optional[str] = None
     m_tare: Optional[float] = None; volume_cm3: Optional[float] = None
+    division: Optional[str] = None; precision: Optional[str] = None
     capacite: Optional[float] = None; sensibilite: Optional[float] = None
     facteur_k: Optional[float] = None
 
@@ -54,6 +57,7 @@ class EquipmentUpdateSchema(BaseModel):
     etalonnage_interval: Optional[int] = None; verification_interval: Optional[int] = None
     presence: Optional[str] = None; notes: Optional[str] = None
     m_tare: Optional[float] = None; volume_cm3: Optional[float] = None
+    division: Optional[str] = None; precision: Optional[str] = None
     capacite: Optional[float] = None; sensibilite: Optional[float] = None
     facteur_k: Optional[float] = None
 
@@ -64,6 +68,7 @@ class EquipmentResponseSchema(BaseModel):
     etalonnage_interval: Optional[int]; verification_interval: Optional[int]
     presence: Optional[str]; notes: Optional[str]
     m_tare: Optional[float] = None; volume_cm3: Optional[float] = None
+    division: Optional[str] = None; precision: Optional[str] = None
     capacite: Optional[float] = None; sensibilite: Optional[float] = None
     facteur_k: Optional[float] = None
     created_at: str = ""; updated_at: str = ""

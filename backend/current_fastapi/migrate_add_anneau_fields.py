@@ -1,7 +1,6 @@
 """
 migrate_add_anneau_fields.py
-Ajoute capacite (kN), sensibilite (kN/div) et facteur_k (kN/div)
-à la table qualite_equipment pour les anneaux dynamométriques / capteurs.
+Ajoute les champs spécialisés d'équipement à la table qualite_equipment.
 
 Usage: python migrate_add_anneau_fields.py
 """
@@ -14,6 +13,7 @@ def run():
     existing = {row[1] for row in con.execute("PRAGMA table_info(qualite_equipment)").fetchall()}
     added = []
     for col, typ in [('m_tare','REAL'), ('volume_cm3','REAL'),
+                     ('division','TEXT'), ('precision','TEXT'),
                      ('capacite','REAL'), ('sensibilite','REAL'), ('facteur_k','REAL')]:
         if col not in existing:
             con.execute(f"ALTER TABLE qualite_equipment ADD COLUMN {col} {typ}")

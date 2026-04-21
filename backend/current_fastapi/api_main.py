@@ -31,6 +31,9 @@ from api.intervention_requalification import router as intervention_requalificat
 from api.passations import router as passations_router
 from api.planning import router as planning_router
 from api.pmt import router as pmt_router
+from api.plans_implantation import router as plans_implantation_router
+from api.nivellements import router as nivellements_router
+from api.feuilles_terrain import router as feuilles_terrain_router
 from api.qualite import router as qualite_router
 from app.core.database import ensure_ralab4_schema
 from api.affaires_manual_correction_simple import router as affaires_manual_correction_simple_router
@@ -41,8 +44,17 @@ from api.reference_etudes import router as reference_etudes_router
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIST_DIR = PROJECT_ROOT / "frontend" / "react" / "dist"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
+FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
 SPA_RESERVED_PREFIXES = ("api", "docs", "redoc", "openapi.json")
 DEFAULT_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+FRONTEND_HTML_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+FRONTEND_ASSET_HEADERS = {
+    "Cache-Control": "public, max-age=31536000, immutable",
+}
 
 
 def _parse_csv_env(name: str, default: str) -> list[str]:
@@ -55,6 +67,18 @@ def _frontend_is_built() -> bool:
     return FRONTEND_INDEX_FILE.exists()
 
 
+def _frontend_response(file_path: Path) -> FileResponse:
+    resolved_path = file_path.resolve()
+    headers: dict[str, str] = {}
+
+    if resolved_path.suffix == ".html":
+        headers = FRONTEND_HTML_HEADERS
+    elif resolved_path.is_relative_to(FRONTEND_ASSETS_DIR.resolve()):
+        headers = FRONTEND_ASSET_HEADERS
+
+    return FileResponse(resolved_path, headers=headers)
+
+
 def _serve_frontend_path(relative_path: str = "") -> FileResponse:
     if not _frontend_is_built():
         raise HTTPException(status_code=404, detail="Frontend build not found.")
@@ -63,16 +87,16 @@ def _serve_frontend_path(relative_path: str = "") -> FileResponse:
     normalized_path = relative_path.strip("/")
 
     if not normalized_path:
-        return FileResponse(FRONTEND_INDEX_FILE)
+        return _frontend_response(FRONTEND_INDEX_FILE)
 
     candidate = (dist_dir / normalized_path).resolve()
     if not candidate.is_relative_to(dist_dir):
         raise HTTPException(status_code=404, detail="Not found.")
 
     if candidate.is_file():
-        return FileResponse(candidate)
+        return _frontend_response(candidate)
 
-    return FileResponse(FRONTEND_INDEX_FILE)
+    return _frontend_response(FRONTEND_INDEX_FILE)
 
 app = FastAPI(
     title="RaLab4 API",
@@ -111,6 +135,9 @@ app.include_router(intervention_requalification_router, prefix="/api/interventio
 app.include_router(audits_router, prefix="/api/audits", tags=["Audits"])
 app.include_router(essais_router, prefix="/api/essais", tags=["Essais"])
 app.include_router(pmt_router, prefix="/api/pmt", tags=["PMT"])
+app.include_router(plans_implantation_router, prefix="/api/plans-implantation", tags=["Plans implantation"])
+app.include_router(nivellements_router, prefix="/api/nivellements", tags=["Nivellements"])
+app.include_router(feuilles_terrain_router, prefix="/api/feuilles-terrain", tags=["Feuilles terrain"])
 app.include_router(qualite_router, prefix="/api/qualite", tags=["Qualité"])
 app.include_router(import_historique_labo_router, prefix="/api/import-historique-labo", tags=["Import Historique Labo"])
 app.include_router(audit_post_import_router, prefix="/api/audit-post-import", tags=["Audit Post-Import"])
@@ -139,7 +166,7 @@ def status() -> dict[str, str | bool]:
 @app.get("/", include_in_schema=False, response_model=None)
 def root():
     if _frontend_is_built():
-        return FileResponse(FRONTEND_INDEX_FILE)
+        return _frontend_response(FRONTEND_INDEX_FILE)
 
     return {
         "status": "ok",

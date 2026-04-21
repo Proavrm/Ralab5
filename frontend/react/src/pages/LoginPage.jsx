@@ -418,7 +418,7 @@ export default function LoginPage() {
                       required
                       autoFocus
                     />
-                    <p className="text-xs text-text-muted">Username Windows ou email professionnel</p>
+                    <p className="text-xs text-text-muted">Auto-detection Windows uniquement en local, sinon utilisez l'email professionnel</p>
                   </div>
                 )}
 

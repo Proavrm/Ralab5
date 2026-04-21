@@ -4,6 +4,7 @@ Shared database helpers for RaLab4.
 """
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from pathlib import Path
@@ -100,6 +101,7 @@ CREATE TABLE IF NOT EXISTS demande_preparations (
     programme_previsionnel TEXT NOT NULL DEFAULT '',
     ressources_notes TEXT NOT NULL DEFAULT '',
     commentaires TEXT NOT NULL DEFAULT '',
+    familles_prevues TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -118,12 +120,46 @@ CREATE INDEX IF NOT EXISTS idx_demande_preparations_demande ON demande_preparati
 CREATE INDEX IF NOT EXISTS idx_demande_enabled_modules_demande ON demande_enabled_modules(demande_id);
 """
 
-INTERVENTION_REQUALIFICATION_DDL = """
+LAB_WORKFLOW_DDL = """
+CREATE TABLE IF NOT EXISTS campagnes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
+    reference TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL DEFAULT 'Campagne',
+    type_campagne TEXT NOT NULL DEFAULT '',
+    code TEXT NOT NULL DEFAULT '',
+    designation TEXT NOT NULL DEFAULT '',
+    zone_scope TEXT NOT NULL DEFAULT '',
+    temporalite TEXT NOT NULL DEFAULT '',
+    programme_specifique TEXT NOT NULL DEFAULT '',
+    nb_points_prevus TEXT NOT NULL DEFAULT '',
+    types_essais_prevus TEXT NOT NULL DEFAULT '',
+    date_debut_prevue TEXT NOT NULL DEFAULT '',
+    date_fin_prevue TEXT NOT NULL DEFAULT '',
+    priorite TEXT NOT NULL DEFAULT 'Normale',
+    responsable_technique TEXT NOT NULL DEFAULT '',
+    attribue_a TEXT NOT NULL DEFAULT '',
+    criteres_controle TEXT NOT NULL DEFAULT '',
+    livrables_attendus TEXT NOT NULL DEFAULT '',
+    workflow_label TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT 'À cadrer',
+    notes TEXT NOT NULL DEFAULT '',
+    legacy_table TEXT NOT NULL DEFAULT '',
+    legacy_uid INTEGER,
+    migration_created INTEGER NOT NULL DEFAULT 0,
+    migration_reason TEXT NOT NULL DEFAULT '',
+    review_required INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_campagnes_demande ON campagnes(demande_id);
+
 CREATE TABLE IF NOT EXISTS prelevements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     reference TEXT NOT NULL UNIQUE,
     demande_id INTEGER REFERENCES demandes(id) ON DELETE SET NULL,
-    intervention_reelle_id INTEGER,
+    intervention_id INTEGER REFERENCES interventions(id) ON DELETE SET NULL,
     source_year INTEGER,
     date_prelevement TEXT NOT NULL DEFAULT '',
     date_reception_labo TEXT NOT NULL DEFAULT '',
@@ -136,124 +172,16 @@ CREATE TABLE IF NOT EXISTS prelevements (
     finalite TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
     statut TEXT NOT NULL DEFAULT 'À trier',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS interventions_reelles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    reference TEXT NOT NULL UNIQUE,
-    demande_id INTEGER REFERENCES demandes(id) ON DELETE SET NULL,
-    source_year INTEGER,
-    date_intervention TEXT NOT NULL DEFAULT '',
-    type_intervention TEXT NOT NULL DEFAULT '',
-    zone TEXT NOT NULL DEFAULT '',
-    technicien TEXT NOT NULL DEFAULT '',
-    finalite TEXT NOT NULL DEFAULT '',
-    notes TEXT NOT NULL DEFAULT '',
-    statut TEXT NOT NULL DEFAULT 'À trier',
+    legacy_prelevement_id INTEGER,
+    legacy_intervention_reelle_id INTEGER,
+    migration_created INTEGER NOT NULL DEFAULT 0,
+    migration_reason TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_prelevements_demande ON prelevements(demande_id);
-CREATE INDEX IF NOT EXISTS idx_prelevements_intervention_reelle ON prelevements(intervention_reelle_id);
-CREATE INDEX IF NOT EXISTS idx_interventions_reelles_demande ON interventions_reelles(demande_id);
-"""
-
-INTERVENTION_CAMPAIGN_DDL = """
-CREATE TABLE IF NOT EXISTS intervention_campaigns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
-    code TEXT NOT NULL DEFAULT '',
-    reference TEXT NOT NULL UNIQUE,
-    label TEXT NOT NULL DEFAULT 'Campagne',
-    designation TEXT NOT NULL DEFAULT '',
-    zone_scope TEXT NOT NULL DEFAULT '',
-    temporalite TEXT NOT NULL DEFAULT '',
-    workflow_label TEXT NOT NULL DEFAULT '',
-    source_mode TEXT NOT NULL DEFAULT '',
-    source_label TEXT NOT NULL DEFAULT '',
-    target_mode TEXT NOT NULL DEFAULT '',
-    target_label TEXT NOT NULL DEFAULT '',
-    statut TEXT NOT NULL DEFAULT 'Active',
-    notes TEXT NOT NULL DEFAULT '',
-    legacy_source_kind TEXT NOT NULL DEFAULT '',
-    legacy_source_id INTEGER,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_intervention_campaigns_demande ON intervention_campaigns(demande_id);
-CREATE INDEX IF NOT EXISTS idx_intervention_campaigns_legacy ON intervention_campaigns(legacy_source_kind, legacy_source_id);
-"""
-
-PMT_WORKFLOW_DDL = """
-CREATE TABLE IF NOT EXISTS pmt_campaigns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
-    code TEXT NOT NULL DEFAULT 'PMT',
-    reference TEXT NOT NULL UNIQUE,
-    label TEXT NOT NULL DEFAULT 'Campagne PMT',
-    designation TEXT NOT NULL DEFAULT 'Macrotexture de chaussee',
-    workflow_label TEXT NOT NULL DEFAULT 'Campagne -> Preparation de l''intervention -> Intervention -> Essai PMT -> Rapport',
-    source_mode TEXT NOT NULL DEFAULT 'historique_importe',
-    target_mode TEXT NOT NULL DEFAULT 'manuel',
-    statut TEXT NOT NULL DEFAULT 'Active',
-    notes TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(demande_id, code)
-);
-
-CREATE TABLE IF NOT EXISTS pmt_campaign_interventions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    campaign_id INTEGER NOT NULL REFERENCES pmt_campaigns(id) ON DELETE CASCADE,
-    intervention_id INTEGER NOT NULL REFERENCES interventions(id) ON DELETE CASCADE,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(campaign_id, intervention_id),
-    UNIQUE(intervention_id)
-);
-
-CREATE TABLE IF NOT EXISTS pmt_essais (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    campaign_id INTEGER NOT NULL REFERENCES pmt_campaigns(id) ON DELETE CASCADE,
-    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
-    intervention_id INTEGER NOT NULL UNIQUE REFERENCES interventions(id) ON DELETE CASCADE,
-    reference TEXT NOT NULL UNIQUE,
-    statut TEXT NOT NULL DEFAULT 'Brouillon',
-    date_essai TEXT NOT NULL DEFAULT '',
-    operateur TEXT NOT NULL DEFAULT '',
-    section_controlee TEXT NOT NULL DEFAULT '',
-    voie TEXT NOT NULL DEFAULT '',
-    sens TEXT NOT NULL DEFAULT '',
-    couche TEXT NOT NULL DEFAULT '',
-    nature_support TEXT NOT NULL DEFAULT '',
-    observations TEXT NOT NULL DEFAULT '',
-    resultats_json TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS pmt_reports (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    campaign_id INTEGER NOT NULL REFERENCES pmt_campaigns(id) ON DELETE CASCADE,
-    essai_id INTEGER REFERENCES pmt_essais(id) ON DELETE CASCADE,
-    scope TEXT NOT NULL,
-    reference TEXT NOT NULL UNIQUE,
-    title TEXT NOT NULL DEFAULT '',
-    statut TEXT NOT NULL DEFAULT 'A completer',
-    summary TEXT NOT NULL DEFAULT '',
-    conclusions TEXT NOT NULL DEFAULT '',
-    generated_json TEXT NOT NULL DEFAULT '{}',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-
-CREATE INDEX IF NOT EXISTS idx_pmt_campaigns_demande ON pmt_campaigns(demande_id);
-CREATE INDEX IF NOT EXISTS idx_pmt_campaign_interventions_campaign ON pmt_campaign_interventions(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_pmt_reports_campaign ON pmt_reports(campaign_id);
-CREATE INDEX IF NOT EXISTS idx_pmt_reports_essai ON pmt_reports(essai_id);
+CREATE INDEX IF NOT EXISTS idx_prelevements_intervention ON prelevements(intervention_id);
 """
 
 DEFAULT_LABS = [
@@ -286,16 +214,6 @@ def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return {str(row[1]) for row in rows}
 
 
-def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, ddl_tail: str) -> None:
-    if column_name in _table_columns(conn, table_name):
-        return
-    conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl_tail}")
-
-
-def _index_columns(conn: sqlite3.Connection, index_name: str) -> list[str]:
-    return [str(row[2]) for row in conn.execute(f"PRAGMA index_info({index_name})").fetchall()]
-
-
 def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
     row = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -304,70 +222,56 @@ def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
     return row is not None
 
 
-def _has_unique_index(conn: sqlite3.Connection, table_name: str, columns: list[str]) -> bool:
-    rows = conn.execute(f"PRAGMA index_list({table_name})").fetchall()
-    for row in rows:
-        if not bool(row[2]):
-            continue
-        index_name = str(row[1])
-        if _index_columns(conn, index_name) == columns:
-            return True
-    return False
+def _parse_json_dict(raw_value: object) -> dict[str, object]:
+    if isinstance(raw_value, dict):
+        return raw_value
+    text = str(raw_value or "").strip()
+    if not text:
+        return {}
+    try:
+        parsed = json.loads(text)
+    except Exception:
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
-def _ensure_pmt_multi_essais_schema(conn: sqlite3.Connection) -> None:
-    if not _has_unique_index(conn, "pmt_essais", ["intervention_id"]):
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_campaign ON pmt_essais(campaign_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_intervention ON pmt_essais(intervention_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_demande ON pmt_essais(demande_id)")
+def _normalize_link_key(value: object) -> str:
+    text = str(value or "").strip().upper()
+    return "".join(ch for ch in text if ch.isalnum())
+
+
+def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, ddl_tail: str) -> None:
+    if not _table_exists(conn, table_name):
         return
-
-    conn.execute("PRAGMA foreign_keys = OFF")
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS pmt_essais__new (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            campaign_id INTEGER NOT NULL REFERENCES pmt_campaigns(id) ON DELETE CASCADE,
-            demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
-            intervention_id INTEGER NOT NULL REFERENCES interventions(id) ON DELETE CASCADE,
-            reference TEXT NOT NULL UNIQUE,
-            statut TEXT NOT NULL DEFAULT 'Brouillon',
-            date_essai TEXT NOT NULL DEFAULT '',
-            operateur TEXT NOT NULL DEFAULT '',
-            section_controlee TEXT NOT NULL DEFAULT '',
-            voie TEXT NOT NULL DEFAULT '',
-            sens TEXT NOT NULL DEFAULT '',
-            couche TEXT NOT NULL DEFAULT '',
-            nature_support TEXT NOT NULL DEFAULT '',
-            observations TEXT NOT NULL DEFAULT '',
-            resultats_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        );
-
-        INSERT INTO pmt_essais__new (
-            id, campaign_id, demande_id, intervention_id, reference, statut, date_essai,
-            operateur, section_controlee, voie, sens, couche, nature_support,
-            observations, resultats_json, created_at, updated_at
-        )
-        SELECT
-            id, campaign_id, demande_id, intervention_id, reference, statut, date_essai,
-            operateur, section_controlee, voie, sens, couche, nature_support,
-            observations, resultats_json, created_at, updated_at
-        FROM pmt_essais;
-
-        DROP TABLE pmt_essais;
-        ALTER TABLE pmt_essais__new RENAME TO pmt_essais;
-        """
-    )
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_campaign ON pmt_essais(campaign_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_intervention ON pmt_essais(intervention_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_demande ON pmt_essais(demande_id)")
-    conn.execute("PRAGMA foreign_keys = ON")
+    if column_name in _table_columns(conn, table_name):
+        return
+    conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl_tail}")
 
 
 def _ensure_generic_essais_parent_schema(conn: sqlite3.Connection) -> None:
-    if not _table_exists(conn, "essais"):
+    has_essais = _table_exists(conn, "essais")
+    has_temp_essais = _table_exists(conn, "essais__new")
+
+    if not has_essais and has_temp_essais:
+        temp_cols = _table_columns(conn, "essais__new")
+        if {"intervention_id", "source_signature", "source_label"}.issubset(temp_cols):
+            try:
+                conn.executescript(
+                    """
+                    BEGIN IMMEDIATE;
+                    ALTER TABLE essais__new RENAME TO essais;
+                    CREATE INDEX IF NOT EXISTS idx_essais_echantillon_id ON essais(echantillon_id);
+                    CREATE INDEX IF NOT EXISTS idx_essais_intervention_id ON essais(intervention_id);
+                    CREATE INDEX IF NOT EXISTS idx_essais_source_signature ON essais(source_signature);
+                    COMMIT;
+                    """
+                )
+            except Exception:
+                conn.rollback()
+                raise
+        return
+
+    if not has_essais:
         return
 
     cols = {str(row[1]): row for row in conn.execute("PRAGMA table_info(essais)").fetchall()}
@@ -377,112 +281,179 @@ def _ensure_generic_essais_parent_schema(conn: sqlite3.Connection) -> None:
     echantillon_is_nullable = bool(cols) and int(cols["echantillon_id"][3]) == 0 if "echantillon_id" in cols else True
 
     if has_intervention_id and has_source_signature and has_source_label and echantillon_is_nullable:
+        if has_temp_essais:
+            conn.execute("DROP TABLE essais__new")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_essais_echantillon_id ON essais(echantillon_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_essais_intervention_id ON essais(intervention_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_essais_source_signature ON essais(source_signature)")
         return
 
     conn.execute("PRAGMA foreign_keys = OFF")
-    conn.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS essais__new (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            echantillon_id INTEGER REFERENCES echantillons(id) ON DELETE RESTRICT,
-            intervention_id INTEGER REFERENCES interventions(id) ON DELETE CASCADE,
-            essai_code TEXT NOT NULL DEFAULT '',
-            type_essai TEXT NOT NULL DEFAULT '',
-            norme TEXT NOT NULL DEFAULT '',
-            statut TEXT NOT NULL DEFAULT 'Programmé',
-            date_debut TEXT,
-            date_fin TEXT,
-            resultats TEXT NOT NULL DEFAULT '{}',
-            operateur TEXT NOT NULL DEFAULT '',
-            observations TEXT NOT NULL DEFAULT '',
-            source_signature TEXT NOT NULL DEFAULT '',
-            source_label TEXT NOT NULL DEFAULT '',
-            resultat_principal REAL,
-            resultat_unite TEXT NOT NULL DEFAULT '',
-            resultat_label TEXT NOT NULL DEFAULT '',
-            created_at TEXT NOT NULL DEFAULT (datetime('now')),
-            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-            CHECK (echantillon_id IS NOT NULL OR intervention_id IS NOT NULL)
-        );
+    try:
+        conn.executescript(
+            """
+            BEGIN IMMEDIATE;
 
-        INSERT INTO essais__new (
-            id, echantillon_id, intervention_id, essai_code, type_essai, norme, statut,
-            date_debut, date_fin, resultats, operateur, observations, source_signature,
-            source_label, resultat_principal, resultat_unite, resultat_label, created_at, updated_at
+            DROP TABLE IF EXISTS essais__new;
+
+            CREATE TABLE essais__new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                echantillon_id INTEGER REFERENCES echantillons(id) ON DELETE RESTRICT,
+                intervention_id INTEGER REFERENCES interventions(id) ON DELETE CASCADE,
+                essai_code TEXT NOT NULL DEFAULT '',
+                type_essai TEXT NOT NULL DEFAULT '',
+                norme TEXT NOT NULL DEFAULT '',
+                statut TEXT NOT NULL DEFAULT 'Programmé',
+                date_debut TEXT,
+                date_fin TEXT,
+                resultats TEXT NOT NULL DEFAULT '{}',
+                operateur TEXT NOT NULL DEFAULT '',
+                observations TEXT NOT NULL DEFAULT '',
+                source_signature TEXT NOT NULL DEFAULT '',
+                source_label TEXT NOT NULL DEFAULT '',
+                resultat_principal REAL,
+                resultat_unite TEXT NOT NULL DEFAULT '',
+                resultat_label TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                CHECK (echantillon_id IS NOT NULL OR intervention_id IS NOT NULL)
+            );
+
+            INSERT INTO essais__new (
+                id, echantillon_id, intervention_id, essai_code, type_essai, norme, statut,
+                date_debut, date_fin, resultats, operateur, observations, source_signature,
+                source_label, resultat_principal, resultat_unite, resultat_label, created_at, updated_at
+            )
+            SELECT
+                id,
+                echantillon_id,
+                NULL AS intervention_id,
+                COALESCE(essai_code, '') AS essai_code,
+                COALESCE(type_essai, '') AS type_essai,
+                COALESCE(norme, '') AS norme,
+                COALESCE(statut, 'Programmé') AS statut,
+                date_debut,
+                date_fin,
+                COALESCE(resultats, '{}') AS resultats,
+                COALESCE(operateur, '') AS operateur,
+                COALESCE(observations, '') AS observations,
+                '' AS source_signature,
+                '' AS source_label,
+                resultat_principal,
+                COALESCE(resultat_unite, '') AS resultat_unite,
+                COALESCE(resultat_label, '') AS resultat_label,
+                created_at,
+                updated_at
+            FROM essais;
+
+            DROP TABLE essais;
+            ALTER TABLE essais__new RENAME TO essais;
+
+            CREATE INDEX IF NOT EXISTS idx_essais_echantillon_id ON essais(echantillon_id);
+            CREATE INDEX IF NOT EXISTS idx_essais_intervention_id ON essais(intervention_id);
+            CREATE INDEX IF NOT EXISTS idx_essais_source_signature ON essais(source_signature);
+
+            COMMIT;
+            """
         )
-        SELECT
-            id,
-            echantillon_id,
-            NULL AS intervention_id,
-            COALESCE(essai_code, '') AS essai_code,
-            COALESCE(type_essai, '') AS type_essai,
-            COALESCE(norme, '') AS norme,
-            COALESCE(statut, 'Programmé') AS statut,
-            date_debut,
-            date_fin,
-            COALESCE(resultats, '{}') AS resultats,
-            COALESCE(operateur, '') AS operateur,
-            COALESCE(observations, '') AS observations,
-            '' AS source_signature,
-            '' AS source_label,
-            resultat_principal,
-            COALESCE(resultat_unite, '') AS resultat_unite,
-            COALESCE(resultat_label, '') AS resultat_label,
-            created_at,
-            updated_at
-        FROM essais;
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
-        DROP TABLE essais;
-        ALTER TABLE essais__new RENAME TO essais;
+
+def _ensure_historical_sondage_prelevement_links(conn: sqlite3.Connection) -> None:
+    required_tables = {"prelevements", "echantillons", "essais", "points_terrain"}
+    if any(not _table_exists(conn, table_name) for table_name in required_tables):
+        return
+
+    prelevement_columns = _table_columns(conn, "prelevements")
+    point_columns = _table_columns(conn, "points_terrain")
+    if "point_terrain_id" not in prelevement_columns or "source_essai_id" not in point_columns:
+        return
+
+    point_rows = conn.execute(
         """
-    )
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_essais_echantillon_id ON essais(echantillon_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_essais_intervention_id ON essais(intervention_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_essais_source_signature ON essais(source_signature)")
-    conn.execute("PRAGMA foreign_keys = ON")
-
-
-def _create_intervention_creation_candidates_view(conn: sqlite3.Connection) -> None:
-    conn.execute("DROP VIEW IF EXISTS vw_intervention_creation_candidates")
-    conn.execute(
+        SELECT id, source_essai_id, point_code, position_label, payload_json
+        FROM points_terrain
+        WHERE source_essai_id IS NOT NULL
+        ORDER BY COALESCE(ordre, 0), id
         """
-        CREATE VIEW vw_intervention_creation_candidates AS
-        SELECT
-            'prelevement' AS candidate_type,
-            p.id AS candidate_id,
-            p.reference AS reference,
-            p.demande_id AS demande_id,
-            p.date_prelevement AS candidate_date,
-            p.zone AS zone,
-            p.technicien AS technicien,
-            p.finalite AS finalite,
-            p.notes AS notes,
-            COUNT(i.id) AS source_count
+    ).fetchall()
+    if not point_rows:
+        return
+
+    points_by_essai: dict[int, list[dict[str, object]]] = {}
+    for row in point_rows:
+        source_essai_id = row["source_essai_id"]
+        if source_essai_id is None:
+            continue
+        payload = _parse_json_dict(row["payload_json"]) if "payload_json" in point_columns else {}
+        keys = {
+            _normalize_link_key(row["point_code"]),
+            _normalize_link_key(row["position_label"]),
+            _normalize_link_key(payload.get("source_sheet")),
+            _normalize_link_key(payload.get("sheet_name")),
+            _normalize_link_key(payload.get("sample_local_ref")),
+        }
+        keys.discard("")
+        points_by_essai.setdefault(int(source_essai_id), []).append(
+            {
+                "id": int(row["id"]),
+                "keys": keys,
+            }
+        )
+
+    updates_by_prelevement: dict[int, int] = {}
+    candidate_rows = conn.execute(
+        """
+        SELECT DISTINCT p.id, p.point_terrain_id, p.zone, p.description, e.designation, es.id AS essai_id
         FROM prelevements p
-        LEFT JOIN interventions i ON i.prelevement_id = p.id
-        WHERE p.intervention_reelle_id IS NULL
-        GROUP BY p.id
-
-        UNION ALL
-
-        SELECT
-            'raw_intervention' AS candidate_type,
-            i.id AS candidate_id,
-            i.reference AS reference,
-            i.demande_id AS demande_id,
-            i.date_intervention AS candidate_date,
-            COALESCE(json_extract(i.observations, '$.zone_intervention'), '') AS zone,
-            i.technicien AS technicien,
-            COALESCE(json_extract(i.observations, '$.finalite_intervention'), '') AS finalite,
-            i.tri_comment AS notes,
-            1 AS source_count
-        FROM interventions i
-        WHERE i.nature_reelle IN ('Essai terrain', 'Sondage', 'Intervention')
-          AND COALESCE(i.intervention_reelle_id, 0) = 0
+        JOIN echantillons e ON e.prelevement_id = p.id
+        JOIN essais es ON es.echantillon_id = e.id
+        WHERE es.essai_code IN ('SO', 'SC')
+        ORDER BY p.id ASC
         """
+    ).fetchall()
+
+    for row in candidate_rows:
+        if row["point_terrain_id"] is not None:
+            continue
+        essai_id = row["essai_id"]
+        if essai_id is None:
+            continue
+        candidates = points_by_essai.get(int(essai_id), [])
+        if not candidates:
+            continue
+
+        chosen_point_id: int | None = None
+        if len(candidates) == 1:
+            chosen_point_id = int(candidates[0]["id"])
+        else:
+            match_keys = [
+                _normalize_link_key(row["zone"]),
+                _normalize_link_key(row["description"]),
+                _normalize_link_key(row["designation"]),
+            ]
+            match_keys = [item for item in match_keys if item]
+            matched_point_ids = {
+                int(candidate["id"])
+                for candidate in candidates
+                if any(match_key in candidate["keys"] for match_key in match_keys)
+            }
+            if len(matched_point_ids) == 1:
+                chosen_point_id = matched_point_ids.pop()
+
+        if chosen_point_id is not None:
+            updates_by_prelevement[int(row["id"])] = chosen_point_id
+
+    if not updates_by_prelevement:
+        return
+
+    conn.executemany(
+        "UPDATE prelevements SET point_terrain_id = ?, updated_at = datetime('now') WHERE id = ?",
+        [(point_id, prelevement_id) for prelevement_id, point_id in updates_by_prelevement.items()],
     )
 
 
@@ -491,36 +462,87 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
     with connect_db(path) as conn:
         conn.executescript(PASSATION_DDL)
         conn.executescript(DEMANDE_CONFIGURATION_DDL)
-        conn.executescript(INTERVENTION_REQUALIFICATION_DDL)
-        conn.executescript(INTERVENTION_CAMPAIGN_DDL)
-        conn.executescript(PMT_WORKFLOW_DDL)
+        conn.executescript(LAB_WORKFLOW_DDL)
         _ensure_generic_essais_parent_schema(conn)
-        _ensure_pmt_multi_essais_schema(conn)
 
         _ensure_column(conn, "prelevements", "date_reception_labo", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "prelevements", "description", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "prelevements", "quantite", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "prelevements", "receptionnaire", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "prelevements", "intervention_id", "INTEGER REFERENCES interventions(id) ON DELETE SET NULL")
+        _ensure_column(conn, "prelevements", "point_terrain_id", "INTEGER")
+        _ensure_column(conn, "prelevements", "sondage_couche_id", "INTEGER")
+        _ensure_column(conn, "prelevements", "ignore_sondage_couche_match", "INTEGER NOT NULL DEFAULT 0")
 
-        _ensure_column(conn, "echantillons", "prelevement_id", "INTEGER")
-        _ensure_column(conn, "echantillons", "intervention_reelle_id", "INTEGER")
+        _ensure_column(conn, "campagnes", "code", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "designation", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "zone_scope", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "temporalite", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "programme_specifique", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "nb_points_prevus", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "types_essais_prevus", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "date_debut_prevue", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "date_fin_prevue", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "priorite", "TEXT NOT NULL DEFAULT 'Normale'")
+        _ensure_column(conn, "campagnes", "responsable_technique", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "attribue_a", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "criteres_controle", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "livrables_attendus", "TEXT NOT NULL DEFAULT ''")
+
+        _ensure_column(conn, "echantillons", "prelevement_id", "INTEGER REFERENCES prelevements(id) ON DELETE SET NULL")
+        _ensure_column(conn, "echantillons", "intervention_id", "INTEGER REFERENCES interventions(id) ON DELETE SET NULL")
         _ensure_column(conn, "echantillons", "auto_reason", "TEXT NOT NULL DEFAULT ''")
 
+        _ensure_column(conn, "interventions", "campagne_id", "INTEGER REFERENCES campagnes(id) ON DELETE SET NULL")
+        _ensure_column(conn, "interventions", "finalite", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "interventions", "zone", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "interventions", "heure_debut", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "interventions", "heure_fin", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "interventions", "nature_reelle", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(conn, "interventions", "prelevement_id", "INTEGER")
-        _ensure_column(conn, "interventions", "intervention_reelle_id", "INTEGER")
+        _ensure_column(conn, "interventions", "prelevement_id", "INTEGER REFERENCES prelevements(id) ON DELETE SET NULL")
         _ensure_column(conn, "interventions", "tri_comment", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "interventions", "tri_updated_at", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(conn, "interventions", "campaign_id", "INTEGER REFERENCES intervention_campaigns(id) ON DELETE SET NULL")
-        _ensure_column(conn, "intervention_campaigns", "zone_scope", "TEXT NOT NULL DEFAULT ''")
-        _ensure_column(conn, "intervention_campaigns", "temporalite", "TEXT NOT NULL DEFAULT ''")
+
+        _ensure_column(conn, "demande_preparations", "type_intervention_prevu", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "finalite", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "zone_localisation", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "materiau_objet", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "objectif_mission", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "responsable_referent", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "attribue_a", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "priorite", "TEXT NOT NULL DEFAULT 'Normale'")
+        _ensure_column(conn, "demande_preparations", "date_prevue", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "nb_points_prevus", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "types_essais_prevus", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "criteres_conformite", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "livrables_attendus", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "remarques", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "familles_prevues", "TEXT NOT NULL DEFAULT '[]'")
+
+        _ensure_column(conn, "affaires_rst", "site", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "numero_etude", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "filiale", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "autre_reference", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "dossier_nom", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "dossier_path", "TEXT NOT NULL DEFAULT ''")
+
+        _ensure_column(conn, "qualite_equipment", "m_tare", "REAL")
+        _ensure_column(conn, "qualite_equipment", "volume_cm3", "REAL")
+        _ensure_column(conn, "qualite_equipment", "division", "TEXT")
+        _ensure_column(conn, "qualite_equipment", "precision", "TEXT")
+        _ensure_column(conn, "qualite_equipment", "capacite", "REAL")
+        _ensure_column(conn, "qualite_equipment", "sensibilite", "REAL")
+        _ensure_column(conn, "qualite_equipment", "facteur_k", "REAL")
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_echantillons_prelevement_id ON echantillons(prelevement_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_echantillons_intervention_reelle_id ON echantillons(intervention_reelle_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_interventions_nature_reelle ON interventions(nature_reelle)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_echantillons_intervention_id ON echantillons(intervention_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_interventions_prelevement_id ON interventions(prelevement_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_interventions_intervention_reelle_id ON interventions(intervention_reelle_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_interventions_campaign_id ON interventions(campaign_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_interventions_campagne_id ON interventions(campagne_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_intervention_id ON prelevements(intervention_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_point_terrain_id ON prelevements(point_terrain_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_sondage_couche_id ON prelevements(sondage_couche_id)")
+
+        _ensure_historical_sondage_prelevement_links(conn)
 
         for code, nom, region in DEFAULT_LABS:
             conn.execute(
@@ -528,7 +550,6 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
                 (code, nom, region),
             )
 
-        _create_intervention_creation_candidates_view(conn)
         conn.commit()
     return path
 

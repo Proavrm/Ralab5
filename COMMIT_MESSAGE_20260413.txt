@@ -1,0 +1,1 @@
+backend: harmonize interventions/campagnes schema and add compatibility shims for prelevements and PMT

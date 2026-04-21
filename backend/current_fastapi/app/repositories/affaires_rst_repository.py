@@ -37,8 +37,8 @@ class AffairesRstRepository:
         if titulaire:
             sql += " AND a.titulaire = ?"; params.append(titulaire)
         if search:
-            sql += " AND (a.reference LIKE ? OR a.client LIKE ? OR a.chantier LIKE ? OR a.affaire_nge LIKE ? OR a.responsable LIKE ?)"
-            like = f"%{search}%"; params.extend([like]*5)
+            sql += " AND (a.reference LIKE ? OR a.client LIKE ? OR a.chantier LIKE ? OR a.affaire_nge LIKE ? OR a.autre_reference LIKE ? OR a.responsable LIKE ?)"
+            like = f"%{search}%"; params.extend([like]*6)
         sql += " GROUP BY a.id ORDER BY a.date_ouverture DESC, a.id DESC"
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
@@ -88,11 +88,13 @@ class AffairesRstRepository:
             conn.execute("""
                 INSERT INTO affaires_rst
                 (reference,annee,region,numero,client,titulaire,chantier,affaire_nge,
+                 site,numero_etude,filiale,autre_reference,dossier_nom,dossier_path,
                  date_ouverture,date_cloture,statut,responsable,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 ref, annee, region, numero,
                 record.client, record.titulaire, record.chantier, record.affaire_nge,
+                record.site, record.numero_etude, record.filiale, record.autre_reference, record.dossier_nom, record.dossier_path,
                 self._fmt(record.date_ouverture), self._fmt(record.date_cloture),
                 record.statut, record.responsable, now, now,
             ))
@@ -136,9 +138,12 @@ class AffairesRstRepository:
             annee=int(row["annee"]), region=row["region"], numero=int(row["numero"]),
             client=row["client"] or "", titulaire=row["titulaire"] or "",
             chantier=row["chantier"] or "", affaire_nge=row["affaire_nge"] or "",
+            dossier_nom=(row["dossier_nom"] or "") if "dossier_nom" in keys else "",
+            dossier_path=(row["dossier_path"] or "") if "dossier_path" in keys else "",
             site=(row["site"] or "") if "site" in keys else "",
             numero_etude=(row["numero_etude"] or "") if "numero_etude" in keys else "",
             filiale=(row["filiale"] or "") if "filiale" in keys else "",
+            autre_reference=(row["autre_reference"] or "") if "autre_reference" in keys else "",
             date_ouverture=self._parse_date(row["date_ouverture"]) or date.today(),
             date_cloture=self._parse_date(row["date_cloture"]),
             statut=row["statut"] or "À qualifier",

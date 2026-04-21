@@ -28,6 +28,17 @@ const STAT_DEM = {
   'Fini':           'bg-[#eaf3de] text-[#3b6d11]',
   'Envoyé - Perdu': 'bg-[#f1efe8] text-[#5f5e5a]',
 }
+const DOSSIER_STATUS_LABELS = {
+  pending: 'En attente',
+  ready: 'Disponible',
+  missing: 'À créer',
+  outdated: 'À resynchroniser',
+  root_missing: 'Racine locale absente',
+}
+const DOSSIER_MODE_LABELS = {
+  pending: 'Remote / dev',
+  local: 'Local travail',
+}
 
 function Badge({ s, map }) {
   return (
@@ -94,6 +105,18 @@ export default function AffairePage() {
     },
   })
 
+  const syncDossierMutation = useMutation({
+    mutationFn: () => affairesApi.syncDossier(uid),
+    onSuccess: (saved) => {
+      qc.setQueryData(['affaire', uid], saved)
+      qc.invalidateQueries({ queryKey: ['affaires'] })
+    },
+  })
+
+  const openDossierMutation = useMutation({
+    mutationFn: () => affairesApi.openDossier(uid),
+  })
+
   const [deleteError, setDeleteError] = useState(null)
 
   async function handleDelete() {
@@ -124,6 +147,7 @@ export default function AffairePage() {
       filiale:        affaire.filiale        ?? '',
       numero_etude:   affaire.numero_etude   ?? '',
       affaire_nge:    affaire.affaire_nge    ?? '',
+      autre_reference: affaire.autre_reference ?? '',
       titulaire:      affaire.titulaire      ?? '',
       responsable:    affaire.responsable    ?? '',
       statut:         affaire.statut         ?? 'À qualifier',
@@ -143,6 +167,8 @@ export default function AffairePage() {
   )
 
   const a = affaire
+  const dossierStatusLabel = DOSSIER_STATUS_LABELS[a.dossier_status] || a.dossier_status || '—'
+  const dossierModeLabel = DOSSIER_MODE_LABELS[a.dossier_mode] || a.dossier_mode || '—'
 
   return (
     <div className="flex flex-col h-full -m-6 overflow-y-auto">
@@ -198,6 +224,7 @@ export default function AffairePage() {
             <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted border-b border-border pb-1.5 mb-3">Références</div>
             <FieldRow label="N° étude"               value={a.numero_etude} />
             <FieldRow label="N° Affaire NGE"         value={a.affaire_nge} />
+            <FieldRow label="Autre"                  value={a.autre_reference} />
             <FieldRow label="Titulaire"              value={a.titulaire || '— Non défini —'} />
             <FieldRow label="Responsable affaire NGE" value={a.responsable} />
             <FieldRow label="Date ouverture"         value={formatDate(a.date_ouverture)} />
@@ -206,6 +233,51 @@ export default function AffairePage() {
               <div className="text-[10px] text-text-muted">Statut</div>
               <Badge s={a.statut} map={STAT_AFF} />
             </div>
+          </div>
+          <div className="bg-surface border border-border rounded-[10px] p-5">
+            <div className="flex items-center justify-between border-b border-border pb-1.5 mb-3">
+              <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Dossier</div>
+              <div className="flex items-center gap-2">
+                {a.dossier_can_sync ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => syncDossierMutation.mutate()}
+                    disabled={syncDossierMutation.isPending}
+                  >
+                    {syncDossierMutation.isPending ? 'Sync…' : 'Synchroniser'}
+                  </Button>
+                ) : null}
+                {a.dossier_can_open ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => openDossierMutation.mutate()}
+                    disabled={openDossierMutation.isPending}
+                  >
+                    {openDossierMutation.isPending ? 'Ouverture…' : 'Ouvrir'}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <FieldRow label="Mode" value={dossierModeLabel} />
+            <FieldRow label="Statut" value={dossierStatusLabel} />
+            <FieldRow label="Nom" value={a.dossier_nom || a.reference} />
+            <FieldRow label="Racine" value={a.dossier_root} />
+            <FieldRow label="Chemin" value={a.dossier_path} />
+            {a.dossier_message ? (
+              <p className="mt-3 text-xs leading-5 text-text-muted">{a.dossier_message}</p>
+            ) : null}
+            {syncDossierMutation.error ? (
+              <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mt-3">
+                {syncDossierMutation.error.message}
+              </p>
+            ) : null}
+            {openDossierMutation.error ? (
+              <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mt-3">
+                {openDossierMutation.error.message}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -310,6 +382,18 @@ export default function AffairePage() {
             <FG label="N° Affaire NGE">
               <Input value={form.affaire_nge} onChange={e => set('affaire_nge', e.target.value)} />
             </FG>
+            <div className="col-span-2">
+              <FG label="Autre (si pas aff. NGE / étude)">
+                <Input
+                  value={form.autre_reference}
+                  onChange={e => set('autre_reference', e.target.value)}
+                  placeholder="Valeur manuelle à utiliser seulement s'il n'y a ni aff. NGE ni étude"
+                />
+                <p className="text-xs leading-5 text-text-muted">
+                  Remplir uniquement si l'affaire n'a ni n° affaire NGE ni n° étude. Laisser vide dès qu'un de ces deux champs est renseigné.
+                </p>
+              </FG>
+            </div>
             <FG label="Titulaire">
               <Select value={form.titulaire} onChange={e => set('titulaire', e.target.value)} className="w-full">
                 {TITULAIRES.map(t => <option key={t} value={t}>{t || '— Non défini —'}</option>)}

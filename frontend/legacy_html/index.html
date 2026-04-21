@@ -513,46 +513,28 @@
     document.getElementById('d-description').textContent=d.description||'—';
     document.getElementById('d-observations').textContent=d.observations||'—';
     // Folder
-    document.getElementById('d-folder-status').textContent='';
-    document.getElementById('btn-open-folder').disabled=!d.dossier_path_actuel;
-    // Check folder status async
-    if(d.dossier_nom_actuel||d.reference)checkFolderStatus(uid);
+    document.getElementById('d-folder-status').innerHTML='<span style="color:var(--text-m)">● piloté par l\'affaire RST</span>';
+    document.getElementById('btn-open-folder').disabled=true;
+    document.getElementById('btn-sync-folder').disabled=true;
   }
 
   function closeDetail(){selUid=null;document.getElementById('detail-panel').classList.remove('visible');renderTable();}
 
   async function checkFolderStatus(uid){
-    try{
-      const r=await fetch(`${API}/api/demandes/${uid}/folder-status`,{headers:ah()});
-      if(!r.ok)return;
-      const s=await r.json();
-      const el=document.getElementById('d-folder-status');
-      const btn=document.getElementById('btn-open-folder');
-      if(s.exists){el.innerHTML='<span style="color:#1d9e75">● existe</span>';btn.disabled=false;}
-      else{el.innerHTML='<span style="color:#e24b4a">● absent</span>';btn.disabled=true;}
-    }catch{}
+    const el=document.getElementById('d-folder-status');
+    const btn=document.getElementById('btn-open-folder');
+    if(el) el.innerHTML='<span style="color:var(--text-m)">● piloté par l\'affaire RST</span>';
+    if(btn) btn.disabled=true;
   }
 
   async function syncFolder(){
     if(!selUid)return;
-    const btn=document.getElementById('btn-sync-folder');
-    btn.disabled=true;btn.textContent='⏳';
-    try{
-      const r=await fetch(`${API}/api/demandes/${selUid}/sync-folder`,{method:'POST',headers:ah()});
-      const s=await r.json();
-      if(s.success){showToast(s.action==='created'?'Dossier créé ✓':s.action==='renamed'?'Dossier renommé ✓':'Dossier OK','success');await loadDemandes();selectRow(selUid);}
-      else showToast('Erreur : '+(s.error||'?'),'error');
-    }catch{showToast('Erreur dossier','error');}
-    btn.disabled=false;btn.textContent='🔄 Créer / Sync';
+    showToast('La gestion des dossiers se fait maintenant depuis l\'affaire RST.','info');
   }
 
   async function openFolder(){
     if(!selUid)return;
-    const d=demandes.find(x=>x.uid===selUid);
-    const path=d?.dossier_path_actuel||d?.dossier_nom_actuel;
-    // Placeholder SharePoint — affiche le chemin pour l'instant
-    if(path)prompt('Chemin du dossier (SharePoint à venir) :',path);
-    else showToast('Aucun dossier connu','info');
+    showToast('Ouvre l\'affaire RST pour piloter le dossier.','info');
   }
 
   function sortBy(col){sortAsc=sortCol===col?!sortAsc:true;sortCol=col;renderTable();}
@@ -635,9 +617,6 @@
       const saved=await r.json();
       closeModal();await loadDemandes();selUid=saved.uid;selectRow(saved.uid);
       showToast(uid===0?'Demande créée ✓':'Mise à jour ✓','success');
-      // Sync dossier en arrière-plan
-      fetch(`${API}/api/demandes/${saved.uid}/sync-folder`,{method:'POST',headers:ah()})
-        .then(r=>r.json()).then(s=>{if(s.success&&s.action!=='exists')showToast('Dossier '+(s.action==='created'?'créé':'renommé')+' ✓','success');}).catch(()=>{});
     }catch(e){showToast('Erreur : '+e.message,'error');}
   }
 

@@ -1,0 +1,82 @@
+RaLab5 backend harmonisation patch - 2026-04-13
+
+Goal
+- Keep the existing application logic alive without dropping code.
+- Stop the backend from forcing the old model:
+  interventions_reelles / intervention_reelle_id / intervention_campaigns / pmt_campaigns.
+- Make the backend compatible with the corrected database target:
+  campagnes / campagne_id / interventions / prelevements / echantillons / essais.
+
+Files changed
+- backend/current_fastapi/app/core/database.py
+- backend/current_fastapi/api/interventions.py
+- backend/current_fastapi/api/intervention_campaigns.py
+- backend/current_fastapi/api/intervention_requalification.py
+- backend/current_fastapi/api/pmt.py
+- backend/current_fastapi/api/essais.py
+- backend/current_fastapi/db/migrations/20260406_intervention_requalification.sql
+
+What was done
+1. database.py
+- Removed the schema bootstrap dependency on interventions_reelles, pmt_campaigns, pmt_campaign_interventions, pmt_essais and pmt_reports.
+- Kept passations and demande configuration intact.
+- Kept the generic essais parent migration logic.
+- Harmonised schema bootstrapping around:
+  campagnes, campagne_id, interventions, prelevements, echantillons, essais.
+
+2. interventions.py
+- Removed the hybrid fallback on intervention_campaigns and campaign_id.
+- Normalised to campagnes + campagne_id only.
+- Added compatibility aliases in API response:
+  campaign_id mirrors campagne_id
+  intervention_reelle_id mirrors intervention uid
+  intervention_reelle_reference mirrors intervention reference
+- Preserved existing intervention API endpoints.
+
+3. intervention_campaigns.py
+- Kept the existing route name for compatibility.
+- Reimplemented persistence directly on the campagnes table.
+- No dependency on the old intervention_campaign_service.
+
+4. intervention_requalification.py
+- Reimplemented as a compatibility router around the real target model.
+- prelevements endpoints now work with intervention_id instead of intervention_reelle_id.
+- createPrelevement(raw_ids=[intervention_uid]) now creates a generic prélèvement linked to the intervention and updates interventions.prelevement_id.
+- Kept compatibility response fields intervention_reelle_id / intervention_reelle_reference so the current front does not need to be rewritten immediately.
+- Explicitly blocks the old interventions_reelles model with 410 responses.
+
+5. pmt.py
+- Kept the file because api_main still imports it and the current front still calls pmt endpoints.
+- Reimplemented it as a compatibility shim over the generic campagnes + essais tables.
+- PMT workflows now create/read a generic essai with essai_code='PMT'.
+- No dependency on pmt_campaigns / pmt_reports.
+
+6. essais.py
+- Preserved the existing laboratory and calculation logic.
+- Rewired the échantillon linking layer to use intervention_id.
+- Still accepts intervention_reelle_id from the current front for compatibility.
+- API responses now expose intervention_reelle_id as an alias of intervention_id.
+
+Important note
+- This patch is intentionally a transition patch.
+- It keeps backward-compatible field names at the API boundary so that the front can continue to run while the backend is aligned with the corrected database.
+- pmt.py is still present, but now only as a compatibility shim. It can be removed later once the front no longer calls /api/pmt.
+
+Recommended test order
+1. Replace the backend files with this patch.
+2. Start the backend on the corrected DB.
+3. Check startup first.
+4. Then test, in this order:
+   - Demande page open
+   - Intervention page open
+   - Create campaign from demande
+   - Open/create PMT essai from demande/intervention
+   - Create prélèvement from intervention
+   - Open prélèvement page
+   - Create échantillon from prélèvement
+   - Open essai page on an existing laboratory essai
+
+Known limit for this patch
+- The API boundary still exposes some compatibility names such as intervention_reelle_id.
+- That is deliberate, to avoid breaking the current frontend immediately.
+- The final cleanup step will be to remove those aliases after the frontend is rewritten.

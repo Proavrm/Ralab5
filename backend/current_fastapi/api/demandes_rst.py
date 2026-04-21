@@ -348,8 +348,10 @@ def get_demande_navigation(uid: int):
     return {
         "demande": {**_repo.to_resp(r).model_dump(mode="json"), **_build_dst_context(r.numero_dst)},
         "preparation": preparation,
+        "family_catalog": _prep_repo.family_catalog(),
         "modules": modules,
         "enabled_module_codes": sorted(enabled_codes),
+        "enabled_family_codes": list(preparation.get("familles_prevues") or []),
         "visibility": visibility,
         "counts": counts_visible,
         "counts_total": counts_total,

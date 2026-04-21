@@ -31,9 +31,12 @@ class AffaireRstRecord:
     statut:          str
     responsable:     str
     source_legacy_id: Optional[int]
+    dossier_nom:     str
+    dossier_path:    str
     site:            str = ""
     numero_etude:    str = ""
     filiale:         str = ""
+    autre_reference: str = ""
     created_at:      str = ""
     updated_at:      str = ""
     nb_demandes:        int = 0
@@ -49,6 +52,9 @@ class AffaireRstCreateSchema(BaseModel):
     numero_etude:   str            = Field("")
     affaire_nge:    str            = Field("")
     filiale:        str            = Field("")
+    autre_reference: str           = Field("")
+    dossier_nom:    str            = Field("")
+    dossier_path:   str            = Field("")
     date_ouverture: date           = Field(default_factory=date.today)
     date_cloture:   Optional[date] = Field(None)
     statut:         str            = Field("À qualifier")
@@ -63,6 +69,9 @@ class AffaireRstUpdateSchema(BaseModel):
     numero_etude:   Optional[str]  = None
     affaire_nge:    Optional[str]  = None
     filiale:        Optional[str]  = None
+    autre_reference: Optional[str] = None
+    dossier_nom:    Optional[str]  = None
+    dossier_path:   Optional[str]  = None
     date_ouverture: Optional[date] = None
     date_cloture:   Optional[date] = None
     statut:         Optional[str]  = None
@@ -82,6 +91,16 @@ class AffaireRstResponseSchema(BaseModel):
     numero_etude:    str = ""
     affaire_nge:     str = ""
     filiale:         str = ""
+    autre_reference: str = ""
+    dossier_nom:     str = ""
+    dossier_path:    str = ""
+    dossier_mode:    str = "pending"
+    dossier_status:  str = "pending"
+    dossier_root:    str = ""
+    dossier_exists:  bool = False
+    dossier_can_sync: bool = False
+    dossier_can_open: bool = False
+    dossier_message: str = ""
     date_ouverture:  date
     date_cloture:    Optional[date]
     statut:          str

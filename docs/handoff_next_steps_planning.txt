@@ -8,15 +8,163 @@ What changed:
 - rebuilt PlanningPage as a true React page inside the existing app shell
 - Organiser / Kanban kept centered on demandes, not affaires
 - Agenda Demandes reworked to behave like the legacy weekly demand agenda
+- Analyser ported to React using the existing planning demandes feed (week / month / year)
 - popup editing preserved
 - drag move + right-handle resize for Agenda Demandes
-- Agenda Labo and Analyser intentionally left as placeholders for the next pass
+- Agenda Labo intentionally left pending because the legacy version relies on static in-page slots, not a real backend model
 
 Notes:
 - This pass focuses on fixing the part the user explicitly said was important now:
-  Kanban works, Agenda Demandes must match the old behavior much better.
+  Kanban works, Agenda Demandes matches the old behavior much better, and Analyser now uses the real planning data.
 - No global GUI duplication anymore.
 - No backend changes required for this package.
+- Next real step for Agenda Labo is defining a persisted source for lab slots instead of recreating the legacy demo data.
+
+Current product direction gathered after this package:
+- planning should evolve from a demandes-only view into a multi-object operational planning
+- PMT is no longer a separate planning dimension: it belongs to the generic essais flow, and any PMT-specific planning trace outside essais should be treated as legacy residue
+- passations must appear in planning as terrain-like operational items, close to interventions rather than hidden as a pure upstream admin object
+- the scheduling date for a passation already exists as `date_passation`; this should be the date exposed in planning for organization and visibility, rather than inventing a second parallel field
+- passations should appear at least in Organiser and the future Terrain view, with direct navigation to the passation fiche
+- if richer workflow control is needed later, passations may eventually need an explicit planning status, but the date anchor already exists today
+
+Unified planning item contract draft:
+
+Goal:
+- one shared planning item model should feed Organiser, Terrain, Labo, Demandes/G3 and Analyser
+- each tab should apply its own filters, columns and edit rights, but not invent a separate data contract
+
+Common fields for every planning item:
+- planning_kind: `demande_preparation` | `campagne` | `intervention` | `passation` | `prelevement` | `echantillon` | `essai` | `jalon_g3`
+- source_uid: primary key of the source object
+- source_route: route to open the source fiche directly
+- affaire_rst_id: optional affaire link when available
+- demande_id: optional demande link when available
+- title: short main label shown in cards/calendar
+- subtitle: secondary operational label
+- statut: source status reused when it already exists
+- priorite: source priority reused when it already exists
+- planned_date: main planning date used for ordering and calendar placement
+- planned_end_date: optional end date for multi-day items
+- date_label: human label for the chosen date field (`date_intervention`, `date_passation`, `date_reception_labo`, etc.)
+- assigned_to: operational assignee when available (`attribue_a`, `technicien`, `operateur`...)
+- responsible: referent or validator when available (`responsable_referent`, `responsable_technique`, `geotechnicien`...)
+- labo_code: lab scope when relevant
+- service_code: service scope when relevant
+- zone_or_site: zone / chantier / localisation summary when relevant
+- badges: lightweight tags for module, family, urgency, lab or terrain context
+- summary: short free text shown in cards without opening the fiche
+- editable: whether the current user can modify the item from the current tab
+- validation_required: whether the item still needs a validation step
+- visible_in: list of target views (`organiser`, `terrain`, `labo`, `demandes_g3`, `analyser`)
+
+Source mapping by object:
+
+1. Demande preparation
+- planning_kind: `demande_preparation`
+- planned_date: `date_prevue`, fallback demande deadline if needed
+- title: demande reference / affaire / operation summary
+- assigned_to: `attribue_a`
+- responsible: `responsable_referent`
+- visible_in: `organiser`, `demandes_g3`, `analyser`
+- source_route: `/demandes/:uid`
+- edit rights: pilotage, referent, assigned user, planning-capable roles
+
+2. Campagne
+- planning_kind: `campagne`
+- planned_date: `date_debut_prevue`
+- planned_end_date: `date_fin_prevue`
+- title: campaign code + objectif/zone
+- assigned_to: `attribue_a`
+- responsible: `responsable_technique`
+- visible_in: `organiser`, `terrain`, `demandes_g3`, `analyser`
+- source_route: temporary demand-centered opening until a dedicated campaign fiche is needed
+- edit rights: terrain coordination, responsible technical lead, assigned user, planning-capable roles
+
+3. Intervention
+- planning_kind: `intervention`
+- planned_date: `date_intervention`
+- planned_end_date: same day, optionally enriched by `heure_debut` / `heure_fin`
+- title: intervention reference + finalite / zone
+- assigned_to: `technicien`
+- responsible: `geotechnicien`
+- visible_in: `organiser`, `terrain`, `analyser`
+- source_route: `/interventions/:uid`
+- edit rights: terrain coordination, geotechnicien, technicien, planning-capable roles
+
+4. Passation
+- planning_kind: `passation`
+- planned_date: `date_passation`
+- title: passation reference + chantier / client / operation type
+- assigned_to: empty for now unless a future assignee field is added
+- responsible: `responsable`
+- visible_in: `organiser`, `terrain`, `analyser`
+- source_route: `/passations/:uid`
+- edit rights: pilotage / terrain coordination / passation owner roles
+- behavior rule: passation must appear as a terrain-like operational item, close to interventions
+
+5. Prelevement
+- planning_kind: `prelevement`
+- planned_date: `date_prelevement`
+- title: prelevement reference + description / zone
+- assigned_to: `technicien`
+- responsible: terrain side before handover, labo side after reception depending on workflow
+- visible_in: `organiser`, `terrain`, `labo`, `analyser`
+- source_route: `/prelevements/:uid`
+- edit rights: terrain before handover, labo after reception, pilotage for reallocation
+
+6. Echantillon
+- planning_kind: `echantillon`
+- planned_date: `date_reception_labo`, fallback `date_prelevement`
+- title: echantillon code + source context
+- assigned_to: lab receiving or tri operator when available
+- responsible: labo scope
+- labo_code: source labo code
+- visible_in: `organiser`, `labo`, `analyser`
+- source_route: `/echantillons/:uid`
+- edit rights: reception / tri / lab operational roles
+
+7. Essai
+- planning_kind: `essai`
+- planned_date: `date_debut`, fallback source intervention date when generated from terrain sync
+- planned_end_date: `date_fin`
+- title: essai code + type essai + norme
+- assigned_to: `operateur`
+- responsible: lab or terrain execution owner depending on the essai type
+- labo_code: source labo code when relevant
+- visible_in: `organiser`, `terrain` for in situ assays, `labo` for laboratory assays, `analyser`
+- source_route: `/essais/:uid`
+- edit rights: operator, execution lead, validation-capable roles
+- behavior rule: PMT stays inside `essai` and never becomes its own planning kind
+
+8. Jalon G3
+- planning_kind: `jalon_g3`
+- planned_date: initial fallback `date_prevue` from preparation until dedicated G3 milestones exist
+- title: demande / affaire + G3 milestone label
+- assigned_to: `attribue_a` when the milestone is still preparation-driven
+- responsible: `responsable_referent`
+- visible_in: `organiser`, `demandes_g3`, `analyser`
+- source_route: `/demandes/:uid`
+- edit rights: referent study roles, pilotage, planning-capable roles
+
+View rules:
+- Organiser: transverse editable board; may shift date, assignment, priority and status when the user has rights
+- Terrain: operational terrain agenda; may show campagnes, interventions, passations, prelevements and terrain essais only
+- Labo: operational lab agenda; may show prelevements to receive, echantillons and essais only
+- Demandes/G3: demand and study follow-up view; should emphasize preparation, jalons and mission-level context, not replace Terrain/Labo execution views
+- Analyser: strictly readonly, fed by the same unified item contract
+
+Visibility rules:
+- first filter by user permissions, role_code and service_code
+- then apply demand/module visibility when the source object is demand-scoped
+- then apply labo scope where relevant
+- then apply assignment/responsible filters
+- `mes objets` or similar user filters should stay optional UI filters, not the base architecture rule
+
+Mutation rule by tab:
+- a tab may edit only the fields it truly owns operationally
+- the source fiche remains the full authority for the object
+- clicking any planning card must always open the source fiche directly
 
 Suggested commit message:
 feat(planning): port organiser and agenda demandes to react without duplicating app shell

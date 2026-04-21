@@ -1,596 +1,516 @@
+/**
+ * PrelevementPage.jsx
+ * Simplified prélèvement page aligned with ÉchantillonPage workflow.
+ */
+
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import Card, { CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
-import Input, { Select } from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
+import Input, { Select } from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
-import { echantillonsApi, prelevementsApi } from '@/services/api'
+import { echantillonsApi, essaisApi, prelevementsApi } from '@/services/api'
 
 const DEFAULT_STATUSES = ['À trier', 'Reçu', 'En attente', 'En cours', 'Prêt labo', 'Clôturé']
 const DEFAULT_ECHANTILLON_STATUS = 'Reçu'
 
-function FieldGroup({ label, children }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-medium text-text-muted">{label}</label>
-      {children}
-    </div>
-  )
+const ECHANTILLON_STAT_CLS = {
+    'Reçu': 'bg-[#e6f1fb] text-[#185fa5]',
+    'En attente': 'bg-[#faeeda] text-[#854f0b]',
+    'En cours': 'bg-[#faeeda] text-[#854f0b]',
+    'Terminé': 'bg-[#eaf3de] text-[#3b6d11]',
+    'Rejeté': 'bg-[#fcebeb] text-[#a32d2d]',
 }
 
-function FieldRow({ label, value }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-text-muted">{label}</span>
-      <span className="text-sm text-text">{value || '—'}</span>
-    </div>
-  )
+const TYPES_ESSAI = [
+    { code: 'WE', label: 'Teneur en eau naturelle', norme: 'Détermination de la Teneur en Eau (NF P 94 049 et NF P 94 050)' },
+    { code: 'GR', label: 'Granulométrie', norme: 'NF P 94-056' },
+    { code: 'EL', label: 'Extraction de liant', norme: 'NF EN 12697-1' },
+    { code: 'CFE', label: 'Contrôle de fabrication enrobés', norme: '' },
+    { code: 'LCP', label: "Limites d'Atterberg", norme: 'NF P 94-051' },
+    { code: 'VBS', label: "Prise d'essai au bleu (sols)", norme: 'NF P 94-068', init_resultats: '{"type_materiau":"sols"}' },
+    { code: 'MB', label: 'Valeur au bleu 0/2mm', norme: 'NF EN 933-9', init_resultats: '{"type_materiau":"mb_0_2"}' },
+    { code: 'MBF', label: 'Valeur au bleu 0/0.125mm', norme: 'NF EN 933-9', init_resultats: '{"type_materiau":"mbf_0_0125"}' },
+    { code: 'ES', label: 'Équivalent de sable', norme: 'NF P 94-055' },
+    { code: 'PN', label: 'Proctor Normal', norme: 'NF P 94-093' },
+    { code: 'IPI', label: 'IPI — Indice Portant Immédiat', norme: 'NF P 94-078' },
+    { code: 'CBRI', label: 'CBRi — CBR immédiat', norme: 'NF P 94-090-1' },
+    { code: 'CBR', label: 'CBR — après immersion 4 jours', norme: 'NF P 94-090-1' },
+    { code: 'ID', label: 'Identification GTR', norme: 'NF P 11-300' },
+    { code: 'MVA', label: 'Masse volumique des enrobés', norme: 'NF EN 12697-6' },
+]
+
+function Card({ title, children }) {
+    return (
+        <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
+            {title && (
+                <div className="px-4 py-2.5 border-b border-border bg-bg">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{title}</span>
+                </div>
+            )}
+            <div className="p-4">{children}</div>
+        </div>
+    )
+}
+
+function FG({ label, children }) {
+    return (
+        <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium text-text-muted">{label}</label>
+            {children}
+        </div>
+    )
+}
+
+function FR({ label, value }) {
+    return (
+        <div className="flex flex-col gap-0.5 mb-2">
+            <span className="text-[10px] text-text-muted">{label}</span>
+            <span className={`text-[13px] font-medium ${!value ? 'text-text-muted italic font-normal' : ''}`}>{value || '—'}</span>
+        </div>
+    )
+}
+
+function Badge({ s }) {
+    return s ? <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${ECHANTILLON_STAT_CLS[s] || 'bg-[#f1efe8] text-[#5f5e5a]'}`}>{s}</span> : null
 }
 
 function buildForm(prelevement) {
-  return {
-    date_prelevement: prelevement?.date_prelevement || '',
-    date_reception_labo: prelevement?.date_reception_labo || '',
-    description: prelevement?.description || '',
-    quantite: prelevement?.quantite || '',
-    receptionnaire: prelevement?.receptionnaire || '',
-    zone: prelevement?.zone || '',
-    materiau: prelevement?.materiau || '',
-    technicien: prelevement?.technicien || '',
-    finalite: prelevement?.finalite || '',
-    notes: prelevement?.notes || '',
-    statut: prelevement?.statut || 'À trier',
-  }
+    return {
+        date_prelevement: prelevement?.date_prelevement || '',
+        date_reception_labo: prelevement?.date_reception_labo || '',
+        description: prelevement?.description || '',
+        quantite: prelevement?.quantite || '',
+        receptionnaire: prelevement?.receptionnaire || '',
+        zone: prelevement?.zone || '',
+        materiau: prelevement?.materiau || '',
+        technicien: prelevement?.technicien || '',
+        finalite: prelevement?.finalite || '',
+        notes: prelevement?.notes || '',
+        statut: prelevement?.statut || 'À trier',
+    }
 }
 
-function buildQuickEchantillonForm(prelevement) {
-  return {
-    designation_lines: '',
-    localisation: prelevement?.zone || '',
-    statut: DEFAULT_ECHANTILLON_STATUS,
-  }
-}
-
-function parseDesignationLines(rawValue) {
-  return String(rawValue || '')
-    .split(/\r?\n/)
-    .map((value) => value.trim())
-    .filter(Boolean)
+function buildTransitionForm(prelevement) {
+    return {
+        designation: prelevement?.description || prelevement?.materiau || '',
+        localisation: prelevement?.zone || '',
+        statut: DEFAULT_ECHANTILLON_STATUS,
+        essai_codes: [],
+    }
 }
 
 function extractIsoDate(value) {
-  const match = String(value || '').trim().match(/^(\d{4}-\d{2}-\d{2})/)
-  return match ? match[1] : null
+    const match = String(value || '').trim().match(/^(\d{4}-\d{2}-\d{2})/)
+    return match ? match[1] : null
 }
 
-function openCardOnKeyboard(event, callback) {
-  if (event.key !== 'Enter' && event.key !== ' ') return
-  event.preventDefault()
-  callback()
+function getEssaiType(code) {
+    return TYPES_ESSAI.find((item) => item.code === code)
 }
 
 export default function PrelevementPage() {
-  const { uid } = useParams()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const [searchParams] = useSearchParams()
-  const queryClient = useQueryClient()
-  const childReturnTo = buildLocationTarget(location)
-  const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState(buildForm(null))
-  const [quickEchantillonForm, setQuickEchantillonForm] = useState(buildQuickEchantillonForm(null))
-  const [existingEchantillonUid, setExistingEchantillonUid] = useState('')
+    const { uid } = useParams()
+    const navigate = useNavigate()
+    const location = useLocation()
+    const [searchParams] = useSearchParams()
+    const queryClient = useQueryClient()
+    const childReturnTo = buildLocationTarget(location)
 
-  const prelevementQuery = useQuery({
-    queryKey: ['prelevement', uid],
-    queryFn: () => prelevementsApi.get(uid),
-  })
+    const [editing, setEditing] = useState(false)
+    const [deleteMode, setDeleteMode] = useState(false)
+    const [form, setForm] = useState(buildForm(null))
+    const [transitionForm, setTransitionForm] = useState(buildTransitionForm(null))
 
-  useEffect(() => {
-    if (prelevementQuery.data) {
-      setForm(buildForm(prelevementQuery.data))
-      setQuickEchantillonForm(buildQuickEchantillonForm(prelevementQuery.data))
-      setExistingEchantillonUid('')
-    }
-  }, [prelevementQuery.data])
-
-  const prelevement = prelevementQuery.data
-
-  const availableEchantillonsQuery = useQuery({
-    queryKey: ['echantillons-demande', String(prelevement?.demande_id || '')],
-    queryFn: () => echantillonsApi.list({ demande_id: prelevement.demande_id }),
-    enabled: !!prelevement?.demande_id,
-  })
-
-  const saveMutation = useMutation({
-    mutationFn: () => prelevementsApi.update(uid, form),
-    onSuccess: (saved) => {
-      queryClient.setQueryData(['prelevement', uid], saved)
-      queryClient.invalidateQueries({ queryKey: ['prelevements'] })
-      queryClient.invalidateQueries({ queryKey: ['labo-home'] })
-      setForm(buildForm(saved))
-      setEditing(false)
-    },
-  })
-
-  const statusOptions = useMemo(
-    () => [...new Set([...DEFAULT_STATUSES, prelevement?.statut].filter(Boolean))],
-    [prelevement?.statut]
-  )
-  const quickEchantillonLines = useMemo(
-    () => parseDesignationLines(quickEchantillonForm.designation_lines),
-    [quickEchantillonForm.designation_lines]
-  )
-  const linkedEchantillonIds = useMemo(
-    () => new Set((prelevement?.echantillons || []).map((item) => String(item.uid))),
-    [prelevement?.echantillons]
-  )
-  const availableDetachedEchantillons = useMemo(
-    () => (Array.isArray(availableEchantillonsQuery.data) ? availableEchantillonsQuery.data : [])
-      .filter((item) => !item.prelevement_id)
-      .filter((item) => !linkedEchantillonIds.has(String(item.uid))),
-    [availableEchantillonsQuery.data, linkedEchantillonIds]
-  )
-  const createButtonLabel = quickEchantillonLines.length
-    ? `Créer ${quickEchantillonLines.length} groupe(s)`
-    : 'Créer groupe(s)'
-
-  async function refreshPrelevementWorkflow() {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['prelevement', uid] }),
-      queryClient.invalidateQueries({ queryKey: ['prelevements'] }),
-      queryClient.invalidateQueries({ queryKey: ['labo-home'] }),
-      queryClient.invalidateQueries({ queryKey: ['echantillons-demande', String(prelevement?.demande_id || '')] }),
-    ])
-  }
-
-  const createEchantillonsMutation = useMutation({
-    mutationFn: async ({ designations, openAfterCreate }) => {
-      const created = []
-      for (const designation of designations) {
-        const saved = await echantillonsApi.create({
-          demande_id: prelevement.demande_id,
-          prelevement_id: prelevement.uid,
-          designation,
-          date_prelevement: extractIsoDate(prelevement.date_prelevement),
-          localisation: quickEchantillonForm.localisation || prelevement.zone || '',
-          statut: quickEchantillonForm.statut || DEFAULT_ECHANTILLON_STATUS,
-        })
-        created.push(saved)
-      }
-      return { created, openAfterCreate }
-    },
-    onSuccess: async ({ created, openAfterCreate }) => {
-      setQuickEchantillonForm(buildQuickEchantillonForm(prelevement))
-      await refreshPrelevementWorkflow()
-      if (openAfterCreate && created.length === 1) {
-        navigateWithReturnTo(navigate, `/echantillons/${created[0].uid}`, childReturnTo)
-      }
-    },
-  })
-
-  const linkExistingEchantillonMutation = useMutation({
-    mutationFn: (targetUid) => echantillonsApi.update(targetUid, { prelevement_id: prelevement.uid }),
-    onSuccess: async () => {
-      setExistingEchantillonUid('')
-      await refreshPrelevementWorkflow()
-    },
-  })
-
-  function setField(key, value) {
-    setForm((current) => ({ ...current, [key]: value }))
-  }
-
-  function setQuickEchantillonField(key, value) {
-    setQuickEchantillonForm((current) => ({ ...current, [key]: value }))
-  }
-
-  function openDetailedEchantillonBuilder() {
-    if (!prelevement?.demande_id) return
-    const params = new URLSearchParams({
-      demande_id: String(prelevement.demande_id),
-      prelevement_id: String(prelevement.uid),
+    const prelevementQuery = useQuery({
+        queryKey: ['prelevement', uid],
+        queryFn: () => prelevementsApi.get(uid),
     })
-    navigateWithReturnTo(navigate, `/echantillons/new?${params.toString()}`, childReturnTo)
-  }
 
-  function handleCreateEchantillons(openAfterCreate = false) {
-    if (!prelevement?.demande_id || !quickEchantillonLines.length) return
-    createEchantillonsMutation.mutate({
-      designations: quickEchantillonLines,
-      openAfterCreate,
+    const prelevement = prelevementQuery.data
+
+    useEffect(() => {
+        if (!prelevement) return
+        setForm(buildForm(prelevement))
+        setTransitionForm((current) => ({
+            ...buildTransitionForm(prelevement),
+            essai_codes: current.essai_codes || [],
+        }))
+    }, [prelevement])
+
+    const saveMutation = useMutation({
+        mutationFn: () => prelevementsApi.update(uid, form),
+        onSuccess: (saved) => {
+            queryClient.setQueryData(['prelevement', uid], saved)
+            queryClient.invalidateQueries({ queryKey: ['prelevements'] })
+            queryClient.invalidateQueries({ queryKey: ['labo-home'] })
+            setForm(buildForm(saved))
+            setEditing(false)
+        },
     })
-  }
 
-  function handleLinkExistingEchantillon() {
-    if (!existingEchantillonUid) return
-    linkExistingEchantillonMutation.mutate(Number(existingEchantillonUid))
-  }
+    const createEchantillonMutation = useMutation({
+        mutationFn: async () => {
+            const savedEchantillon = await echantillonsApi.create({
+                demande_id: prelevement.demande_id,
+                prelevement_id: prelevement.uid,
+                designation: transitionForm.designation,
+                date_prelevement: extractIsoDate(prelevement.date_prelevement),
+                localisation: transitionForm.localisation || prelevement.zone || '',
+                statut: transitionForm.statut || DEFAULT_ECHANTILLON_STATUS,
+            })
 
-  if (prelevementQuery.isLoading) {
-    return <div className="py-12 text-center text-sm text-text-muted">Chargement du prélèvement…</div>
-  }
+            for (const code of transitionForm.essai_codes) {
+                const essaiType = getEssaiType(code)
+                await essaisApi.create({
+                    echantillon_id: savedEchantillon.uid,
+                    essai_code: code,
+                    type_essai: essaiType?.label || code,
+                    norme: essaiType?.norme || '',
+                    statut: 'Programmé',
+                    resultats: essaiType?.init_resultats || '{}',
+                    source_label: prelevement.reference || '',
+                    source_signature: `prelevement:${prelevement.uid}`,
+                })
+            }
 
-  if (prelevementQuery.error || !prelevement) {
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700">
-          Impossible de charger cette fiche prélèvement.
-        </div>
-        <div>
-          <Button variant="secondary" onClick={() => navigate('/prelevements')}>Retour à la liste</Button>
-        </div>
-      </div>
+            return savedEchantillon
+        },
+        onSuccess: async (savedEchantillon) => {
+            setTransitionForm(buildTransitionForm(prelevement))
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['prelevement', uid] }),
+                queryClient.invalidateQueries({ queryKey: ['prelevements'] }),
+                queryClient.invalidateQueries({ queryKey: ['labo-home'] }),
+            ])
+            navigateWithReturnTo(navigate, `/echantillons/${savedEchantillon.uid}`, childReturnTo)
+        },
+    })
+
+    const deleteEchantillonMutation = useMutation({
+        mutationFn: (echantillonUid) => echantillonsApi.delete(echantillonUid),
+        onSuccess: async () => {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['prelevement', uid] }),
+                queryClient.invalidateQueries({ queryKey: ['prelevements'] }),
+                queryClient.invalidateQueries({ queryKey: ['labo-home'] }),
+            ])
+        },
+    })
+
+    const statusOptions = useMemo(
+        () => [...new Set([...DEFAULT_STATUSES, prelevement?.statut].filter(Boolean))],
+        [prelevement?.statut]
     )
-  }
 
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="max-w-3xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Fiche métier</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-text">{prelevement.reference}</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
-            Le prélèvement centralise la réception laboratoire et ouvre ensuite vers les groupes d’essais.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-text-muted">
-            {prelevement.labo_code ? <span className="rounded-full border border-border bg-bg px-3 py-1">Labo {prelevement.labo_code}</span> : null}
-            {prelevement.demande_reference ? <span className="rounded-full border border-border bg-bg px-3 py-1">Demande {prelevement.demande_reference}</span> : null}
-            {prelevement.intervention_reelle_reference ? <span className="rounded-full border border-border bg-bg px-3 py-1">Intervention {prelevement.intervention_reelle_reference}</span> : null}
-          </div>
-        </div>
+    const selectedEssais = useMemo(
+        () => TYPES_ESSAI.filter((item) => transitionForm.essai_codes.includes(item.code)),
+        [transitionForm.essai_codes]
+    )
 
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, '/prelevements')}>Retour</Button>
-          {prelevement.demande_id ? (
-            <Button variant="secondary" onClick={() => navigate(`/demandes/${prelevement.demande_id}`)}>Ouvrir la demande</Button>
-          ) : null}
-          <Button variant="secondary" onClick={() => navigate(`/prelevements/etiquettes?uids=${prelevement.uid}`)}>Étiquettes</Button>
-          {editing ? (
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setForm(buildForm(prelevement))
-                  setEditing(false)
-                }}
-              >
-                Annuler
-              </Button>
-              <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? '…' : 'Enregistrer'}
-              </Button>
-            </>
-          ) : (
-            <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
-          )}
-        </div>
-      </div>
+    function setField(key, value) {
+        setForm((current) => ({ ...current, [key]: value }))
+    }
 
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-bg/60">
-          <CardTitle>Réception et contexte</CardTitle>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-4">
-          {editing ? (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <FieldGroup label="Date prélèvement">
-                <Input type="date" value={form.date_prelevement} onChange={(event) => setField('date_prelevement', event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Date réception labo">
-                <Input type="date" value={form.date_reception_labo} onChange={(event) => setField('date_reception_labo', event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Description d’arrivée">
-                <Input value={form.description} onChange={(event) => setField('description', event.target.value)} placeholder="Ex: grave 0/31,5 humide" />
-              </FieldGroup>
-              <FieldGroup label="Quantité">
-                <Input value={form.quantite} onChange={(event) => setField('quantite', event.target.value)} placeholder="Ex: 2 sacs, 15 kg, 3 carottes" />
-              </FieldGroup>
-              <FieldGroup label="Réceptionnaire">
-                <Input value={form.receptionnaire} onChange={(event) => setField('receptionnaire', event.target.value)} placeholder="Nom du réceptionnaire labo" />
-              </FieldGroup>
-              <FieldGroup label="Statut">
-                <Select value={form.statut} onChange={(event) => setField('statut', event.target.value)}>
-                  {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
-                </Select>
-              </FieldGroup>
-              <FieldGroup label="Zone">
-                <Input value={form.zone} onChange={(event) => setField('zone', event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Matériau">
-                <Input value={form.materiau} onChange={(event) => setField('materiau', event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Technicien terrain">
-                <Input value={form.technicien} onChange={(event) => setField('technicien', event.target.value)} />
-              </FieldGroup>
-              <FieldGroup label="Finalité">
-                <Input value={form.finalite} onChange={(event) => setField('finalite', event.target.value)} />
-              </FieldGroup>
-              <div className="lg:col-span-2">
-                <FieldGroup label="Notes">
-                  <textarea
-                    value={form.notes}
-                    onChange={(event) => setField('notes', event.target.value)}
-                    rows={4}
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
-                  />
-                </FieldGroup>
-              </div>
+    function setTransitionField(key, value) {
+        setTransitionForm((current) => ({ ...current, [key]: value }))
+    }
+
+    function toggleEssai(code) {
+        setTransitionForm((current) => {
+            const exists = current.essai_codes.includes(code)
+            return {
+                ...current,
+                essai_codes: exists
+                    ? current.essai_codes.filter((item) => item !== code)
+                    : [...current.essai_codes, code],
+            }
+        })
+    }
+
+    async function handleDeleteEchantillon(item) {
+        const ok = window.confirm(`Supprimer l'échantillon "${item.reference || item.uid}" ? Cette action est irréversible.`)
+        if (!ok) return
+        deleteEchantillonMutation.mutate(item.uid)
+    }
+
+    if (prelevementQuery.isLoading) {
+        return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+    }
+
+    if (prelevementQuery.error || !prelevement) {
+        return (
+            <div className="text-center py-16">
+                <p className="text-text-muted text-sm mb-3">Prélèvement introuvable</p>
+                <Button onClick={() => navigateBackWithFallback(navigate, searchParams, '/prelevements')}>← Retour</Button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
-              <FieldRow label="Date prélèvement" value={prelevement.date_prelevement ? formatDate(prelevement.date_prelevement) : ''} />
-              <FieldRow label="Date réception labo" value={prelevement.date_reception_labo ? formatDate(prelevement.date_reception_labo) : (prelevement.last_reception_labo ? `${formatDate(prelevement.last_reception_labo)} (hérité)` : '')} />
-              <FieldRow label="Statut" value={prelevement.statut} />
-              <FieldRow label="Description" value={prelevement.description || prelevement.materiau} />
-              <FieldRow label="Quantité" value={prelevement.quantite} />
-              <FieldRow label="Réceptionnaire" value={prelevement.receptionnaire || prelevement.technicien} />
-              <FieldRow label="Zone" value={prelevement.zone} />
-              <FieldRow label="Matériau" value={prelevement.materiau} />
-              <FieldRow label="Technicien terrain" value={prelevement.technicien} />
-              <FieldRow label="Finalité" value={prelevement.finalite} />
-              <FieldRow label="Affaire" value={prelevement.affaire_reference} />
-              <FieldRow label="Chantier / site" value={[prelevement.chantier, prelevement.site].filter(Boolean).join(' · ')} />
-              <FieldRow label="Notes" value={prelevement.notes} />
-            </div>
-          )}
+        )
+    }
 
-          {saveMutation.error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-              {saveMutation.error.message || 'Impossible d’enregistrer les modifications.'}
-            </div>
-          ) : null}
-        </CardBody>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-bg/60">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Groupes d’essais</CardTitle>
-              <p className="mt-1 text-xs text-text-muted">
-                Crée directement un ou plusieurs groupes d’essais, ou rattache un groupe déjà préparé sur la même demande.
-              </p>
-            </div>
-            <Button variant="secondary" onClick={openDetailedEchantillonBuilder} disabled={!prelevement.demande_id}>
-              Créer avec détails
-            </Button>
-          </div>
-        </CardHeader>
-        <CardBody className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <div className="rounded-2xl border border-border bg-white px-4 py-4">
-            <div className="flex flex-col gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-text">Créer des groupes d’essais</h3>
-                <p className="mt-1 text-xs text-text-muted">
-                  Un groupe par ligne. Le lien vers ce prélèvement est renseigné automatiquement.
-                </p>
-              </div>
-
-              <FieldGroup label="Groupes à créer">
-                <textarea
-                  value={quickEchantillonForm.designation_lines}
-                  onChange={(event) => setQuickEchantillonField('designation_lines', event.target.value)}
-                  rows={5}
-                  placeholder={"Ex: Carotte couche de roulement\nSac grave 0/31,5\nLot enrobé poste 2"}
-                  className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
-                />
-              </FieldGroup>
-
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                <FieldGroup label="Localisation initiale">
-                  <Input
-                    value={quickEchantillonForm.localisation}
-                    onChange={(event) => setQuickEchantillonField('localisation', event.target.value)}
-                    placeholder="Zone ou localisation du groupe"
-                  />
-                </FieldGroup>
-                <FieldGroup label="Statut initial">
-                  <Select value={quickEchantillonForm.statut} onChange={(event) => setQuickEchantillonField('statut', event.target.value)}>
-                    {['Reçu', 'En attente', 'En cours', 'Terminé', 'Rejeté'].map((status) => <option key={status} value={status}>{status}</option>)}
-                  </Select>
-                </FieldGroup>
-              </div>
-
-              <div className="rounded-xl border border-[#e6ece8] bg-[#f8fbfa] px-3 py-3 text-xs text-text-muted">
-                {quickEchantillonLines.length
-                  ? `${quickEchantillonLines.length} groupe(s) prêt(s) à créer depuis ${prelevement.reference}.`
-                  : 'Ajoute au moins une ligne pour créer un groupe d’essais lié à ce prélèvement.'}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => handleCreateEchantillons(false)}
-                  disabled={!quickEchantillonLines.length || createEchantillonsMutation.isPending}
+    return (
+        <div className={`flex flex-col h-full overflow-y-auto ${deleteMode ? 'bg-red-50' : ''}`}>
+            <div className={`flex items-center gap-3 px-6 py-3 border-b border-border shrink-0 flex-wrap ${deleteMode ? 'bg-red-100' : 'bg-surface'}`}>
+                <button
+                    onClick={() => navigateBackWithFallback(navigate, searchParams, '/prelevements')}
+                    className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors"
                 >
-                  {createEchantillonsMutation.isPending ? '…' : createButtonLabel}
-                </Button>
-                {quickEchantillonLines.length === 1 ? (
-                  <Button
-                    variant="primary"
-                    onClick={() => handleCreateEchantillons(true)}
-                    disabled={createEchantillonsMutation.isPending}
-                  >
-                    Créer et ouvrir
-                  </Button>
+                    ← Retour
+                </button>
+                {prelevement.demande_reference ? <span className="text-[13px] text-text-muted">{prelevement.demande_reference} › </span> : null}
+                <span className="text-[14px] font-semibold flex-1 font-mono">{prelevement.reference}</span>
+                <Badge s={prelevement.statut} />
+                {!editing ? (
+                    <>
+                        <Button size="sm" variant={deleteMode ? 'danger' : 'secondary'} onClick={() => setDeleteMode((value) => !value)}>
+                            {deleteMode ? '✗ Annuler suppression' : '🗑️ Supprimer échantillons'}
+                        </Button>
+                        <Button size="sm" variant="primary" onClick={() => {
+                            setEditing(true)
+                            setDeleteMode(false)
+                        }}>
+                            ✏️ Modifier
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                        <Button onClick={() => {
+                            setForm(buildForm(prelevement))
+                            setTransitionForm(buildTransitionForm(prelevement))
+                            setEditing(false)
+                        }}>
+                            Annuler
+                        </Button>
+                        <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+                            {saveMutation.isPending ? '…' : '✓ Enregistrer'}
+                        </Button>
+                    </>
+                )}
+            </div>
+
+            <div className={`p-5 max-w-[860px] mx-auto w-full flex flex-col gap-4 ${deleteMode ? 'bg-red-50' : ''}`}>
+                {deleteMode ? (
+                    <div className="bg-red-100 border border-red-300 rounded-lg p-4">
+                        <div className="flex items-center gap-2 text-red-800">
+                            <span className="text-lg">⚠️</span>
+                            <span className="font-semibold">Mode suppression activé</span>
+                        </div>
+                        <p className="text-red-700 text-sm mt-1">
+                            Cliquez sur supprimer pour retirer un échantillon lié. Une confirmation vous sera demandée.
+                        </p>
+                    </div>
                 ) : null}
-              </div>
 
-              {createEchantillonsMutation.error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {createEchantillonsMutation.error.message || 'Impossible de créer les groupes d’essais.'}
-                </div>
-              ) : null}
-            </div>
-          </div>
+                <Card title="Prélèvement">
+                    {editing ? (
+                        <div className="grid grid-cols-2 gap-3">
+                            <FG label="Date prélèvement">
+                                <Input type="date" value={form.date_prelevement} onChange={(event) => setField('date_prelevement', event.target.value)} />
+                            </FG>
+                            <FG label="Date réception labo">
+                                <Input type="date" value={form.date_reception_labo} onChange={(event) => setField('date_reception_labo', event.target.value)} />
+                            </FG>
+                            <FG label="Description">
+                                <Input value={form.description} onChange={(event) => setField('description', event.target.value)} />
+                            </FG>
+                            <FG label="Quantité">
+                                <Input value={form.quantite} onChange={(event) => setField('quantite', event.target.value)} />
+                            </FG>
+                            <FG label="Réceptionnaire">
+                                <Input value={form.receptionnaire} onChange={(event) => setField('receptionnaire', event.target.value)} />
+                            </FG>
+                            <FG label="Statut">
+                                <Select value={form.statut} onChange={(event) => setField('statut', event.target.value)} className="w-full">
+                                    {statusOptions.map((status) => <option key={status}>{status}</option>)}
+                                </Select>
+                            </FG>
+                            <FG label="Zone">
+                                <Input value={form.zone} onChange={(event) => setField('zone', event.target.value)} />
+                            </FG>
+                            <FG label="Matériau">
+                                <Input value={form.materiau} onChange={(event) => setField('materiau', event.target.value)} />
+                            </FG>
+                            <FG label="Technicien terrain">
+                                <Input value={form.technicien} onChange={(event) => setField('technicien', event.target.value)} />
+                            </FG>
+                            <FG label="Finalité">
+                                <Input value={form.finalite} onChange={(event) => setField('finalite', event.target.value)} />
+                            </FG>
+                            <div className="col-span-2">
+                                <FG label="Notes">
+                                    <textarea
+                                        value={form.notes}
+                                        onChange={(event) => setField('notes', event.target.value)}
+                                        rows={4}
+                                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+                                    />
+                                </FG>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-x-8">
+                            <div>
+                                <FR label="Référence" value={prelevement.reference} />
+                                <FR label="Date prélèvement" value={prelevement.date_prelevement ? formatDate(prelevement.date_prelevement) : ''} />
+                                <FR label="Date réception labo" value={prelevement.date_reception_labo ? formatDate(prelevement.date_reception_labo) : ''} />
+                                <FR label="Description" value={prelevement.description || prelevement.materiau} />
+                                <FR label="Quantité" value={prelevement.quantite} />
+                                <FR label="Statut" value={prelevement.statut} />
+                            </div>
+                            <div>
+                                <FR label="Demande" value={prelevement.demande_reference} />
+                                <FR label="Affaire" value={prelevement.affaire_reference} />
+                                <FR label="Zone" value={prelevement.zone} />
+                                <FR label="Matériau" value={prelevement.materiau} />
+                                <FR label="Réceptionnaire" value={prelevement.receptionnaire || prelevement.technicien} />
+                                <FR label="Notes" value={prelevement.notes} />
+                            </div>
+                        </div>
+                    )}
+                </Card>
 
-          <div className="rounded-2xl border border-border bg-white px-4 py-4">
-            <div className="flex flex-col gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-text">Rattacher un groupe existant</h3>
-                <p className="mt-1 text-xs text-text-muted">
-                  Sélectionne un groupe déjà créé sur la même demande et encore sans prélèvement rattaché.
-                </p>
-              </div>
+                {editing ? (
+                    <Card title="Passage vers le groupe d'essais">
+                        <div className="flex flex-col gap-4">
+                            <div className="grid grid-cols-2 gap-3">
+                                <FG label="Désignation du futur échantillon">
+                                    <Input
+                                        value={transitionForm.designation}
+                                        onChange={(event) => setTransitionField('designation', event.target.value)}
+                                        placeholder="ex: Grave 0/31,5 - plateforme"
+                                    />
+                                </FG>
+                                <FG label="Localisation">
+                                    <Input
+                                        value={transitionForm.localisation}
+                                        onChange={(event) => setTransitionField('localisation', event.target.value)}
+                                        placeholder="ex: Zone A / poste 2"
+                                    />
+                                </FG>
+                                <FG label="Statut initial du groupe">
+                                    <Select
+                                        value={transitionForm.statut}
+                                        onChange={(event) => setTransitionField('statut', event.target.value)}
+                                        className="w-full"
+                                    >
+                                        {['Reçu', 'En attente', 'En cours', 'Terminé', 'Rejeté'].map((status) => <option key={status}>{status}</option>)}
+                                    </Select>
+                                </FG>
+                                <div className="flex items-end">
+                                    <div className="text-[12px] text-text-muted">
+                                        Choisis les essais voulus, puis crée le groupe directement depuis ce prélèvement.
+                                    </div>
+                                </div>
+                            </div>
 
-              <FieldGroup label="Groupes disponibles">
-                <Select
-                  value={existingEchantillonUid}
-                  onChange={(event) => setExistingEchantillonUid(event.target.value)}
-                  disabled={availableEchantillonsQuery.isLoading || !availableDetachedEchantillons.length}
-                >
-                  <option value="">Choisir un groupe…</option>
-                  {availableDetachedEchantillons.map((item) => (
-                    <option key={item.uid} value={item.uid}>
-                      {item.reference} — {item.designation || 'Sans désignation'}
-                    </option>
-                  ))}
-                </Select>
-              </FieldGroup>
+                            <div className="border border-border rounded-lg p-3 bg-bg">
+                                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted mb-3">Essais souhaités</div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {TYPES_ESSAI.map((essai) => {
+                                        const checked = transitionForm.essai_codes.includes(essai.code)
+                                        return (
+                                            <label
+                                                key={essai.code}
+                                                className={`flex items-start gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${checked ? 'border-accent bg-white' : 'border-border bg-white hover:border-accent/40'}`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleEssai(essai.code)}
+                                                    className="mt-0.5 accent-accent"
+                                                />
+                                                <div className="min-w-0">
+                                                    <div className="text-[12px] font-semibold text-text">{essai.code} — {essai.label}</div>
+                                                    <div className="text-[11px] text-text-muted">{essai.norme || 'Norme à préciser'}</div>
+                                                </div>
+                                            </label>
+                                        )
+                                    })}
+                                </div>
+                            </div>
 
-              <div className="rounded-xl border border-[#e6ece8] bg-[#f8fbfa] px-3 py-3 text-xs text-text-muted">
-                {availableEchantillonsQuery.isLoading
-                  ? 'Chargement des groupes d’essais de la demande…'
-                  : `${availableDetachedEchantillons.length} groupe(s) détaché(s) disponible(s) sur cette demande.`}
-              </div>
+                            <div className="flex flex-wrap items-center gap-3 justify-between rounded-lg border border-[#cfe4f6] bg-[#eef6fd] px-4 py-3">
+                                <div>
+                                    <div className="text-[12px] font-semibold text-[#185fa5]">Création du groupe</div>
+                                    <div className="text-[11px] text-[#185fa5]">
+                                        {selectedEssais.length
+                                            ? `${selectedEssais.length} essai(s) seront créés avec le groupe.`
+                                            : 'Aucun essai précréé. Le groupe sera créé vide.'}
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="primary"
+                                    onClick={() => createEchantillonMutation.mutate()}
+                                    disabled={createEchantillonMutation.isPending || !transitionForm.designation.trim()}
+                                >
+                                    {createEchantillonMutation.isPending ? '…' : "Créer l'échantillon"}
+                                </Button>
+                            </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="primary"
-                  onClick={handleLinkExistingEchantillon}
-                  disabled={!existingEchantillonUid || linkExistingEchantillonMutation.isPending}
-                >
-                  {linkExistingEchantillonMutation.isPending ? '…' : 'Rattacher au prélèvement'}
-                </Button>
-                {existingEchantillonUid ? (
-                  <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${existingEchantillonUid}`, childReturnTo)}>
-                    Ouvrir le groupe
-                  </Button>
+                            {selectedEssais.length ? (
+                                <div className="text-[12px] text-text-muted">
+                                    {selectedEssais.map((essai) => essai.code).join(' · ')}
+                                </div>
+                            ) : null}
+
+                            {createEchantillonMutation.error ? (
+                                <p className="text-danger text-xs px-3 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded">
+                                    {createEchantillonMutation.error.message || "Impossible de créer l'échantillon."}
+                                </p>
+                            ) : null}
+                        </div>
+                    </Card>
                 ) : null}
-              </div>
 
-              {availableEchantillonsQuery.error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  Impossible de charger les groupes d’essais de la demande.
-                </div>
-              ) : null}
-
-              {linkExistingEchantillonMutation.error ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  {linkExistingEchantillonMutation.error.message || 'Impossible de rattacher ce groupe d’essais.'}
-                </div>
-              ) : null}
+                <Card title={`Échantillons liés (${prelevement.echantillons?.length || 0})`}>
+                    {!prelevement.echantillons?.length ? (
+                        <div className="flex flex-col items-center gap-3 py-4 text-center">
+                            <p className="text-[13px] text-text-muted italic">Aucun échantillon lié à ce prélèvement.</p>
+                            {!editing ? (
+                                <Button variant="secondary" onClick={() => setEditing(true)}>
+                                    Préparer un groupe d'essais
+                                </Button>
+                            ) : null}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            {prelevement.echantillons.map((item) => (
+                                <div
+                                    key={item.uid}
+                                    className={`flex items-center justify-between gap-3 px-4 py-3 border rounded-lg transition-colors ${deleteMode ? 'border-red-300 bg-red-50' : 'border-border hover:border-accent hover:bg-bg cursor-pointer'}`}
+                                    onClick={deleteMode ? undefined : () => navigateWithReturnTo(navigate, `/echantillons/${item.uid}`, childReturnTo)}
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[12px] font-bold font-mono text-accent">{item.reference}</span>
+                                            <Badge s={item.statut} />
+                                        </div>
+                                        <div className="text-[12px] text-text-muted mt-0.5">{item.designation || 'Sans désignation'}</div>
+                                        <div className="text-[11px] text-text-muted mt-1">{item.essai_count || 0} essai(s)</div>
+                                    </div>
+                                    {deleteMode ? (
+                                        <Button
+                                            size="sm"
+                                            variant="danger"
+                                            onClick={() => handleDeleteEchantillon(item)}
+                                            disabled={deleteEchantillonMutation.isPending}
+                                        >
+                                            🗑️ Supprimer
+                                        </Button>
+                                    ) : (
+                                        <span className="text-text-muted text-[12px]">→</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {deleteEchantillonMutation.error ? (
+                        <p className="mt-3 text-danger text-xs px-3 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded">
+                            {deleteEchantillonMutation.error.message || "Impossible de supprimer l'échantillon."}
+                        </p>
+                    ) : null}
+                </Card>
             </div>
-          </div>
-        </CardBody>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-bg/60">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Interventions liées</CardTitle>
-              <p className="mt-1 text-xs text-text-muted">
-                Ouvre l’intervention parent pour revenir au terrain ou poursuivre la descente dossier par dossier.
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-3">
-          {prelevement.raw_interventions?.length ? prelevement.raw_interventions.map((item) => (
-            <div
-              key={item.uid}
-              role="button"
-              tabIndex={0}
-              onClick={() => navigateWithReturnTo(navigate, `/interventions/${item.uid}`, childReturnTo)}
-              onKeyDown={(event) => openCardOnKeyboard(event, () => navigateWithReturnTo(navigate, `/interventions/${item.uid}`, childReturnTo))}
-              className="flex items-start justify-between gap-4 rounded-2xl border border-border bg-white px-4 py-4 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa] cursor-pointer"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-text">{item.reference}</p>
-                <p className="mt-1 text-xs text-text-muted">{item.type_intervention || item.finalite || 'Intervention terrain'}</p>
-                <p className="mt-2 text-[11px] text-text-muted">
-                  {item.date_intervention ? `Intervention ${formatDate(item.date_intervention)}` : 'Sans date'}
-                  {' · '}
-                  {item.nature_reelle || 'Intervention'}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-2">
-                <div className="text-xs text-text-muted">{item.statut || '—'}</div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    navigateWithReturnTo(navigate, `/interventions/${item.uid}`, childReturnTo)
-                  }}
-                >
-                  Ouvrir intervention
-                </Button>
-              </div>
-            </div>
-          )) : (
-            <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-sm text-text-muted">
-              Aucune intervention brute n’est encore rattachée explicitement à ce prélèvement.
-            </div>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-bg/60">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle>Échantillons liés</CardTitle>
-              <p className="mt-1 text-xs text-text-muted">
-                {prelevement.echantillon_count} groupe(s) d’essais · {prelevement.essai_count} essai(s) rattaché(s). Ouvre un groupe pour poursuivre la suite labo.
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-3">
-          {prelevement.echantillons?.length ? prelevement.echantillons.map((item) => (
-            <div
-              key={item.uid}
-              role="button"
-              tabIndex={0}
-              onClick={() => navigateWithReturnTo(navigate, `/echantillons/${item.uid}`, childReturnTo)}
-              onKeyDown={(event) => openCardOnKeyboard(event, () => navigateWithReturnTo(navigate, `/echantillons/${item.uid}`, childReturnTo))}
-              className="flex items-start justify-between gap-4 rounded-2xl border border-border bg-white px-4 py-4 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa] cursor-pointer"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-text">{item.reference}</p>
-                <p className="mt-1 text-xs text-text-muted">{item.designation || 'Groupe d’essais sans désignation'}</p>
-                <p className="mt-2 text-[11px] text-text-muted">
-                  {item.date_reception_labo ? `Réception ${formatDate(item.date_reception_labo)}` : item.date_prelevement ? `Prélèvement ${formatDate(item.date_prelevement)}` : 'Sans date'}
-                  {' · '}
-                  {item.essai_count} essai(s)
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-2">
-                <div className="text-xs text-text-muted">{item.statut || '—'}</div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    navigateWithReturnTo(navigate, `/echantillons/${item.uid}`, childReturnTo)
-                  }}
-                >
-                  Ouvrir groupe
-                </Button>
-              </div>
-            </div>
-          )) : (
-            <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-sm text-text-muted">
-              Aucun échantillon n’est encore rattaché à ce prélèvement. La réception peut être préparée ici avant la création opérationnelle des groupes d’essais.
-            </div>
-          )}
-        </CardBody>
-      </Card>
-    </div>
-  )
+        </div>
+    )
 }

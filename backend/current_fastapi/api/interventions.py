@@ -7,10 +7,13 @@ PUT    /api/interventions/{uid}
 DELETE /api/interventions/{uid}
 """
 from __future__ import annotations
+
 import json
-import re, sqlite3
+import re
+import sqlite3
 from datetime import date, datetime
 from typing import Optional
+
 from app.core.database import ensure_ralab4_schema, get_db_path
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -18,46 +21,58 @@ from pydantic import BaseModel, Field
 router = APIRouter()
 DB_PATH = get_db_path()
 
-TYPES = ["Visite de contrôle","Auscultation","Levé topographique","Prélèvement",
-         "Inspection géotechnique","Essai in situ","Réunion de chantier","Autre"]
-STATUTS = ["Planifiée","En cours","Réalisée","Annulée"]
-ALERTES = ["Aucun","Faible","Moyen","Élevé","Critique"]
+TYPES = [
+    "Visite de contrôle", "Auscultation", "Levé topographique", "Prélèvement",
+    "Inspection géotechnique", "Essai in situ", "Réunion de chantier", "Autre",
+]
+STATUTS = ["Planifiée", "En cours", "Réalisée", "Annulée"]
+ALERTES = ["Aucun", "Faible", "Moyen", "Élevé", "Critique"]
 DEFAULT_NATURE_REELLE = "Intervention"
 
 
 class InterventionCreate(BaseModel):
-    demande_id:        int
-    campaign_id:       Optional[int]   = Field(None)
-    type_intervention: str             = Field("Visite de contrôle")
-    sujet:             str             = Field("")
-    date_intervention: date            = Field(default_factory=date.today)
-    duree_heures:      Optional[float] = Field(None)
-    geotechnicien:     str             = Field("")
-    technicien:        str             = Field("")
-    observations:      str             = Field("")
-    anomalie_detectee: bool            = Field(False)
-    niveau_alerte:     str             = Field("Aucun")
-    pv_ref:            str             = Field("")
-    rapport_ref:       str             = Field("")
-    photos_dossier:    str             = Field("")
-    statut:            str             = Field("Planifiée")
+    demande_id: int
+    campaign_id: Optional[int] = Field(None)
+    campagne_id: Optional[int] = Field(None)
+    type_intervention: str = Field("Visite de contrôle")
+    sujet: str = Field("")
+    date_intervention: date = Field(default_factory=date.today)
+    duree_heures: Optional[float] = Field(None)
+    geotechnicien: str = Field("")
+    technicien: str = Field("")
+    observations: str = Field("")
+    anomalie_detectee: bool = Field(False)
+    niveau_alerte: str = Field("Aucun")
+    pv_ref: str = Field("")
+    rapport_ref: str = Field("")
+    photos_dossier: str = Field("")
+    statut: str = Field("Planifiée")
+    finalite: str = Field("")
+    zone: str = Field("")
+    heure_debut: str = Field("")
+    heure_fin: str = Field("")
 
 
 class InterventionUpdate(BaseModel):
-    campaign_id:       Optional[int]   = None
-    type_intervention: Optional[str]   = None
-    sujet:             Optional[str]   = None
-    date_intervention: Optional[date]  = None
-    duree_heures:      Optional[float] = None
-    geotechnicien:     Optional[str]   = None
-    technicien:        Optional[str]   = None
-    observations:      Optional[str]   = None
-    anomalie_detectee: Optional[bool]  = None
-    niveau_alerte:     Optional[str]   = None
-    pv_ref:            Optional[str]   = None
-    rapport_ref:       Optional[str]   = None
-    photos_dossier:    Optional[str]   = None
-    statut:            Optional[str]   = None
+    campaign_id: Optional[int] = None
+    campagne_id: Optional[int] = None
+    type_intervention: Optional[str] = None
+    sujet: Optional[str] = None
+    date_intervention: Optional[date] = None
+    duree_heures: Optional[float] = None
+    geotechnicien: Optional[str] = None
+    technicien: Optional[str] = None
+    observations: Optional[str] = None
+    anomalie_detectee: Optional[bool] = None
+    niveau_alerte: Optional[str] = None
+    pv_ref: Optional[str] = None
+    rapport_ref: Optional[str] = None
+    photos_dossier: Optional[str] = None
+    statut: Optional[str] = None
+    finalite: Optional[str] = None
+    zone: Optional[str] = None
+    heure_debut: Optional[str] = None
+    heure_fin: Optional[str] = None
 
 
 def _conn():
@@ -69,17 +84,14 @@ def _conn():
     return conn
 
 
-def _validate_campaign_for_demande(conn: sqlite3.Connection, campaign_id: Optional[int], demande_id: int) -> Optional[int]:
+def _resolve_campaign_id(conn: sqlite3.Connection, campaign_id: Optional[int], demande_id: int) -> Optional[int]:
     if not campaign_id:
         return None
-    row = conn.execute(
-        "SELECT id, demande_id FROM intervention_campaigns WHERE id = ?",
-        (campaign_id,),
-    ).fetchone()
-    if not row:
+    row = conn.execute("SELECT id, demande_id FROM campagnes WHERE id = ?", (campaign_id,)).fetchone()
+    if row is None:
         raise HTTPException(404, f"Campagne #{campaign_id} introuvable")
     if int(row["demande_id"] or 0) != int(demande_id):
-        raise HTTPException(400, "La campagne selectionnee n'appartient pas a cette demande")
+        raise HTTPException(400, "La campagne sélectionnée n'appartient pas à cette demande")
     return int(row["id"])
 
 
@@ -106,9 +118,7 @@ def _demande_id_for_intervention(conn: sqlite3.Connection, uid: int) -> Optional
 
 
 def _next_ref(conn, demande_id: int) -> tuple[str, int, str, int]:
-    row = conn.execute("""
-        SELECT d.annee, d.labo_code FROM demandes d WHERE d.id = ?
-    """, (demande_id,)).fetchone()
+    row = conn.execute("SELECT d.annee, d.labo_code FROM demandes d WHERE d.id = ?", (demande_id,)).fetchone()
     annee = row["annee"] if row else datetime.now().year
     labo = row["labo_code"] if row else "SP"
     prefix = f"{annee}-{labo}-I"
@@ -122,7 +132,6 @@ def _next_ref(conn, demande_id: int) -> tuple[str, int, str, int]:
     return f"{prefix}{number:04d}", annee, labo, number
 
 
-
 def _extract_obs_metadata(observations: str) -> tuple[str, str]:
     if not isinstance(observations, str):
         return "", ""
@@ -133,31 +142,46 @@ def _extract_obs_metadata(observations: str) -> tuple[str, str]:
         payload = json.loads(raw)
     except Exception:
         return "", ""
-    essai_code = str(
-        payload.get("essai_code")
-        or payload.get("code_essai")
-        or payload.get("source_essai_code")
-        or ""
-    ).strip()
-    essai_label = str(
-        payload.get("essai_label")
-        or payload.get("label")
-        or payload.get("libelle")
-        or ""
-    ).strip()
+    essai_code = str(payload.get("essai_code") or payload.get("code_essai") or payload.get("source_essai_code") or "").strip()
+    essai_label = str(payload.get("essai_label") or payload.get("label") or payload.get("libelle") or "").strip()
     return essai_code, essai_label
 
 
 def _row_to_dict(row) -> dict:
     data = dict(row)
     data["uid"] = data.pop("id")
-
     essai_code, essai_label = _extract_obs_metadata(data.get("observations") or "")
     data["essai_code"] = essai_code
     data["code_essai"] = essai_code
     data["essai_label"] = essai_label
-
+    data["campaign_id"] = data.get("campagne_id")
+    data["intervention_reelle_id"] = data["uid"]
+    data["intervention_reelle_reference"] = data.get("reference") or ""
     return data
+
+
+def _base_select() -> str:
+    return """
+        SELECT
+            i.*,
+            COALESCE(c.code, '') AS campaign_code,
+            COALESCE(c.reference, '') AS campaign_ref,
+            COALESCE(c.label, '') AS campaign_label,
+            COALESCE(c.designation, '') AS campaign_designation,
+            d.id AS demande_id,
+            d.reference AS demande_ref,
+            d.reference AS demande_reference,
+            d.affaire_rst_id AS affaire_rst_id,
+            a.reference AS affaire_ref,
+            a.reference AS affaire_reference,
+            a.client AS client,
+            a.chantier AS chantier,
+            a.site AS site
+        FROM interventions i
+        LEFT JOIN campagnes c ON c.id = i.campagne_id
+        JOIN demandes d ON d.id = i.demande_id
+        LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
+    """
 
 
 @router.get("")
@@ -170,39 +194,13 @@ def list_interventions(
     with _conn() as conn:
         if demande_id and not _interventions_enabled(conn, demande_id):
             return []
-        sql = """
-            SELECT
-                i.*,
-                c.code AS campaign_code,
-                c.reference AS campaign_ref,
-                c.label AS campaign_label,
-                c.designation AS campaign_designation,
-                d.id AS demande_id,
-                d.reference AS demande_ref,
-                d.reference AS demande_reference,
-                d.affaire_rst_id AS affaire_rst_id,
-                a.reference AS affaire_ref,
-                a.reference AS affaire_reference,
-                a.client AS client,
-                a.chantier AS chantier,
-                a.site AS site
-            FROM interventions i
-            LEFT JOIN intervention_campaigns c ON c.id = i.campaign_id
-            JOIN demandes d ON d.id = i.demande_id
-            LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
-            WHERE 1=1
-        """
+        sql = _base_select() + " WHERE 1=1"
         params = []
         if demande_id:
             sql += " AND i.demande_id = ?"
             params.append(demande_id)
         if annee is not None:
-            sql += """
-                AND COALESCE(
-                    NULLIF(substr(COALESCE(i.date_intervention, ''), 1, 4), ''),
-                    CAST(i.annee AS TEXT)
-                ) = ?
-            """
+            sql += " AND COALESCE(NULLIF(substr(COALESCE(i.date_intervention, ''), 1, 4), ''), CAST(i.annee AS TEXT)) = ?"
             params.append(str(annee))
         if labo_code:
             sql += " AND i.labo_code = ?"
@@ -223,31 +221,7 @@ def meta():
 @router.get("/{uid}")
 def get_intervention(uid: int):
     with _conn() as conn:
-        row = conn.execute(
-            """
-            SELECT
-                i.*,
-                c.code AS campaign_code,
-                c.reference AS campaign_ref,
-                c.label AS campaign_label,
-                c.designation AS campaign_designation,
-                d.id AS demande_id,
-                d.reference AS demande_ref,
-                d.reference AS demande_reference,
-                d.affaire_rst_id AS affaire_rst_id,
-                a.reference AS affaire_ref,
-                a.reference AS affaire_reference,
-                a.client AS client,
-                a.chantier AS chantier,
-                a.site AS site
-            FROM interventions i
-            LEFT JOIN intervention_campaigns c ON c.id = i.campaign_id
-            JOIN demandes d ON d.id = i.demande_id
-            LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
-            WHERE i.id = ?
-            """,
-            (uid,),
-        ).fetchone()
+        row = conn.execute(_base_select() + " WHERE i.id = ?", (uid,)).fetchone()
         if not row:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
         _require_interventions_enabled(conn, int(row["demande_id"]))
@@ -259,26 +233,28 @@ def create_intervention(body: InterventionCreate):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with _conn() as conn:
         _require_interventions_enabled(conn, body.demande_id)
-        campaign_id = _validate_campaign_for_demande(conn, body.campaign_id, body.demande_id)
+        requested_campaign_id = body.campagne_id or body.campaign_id
+        campagne_id = _resolve_campaign_id(conn, requested_campaign_id, body.demande_id)
         ref, annee, labo, numero = _next_ref(conn, body.demande_id)
         conn.execute(
             """
-            INSERT INTO interventions
-            (reference,annee,labo_code,numero,demande_id,campaign_id,
-             type_intervention,sujet,date_intervention,duree_heures,
-             geotechnicien,technicien,observations,
-             anomalie_detectee,niveau_alerte,pv_ref,rapport_ref,photos_dossier,
-             statut,nature_reelle,tri_updated_at,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO interventions (
+                reference, annee, labo_code, numero, demande_id, campagne_id,
+                type_intervention, sujet, date_intervention, duree_heures,
+                geotechnicien, technicien, observations, anomalie_detectee,
+                niveau_alerte, pv_ref, rapport_ref, photos_dossier, statut,
+                nature_reelle, finalite, zone, heure_debut, heure_fin,
+                tri_updated_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                ref, annee, labo, numero, body.demande_id, campaign_id,
-                body.type_intervention, body.sujet,
-                body.date_intervention.isoformat(), body.duree_heures,
+                ref, annee, labo, numero, body.demande_id, campagne_id,
+                body.type_intervention, body.sujet, body.date_intervention.isoformat(), body.duree_heures,
                 body.geotechnicien, body.technicien, body.observations,
                 1 if body.anomalie_detectee else 0, body.niveau_alerte,
-                body.pv_ref, body.rapport_ref, body.photos_dossier,
-                body.statut, DEFAULT_NATURE_REELLE, now, now, now,
+                body.pv_ref, body.rapport_ref, body.photos_dossier, body.statut,
+                DEFAULT_NATURE_REELLE, body.finalite, body.zone, body.heure_debut, body.heure_fin,
+                now, now, now,
             ),
         )
         uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -293,16 +269,18 @@ def update_intervention(uid: int, body: InterventionUpdate):
         fields["date_intervention"] = fields["date_intervention"].isoformat()
     if "anomalie_detectee" in fields:
         fields["anomalie_detectee"] = 1 if fields["anomalie_detectee"] else 0
+    requested_campaign_id = fields.pop("campagne_id", None) or fields.pop("campaign_id", None)
     fields["updated_at"] = now
-    clause = ", ".join(f"{key} = ?" for key in fields)
     with _conn() as conn:
         demande_id = _demande_id_for_intervention(conn, uid)
         if demande_id is None:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
         _require_interventions_enabled(conn, demande_id)
-        if "campaign_id" in fields:
-            fields["campaign_id"] = _validate_campaign_for_demande(conn, fields["campaign_id"], demande_id)
-        conn.execute(f"UPDATE interventions SET {clause} WHERE id = ?", list(fields.values()) + [uid])
+        if requested_campaign_id is not None:
+            fields["campagne_id"] = _resolve_campaign_id(conn, requested_campaign_id, demande_id)
+        clause = ", ".join(f"{key} = ?" for key in fields)
+        if clause:
+            conn.execute(f"UPDATE interventions SET {clause} WHERE id = ?", list(fields.values()) + [uid])
         conn.execute(
             """
             UPDATE interventions

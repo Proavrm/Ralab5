@@ -1,0 +1,9 @@
+Next step after applying this patch
+
+1. Start backend with corrected DB.
+2. Report the first concrete failures page by page.
+3. Then do the second pass:
+   - remove front dependencies on intervention_reelle_id
+   - remove front dependencies on pmtApi
+   - replace /intervention-requalification/prelevements with a clean /prelevements API if desired
+4. Only after that, fully remove the pmt compatibility router.

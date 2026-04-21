@@ -1,0 +1,31 @@
+Refonte ciblée IPI / CBRi / CBR
+
+Fichiers inclus:
+- EssaiPage.jsx
+- essais.py
+
+Ce qui a été modifié:
+1. Reprise réelle de IPICBRForm pour rapprocher le CBRi / CBR de l'esprit UI de la page IPI:
+   - bloc Proctor lié en tête
+   - affichage clair des points Proctor disponibles
+   - mêmes cartes verticales par essai / point
+   - même logique globale: Proctor -> point -> lectures -> correction -> résultat
+   - suppression du commentaire métier trompeur sur une logique 10/25/55 coups
+
+2. Révision de la détection automatique de la droite de correction:
+   - l'algorithme auto utilise maintenant une fenêtre 3 points
+   - meilleur filtrage de pente / courbure dans la zone utile
+   - garde les modes auto / delta0 manuel / droite manuelle bas-haut
+
+3. Compatibilité conservée:
+   - structure JSON resultats conservée
+   - champs historiques tests / moules conservés
+   - essais.py laissé compatible, avec la logique de résumé déjà présente
+
+Contrôles effectués:
+- py_compile OK sur essais.py
+- build syntaxique OK sur EssaiPage.jsx via esbuild (imports marqués externals)
+
+Point d'attention:
+- ceci est une refonte locale du bloc CBRi / CBR dans le fichier fourni.
+- pas de validation fonctionnelle sur ton runtime complet faute du projet entier.

@@ -1,0 +1,34 @@
+Patch RaLab5 - IPI / CBRi / CBR
+
+Contenu:
+- EssaiPage.jsx: correction d'origine revue + UI CBRi/CBR rapprochée de l'IPI
+- essais.py: résumé backend ajouté pour IPI / CBRi / CBR
+
+Principaux changements:
+1. Correction d'origine
+- ajout de modes de correction: auto / delta0 manuel / droite manuelle
+- ajout des points bas / haut pour piloter la droite de correction
+- calculs IPI et CBR alignés sur le même moteur de correction
+- delta0_used / delta0_source remontés dans les résultats JSON
+
+2. UI IPI
+- ajout du sélecteur de mode de correction
+- ajout du delta0 manuel
+- ajout du point bas / point haut
+- affichage du delta0 utilisé et de sa source
+
+3. UI CBRi / CBR
+- refonte pour suivre beaucoup plus le flow de la page IPI
+- bloc Proctor lié conservé
+- choix du point Proctor par essai
+- surcharge au niveau de l'essai
+- immersion / gonflement seulement pour CBR
+- même logique de correction que l'IPI
+
+4. Backend
+- _compute_result_summary reconnaît maintenant IPI / IM / CBRI / CBR pour afficher un résumé en %
+
+Notes:
+- pas de migration DB incluse
+- on reste sur resultats JSON + résumé backend
+- le fichier a été validé syntaxiquement avec esbuild pour le front et py_compile pour le backend

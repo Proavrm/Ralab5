@@ -4,7 +4,8 @@ param(
     [switch]$SkipBuild,
     [string]$ListenHost = '0.0.0.0',
     [switch]$UseProxyHeaders,
-    [string]$ForwardedAllowIps = '127.0.0.1'
+    [string]$ForwardedAllowIps = '127.0.0.1',
+    [switch]$OpenBrowser
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,6 +15,36 @@ $frontendDir = Join-Path $repoRoot 'frontend\react'
 $backendDir = Join-Path $repoRoot 'backend\current_fastapi'
 $frontendDist = Join-Path $frontendDir 'dist\index.html'
 $backendRequirements = Join-Path $backendDir 'requirements.txt'
+
+function Start-BrowserWhenReady {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url
+    )
+
+    $escapedUrl = $Url.Replace("'", "''")
+    $probeScript = @"
+`$targetUrl = '$escapedUrl'
+for (`$attempt = 0; `$attempt -lt 60; `$attempt++) {
+    try {
+        Invoke-WebRequest -UseBasicParsing `$targetUrl | Out-Null
+        Start-Process `$targetUrl
+        exit 0
+    }
+    catch {
+        Start-Sleep -Milliseconds 500
+    }
+}
+Start-Process `$targetUrl
+"@
+
+    Start-Process -FilePath 'powershell.exe' -ArgumentList @(
+        '-NoProfile',
+        '-WindowStyle', 'Hidden',
+        '-Command',
+        $probeScript
+    ) | Out-Null
+}
 
 $pythonCandidates = @(
     (Join-Path $backendDir '.venv\Scripts\python.exe'),
@@ -90,6 +121,8 @@ if (-not $SkipBuild) {
 Push-Location $backendDir
 try {
     $uvicornArgs = @('-m', 'uvicorn', 'api_main:app', '--host', $ListenHost, '--port', $Port)
+    $browserUrl = "http://localhost:$Port"
+
     if ($Reload) {
         $uvicornArgs += '--reload'
     }
@@ -107,6 +140,11 @@ try {
 
     if ($UseProxyHeaders) {
         Write-Host "Proxy headers enabled; trusted forwarders: $ForwardedAllowIps"
+    }
+
+    if ($OpenBrowser) {
+        Write-Host "Browser will open automatically on $browserUrl"
+        Start-BrowserWhenReady -Url $browserUrl
     }
 
     & $pythonExe @uvicornArgs

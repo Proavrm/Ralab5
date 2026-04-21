@@ -52,6 +52,21 @@ uvicorn api_main:app --reload --port 8000
 Option auth JWT:
 `RALAB_JWT_SECRET` peut être défini dans l'environnement pour remplacer le secret dev par défaut. Pour `HS256`, la clé doit faire au moins 32 octets.
 
+Dossiers:
+- dans le flux moderne actuel, la creation physique des dossiers ne part pas des demandes
+- la responsabilite metier de creation/synchronisation vit cote affaires
+- le nom automatique du dossier principal affaire suit la forme `reference - affaire_nge/ou numero_etude/ou autre_reference - chantier - client_site`
+- `autre_reference` se renseigne manuellement dans l'UI quand l'affaire n'a ni numero d'affaire NGE ni numero d'etude
+- pour `client_site`, le suffixe devient `client_site` si les deux existent, sinon seulement la valeur disponible
+- les cas specifiques de dossiers pilotes par demandes seront traites plus tard, explicitement
+
+Conséquence pratique:
+- `RALAB_DOSSIER_MODE=pending` sur le PC perso, le poste de code ou l'instance distante
+- `RALAB_DOSSIER_MODE=local` sur le PC de travail quand la bibliotheque OneDrive / SharePoint est synchronisee
+- `RALAB_AFFAIRES_ROOT=<chemin-local-vers-le-dossier-des-affaires>` pour definir explicitement la racine locale des dossiers d'affaires
+- `demandes_rst` ne cree pas de dossier physique par defaut
+- les endpoints legacy de dossier sur `/api/demandes/...` restent presents mais neutralises pour eviter les casses
+
 ### Frontend React
 ```bash
 cd frontend/react
@@ -62,6 +77,18 @@ npm run dev
 API disponible sur `http://127.0.0.1:8000`
 Frontend sur `http://localhost:5173`
 Docs API sur `http://127.0.0.1:8000/docs`
+
+Important:
+- `uvicorn` lance le backend FastAPI sur le port `8000` et sert aussi le frontend React deja build dans `frontend/react/dist`
+- `vite` sur `5173` sert uniquement au developpement React avec hot reload; il n'est pas utilise par Cloudflare ni par le serveur public
+- `cloudflared` ne lance pas RaLab5: il expose simplement `127.0.0.1:8000` sur une URL HTTPS publique
+
+En pratique:
+- usage le plus simple hors VS Code: double-clic sur `RaLab5.cmd`, puis choisir Local ou Cloudflare
+- après le choix Local ou Cloudflare, le launcher peut aussi ouvrir automatiquement le navigateur sur la bonne URL
+- usage local simple: `launch_ralab5_test.cmd`
+- usage public via Cloudflare: `launch_ralab5_cloudflare.cmd`
+- developpement frontend: `uvicorn` + `npm run dev`, puis ouvrir `http://localhost:5173`
 
 ### Test sur un autre PC
 Le mode le plus simple pour tester RaLab5 sur un autre poste Windows est désormais:
@@ -115,6 +142,24 @@ Architecture recommandée:
 - navigateur Clara -> domaine HTTPS protégé par le proxy d'accès
 - reverse proxy / access proxy -> `127.0.0.1:8000`
 - FastAPI sert l'API et le frontend React sur le même hôte
+
+Pour un demarrage simple sur le PC actuel avec Cloudflare deja configure:
+
+```bat
+launch_ralab5_cloudflare.cmd
+```
+
+Ce lanceur:
+- demarre RaLab5 en mode serveur local sur `127.0.0.1:8000` si besoin
+- demarre le tunnel Cloudflare si besoin
+- peut ouvrir automatiquement le navigateur sur l'URL publique
+- affiche l'URL locale et l'URL publique attendue
+
+Mises a jour en mode service / autostart:
+- `cloudflared` peut tourner comme vrai service Windows; il n'a pas besoin d'etre mis a jour pour chaque changement applicatif, seulement si sa configuration tunnel change
+- le backend RaLab5 doit etre relance apres les changements de code pour charger la nouvelle version
+- si le frontend React change, il faut reconstruire `frontend/react/dist` avant de relancer le backend
+- en pratique: changement de code = redeployer les fichiers, rebuild si besoin, puis redemarrer seulement le backend; le tunnel Cloudflare peut rester tel quel
 
 Recommandation la plus simple pour démarrer:
 - serveur Windows

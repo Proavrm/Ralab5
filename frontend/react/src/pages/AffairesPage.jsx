@@ -66,7 +66,7 @@ const EMPTY_FORM = {
   uid: 0,
   reference: '',
   client: '', chantier: '', site: '', filiale: '',
-  numero_etude: '', affaire_nge: '',
+  numero_etude: '', affaire_nge: '', autre_reference: '',
   titulaire: '', responsable: '',
   statut: 'À qualifier', date_ouverture: '',
   source_type: '', source_id: '',
@@ -102,6 +102,7 @@ export default function AffairesPage() {
         site:           searchParams.get('site')        || '',
         numero_etude:   searchParams.get('numero_etude')|| '',
         affaire_nge:    searchParams.get('affaire_nge') || '',
+        autre_reference: searchParams.get('autre_reference') || '',
         filiale:        searchParams.get('filiale')     || '',
         titulaire:      searchParams.get('titulaire')   || '',
         responsable:    searchParams.get('responsable') || '',
@@ -175,6 +176,7 @@ export default function AffairesPage() {
       filiale:       selected.filiale       ?? '',
       numero_etude:  selected.numero_etude  ?? '',
       affaire_nge:   selected.affaire_nge   ?? '',
+      autre_reference: selected.autre_reference ?? '',
       titulaire:     selected.titulaire     ?? '',
       responsable:   selected.responsable   ?? '',
       statut:        selected.statut        ?? 'À qualifier',
@@ -211,7 +213,7 @@ export default function AffairesPage() {
       const matchStatut    = !statut    || a.statut    === statut
       const matchTitulaire = !titulaire || a.titulaire === titulaire
       const q = search.toLowerCase()
-      const matchSearch = !q || [a.reference, a.chantier, a.client, a.site, a.numero_etude, a.affaire_nge, a.titulaire, a.responsable]
+      const matchSearch = !q || [a.reference, a.chantier, a.client, a.site, a.numero_etude, a.affaire_nge, a.autre_reference, a.titulaire, a.responsable]
         .some(v => v?.toLowerCase().includes(q))
       return matchStatut && matchTitulaire && matchSearch
     })
@@ -412,6 +414,7 @@ export default function AffairesPage() {
               <DetSection title="Références">
                 <DetField label="N° étude"       value={selected.numero_etude} />
                 <DetField label="N° affaire NGE" value={selected.affaire_nge} />
+                <DetField label="Autre"          value={selected.autre_reference} />
               </DetSection>
 
               <DetSection title="Dates">
@@ -483,6 +486,18 @@ export default function AffairesPage() {
           <FG label="N° affaire NGE">
             <Input value={form.affaire_nge} onChange={e => set('affaire_nge', e.target.value)} placeholder="Source Affaires NGE" />
           </FG>
+          <div className="col-span-2">
+            <FG label="Autre (si pas aff. NGE / étude)">
+              <Input
+                value={form.autre_reference}
+                onChange={e => set('autre_reference', e.target.value)}
+                placeholder="Valeur manuelle à utiliser seulement s'il n'y a ni aff. NGE ni étude"
+              />
+              <p className="text-xs leading-5 text-text-muted">
+                Remplir uniquement si l'affaire n'a ni n° affaire NGE ni n° étude. Laisser vide dès qu'un de ces deux champs est renseigné.
+              </p>
+            </FG>
+          </div>
 
           {/* Titulaire / Responsable */}
           <FG label="Titulaire">

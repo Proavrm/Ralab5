@@ -1,0 +1,22 @@
+Granulometrie patch only.
+
+Files changed:
+- EssaiPage.jsx
+
+What changed in UI:
+- New selector in Granulometrie: Directe / Avec coupure(s)
+- In cutoff mode:
+  - Coupure D1
+  - optional second cutoff D2
+  - section Partie > D1 with progressive mass >D1
+  - section Fraction passante < D1 with tare / humide+tare / sec+tare and PE wet mass
+  - local work table between D1 and D2/fond
+  - optional section Fraction passante < D2 with same weighing logic
+  - local fine table < D2
+  - summary card with reconstructed masses and passants
+  - reconstructed global table and single final chart
+
+What was NOT changed:
+- backend
+- database schema
+- other essay forms

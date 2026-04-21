@@ -1,0 +1,42 @@
+RaLab5 — EssaiPage / essais.py
+
+Files included:
+- EssaiPage.jsx
+- essais.py
+
+What was changed:
+1. CBRi / CBR form refocused to follow the IPI flow much more closely:
+   - Proctor linked block at the top
+   - Conditions d'essai block (surcharge, and immersion days only for CBR)
+   - Same left/right layout as IPI:
+     * poinçonnements cards on the left
+     * F = f(profondeur) chart on the right
+     * Proctor overlay chart below
+   - Same correction UI on each card:
+     * Auto
+     * δ0 manuel
+     * Droite manuelle (point bas / point haut)
+   - Same point-Proctor-centric workflow on each card
+
+2. Removed active CBR 95% workflow from useful logic:
+   - no more cbr_95 / rho95 emitted by IPICBRForm
+   - no more CBR 95% result badge/card in the form UI
+   - no more CBR density chart displayed in the form flow
+
+3. Backend summary logic simplified for IPI / CBRi / CBR:
+   - essais.py summary no longer prefers cbr_95
+   - summary now uses ipi / cbr and tests[] values only
+
+4. IPI read-only table corrected:
+   - δ0 column now shows computed delta0_used
+   - corrected columns rely on delta0_used instead of persisted raw delta0 only
+
+Important compatibility notes:
+- CRUD shape was kept intact
+- DB schema was not changed
+- resultats JSON still stores tests + cbr / ipi values
+- old helper functions like interpCBRAt95 / CBRChart may still remain in the file, but they are no longer used by the refocused CBRi / CBR form flow
+
+Validation done here:
+- essais.py compiles with py_compile
+- EssaiPage.jsx was edited directly; runtime behavior still needs validation inside the full app

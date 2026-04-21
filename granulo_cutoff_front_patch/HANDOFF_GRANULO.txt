@@ -1,0 +1,26 @@
+Granulometrie-only patch
+
+Scope intentionally limited to EssaiPage.jsx and only the GR (Granulometrie) component/helpers.
+No changes made to backend essais.py or DB schema.
+
+What changed:
+- Preserved existing direct granulometry workflow.
+- Added preparation mode selector: direct / cutoffs.
+- Added cutoff workflow with:
+  - primary cutoff D1
+  - optional secondary cutoff
+  - coarse retained input basis dry or wet+assumed water
+  - weighing blocks for total sample, fraction <D1, fraction <D2
+  - local working tables for >D1, <D1, and <D2
+  - reconstructed global granulometry table/curve stored back into resultats.tamis
+- Kept compatibility by still emitting top-level keys used elsewhere:
+  - tamis
+  - ms
+  - passant_20
+  - passant_80
+  - dmax
+  - coeff_vbs
+
+Notes:
+- This is a front-end first step to validate the workflow and data structure before DB normalization.
+- Existing direct-mode GR remains available and was intentionally left as close as possible to the current implementation.

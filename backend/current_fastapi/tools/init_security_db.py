@@ -111,6 +111,13 @@ def create_schema(connection: sqlite3.Connection) -> None:
         training_notes TEXT,
         documents_notes TEXT,
         profile_notes TEXT,
+        signature_display_name TEXT,
+        signature_role_title TEXT,
+        signature_image_data TEXT,
+        signature_notes TEXT,
+        signature_scale_percent INTEGER NOT NULL DEFAULT 100,
+        signature_offset_x INTEGER NOT NULL DEFAULT 0,
+        signature_offset_y INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
@@ -321,7 +328,7 @@ def seed_users(connection: sqlite3.Connection) -> None:
         ("mcostapereira@nge.fr", "ResponsableScientifique et Technique", "admin", "rst", "referent_scientifique_technique", 1),
         ("labo@nge.fr", "Utilisateur Laboratoire", "labo", "labo", None, 1),
         ("cchadeyras@guintoli.fr", "Christelle CHADEYRAS", "labo", "AUV", "chef_section_laboratoire", 1),
-        ("cslhopital@guintoli.fr", "Sylvain LHOPITAL", "labo", "SP", "chef_section_laboratoire", 1),
+        ("slhopital@guintoli.fr", "Sylvain LHOPITAL", "labo", "SP", "chef_section_laboratoire", 1),
         ("etudes@nge.fr", "Utilisateur Études", "etudes", "etudes", None, 1),
         ("consult@nge.fr", "Utilisateur Consultation", "consult", "consultation", None, 1),
     ]

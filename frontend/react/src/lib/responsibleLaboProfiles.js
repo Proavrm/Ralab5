@@ -39,7 +39,7 @@ const RAW_RESPONSIBLE_LAB_PROFILES = [
     summary: 'Pilotage operationnel du laboratoire Saint-Priest, entre charge demandes, production labo et coordination terrain.',
     tone: 'teal',
     aliases: ['sylvain', 'lhopital', 'saint priest', 'saint-priest'],
-    emails: ['cslhopital@guintoli.fr'],
+    emails: ['slhopital@guintoli.fr'],
     mission: 'Cadencer la charge du labo, arbitrer les urgences et garder une vue claire sur les flux demandes, terrain, echantillons et essais.',
     focusAreas: ['Charge du labo', 'Reception et production', 'Urgences terrain / labo'],
     readinessChecklist: [
