@@ -80,7 +80,6 @@ function DbStatRow({ label, value, warn }) {
 const ESSAI_MODEL_TYPES = [
   { essai_code: 'DE',  type_essai: 'Densité gammadensimètre',                  label: 'DE — Densité gammadensimètre',         family: 'terrain' },
   { essai_code: 'CFE', type_essai: 'Contrôle de fabrication enrobés',          label: 'CFE — Contrôle fabrication enrobés',   family: 'terrain' },
-  { essai_code: 'PMT', type_essai: 'Macrotexture PMT',                         label: 'PMT — Macrotexture',                   family: 'terrain' },
   { essai_code: 'PLD', type_essai: 'Portances des plates-formes Dynaplaque',   label: 'PLD — Portance Dynaplaque',            family: 'terrain' },
   { essai_code: 'DF',  type_essai: 'Déflexion',                                label: 'DF — Déflexion',                       family: 'terrain' },
   { essai_code: 'SC',  type_essai: 'Sondage carotté',                          label: 'SC — Sondage carotté',                 family: 'terrain' },
@@ -983,6 +982,12 @@ export default function ToolsPage() {
                 <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/rapports/de/modele')}>
                   Rapport DE
                 </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/modeles/pmt')}>
+                  Modèle PMT
+                </Button>
+                <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/work/pmt')}>
+                  Work PMT
+                </Button>
               </>
             )}
           >
@@ -996,7 +1001,7 @@ export default function ToolsPage() {
               <input
                 value={modeleLookup}
                 onChange={(event) => setModeleLookup(event.target.value)}
-                placeholder="Ex.: 245, 2026-SP-DE0012, DE25001, PMT-..."
+                placeholder="Ex.: 245, 2026-SP-DE0012, DE25001..."
                 className="flex-1 px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
               />
               <Button type="submit" variant="primary" disabled={modeleLookupLoading}>

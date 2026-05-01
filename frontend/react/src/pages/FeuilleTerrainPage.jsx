@@ -1341,10 +1341,21 @@ export default function FeuilleTerrainPage() {
     }
 
     if (feuilleType.renderer === 'technical-de') {
+        const returnTo = buildLocationTarget({ pathname: `/feuilles-terrain/${uid}` })
         return (
             <Navigate
                 replace
-                to={`/modelos-base/DE?source_family=terrain&source_uid=${encodeURIComponent(String(uid))}`}
+                to={`/feuilles-terrain/de/${encodeURIComponent(String(uid))}/runtime?return_to=${encodeURIComponent(returnTo)}`}
+            />
+        )
+    }
+
+    if (feuilleType.renderer === 'technical-pmt') {
+        const returnTo = buildLocationTarget({ pathname: `/feuilles-terrain/${uid}` })
+        return (
+            <Navigate
+                replace
+                to={`/feuilles-terrain/pmt/${encodeURIComponent(String(uid))}/runtime?return_to=${encodeURIComponent(returnTo)}`}
             />
         )
     }

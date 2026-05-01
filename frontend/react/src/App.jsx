@@ -10,6 +10,10 @@ import InterventionPageCard from '@/pages/InterventionPageCard'
 import InstructionsPage from '@/pages/InstructionsPage'
 import EssaisInterventionWorkbench from '@/pages/EssaisInterventionWorkbench'
 import InterventionsRequalificationWorkbench from '@/pages/InterventionsRequalificationWorkbench'
+import RapportDEPage from "./pages/rapports/RapportDEPage";
+import RapportSCPage from "./pages/rapports/RapportSCPage";
+import RapportPMTPage from "./pages/rapports/RapportPMTPage";
+
 
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
 const ResponsableLaboDashboardPage = lazy(() => import('@/pages/ResponsableLaboDashboardPage'))
@@ -19,9 +23,11 @@ const AffairesPage = lazy(() => import('@/pages/AffairesPage'))
 const AffairePage = lazy(() => import('@/pages/AffairePage'))
 const DemandesPage = lazy(() => import('@/pages/DemandesPage'))
 const DemandePage = lazy(() => import('@/pages/DemandePage'))
+const CampaignPage = lazy(() => import('@/pages/CampaignPage'))
 const PassationsPage = lazy(() => import('@/pages/PassationsPage'))
 const PassationPage = lazy(() => import('@/pages/PassationPage'))
 const DstPage = lazy(() => import('@/pages/DstPage'))
+const DstDetailPage = lazy(() => import('@/pages/DstDetailPage'))
 const AffairesNgePage = lazy(() => import('@/pages/AffairesNgePage'))
 const EtudesPage = lazy(() => import('@/pages/EtudesPage'))
 const PlanningPage = lazy(() => import('@/pages/PlanningPage'))
@@ -36,11 +42,17 @@ const ToolsPage = lazy(() => import('@/pages/ToolsPage'))
 const AdminPage = lazy(() => import('@/pages/AdminPage'))
 const EssaiDetailPage = lazy(() => import('@/pages/EssaiDetailPage'))
 const EchantillonPage = lazy(() => import('@/pages/EchantillonPage'))
-const PmtRapportPage = lazy(() => import('@/pages/PmtRapportPage'))
 const VBSPage = lazy(() => import('@/pages/VBSPage'))
 const PlanImplantationPage = lazy(() => import('@/pages/PlanImplantationPage'))
+const PlanImplantationCanvasPage = lazy(() => import('@/pages/PlanImplantationCanvasPage'))
 const NivellementPage = lazy(() => import('@/pages/NivellementPage'))
 const FeuilleTerrainPage = lazy(() => import('@/pages/FeuilleTerrainPage'))
+const FeuilleDeRuntimePage = lazy(() => import('@/pages/FeuilleDeRuntimePage'))
+const ModeleBasePage = lazy(() => import('@/pages/ModeleBasePage'))
+const WorkDePage = lazy(() => import('@/pages/WorkDePage'))
+const ModelePMTPage = lazy(() => import('@/pages/modeles/ModelePMTPage'))
+const WorkPmtPage = lazy(() => import('@/pages/work/WorkPmtPage'))
+const FeuillePmtRuntimePage = lazy(() => import('@/pages/runtime/FeuillePmtRuntimePage'))
 
 
 function ProtectedRoute({ children }) {
@@ -71,9 +83,11 @@ export default function App() {
                 <Route path="affaires/:uid" element={<P><AffairePage /></P>} />
                 <Route path="demandes" element={<P><DemandesPage /></P>} />
                 <Route path="demandes/:uid" element={<P><DemandePage /></P>} />
+                <Route path="campagnes/:uid" element={<P><CampaignPage /></P>} />
                 <Route path="passations" element={<P><PassationsPage /></P>} />
                 <Route path="passations/:uid" element={<P><PassationPage /></P>} />
                 <Route path="dst" element={<P><DstPage /></P>} />
+                <Route path="dst/:uid" element={<P><DstDetailPage /></P>} />
                 <Route path="affaires-nge" element={<P><AffairesNgePage /></P>} />
                 <Route path="etudes" element={<P><EtudesPage /></P>} />
                 <Route path="planning" element={<P><PlanningPage /></P>} />
@@ -87,10 +101,16 @@ export default function App() {
                 <Route path="essais/:uid" element={<P><EssaiPage /></P>} />
                 <Route path="echantillons/:uid" element={<P><EchantillonPage /></P>} />
                 <Route path="essai/:uid" element={<P><EssaiDetailPage /></P>} />
-                <Route path="pmt/rapports/:uid" element={<P><PmtRapportPage /></P>} />
                 <Route path="plans-implantation/:uid" element={<P><PlanImplantationPage /></P>} />
+                <Route path="plans-implantation/:uid/canvas" element={<P><PlanImplantationCanvasPage /></P>} />
                 <Route path="nivellements/:uid" element={<P><NivellementPage /></P>} />
                 <Route path="feuilles-terrain/:uid" element={<P><FeuilleTerrainPage /></P>} />
+                <Route path="feuilles-terrain/de/:uid/runtime" element={<P><FeuilleDeRuntimePage /></P>} />
+                <Route path="modelos-base/:code" element={<P><ModeleBasePage /></P>} />
+                <Route path="work/de" element={<P><WorkDePage /></P>} />
+                <Route path="modeles/pmt" element={<P><ModelePMTPage /></P>} />
+                <Route path="work/pmt" element={<P><WorkPmtPage /></P>} />
+                <Route path="feuilles-terrain/pmt/:uid/runtime" element={<P><FeuillePmtRuntimePage /></P>} />
                 <Route path="tools" element={<P><ToolsPage /></P>} />
                 <Route path="admin" element={<P><AdminPage /></P>} />
                 <Route path="preparations/:uid" element={<P><PreparationPage /></P>} />
@@ -99,6 +119,11 @@ export default function App() {
                 <Route path="instructions-preview" element={<P><InstructionsPage /></P>} />
                 <Route path="essais-workbench" element={<P><EssaisInterventionWorkbench /></P>} />
                 <Route path="interventions-requalification-2026" element={<P><InterventionsRequalificationWorkbench /></P>} />
+                <Route path="/rapports/de/view" element={<RapportDEPage />} />
+                <Route path="/rapports/de/:essaiId" element={<RapportDEPage />} />
+                <Route path="/rapports/pmt/view" element={<RapportPMTPage />} />
+                <Route path="/rapports/pmt/:essaiId" element={<RapportPMTPage />} />
+                <Route path="/rapports/sc/:essaiId" element={<RapportSCPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
