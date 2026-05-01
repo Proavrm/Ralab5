@@ -482,6 +482,43 @@ def next_prefixed_reference(conn: sqlite3.Connection, table_name: str, prefix: s
     return f"{prefix}{max(numbers, default=0) + 1:0{width}d}"
 
 
+def next_terrain_sheet_reference(conn: sqlite3.Connection, demande_id: int, code_feuille: str) -> str:
+    code = str(code_feuille or "").strip().upper() or "SO"
+    demande = conn.execute(
+        "SELECT reference, annee, labo_code FROM demandes WHERE id = ?",
+        (demande_id,),
+    ).fetchone()
+
+    year = 2026
+    labo = "SP"
+    if demande:
+        ref = str(demande["reference"] or "").strip().upper()
+        match = re.match(r"^(\d{4})-([A-Z]+)-D\d+", ref)
+        if match:
+            year = int(match.group(1))
+            labo = match.group(2)
+        else:
+            try:
+                year = int(demande["annee"] or year)
+            except Exception:
+                pass
+            labo = str(demande["labo_code"] or labo).strip().upper() or labo
+
+    prefix = f"{year}-{labo}-{code}"
+    pattern = re.compile(rf"^{re.escape(prefix)}(\d+)$")
+    numbers: list[int] = []
+    rows = conn.execute(
+        "SELECT reference FROM feuilles_terrain WHERE reference LIKE ?",
+        (f"{prefix}%",),
+    ).fetchall()
+    for row in rows:
+        ref = str(row["reference"] or "")
+        match = pattern.match(ref)
+        if match:
+            numbers.append(int(match.group(1)))
+    return f"{prefix}{max(numbers, default=0) + 1:04d}"
+
+
 def next_report_reference(conn: sqlite3.Connection, demande_reference: str) -> str:
     prefix = f"{demande_reference}-R"
     return next_prefixed_reference(conn, "rapports", prefix, width=2)
@@ -815,7 +852,7 @@ def insert_front_facing_terrain_sheet(
     observations: str,
     resultats: dict[str, Any],
 ) -> tuple[int, str]:
-    reference = next_prefixed_reference(conn, "feuilles_terrain", "FT-MAN-", width=4)
+    reference = next_terrain_sheet_reference(conn, demande_id, essai_code)
     label_map = {
         "PA": ("Profondeur finale moyenne", "m"),
         "SO": ("Profondeur finale moyenne", "m"),

@@ -7,6 +7,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, affairesApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
+import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import Input, { Select } from '@/components/ui/Input'
@@ -66,12 +67,23 @@ function FG({ label, children }) {
   )
 }
 
+function buildTerrainFamiliesSummary(demande) {
+  const items = []
+  if ((demande?.nb_feuilles_sc || 0) > 0) items.push(`SC: ${demande.nb_feuilles_sc}`)
+  if ((demande?.nb_feuilles_so || 0) > 0) items.push(`SO: ${demande.nb_feuilles_so}`)
+  if ((demande?.nb_feuilles_de || 0) > 0) items.push(`DE: ${demande.nb_feuilles_de}`)
+  return items.join(' · ')
+}
+
 export default function AffairePage() {
   const { uid }  = useParams()
   const navigate = useNavigate()
   const qc       = useQueryClient()
+  const detailReturnTo = `/affaires/${uid}`
   const [editOpen, setEditOpen] = useState(false)
   const [form, setForm]         = useState(null)
+  const [refEditOpen, setRefEditOpen] = useState(false)
+  const [refEditVal, setRefEditVal] = useState('')
 
   // Reset quando muda de affaire — evita dados da affaire anterior no modal
   useEffect(() => {
@@ -102,6 +114,15 @@ export default function AffairePage() {
       qc.setQueryData(['affaire', uid], saved)
       qc.invalidateQueries({ queryKey: ['affaires'] })
       setEditOpen(false)
+    },
+  })
+
+  const refMutation = useMutation({
+    mutationFn: (reference) => affairesApi.update(uid, { reference }),
+    onSuccess: (saved) => {
+      qc.setQueryData(['affaire', uid], saved)
+      qc.invalidateQueries({ queryKey: ['affaires'] })
+      setRefEditOpen(false)
     },
   })
 
@@ -148,6 +169,7 @@ export default function AffairePage() {
       numero_etude:   affaire.numero_etude   ?? '',
       affaire_nge:    affaire.affaire_nge    ?? '',
       autre_reference: affaire.autre_reference ?? '',
+      dossier_nom:    affaire.dossier_nom    ?? '',
       titulaire:      affaire.titulaire      ?? '',
       responsable:    affaire.responsable    ?? '',
       statut:         affaire.statut         ?? 'À qualifier',
@@ -194,7 +216,16 @@ export default function AffairePage() {
         <div className="bg-surface border border-border rounded-[10px] p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[22px] font-bold text-accent">{a.reference}</div>
+              <div className="flex items-center gap-2">
+                <div className="text-[22px] font-bold text-accent">{a.reference}</div>
+                <button
+                  onClick={() => { setRefEditVal(a.reference); setRefEditOpen(true) }}
+                  title="Modifier la référence"
+                  className="text-[11px] text-text-muted hover:text-accent border border-border rounded px-1.5 py-0.5 transition-colors"
+                >
+                  ✏
+                </button>
+              </div>
               <div className="text-[15px] text-text mt-1">{a.chantier || '—'}</div>
               {a.site   && <div className="text-[13px] text-text-muted mt-0.5">{a.site}</div>}
               {a.client && <div className="text-[13px] text-text-muted">{a.client}</div>}
@@ -262,7 +293,8 @@ export default function AffairePage() {
             </div>
             <FieldRow label="Mode" value={dossierModeLabel} />
             <FieldRow label="Statut" value={dossierStatusLabel} />
-            <FieldRow label="Nom" value={a.dossier_nom || a.reference} />
+            <FieldRow label="Nom dossier prévu" value={a.dossier_nom_prevu || a.reference} />
+            <FieldRow label="Nom dossier actuel" value={a.dossier_nom || '—'} />
             <FieldRow label="Racine" value={a.dossier_root} />
             <FieldRow label="Chemin" value={a.dossier_path} />
             {a.dossier_message ? (
@@ -326,23 +358,36 @@ export default function AffairePage() {
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr>
-                    {['Référence','Type mission','Statut','Échantillons','Interventions','N° DST','Échéance','Demandeur'].map(h => (
+                    {['Référence','Nature / mission','Statut','Priorité','Échantillons','Interventions','N° DST','Date demande','Échéance','Demandeur','MàJ'].map(h => (
                       <th key={h} className="bg-bg px-3.5 py-2 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {demandes.map(d => (
-                    <tr key={d.uid} onClick={() => navigate(`/demandes/${d.uid}`)}
+                    <tr key={d.uid} onClick={() => navigate(buildPathWithReturnTo(`/demandes/${d.uid}`, detailReturnTo))}
                       className="border-b border-border cursor-pointer hover:bg-[#f8f8fc] transition-colors">
                       <td className="px-3.5 py-2"><strong className="text-accent text-xs">{d.reference}</strong></td>
-                      <td className="px-3.5 py-2 text-xs">{d.type_mission || '—'}</td>
+                      <td className="px-3.5 py-2 text-xs">
+                        <div className="font-medium">{d.nature || d.type_mission || '—'}</div>
+                        {d.type_mission && d.nature && d.type_mission !== d.nature ? (
+                          <div className="text-[10px] text-text-muted">{d.type_mission}</div>
+                        ) : null}
+                      </td>
                       <td className="px-3.5 py-2"><Badge s={d.statut} map={STAT_DEM} /></td>
+                      <td className="px-3.5 py-2 text-xs">{d.priorite || '—'}</td>
                       <td className="px-3.5 py-2 text-xs text-center">{d.nb_echantillons || 0}</td>
-                      <td className="px-3.5 py-2 text-xs text-center">{d.nb_interventions || 0}</td>
+                      <td className="px-3.5 py-2 text-xs text-center">
+                        <div>{d.nb_interventions || 0}</div>
+                        {buildTerrainFamiliesSummary(d) ? (
+                          <div className="text-[10px] text-text-muted">{buildTerrainFamiliesSummary(d)}</div>
+                        ) : null}
+                      </td>
                       <td className="px-3.5 py-2 text-xs">{d.numero_dst || '—'}</td>
+                      <td className="px-3.5 py-2 text-xs">{d.date_reception ? formatDate(d.date_reception) : '—'}</td>
                       <td className="px-3.5 py-2 text-xs">{d.date_echeance ? formatDate(d.date_echeance) : '—'}</td>
                       <td className="px-3.5 py-2 text-xs">{d.demandeur || '—'}</td>
+                      <td className="px-3.5 py-2 text-xs">{d.updated_at ? formatDate(d.updated_at) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -356,9 +401,6 @@ export default function AffairePage() {
       {form && (
         <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Modifier l'affaire RST" size="md">
           <div className="grid grid-cols-2 gap-3">
-            <FG label="Référence">
-              <Input value={a.reference} readOnly className="text-text-muted cursor-not-allowed" />
-            </FG>
             <FG label="Statut">
               <Select value={form.statut} onChange={e => set('statut', e.target.value)} className="w-full">
                 {STATUTS.map(s => <option key={s}>{s}</option>)}
@@ -382,6 +424,18 @@ export default function AffairePage() {
             <FG label="N° Affaire NGE">
               <Input value={form.affaire_nge} onChange={e => set('affaire_nge', e.target.value)} />
             </FG>
+            <div className="col-span-2">
+              <FG label="Nom dossier souhaité / manuel">
+                <Input
+                  value={form.dossier_nom}
+                  onChange={e => set('dossier_nom', e.target.value)}
+                  placeholder="Laisser vide pour conserver le nom automatique"
+                />
+                <p className="text-xs leading-5 text-text-muted">
+                  Laisser vide si le dossier doit continuer à suivre le nom prévu automatiquement. Renseigner une valeur pour forcer un nom manuel.
+                </p>
+              </FG>
+            </div>
             <div className="col-span-2">
               <FG label="Autre (si pas aff. NGE / étude)">
                 <Input
@@ -420,6 +474,36 @@ export default function AffairePage() {
             </Button>
           </div>
         </Modal>
+      )}
+
+      {refEditOpen && a && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-surface border border-border rounded-xl w-[400px] p-6 shadow-2xl">
+            <div className="text-[15px] font-semibold mb-1">Modifier la référence</div>
+            <p className="text-[12px] text-text-muted mb-3">Identifiant unique — ne modifier que si nécessaire.</p>
+            <input
+              value={refEditVal}
+              onChange={e => setRefEditVal(e.target.value)}
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent font-mono mb-4"
+              placeholder="2026-RA-0042"
+            />
+            {refMutation.error ? (
+              <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mb-4">
+                {refMutation.error.message}
+              </p>
+            ) : null}
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setRefEditOpen(false)}>Annuler</Button>
+              <Button
+                variant="primary"
+                disabled={!refEditVal.trim() || refEditVal.trim() === a.reference || refMutation.isPending}
+                onClick={() => refMutation.mutate(refEditVal.trim())}
+              >
+                {refMutation.isPending ? 'Enregistrement…' : '✓ Enregistrer'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

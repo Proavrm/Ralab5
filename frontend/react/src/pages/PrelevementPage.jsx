@@ -248,6 +248,13 @@ export default function PrelevementPage() {
         )
     }
 
+    const parentDemandeId = Number.parseInt(String(prelevement.demande_id || ''), 10)
+    const hasParentDemande = Number.isInteger(parentDemandeId) && parentDemandeId > 0
+    const parentInterventionId = Number.parseInt(String(prelevement.intervention_id || ''), 10)
+    const hasParentIntervention = Number.isInteger(parentInterventionId) && parentInterventionId > 0
+    const parentFeuilleTerrainId = Number.parseInt(String(prelevement.feuille_terrain_id || ''), 10)
+    const hasParentFeuilleTerrain = Number.isInteger(parentFeuilleTerrainId) && parentFeuilleTerrainId > 0
+
     return (
         <div className={`flex flex-col h-full overflow-y-auto ${deleteMode ? 'bg-red-50' : ''}`}>
             <div className={`flex items-center gap-3 px-6 py-3 border-b border-border shrink-0 flex-wrap ${deleteMode ? 'bg-red-100' : 'bg-surface'}`}>
@@ -260,6 +267,23 @@ export default function PrelevementPage() {
                 {prelevement.demande_reference ? <span className="text-[13px] text-text-muted">{prelevement.demande_reference} › </span> : null}
                 <span className="text-[14px] font-semibold flex-1 font-mono">{prelevement.reference}</span>
                 <Badge s={prelevement.statut} />
+                <div className="flex items-center gap-2">
+                    {hasParentDemande ? (
+                        <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/demandes/${parentDemandeId}`, childReturnTo)}>
+                            Demande
+                        </Button>
+                    ) : null}
+                    {hasParentIntervention ? (
+                        <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/interventions/${parentInterventionId}`, childReturnTo)}>
+                            Intervention
+                        </Button>
+                    ) : null}
+                    {hasParentFeuilleTerrain ? (
+                        <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/feuilles-terrain/${parentFeuilleTerrainId}`, childReturnTo)}>
+                            Coupe
+                        </Button>
+                    ) : null}
+                </div>
                 {!editing ? (
                     <>
                         <Button size="sm" variant={deleteMode ? 'danger' : 'secondary'} onClick={() => setDeleteMode((value) => !value)}>

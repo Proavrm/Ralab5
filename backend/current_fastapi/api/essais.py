@@ -37,7 +37,6 @@ TYPES_ESSAI = [
 STATUTS_ESSAI = ["Programmé", "En cours", "Terminé", "Annulé"]
 
 INTERVENTION_ESSAI_LABELS = {
-    "PMT": "Macrotexture PMT",
     "PLD": "Portances des plates-formes Dynaplaque",
     "DE": "Masse volumique des enrobés",
     "DF": "Déflexion",
@@ -956,7 +955,23 @@ def _row(row) -> dict:
 
     # Essais reference fallback
     if ("echantillon_id" in data or "type_essai" in data) and not data.get("reference"):
-        data["reference"] = f"ESSAI-{data['uid']:04d}"
+        essai_code = str(data.get("essai_code") or data.get("code_essai") or "").upper().strip()
+        if essai_code == "DE":
+            intervention_ref = str(
+                data.get("intervention_ref")
+                or data.get("intervention_reference")
+                or data.get("intervention_reelle_reference")
+                or ""
+            ).strip()
+            year = datetime.now().year
+            labo = "SP"
+            match = re.match(r"^(\d{4})-([A-Z]+)-I\d+$", intervention_ref)
+            if match:
+                year = int(match.group(1))
+                labo = match.group(2)
+            data["reference"] = f"{year}-{labo}-DE{int(data['uid']):04d}"
+        else:
+            data["reference"] = f"ESSAI-{data['uid']:04d}"
 
     data["intervention_reelle_id"] = data.get("intervention_id") or data.get("intervention_reelle_id") or None
     if data.get("intervention_reelle_reference") and not data.get("intervention_reference"):
@@ -1318,6 +1333,8 @@ def list_essais(
     annee: Optional[int] = Query(None),
     labo_code: Optional[str] = Query(None),
     statut: Optional[str] = Query(None),
+    q: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None),
 ):
     sql = """
         SELECT
@@ -1372,7 +1389,31 @@ def list_essais(
         if statut:
             sql += " AND e.statut = ?"
             params.append(statut)
-        sql += " ORDER BY e.id ASC"
+        if q:
+            text_query = str(q).strip()
+            if text_query:
+                sql += (
+                    " AND ("
+                    "CAST(e.id AS TEXT) = ?"
+                    " OR COALESCE(e.essai_code, '') LIKE ? COLLATE NOCASE"
+                    " OR COALESCE(ech.reference, '') LIKE ? COLLATE NOCASE"
+                    " OR COALESCE(i.reference, '') LIKE ? COLLATE NOCASE"
+                    " OR COALESCE(d.reference, '') LIKE ? COLLATE NOCASE"
+                    ")"
+                )
+                like_query = f"%{text_query}%"
+                params.extend([
+                    text_query,
+                    like_query,
+                    like_query,
+                    like_query,
+                    like_query,
+                ])
+        sql += " ORDER BY e.id DESC"
+        if limit is not None:
+            normalized_limit = max(1, min(int(limit), 300))
+            sql += " LIMIT ?"
+            params.append(normalized_limit)
         rows = conn.execute(sql, params).fetchall()
         items = []
         for row in rows:

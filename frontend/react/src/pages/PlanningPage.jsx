@@ -46,6 +46,8 @@ function normalizePlanningItem(row) {
         editable_ech: row.editable_ech !== false,
         editable_stat: row.editable_stat !== false,
         source_demande_id: row.source_demande_id ?? null,
+        affaire_ref: row.affaire_ref || '',
+        wbs: row.wbs || '',
     }
     return {
         ...normalized,
@@ -263,6 +265,7 @@ function Popup({ item, anchor, onClose, onSave, onOpenItem }) {
             </div>
             <div className="ip-tit">{item.tit}</div>
             {item.subtitle ? <div className="ip-sub">{item.subtitle}</div> : null}
+            {item.wbs ? <div className="ip-sub ip-wbs">WBS: {item.wbs}</div> : null}
             {item.editable_start ? (
                 <div className="ip-row">
                     <div className="ip-lbl">{item.editable_ech ? 'Début' : 'Date'}</div>
@@ -444,6 +447,7 @@ function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onC
                                         <span className="ag-bar-tit">{ev.tit}</span>
                                         <span className="ag-bar-dates">{fmtShort(ev.start)} → {fmtShort(ev.ech)}</span>
                                         <span className="bd neutral">{ev.kind_label}</span>
+                                        {ev.affaire_ref ? <span className="bd neutral">{ev.affaire_ref}</span> : null}
                                         {ev.dst ? <span className="bd bn">DST</span> : null}
                                         {ev.editable_ech ? <div className="ag-rh" style={{ background: `${colors.border}55` }} onMouseDown={(e) => beginDrag(e, ev, 'resize')} /> : null}
                                     </div>
@@ -509,6 +513,7 @@ function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, 
                                                 <div className="t1-ctit">{item.tit}</div>
                                                 <div className="t1-cft">
                                                     <span className="bd neutral">{item.kind_label}</span>
+                                                    {item.affaire_ref ? <span className="bd neutral">{item.affaire_ref}</span> : null}
                                                     {item.urg === 'late' ? <span className="bd br">Ret.</span> : null}
                                                     {item.urg === 'soon' ? <span className="bd by">Urg.</span> : null}
                                                     {item.dst ? <span className="bd bn">DST</span> : null}

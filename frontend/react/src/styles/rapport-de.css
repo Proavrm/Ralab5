@@ -1,0 +1,126 @@
+/* FILE: rapport-de.css */
+/* Specific CSS for DE report only. */
+/* Common report layout stays in rapport-nge.css. */
+
+
+.rapport-results-table {
+    width: calc(100% - 10mm);
+    flex: 0 0 auto;
+    margin: 0 7mm 3mm 7mm;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid var(--rapport-border);
+    font-size: 9.5px;
+}
+
+.rapport-results-table th,
+.rapport-results-table td {
+    border: 1px solid var(--rapport-border);
+    height: 5.80mm;
+    padding: 0 2px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.rapport-results-table th {
+    font-weight: 700;
+}
+
+.rapport-results-table .rapport-col-essai {
+    width: 10mm;
+}
+
+.rapport-results-table .rapport-col-profils {
+    width: 30mm;
+}
+
+.rapport-results-table .rapport-col-position {
+    width: 7mm;
+}
+
+.rapport-results-table .rapport-col-masse {
+    width: 24mm;
+}
+
+.rapport-results-table .rapport-col-compacite {
+    width: 16mm;
+}
+
+.rapport-results-table .rapport-col-vides {
+    width: 16mm;
+}
+
+.rapport-results-table .rapport-col-observations {
+    width: auto;
+}
+
+.rapport-results-table td.rapport-cell-nonconforme {
+    background: #ffe4e6;
+    color: #9f1239;
+    font-weight: 700;
+}
+
+.rapport-average-row td {
+    font-weight: 700;
+}
+
+.rapport-average-row td:first-child{
+    text-align: center;
+    font-style: italic;
+}
+.rapport-conformity-row td.rapport-conformity-cell {
+    height: 5.2mm;
+    padding: 0;
+    font-size: 7.5px;
+    font-weight: 700;
+}
+
+.rapport-conformity-content {
+    display: grid;
+    grid-template-columns: 52mm 1fr;
+    align-items: center;
+    height: 100%;
+}
+
+.rapport-conformity-content span {
+    padding-left: 6mm;
+    text-align: left;
+    font-style: italic;
+}
+
+.rapport-conformity-content strong {
+    text-align: left;
+    font-weight: 700;
+}
+
+.rapport-de-paper-stack {
+    width: 100%;
+    max-width: 230mm;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rapport-de-inline-alert {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid #9a9a9a;
+    border-radius: 8px;
+    background: #fff;
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    line-height: 1.2;
+}
+
+.rapport-de-inline-alert-warning {
+    border-color: #b78b00;
+    background: #fff7d6;
+}
+
+@media print {
+    .rapport-de-inline-alert {
+        display: none;
+    }
+}

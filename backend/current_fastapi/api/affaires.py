@@ -32,13 +32,27 @@ _dem_repo = DemandesRstRepository()
 _dossiers = AffaireDossierService()
 
 
+def _parse_reference_parts(reference: str) -> tuple[str, int, str, int]:
+    ref = str(reference or "").strip()
+    if not ref:
+        raise HTTPException(400, "Référence affaire RST obligatoire")
+    parts = ref.split("-")
+    try:
+        annee, region, numero = int(parts[0]), parts[1], int(parts[2])
+    except Exception as exc:
+        raise HTTPException(400, f"Référence affaire RST invalide: {ref}") from exc
+    return ref, annee, region, numero
+
+
 def _resp(r: AffaireRstRecord) -> AffaireRstResponseSchema:
     return AffaireRstResponseSchema(
         uid=r.uid, reference=r.reference, annee=r.annee, region=r.region, numero=r.numero,
         client=r.client, titulaire=r.titulaire, chantier=r.chantier,
         site=r.site, numero_etude=r.numero_etude, affaire_nge=r.affaire_nge, filiale=r.filiale,
         autre_reference=r.autre_reference,
-        dossier_nom=r.dossier_nom, dossier_path=r.dossier_path,
+        dossier_nom=r.dossier_nom,
+        dossier_nom_prevu=build_affaire_folder_name_from_record(r),
+        dossier_path=r.dossier_path,
         date_ouverture=r.date_ouverture, date_cloture=r.date_cloture,
         statut=r.statut, responsable=r.responsable,
         source_legacy_id=r.source_legacy_id,
@@ -105,10 +119,7 @@ def get_demandes(uid: int):
 
 @router.post("", response_model=AffaireRstResponseSchema, status_code=201)
 def create_affaire(body: AffaireRstCreateSchema):
-    ref = body.reference
-    p = ref.strip().split("-")
-    try: annee, region, numero = int(p[0]), p[1], int(p[2])
-    except: annee, region, numero = 2026, "RA", 0
+    ref, annee, region, numero = _parse_reference_parts(body.reference)
     record = AffaireRstRecord(
         uid=0, reference=ref, annee=annee, region=region, numero=numero,
         client=body.client, titulaire=body.titulaire,
@@ -137,6 +148,12 @@ def update_affaire(uid: int, body: AffaireRstUpdateSchema):
     if not existing: raise HTTPException(404, f"Affaire #{uid} introuvable")
     dossier_name_is_auto = is_auto_affaire_folder_name(existing.dossier_nom, existing)
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "reference" in fields:
+        ref, annee, region, numero = _parse_reference_parts(fields["reference"])
+        fields["reference"] = ref
+        fields["annee"] = annee
+        fields["region"] = region
+        fields["numero"] = numero
     updated = _repo.update(uid, fields)
     previous_nom = updated.dossier_nom
     previous_path = updated.dossier_path

@@ -28,10 +28,6 @@ function DetSection({ title, children }) {
   )
 }
 
-function normalizeAffaireCode(v) {
-  return String(v || '').toUpperCase().replace(/\*/g, '').replace(/[\s\-_/.]+/g, '').trim()
-}
-
 function getFullCode(row) {
   return String(row?.numero_affaire_complet || row?.numero_affaire || '').trim()
 }
@@ -60,11 +56,6 @@ export default function AffairesNgePage() {
     },
   })
 
-  const { data: affairesRst = [] } = useQuery({
-    queryKey: ['affaires'],
-    queryFn: () => api.get('/affaires'),
-  })
-
   function toggleSort(col) {
     if (sortCol === col) setSortAsc(a => !a)
     else { setSortCol(col); setSortAsc(true) }
@@ -75,12 +66,6 @@ export default function AffairesNgePage() {
     const vb = String(b[sortCol] ?? '').toLowerCase()
     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
   })
-
-  function findMatchingRst(row) {
-    const code = normalizeAffaireCode(getFullCode(row))
-    if (!code) return null
-    return affairesRst.find(a => normalizeAffaireCode(a.affaire_nge || '') === code) || null
-  }
 
   function buildAffaireUrl(row) {
     const fullCode = getFullCode(row)
@@ -106,11 +91,6 @@ export default function AffairesNgePage() {
 
   function createDemande() {
     if (!selected) return
-    const affaire = findMatchingRst(selected)
-    if (!affaire) {
-      navigate(buildAffaireUrl(selected))
-      return
-    }
     const fullCode = getFullCode(selected)
     const filiales = selected.filiales_toutes || selected.filiale_principale || selected.filiales_resume || ''
     const prefill = {
@@ -118,10 +98,9 @@ export default function AffairesNgePage() {
       source_type: 'affaire_nge',
       source_id: selected.id,
       prefill: {
-        affaire_rst_id: affaire.uid,
         numero_dst: '',
         numero_affaire_nge: fullCode,
-        numero_etude: '',
+        numero_etude: selected.numero_etude || '',
         type_mission: '',
         nature: 'Demande liée à une affaire NGE',
         demandeur: selected.responsable || '',

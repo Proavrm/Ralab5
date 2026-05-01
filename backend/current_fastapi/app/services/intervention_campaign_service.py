@@ -59,7 +59,7 @@ def _table_exists(conn, table: str) -> bool:
 
 
 def _load_demande(conn, demande_id: int) -> sqlite3.Row | None:
-    return conn.execute("SELECT id, reference FROM demandes WHERE id=?", (demande_id,)).fetchone()
+    return conn.execute("SELECT id, reference, annee, labo_code FROM demandes WHERE id=?", (demande_id,)).fetchone()
 
 
 def _load_campagne(conn, campagne_id: int) -> sqlite3.Row | None:
@@ -67,18 +67,19 @@ def _load_campagne(conn, campagne_id: int) -> sqlite3.Row | None:
 
 
 def _next_reference(conn, demande: sqlite3.Row) -> str:
-    demande_reference = _str(demande["reference"]) or f"DEM-{int(demande['id'])}"
-    prefix = f"{demande_reference}-C"
+    annee = int(demande["annee"]) if demande["annee"] is not None else datetime.now().year
+    labo = _str(demande["labo_code"]) or "SP"
+    prefix = f"{annee}-{labo}-C"
     rows = conn.execute(
-        "SELECT reference FROM campagnes WHERE demande_id=? AND reference LIKE ?",
-        (int(demande["id"]), f"{prefix}%"),
+        "SELECT reference FROM campagnes WHERE reference LIKE ?",
+        (f"{prefix}%",),
     ).fetchall()
     indexes: list[int] = []
     for row in rows:
         match = re.match(rf"^{re.escape(prefix)}(\d+)$", _str(row["reference"]))
         if match:
             indexes.append(int(match.group(1)))
-    return f"{prefix}{max(indexes, default=0) + 1:02d}"
+    return f"{prefix}{max(indexes, default=0) + 1:03d}"
 
 
 def _load_interventions(conn, demande_id: int, campagne_id: int) -> list[sqlite3.Row]:

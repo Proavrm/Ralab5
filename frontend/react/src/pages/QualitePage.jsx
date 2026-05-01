@@ -98,12 +98,46 @@ function DetailPanel({ visible, onClose, children }) {
 }
 
 function getEquipmentProfile(item) {
-  const label = String(item?.label || '').toLowerCase()
-  const domain = String(item?.domain || '').toLowerCase()
+  const text = [
+      item?.code,
+      item?.label,
+      item?.domain,
+      item?.category,
+      item?.notes,
+  ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
 
-  if (label.includes('comparateur') && !label.includes('support')) return 'comparateur'
-  if (label.includes('anneau') || label.includes('dynamom') || label.includes('capteur')) return 'anneau'
-  if (label.includes('moule') || label.includes('corps de') || domain.includes('moule') || domain.includes('cbr') || domain.includes('proctor') || domain.includes(' pn')) return 'moule'
+  if (
+      text.includes('pqi') ||
+      text.includes('gamma') ||
+      text.includes('gammadens') ||
+      text.includes('electrodens') ||
+      text.includes('densimetre')
+  ) {
+      return 'gammadensimetre'
+  }
+
+  if (text.includes('comparateur') && !text.includes('support')) {
+      return 'comparateur'
+  }
+
+  if (text.includes('anneau') || text.includes('dynamom') || text.includes('capteur')) {
+      return 'anneau'
+  }
+
+  if (
+      text.includes('moule') ||
+      text.includes('corps de') ||
+      text.includes('cbr') ||
+      text.includes('proctor') ||
+      text.includes(' pn')
+  ) {
+      return 'moule'
+  }
 
   return 'generic'
 }
@@ -112,15 +146,78 @@ function parseOptionalFloat(value) {
   return value === '' || value == null ? null : parseFloat(value)
 }
 
+function parseOptionalInt(value) {
+  if (value === '' || value == null) return null
+  const parsed = parseInt(String(value), 10)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 function parseOptionalText(value) {
-  const normalized = String(value || '').trim()
-  return normalized || null
+  if (value == null) return null
+
+  if (typeof value === 'string') {
+    const normalized = value.trim()
+    return normalized || null
+  }
+
+  // UI event safety (when handlers accidentally forward events)
+  if (value && typeof value === 'object' && 'target' in value) {
+    return parseOptionalText(value.target?.value)
+  }
+
+  // Avoid persisting "[object Object]" in text fields.
+  return null
+}
+
+function normalizeEquipmentStatus(value) {
+  const raw = String(value || '').trim().toLowerCase()
+  if (!raw) return 'En service'
+  if (raw === 'hs' || raw === 'hors service' || raw === 'hors-service') return 'Hors service'
+  if (raw === 'en service' || raw === 'active' || raw === 'actif') return 'En service'
+  if (raw === 'maintenance' || raw === 'en maintenance') return 'En maintenance'
+  if (raw === 'reforme' || raw === 'réformé' || raw === 'reformé') return 'Réformé'
+  if (raw === 'non utilise' || raw === 'non utilisé') return 'Non utilisé'
+  return String(value || '').trim()
+}
+
+function normalizeEquipmentCategory(value) {
+  const raw = String(value || '').trim().toLowerCase()
+  if (!raw) return 'Labo'
+  if (raw === 'terrain') return 'Terrain'
+  if (raw === 'labo' || raw === 'laboratoire') return 'Labo'
+  if (raw === 'metrologie' || raw === 'métrologie') return 'Métrologie'
+  if (raw === 'informatique') return 'Informatique'
+  if (raw === 'tamis') return 'Tamis'
+  if (raw === 'verification' || raw === 'vérification') return 'Vérification'
+  if (raw === 'autre') return 'Autre'
+  return String(value || '').trim()
+}
+
+function readSelectValue(input) {
+  if (input && typeof input === 'object' && 'target' in input) {
+    return input.target?.value
+  }
+  return input
 }
 
 function buildEquipmentPayload(form) {
   const profile = getEquipmentProfile(form)
   const payload = {
-    ...form,
+    code: String(form.code || '').trim(),
+    label: String(form.label || '').trim(),
+    category: normalizeEquipmentCategory(form.category),
+    status: normalizeEquipmentStatus(form.status),
+    domain: parseOptionalText(form.domain),
+    serial_number: parseOptionalText(form.serial_number),
+    supplier: parseOptionalText(form.supplier),
+    purchase_date: parseOptionalText(form.purchase_date),
+    lieu: parseOptionalText(form.lieu),
+    notes: parseOptionalText(form.notes),
+    etalonnage_interval: parseOptionalInt(form.etalonnage_interval),
+    verification_interval: parseOptionalInt(form.verification_interval),
+    // Keep metrology dates in the save payload so mutation can sync qualite_metrology.
+    last_metrology: parseOptionalText(form.last_metrology),
+    next_metrology: parseOptionalText(form.next_metrology),
     division: parseOptionalText(form.division),
     precision: parseOptionalText(form.precision),
     m_tare: parseOptionalFloat(form.m_tare),
@@ -150,6 +247,34 @@ function buildEquipmentPayload(form) {
   }
 
   return payload
+}
+
+async function syncEquipmentMetrologyFromForm(apiClient, equipmentUid, form) {
+  const performedOn = parseOptionalText(form?.last_metrology)
+  const validUntil = parseOptionalText(form?.next_metrology)
+  if (!performedOn && !validUntil) return
+
+  const existingRows = await apiClient.get(`/qualite/equipment/${equipmentUid}/metrology`).catch(() => [])
+  const metrologyRows = Array.isArray(existingRows) ? existingRows : []
+  const current = metrologyRows.find((row) => String(row?.control_type || '') === 'Étalonnage') || metrologyRows[0] || null
+
+  const payload = {
+    equipment_id: equipmentUid,
+    control_type: current?.control_type || 'Étalonnage',
+    status: current?.status || 'Valide',
+    reference: current?.reference || null,
+    provider: current?.provider || null,
+    notes: current?.notes || 'Saisi depuis fiche équipement',
+    performed_on: performedOn,
+    valid_until: validUntil,
+  }
+
+  if (current?.uid) {
+    await apiClient.put(`/qualite/metrology/${current.uid}`, payload)
+    return
+  }
+
+  await apiClient.post(`/qualite/equipment/${equipmentUid}/metrology`, payload)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -209,12 +334,22 @@ function TabEquipements({ meta, onStatsChange }) {
   })
 
   const saveMut = useMutation({
-    mutationFn: (data) => editItem?.uid
-      ? api.put(`/qualite/equipment/${editItem.uid}`, data)
-      : api.post('/qualite/equipment', data),
+    mutationFn: async (data) => {
+      const saved = editItem?.uid
+        ? await api.put(`/qualite/equipment/${editItem.uid}`, data)
+        : await api.post('/qualite/equipment', data)
+
+      const equipmentUid = saved?.uid || editItem?.uid
+      if (equipmentUid) {
+        await syncEquipmentMetrologyFromForm(api, equipmentUid, form)
+      }
+
+      return saved
+    },
     onSuccess: (saved) => {
       qc.invalidateQueries({ queryKey: ['qualite-equipment'] })
       qc.invalidateQueries({ queryKey: ['qualite-stats'] })
+      qc.invalidateQueries({ queryKey: ['qualite-metro-eq', saved?.uid || editItem?.uid] })
       setModalOpen(false)
       setSelected(saved)
     },
@@ -251,13 +386,16 @@ function TabEquipements({ meta, onStatsChange }) {
 
   function openCreate() {
     setEditItem(null)
-    setForm({ code:'', label:'', category:'Labo', status:'En service', domain:'', serial_number:'', supplier:'', purchase_date:'', lieu:'', etalonnage_interval:'', verification_interval:'', notes:'', m_tare:'', volume_cm3:'', division:'', precision:'', capacite:'', sensibilite:'', facteur_k:'' })
+    setForm({ code:'', label:'', category:'Labo', status:'En service', domain:'', serial_number:'', supplier:'', purchase_date:'', lieu:'', etalonnage_interval:'', verification_interval:'', notes:'', m_tare:'', volume_cm3:'', division:'', precision:'', capacite:'', sensibilite:'', facteur_k:'', last_metrology:'', next_metrology:'' })
     setModalOpen(true)
   }
   function openEdit() {
     setEditItem(selected)
     setForm({
       ...selected,
+      category: normalizeEquipmentCategory(selected?.category ?? selected?.categorie),
+      status: normalizeEquipmentStatus(selected?.status ?? selected?.statut),
+      notes: parseOptionalText(selected?.notes) || '',
       division: selected?.division ?? '',
       precision: selected?.precision ?? '',
       etalonnage_interval: selected.etalonnage_interval??'',
@@ -310,10 +448,10 @@ function TabEquipements({ meta, onStatsChange }) {
                   className={`border-b border-border cursor-pointer transition-colors ${selected?.uid===r.uid?'bg-[#eeeffe]':'hover:bg-bg'}`}>
                   <td className="px-3 py-2 font-mono text-[12px] text-accent font-bold">{r.code}</td>
                   <td className="px-3 py-2 max-w-[200px] truncate">{r.label}</td>
-                  <td className="px-3 py-2"><Badge s={r.category} map={CAT_CLS}/></td>
+                  <td className="px-3 py-2"><Badge s={normalizeEquipmentCategory(r.category ?? r.categorie)} map={CAT_CLS}/></td>
                   <td className="px-3 py-2 text-xs text-text-muted">{r.domain||'—'}</td>
                   <td className="px-3 py-2 text-xs">{r.lieu||'—'}</td>
-                  <td className="px-3 py-2"><Badge s={r.status} map={STAT_CLS}/></td>
+                  <td className="px-3 py-2"><Badge s={normalizeEquipmentStatus(r.status ?? r.statut)} map={STAT_CLS}/></td>
                   <td className="px-3 py-2 text-xs">{r.next_metrology ? formatDate(r.next_metrology) : '—'}</td>
                   <td className="px-3 py-2 text-xs">{r.etalonnage_interval ? `${r.etalonnage_interval} mois` : '—'}</td>
                 </tr>
@@ -330,8 +468,8 @@ function TabEquipements({ meta, onStatsChange }) {
             <div className="text-accent font-bold font-mono">{selected.code}</div>
             <div className="text-[14px] font-semibold mt-0.5">{selected.label}</div>
             <div className="flex gap-1.5 mt-2 flex-wrap">
-              <Badge s={selected.status} map={STAT_CLS}/>
-              <Badge s={selected.category} map={CAT_CLS}/>
+              <Badge s={normalizeEquipmentStatus(selected.status ?? selected.statut)} map={STAT_CLS}/>
+              <Badge s={normalizeEquipmentCategory(selected.category ?? selected.categorie)} map={CAT_CLS}/>
             </div>
           </div>
           <div className="border-t border-border pt-3">
@@ -397,57 +535,142 @@ function TabEquipements({ meta, onStatsChange }) {
           <FG label="Code *"><Input value={form.code||''} onChange={e=>set('code',e.target.value)} placeholder="RA AB 001"/></FG>
           <FG label="Désignation *"><Input value={form.label||''} onChange={e=>set('label',e.target.value)}/></FG>
           <FG label="Catégorie">
-            <Select value={form.category||'Labo'} onChange={e=>set('category',e.target.value)} className="w-full">
+            <Select value={form.category||'Labo'} onChange={value=>set('category', readSelectValue(value))} className="w-full">
               {(meta?.categories_eq||[]).map(c=><option key={c}>{c}</option>)}
             </Select>
           </FG>
           <FG label="Statut">
-            <Select value={form.status||'En service'} onChange={e=>set('status',e.target.value)} className="w-full">
+            <Select value={form.status||'En service'} onChange={value=>set('status', readSelectValue(value))} className="w-full">
               {(meta?.statuts_eq||[]).map(s=><option key={s}>{s}</option>)}
             </Select>
           </FG>
           <FG label="Domaine"><Input value={form.domain||''} onChange={e=>set('domain',e.target.value)}/></FG>
           <FG label="N° série"><Input value={form.serial_number||''} onChange={e=>set('serial_number',e.target.value)}/></FG>
           <FG label="Fournisseur"><Input value={form.supplier||''} onChange={e=>set('supplier',e.target.value)}/></FG>
-          {/* Moule OU Anneau selon le label — label a priorité sur domain */}
-          {(()=>{
+          {/* Champs techniques selon le profil équipement */}
+        {(() => {
             const profile = getEquipmentProfile(form)
-            const showM = profile === 'moule' || profile === 'generic'
-            const showA = profile === 'anneau' || profile === 'generic'
+            const showM = profile === 'moule'
+            const showA = profile === 'anneau'
             const showC = profile === 'comparateur'
-            return (<>
-              {showC&&<>
-                <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">Comparateur</div>
-                <FG label="Division">
-                  <Input value={form.division||''} onChange={e=>set('division',e.target.value)} placeholder="ex: 25 mm"/>
-                </FG>
-                <FG label="Précision">
-                  <Input value={form.precision||''} onChange={e=>set('precision',e.target.value)} placeholder="ex: ±0,01"/>
-                </FG>
-              </>}
-              {showM&&<>
-                <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">Moule — Proctor / CBR</div>
-                <FG label="Masse à vide M_tare (g)">
-                  <Input type="number" step="0.1" value={form.m_tare||''} onChange={e=>set('m_tare',e.target.value===''?null:parseFloat(e.target.value))} placeholder="ex: 4285.3"/>
-                </FG>
-                <FG label="Volume V (cm³)">
-                  <Input type="number" step="1" value={form.volume_cm3||''} onChange={e=>set('volume_cm3',e.target.value===''?null:parseFloat(e.target.value))} placeholder="ex: 944 (PN), 2131 (CBR)"/>
-                </FG>
-              </>}
-              {showA&&<>
-                <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">Anneau Dynamométrique / Capteur</div>
-                <FG label="Capacité (kN)">
-                  <Input type="number" step="0.01" value={form.capacite||''} onChange={e=>set('capacite',e.target.value===''?null:parseFloat(e.target.value))} placeholder="ex: 10, 25, 50"/>
-                </FG>
-                <FG label="Sensibilité nominale (kN/div)">
-                  <Input type="number" step="0.0001" value={form.sensibilite||''} onChange={e=>set('sensibilite',e.target.value===''?null:parseFloat(e.target.value))} placeholder="ex: 0.0245"/>
-                </FG>
-                <FG label="Facteur k retenu (kN/div)">
-                  <Input type="number" step="0.0001" value={form.facteur_k||''} onChange={e=>set('facteur_k',e.target.value===''?null:parseFloat(e.target.value))} placeholder="tables multi-points"/>
-                </FG>
-              </>}
-            </>)
-          })()}
+            const showG = profile === 'gammadensimetre'
+            const showGeneric = profile === 'generic'
+
+            return (
+                <>
+                    {showC && (
+                        <>
+                            <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">
+                                Comparateur
+                            </div>
+                            <FG label="Division">
+                                <Input
+                                    value={form.division || ''}
+                                    onChange={e => set('division', e.target.value)}
+                                    placeholder="ex: 25 mm"
+                                />
+                            </FG>
+                            <FG label="Précision">
+                                <Input
+                                    value={form.precision || ''}
+                                    onChange={e => set('precision', e.target.value)}
+                                    placeholder="ex: ±0,01"
+                                />
+                            </FG>
+                        </>
+                    )}
+
+                    {showM && (
+                        <>
+                            <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">
+                                Moule — Proctor / CBR
+                            </div>
+                            <FG label="Masse à vide M_tare (g)">
+                                <Input
+                                    type="number"
+                                    step="0.1"
+                                    value={form.m_tare || ''}
+                                    onChange={e => set('m_tare', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                    placeholder="ex: 4285.3"
+                                />
+                            </FG>
+                            <FG label="Volume V (cm³)">
+                                <Input
+                                    type="number"
+                                    step="1"
+                                    value={form.volume_cm3 || ''}
+                                    onChange={e => set('volume_cm3', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                    placeholder="ex: 944 (PN), 2131 (CBR)"
+                                />
+                            </FG>
+                        </>
+                    )}
+
+                    {showA && (
+                        <>
+                            <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">
+                                Anneau Dynamométrique / Capteur
+                            </div>
+                            <FG label="Capacité (kN)">
+                                <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={form.capacite || ''}
+                                    onChange={e => set('capacite', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                    placeholder="ex: 10, 25, 50"
+                                />
+                            </FG>
+                            <FG label="Sensibilité nominale (kN/div)">
+                                <Input
+                                    type="number"
+                                    step="0.0001"
+                                    value={form.sensibilite || ''}
+                                    onChange={e => set('sensibilite', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                    placeholder="ex: 0.0245"
+                                />
+                            </FG>
+                            <FG label="Facteur k retenu (kN/div)">
+                                <Input
+                                    type="number"
+                                    step="0.0001"
+                                    value={form.facteur_k || ''}
+                                    onChange={e => set('facteur_k', e.target.value === '' ? null : parseFloat(e.target.value))}
+                                    placeholder="tables multi-points"
+                                />
+                            </FG>
+                        </>
+                    )}
+
+                    {showG && (
+                        <>
+                            <div className="col-span-2 text-[10px] font-bold uppercase tracking-wide text-text-muted pt-1 border-t border-border">
+                                Gammadensimètre / électrodensimètre
+                            </div>
+                            <FG label="Date dernier calibrage">
+                                <Input
+                                    type="date"
+                                    value={form.last_metrology || ''}
+                                    onChange={e => set('last_metrology', e.target.value || null)}
+                                />
+                            </FG>
+                            <FG label="Prochaine échéance">
+                                <Input
+                                    type="date"
+                                    value={form.next_metrology || ''}
+                                    onChange={e => set('next_metrology', e.target.value || null)}
+                                />
+                            </FG>
+                        </>
+                    )}
+
+                    {showGeneric && (
+                        <div className="col-span-2 rounded-lg border border-border bg-bg px-3 py-2 text-xs text-text-muted">
+                            Équipement standard : renseigner les informations générales et les informations de suivi disponibles.
+                        </div>
+                    )}
+                </>
+            )
+        })()}
           <FG label="Date d'achat"><Input type="date" value={form.purchase_date||''} onChange={e=>set('purchase_date',e.target.value)}/></FG>
           <FG label="Lieu"><Input value={form.lieu||''} onChange={e=>set('lieu',e.target.value)}/></FG>
           <FG label="Intervalle étalonnage (mois)"><Input type="number" value={form.etalonnage_interval||''} onChange={e=>set('etalonnage_interval',e.target.value?parseInt(e.target.value):null)}/></FG>

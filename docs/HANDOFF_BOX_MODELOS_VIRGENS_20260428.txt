@@ -1,0 +1,88 @@
+RaLab5 - HANDOFF BOX MODELOS VIRGENS - 2026-04-28
+
+Contexto
+- Este handoff é apenas sobre a box de modelos virgens e sobre a criação da base de modelos UI.
+- Neste momento estamos ainda em alinhamento funcional/arquitetural.
+- Não é para mexer já em EssaiPage.
+- Não é para mexer já nas folhas terrain atuais.
+- Não é para fazer migração funcional agora.
+- Não é para reaproveitar os ecrãs de trabalho atuais com flags do tipo modelo=1.
+
+Correção de direção
+- O erro anterior foi tratar isto como um problema de routing, flags e carregamento de páginas existentes.
+- Isso não corresponde ao objetivo real.
+- O objetivo real é construir uma base de modelos UI canónicos, separados dos ecrãs de trabalho atuais.
+
+O que está realmente a ser pedido
+1. Criar uma box de modelos virgens em Outils/Tools.
+2. Essa box representa a base de modelos UI disponíveis.
+3. Cada modelo UI deve ser uma cópia exata do UI atualmente existente e aprovado para esse tipo.
+4. Esses modelos são modelos-base, não são os ecrãs de trabalho.
+5. Mais tarde, os ecrãs de trabalho irão consumir o modelo-base aprovado.
+6. Por agora, os ecrãs de trabalho existentes continuam como estão.
+7. Por agora, não se faz migração dos ecrãs atuais para usarem estes modelos.
+
+Regra central
+- O ecrã de trabalho não é o modelo.
+- O modelo-base aprovado é que será a referência que o ecrã de trabalho virá a utilizar mais tarde.
+
+Interpretação correta de "modelo virgem"
+- "Modelo virgem" aqui não significa abrir o ecrã atual em modo vazio.
+- Significa ter uma versão-base/canónica do UI daquele ensaio, separada do fluxo de trabalho real.
+- Essa versão-base pode depois ser usada para testes de import e para preparação do modelo.
+
+O que NAO fazer agora
+- Não tocar em EssaiPage para introduzir modo modelo.
+- Não tocar nas páginas terrain atuais para introduzir import de modelo.
+- Não ligar já os ecrãs de trabalho aos novos modelos-base.
+- Não inventar botão de aprovação como foco principal agora.
+- Não fazer migrações de dados.
+- Não tratar isto como um problema de back-end primeiro.
+
+Estado dos dados
+- Os valores/dados atuais servem apenas para testar imports e ajudar a montar os UIs de cada modelo.
+- Nesta fase, os dados são suporte de teste, não são o centro da implementação.
+
+Regra de import a manter
+- No primeiro import de outra folha Excel, a folha que vai ser criada/preenchida é a folha modelo.
+- Esse primeiro import serve para montar/alimentar o modelo-base com os dados de teste necessários.
+- Depois disso, os imports seguintes não tratam de UI.
+- Os imports seguintes tratam apenas de recuperar/alimentar valores.
+- O UI continua a viver no modelo-base aprovado, não no mecanismo de import.
+
+Âmbito atual
+- Trabalhar apenas na base de modelos.
+- Trabalhar apenas na box de modelos virgens.
+- Trabalhar primeiro o sujeito que está a ser tratado hoje.
+- Já se podem incluir também os modelos de laboratório.
+
+Nota importante sobre os tipos a tratar
+- Não há nesta conversa uma lista fixa e fechada de prioridades do tipo DE/SC/SP.
+- O foco imediato é o sujeito em trabalho nesta sessão.
+- Os modelos de laboratório já podem entrar nesta base.
+- A expectativa é copiar exatamente o UI atual de cada tipo para um componente-base de modelo.
+- Não é para improvisar uma versão simplificada.
+- Não é para apontar para o componente onde ele vive hoje e chamar isso de modelo.
+- É para separar explicitamente a definição do UI-base do fluxo de trabalho atual.
+
+Separação funcional acordada
+1. Existe um modelo-base por tipo.
+2. O modelo-base vive numa estrutura própria, onde se quiser, desde que a separação fique clara.
+3. O ecrã de trabalho atual continua independente por agora.
+4. Só numa fase posterior se faz a ligação do ecrã de trabalho ao modelo-base aprovado.
+
+Implicação direta para a box
+- A box deve ser entendida como entrada para os modelos virgens/base.
+- A box não deve ser implementada como simples navegação para os ecrãs de trabalho atuais.
+- A box também não deve listar massa de folhas de trabalho, porque o foco aqui é a base de modelos.
+
+Decisão explícita desta conversa
+- Ainda estamos a falar.
+- Ainda não foi pedido para implementar esta arquitetura.
+- Se houver trabalho a seguir este handoff, tem de respeitar este enquadramento e não retomar a abordagem antiga baseada em EssaiPage/terrain page em modo modelo.
+
+Resumo executivo
+- Problema: criar base de modelos UI virgens/canónicos.
+- Não fazer: reutilização superficial dos ecrãs atuais com flags ou routing.
+- Fazer mais tarde: copiar exatamente os UIs aprovados para modelos-base separados.
+- Fora de âmbito agora: migrar ecrãs de trabalho, aprovação formal, mudanças grandes em backend.

@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from api.admin import router as admin_router
@@ -24,13 +25,15 @@ from api.dst import router as dst_router
 from api.essais import router as essais_router
 from api.import_audit_post_import import router as audit_post_import_router
 from api.import_historique_labo import router as import_historique_labo_router
+from api.import_essais_de import router as import_essais_de_router
+from api.import_essais_sc import router as import_essais_sc_router
+from api.photos import router as photos_router
 from api.import_regularisation_affaires import router as regularisation_affaires_router
 from api.interventions import router as interventions_router
 from api.intervention_campaigns import router as intervention_campaigns_router
 from api.intervention_requalification import router as intervention_requalification_router
 from api.passations import router as passations_router
 from api.planning import router as planning_router
-from api.pmt import router as pmt_router
 from api.plans_implantation import router as plans_implantation_router
 from api.nivellements import router as nivellements_router
 from api.feuilles_terrain import router as feuilles_terrain_router
@@ -42,10 +45,11 @@ from api.reference_affaires import router as reference_affaires_router
 from api.reference_etudes import router as reference_etudes_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+STORAGE_DIR = PROJECT_ROOT / "storage"
 FRONTEND_DIST_DIR = PROJECT_ROOT / "frontend" / "react" / "dist"
 FRONTEND_INDEX_FILE = FRONTEND_DIST_DIR / "index.html"
 FRONTEND_ASSETS_DIR = FRONTEND_DIST_DIR / "assets"
-SPA_RESERVED_PREFIXES = ("api", "docs", "redoc", "openapi.json")
+SPA_RESERVED_PREFIXES = ("api", "docs", "redoc", "openapi.json", "storage")
 DEFAULT_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
 FRONTEND_HTML_HEADERS = {
     "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -134,18 +138,25 @@ app.include_router(intervention_campaigns_router, prefix="/api/intervention-camp
 app.include_router(intervention_requalification_router, prefix="/api/intervention-requalification", tags=["Intervention Requalification"])
 app.include_router(audits_router, prefix="/api/audits", tags=["Audits"])
 app.include_router(essais_router, prefix="/api/essais", tags=["Essais"])
-app.include_router(pmt_router, prefix="/api/pmt", tags=["PMT"])
 app.include_router(plans_implantation_router, prefix="/api/plans-implantation", tags=["Plans implantation"])
 app.include_router(nivellements_router, prefix="/api/nivellements", tags=["Nivellements"])
 app.include_router(feuilles_terrain_router, prefix="/api/feuilles-terrain", tags=["Feuilles terrain"])
 app.include_router(qualite_router, prefix="/api/qualite", tags=["Qualité"])
 app.include_router(import_historique_labo_router, prefix="/api/import-historique-labo", tags=["Import Historique Labo"])
+app.include_router(import_essais_de_router, prefix="/api/import-essais-de", tags=["Import Essais DE"])
+app.include_router(import_essais_sc_router)
+app.include_router(photos_router)
 app.include_router(audit_post_import_router, prefix="/api/audit-post-import", tags=["Audit Post-Import"])
 app.include_router(regularisation_affaires_router, prefix="/api/regularisation-affaires", tags=["Regularisation Affaires"])
 app.include_router(affaires_manual_correction_simple_router,prefix="/api/affaires-manual-correction-simple",tags=["Affaires Manual Correction Simple"],)
 app.include_router(reference_sources_router,prefix="/api/reference-sources",tags=["Reference Sources"],)
 app.include_router(reference_affaires_router,prefix="/api/reference-affaires",tags=["Reference Affaires"],)
 app.include_router(reference_etudes_router,prefix="/api/reference-etudes",tags=["Reference Etudes"],)
+
+# ── Static files: storage folder (plans, images, etc.) ──────────────────────
+if STORAGE_DIR.exists():
+    app.mount("/storage", StaticFiles(directory=str(STORAGE_DIR)), name="storage")
+    app.mount("/api/storage", StaticFiles(directory=str(STORAGE_DIR)), name="api-storage")
 
 @app.on_event("startup")
 def startup_event() -> None:

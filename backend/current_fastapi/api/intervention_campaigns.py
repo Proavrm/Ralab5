@@ -5,6 +5,7 @@ La persistance cible est la table unique `campagnes`.
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import datetime
 from typing import Optional
@@ -68,18 +69,17 @@ def _conn():
     return conn
 
 
-def _next_reference(conn: sqlite3.Connection, demande_id: int, code: str) -> str:
+def _next_reference(conn: sqlite3.Connection, demande_id: int) -> str:
     row = conn.execute("SELECT annee, labo_code FROM demandes WHERE id = ?", (demande_id,)).fetchone()
     annee = row["annee"] if row else datetime.now().year
     labo = row["labo_code"] if row else "SP"
-    normalized_code = (code or "CMP").strip().upper()[:6] or "CMP"
-    prefix = f"{annee}-{labo}-C-{normalized_code}-"
+    prefix = f"{annee}-{labo}-C"
     rows = conn.execute("SELECT reference FROM campagnes WHERE reference LIKE ?", (f"{prefix}%",)).fetchall()
     numbers = []
     for row in rows:
-        suffix = str(row["reference"] or "").replace(prefix, "", 1)
-        if suffix.isdigit():
-            numbers.append(int(suffix))
+        match = re.match(rf"^{re.escape(prefix)}(\d+)$", str(row["reference"] or ""))
+        if match:
+            numbers.append(int(match.group(1)))
     return f"{prefix}{max(numbers, default=0) + 1:03d}"
 
 
@@ -96,7 +96,7 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
         demande = conn.execute("SELECT id FROM demandes WHERE id = ?", (body.demande_id,)).fetchone()
         if not demande:
             raise HTTPException(404, f"Demande #{body.demande_id} introuvable")
-        reference = _next_reference(conn, body.demande_id, body.code)
+        reference = _next_reference(conn, body.demande_id)
         conn.execute(
             """
             INSERT INTO campagnes (
@@ -135,6 +135,49 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
         uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         row = conn.execute("SELECT * FROM campagnes WHERE id = ?", (uid,)).fetchone()
     return _to_dict(row)
+
+
+@router.get("/{uid}")
+def get_intervention_campaign(uid: int):
+    with _conn() as conn:
+        row = conn.execute(
+            """
+            SELECT
+                c.*,
+                d.reference AS demande_reference
+            FROM campagnes c
+            LEFT JOIN demandes d ON d.id = c.demande_id
+            WHERE c.id = ?
+            """,
+            (uid,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, f"Campagne #{uid} introuvable")
+
+        interventions_rows = conn.execute(
+            """
+            SELECT
+                i.id AS uid,
+                i.reference,
+                i.type_intervention,
+                i.sujet,
+                i.date_intervention,
+                i.geotechnicien,
+                i.technicien,
+                i.statut,
+                i.nature_reelle,
+                i.zone
+            FROM interventions i
+            WHERE i.campagne_id = ?
+            ORDER BY i.date_intervention DESC, i.id DESC
+            """,
+            (uid,),
+        ).fetchall()
+
+    payload = _to_dict(row)
+    payload["interventions"] = [dict(item) for item in interventions_rows]
+    payload["intervention_count"] = len(payload["interventions"])
+    return payload
 
 
 @router.patch("/{uid}")

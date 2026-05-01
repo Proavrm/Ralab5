@@ -62,6 +62,7 @@ class AffaireRstCreateSchema(BaseModel):
 
 
 class AffaireRstUpdateSchema(BaseModel):
+    reference:      Optional[str]  = None
     client:         Optional[str]  = None
     titulaire:      Optional[str]  = None
     chantier:       Optional[str]  = None
@@ -93,6 +94,7 @@ class AffaireRstResponseSchema(BaseModel):
     filiale:         str = ""
     autre_reference: str = ""
     dossier_nom:     str = ""
+    dossier_nom_prevu: str = ""
     dossier_path:    str = ""
     dossier_mode:    str = "pending"
     dossier_status:  str = "pending"

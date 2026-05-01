@@ -73,7 +73,10 @@ function urgence(ech, statut) {
 
 const EMPTY_FORM = {
   affaire_rst_id: '', labo_code: 'SP', statut: 'À qualifier', priorite: 'Normale',
-  type_mission: 'À définir', nature: '', numero_dst: '',
+  type_mission: '', nature: '', numero_dst: '',
+  domaine_etude: '', type_prestation_attendue: '',
+  documents_fournis: '', lien_pieces_jointes: '',
+  service_interne: '', societe_interne: '', urgence_source: '',
   numero_etude: '', affaire_nge_ref: '',  // lecture seule, pour référence
   demandeur: '', date_reception: new Date().toISOString().split('T')[0],
   date_echeance: '', description: '', observations: '',
@@ -95,9 +98,16 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
         labo_code: editDemande.labo_code || 'SP',
         statut: editDemande.statut || 'À qualifier',
         priorite: editDemande.priorite || 'Normale',
-        type_mission: editDemande.type_mission || 'À définir',
+        type_mission: editDemande.type_mission || '',
         nature: editDemande.nature || '',
         numero_dst: editDemande.numero_dst || '',
+        domaine_etude: editDemande.domaine_etude || '',
+        type_prestation_attendue: editDemande.type_prestation_attendue || '',
+        documents_fournis: editDemande.documents_fournis || '',
+        lien_pieces_jointes: editDemande.lien_pieces_jointes || '',
+        service_interne: editDemande.service_interne || '',
+        societe_interne: editDemande.societe_interne || '',
+        urgence_source: editDemande.urgence_source || '',
         numero_etude: editDemande.numero_etude || '',
         affaire_nge_ref: editDemande.affaire_nge || '',
         demandeur: editDemande.demandeur || '',
@@ -121,14 +131,27 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
     if (d.affaire_rst_id) {
       affaire_rst_id = String(d.affaire_rst_id)
     } else {
-      // Matching par numero_etude (exact) ou affaire_nge (normalisé)
-      const neKey  = (d.numero_etude  || '').trim()
-      const ngeKey = (d.numero_affaire_nge || '').trim()
-      const normNge = (v) => String(v || '').toUpperCase().replace(/[*\s\-_/.]+/g, '')
-      const match = affaires.find(a =>
-        (neKey  && (a.numero_etude || '').trim() === neKey) ||
-        (ngeKey && normNge(a.affaire_nge) === normNge(ngeKey))
-      )
+      // Matching par numero_etude (normalisé + variante année 26/2026) ou affaire_nge (normalisé)
+      const normCode = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]+/g, '')
+      const etudeCandidates = (v) => {
+        const base = normCode(v)
+        if (!base) return []
+        const out = [base]
+        const y4 = base.match(/^20(\d{2})(.+)$/)
+        if (y4) out.push(`${y4[1]}${y4[2]}`)
+        const y2 = base.match(/^(\d{2})(.+)$/)
+        if (y2 && !base.startsWith('20')) out.push(`20${y2[1]}${y2[2]}`)
+        return Array.from(new Set(out))
+      }
+
+      const etudeKeys = etudeCandidates(d.numero_etude)
+      const ngeKey = normCode(d.numero_affaire_nge)
+      const match = affaires.find((a) => {
+        const affaireEtudeKeys = etudeCandidates(a.numero_etude)
+        const etudeMatch = etudeKeys.length > 0 && affaireEtudeKeys.some((key) => etudeKeys.includes(key))
+        const ngeMatch = !!ngeKey && normCode(a.affaire_nge) === ngeKey
+        return etudeMatch || ngeMatch
+      })
       if (match) affaire_rst_id = String(match.uid)
     }
 
@@ -137,9 +160,16 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
       labo_code: d.labo_code || 'SP',
       statut: d.statut || 'À qualifier',
       priorite: d.priorite || 'Normale',
-      type_mission: d.type_mission || 'À définir',
+      type_mission: d.type_mission || d.type_prestation_attendue || '',
       nature: d.nature || src.type_demande || '',
       numero_dst: d.numero_dst || src.numero_dst || '',
+      domaine_etude: d.domaine_etude || src.domaine_etude || '',
+      type_prestation_attendue: d.type_prestation_attendue || src.type_prestation_attendue || '',
+      documents_fournis: d.documents_fournis || src.documents_fournis || '',
+      lien_pieces_jointes: d.lien_pieces_jointes || src.lien_pieces_jointes || '',
+      service_interne: d.service_interne || src.service_interne || '',
+      societe_interne: d.societe_interne || src.societe_interne || src.societe || '',
+      urgence_source: d.urgence_source || src.urgence_source || src.urgence || '',
       numero_etude: d.numero_etude || src.numero_etude || '',
       affaire_nge_ref: d.numero_affaire_nge || src.affaire_nge || '',
       demandeur: d.demandeur || src.demandeur || '',
@@ -180,6 +210,13 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
       type_mission: form.type_mission,
       nature: form.nature,
       numero_dst: form.numero_dst,
+      domaine_etude: form.domaine_etude,
+      type_prestation_attendue: form.type_prestation_attendue,
+      documents_fournis: form.documents_fournis,
+      lien_pieces_jointes: form.lien_pieces_jointes,
+      service_interne: form.service_interne,
+      societe_interne: form.societe_interne,
+      urgence_source: form.urgence_source,
       demandeur: form.demandeur,
       date_reception: form.date_reception,
       date_echeance: form.date_echeance || null,
@@ -234,9 +271,7 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
 
         <FS title="Mission" />
         <FG label="Type mission">
-          <Select value={form.type_mission} onChange={e => set('type_mission', e.target.value)} className="w-full">
-            {MISSIONS.map(m => <option key={m}>{m}</option>)}
-          </Select>
+          <Input value={form.type_mission} onChange={e => set('type_mission', e.target.value)} placeholder="Texte libre" />
         </FG>
         <FG label="Nature">
           <Input value={form.nature} onChange={e => set('nature', e.target.value)} placeholder="Demande DST, Demande G3…" />
@@ -244,10 +279,35 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
         <FG label="N° DST">
           <Input value={form.numero_dst} onChange={e => set('numero_dst', e.target.value)} placeholder="CET0001234" />
         </FG>
+        <FG label="Domaine d'étude">
+          <Input value={form.domaine_etude} onChange={e => set('domaine_etude', e.target.value)} />
+        </FG>
+        <FG label="Type prestation attendue" full>
+          <Input value={form.type_prestation_attendue} onChange={e => set('type_prestation_attendue', e.target.value)} />
+        </FG>
+        <FG label="Urgence source">
+          <Input value={form.urgence_source} onChange={e => set('urgence_source', e.target.value)} />
+        </FG>
         <FG label="Priorité">
           <Select value={form.priorite} onChange={e => set('priorite', e.target.value)} className="w-full">
             {PRIORITES.map(p => <option key={p}>{p}</option>)}
           </Select>
+        </FG>
+
+        <FS title="Contexte source" />
+        <FG label="Service interne">
+          <Input value={form.service_interne} onChange={e => set('service_interne', e.target.value)} />
+        </FG>
+        <FG label="Société interne">
+          <Input value={form.societe_interne} onChange={e => set('societe_interne', e.target.value)} />
+        </FG>
+        <FG label="Documents fournis" full>
+          <textarea value={form.documents_fournis} onChange={e => set('documents_fournis', e.target.value)} rows={2}
+            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+        </FG>
+        <FG label="Lien pièces jointes volumineuses" full>
+          <textarea value={form.lien_pieces_jointes} onChange={e => set('lien_pieces_jointes', e.target.value)} rows={2}
+            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
         </FG>
 
         <FS title="Acteurs & Dates" />
@@ -521,7 +581,7 @@ export default function DemandesPage() {
                       <td className="px-3 py-2.5"><Badge s={d.statut} map={STAT_CLS} /></td>
                       <td className="px-3 py-2.5"><Badge s={d.priorite} map={PRIO_CLS} /></td>
                       <td className={`px-3 py-2.5 text-xs ${urg}`}>{d.date_echeance ? formatDate(d.date_echeance) : '—'}</td>
-                      <td className="px-3 py-2.5 text-xs">{(d.demandeur || '—').split(',')[0]}</td>
+                      <td className="px-3 py-2.5 text-xs">{d.demandeur || '—'}</td>
                     </tr>
                   )
                 })}
@@ -559,15 +619,26 @@ export default function DemandesPage() {
                 <DetField label="Type mission" value={selected.type_mission} />
                 <DetField label="Nature"       value={selected.nature} />
                 <DetField label="N° DST"       value={selected.numero_dst} />
+                <DetField label="Domaine d'étude" value={selected.domaine_etude} />
+                <DetField label="Type prestation attendue" value={selected.type_prestation_attendue} />
+                <DetField label="Urgence source" value={selected.urgence_source} />
                 <DetField label="Laboratoire"  value={LABO_NOM[selected.labo_code] || selected.labo_code} />
               </DetSection>
               <DetSection title="Acteurs">
                 <DetField label="Demandeur" value={selected.demandeur} />
+                <DetField label="Service interne" value={selected.service_interne} />
+                <DetField label="Société interne" value={selected.societe_interne} />
               </DetSection>
               <DetSection title="Dates">
                 <DetField label="Réception" value={formatDate(selected.date_reception)} />
                 <DetField label="Échéance"  value={selected.date_echeance ? formatDate(selected.date_echeance) : '—'} />
               </DetSection>
+              {(selected.documents_fournis || selected.lien_pieces_jointes) && (
+                <DetSection title="Pièces source">
+                  <DetField label="Documents fournis" value={selected.documents_fournis} />
+                  <DetField label="Lien pièces jointes" value={selected.lien_pieces_jointes} />
+                </DetSection>
+              )}
               {(selected.description || selected.observations) && (
                 <DetSection title="Description">
                   <DetField label="" value={selected.description || selected.observations} />

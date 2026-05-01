@@ -38,8 +38,15 @@ function DetItem({ label, value }) {
 }
 
 function shortName(v) {
-  if (!v) return '—'
-  return v.replace(/,.*/, '').trim().split(' ').slice(0, 2).join(' ')
+  const text = String(v || '').replace(/\s+/g, ' ').trim()
+  if (!text) return '—'
+  const parts = text.split(',').map(part => part.trim()).filter(Boolean)
+  if (!parts.length) return '—'
+  const tail = parts[parts.length - 1]
+  const nameParts = parts.length >= 3 && /^[A-Z]?\d[A-Z0-9]*$/i.test(tail)
+    ? parts.slice(0, -1)
+    : parts
+  return nameParts.join(' ')
 }
 function shortDR(v) {
   if (!v) return '—'
@@ -58,8 +65,8 @@ export default function DstPage() {
   const [importFile, setImportFile]  = useState(null)
   const [sheetName, setSheetName]   = useState('ExcelMergeQuery')
   const [importResult, setImportResult] = useState(null)
-  const [pickAffaire, setPickAffaire] = useState(false)
-  const [pickedAffaire, setPickedAffaire] = useState('')
+  const [editDstOpen, setEditDstOpen] = useState(false)
+  const [editNumeroAffaireDemandeur, setEditNumeroAffaireDemandeur] = useState('')
   const fileInputRef = useRef(null)
   const timer = useRef(null)
 
@@ -83,13 +90,13 @@ export default function DstPage() {
     },
   })
 
-  const { data: affairesRst = [] } = useQuery({
+  // Aplatit row_id + data
+  const rows = rawRows.map(r => ({ id: r.row_id, ...r.data }))
+
+  const { data: affaires = [] } = useQuery({
     queryKey: ['affaires'],
     queryFn: () => api.get('/affaires'),
   })
-
-  // Aplatit row_id + data
-  const rows = rawRows.map(r => ({ id: r.row_id, ...r.data }))
 
   const importMutation = useMutation({
     mutationFn: async ({ file, sheet }) => {
@@ -112,6 +119,18 @@ export default function DstPage() {
     onError: (e) => setImportResult({ ok: false, msg: e.message }),
   })
 
+  const updateDstMutation = useMutation({
+    mutationFn: async ({ rowId, data }) => api.patch(`/dst/${rowId}`, { data }),
+    onSuccess: (updated) => {
+      qc.invalidateQueries({ queryKey: ['dst-rows'] })
+      qc.invalidateQueries({ queryKey: ['dst-status'] })
+      if (updated?.data) {
+        setSelected({ id: updated.row_id, ...updated.data })
+      }
+      setEditDstOpen(false)
+    },
+  })
+
   function toggleSort(col) {
     if (sortCol === col) setSortAsc(a => !a)
     else { setSortCol(col); setSortAsc(true) }
@@ -123,18 +142,20 @@ export default function DstPage() {
     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
   })
 
-  function findMatchingRst(row) {
-    const nge = String(row['N° affaire demandeur'] || '').trim().toLowerCase()
-    if (!nge) return null
-    return affairesRst.find(a => String(a.affaire_nge || '').trim().toLowerCase() === nge) || null
-  }
-
   function buildAffaireUrl(d) {
+    const fromAffaireDemandeur = classifyAffaireDemandeur(d['N° affaire demandeur'])
+    const explicitNumeroEtude = dstNumeroEtude(d)
+    const numeroEtude = explicitNumeroEtude || fromAffaireDemandeur.numeroEtude
+    const affaireNge = fromAffaireDemandeur.numeroAffaireNge
+    const autreReference = !numeroEtude && !affaireNge ? String(d['N° affaire demandeur'] || '').trim() : ''
+
     const p = new URLSearchParams({
       create: '1',
       chantier:    d['Libellé du projet'] || '',
       site:        d['Situation Géographique'] || d['Situation géographique projet'] || '',
-      affaire_nge: d['N° affaire demandeur'] || '',
+      numero_etude: numeroEtude,
+      affaire_nge: affaireNge,
+      autre_reference: autreReference,
       client:      d['Société'] || '',
       responsable: shortName(d['Demandeur']),
       statut:      'À qualifier',
@@ -144,22 +165,107 @@ export default function DstPage() {
 
   function createAffaire() {
     if (!selected) return
+    const match = findMatchingAffaire(selected)
+    if (match?.uid) {
+      const createDemandeOnExisting = window.confirm(
+        `Affaire existante detectee (${match.reference || `#${match.uid}`}).\n\nCreer une nouvelle demande sur cette affaire ?`
+      )
+      if (createDemandeOnExisting) {
+        sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill(match)))
+        navigate('/demandes?create=1')
+      } else {
+        navigate(`/affaires/${match.uid}`)
+      }
+      return
+    }
     navigate(buildAffaireUrl(selected))
   }
 
-  function buildDemandePrefill(affaire) {
+  function dstNumeroEtude(row) {
+    return String(
+      row['N° étude'] ||
+      row['N° etude'] ||
+      row["N° affaire étude"] ||
+      row['N° affaire etude'] ||
+      row['N° affaire'] ||
+      row['nAffaire'] ||
+      '',
+    ).trim()
+  }
+
+  function classifyAffaireDemandeur(raw) {
+    const value = String(raw || '').trim()
+    if (!value) return { numeroAffaireNge: '', numeroEtude: '' }
+    const first = value[0]
+    if (/^[A-Za-z]$/.test(first)) {
+      return { numeroAffaireNge: value, numeroEtude: '' }
+    }
+    if (/^[0-9]$/.test(first)) {
+      return { numeroAffaireNge: '', numeroEtude: value }
+    }
+    return { numeroAffaireNge: value, numeroEtude: '' }
+  }
+
+  function normCode(v) {
+    return String(v || '').toUpperCase().replace(/[^A-Z0-9]+/g, '')
+  }
+
+  function etudeCandidates(v) {
+    const base = normCode(v)
+    if (!base) return []
+    const out = [base]
+    const y4 = base.match(/^20(\d{2})(.+)$/)
+    if (y4) out.push(`${y4[1]}${y4[2]}`)
+    const y2 = base.match(/^(\d{2})(.+)$/)
+    if (y2 && !base.startsWith('20')) out.push(`20${y2[1]}${y2[2]}`)
+    return Array.from(new Set(out))
+  }
+
+  function findMatchingAffaire(row) {
+    const fromAffaireDemandeur = classifyAffaireDemandeur(row['N° affaire demandeur'])
+    const explicitNumeroEtude = dstNumeroEtude(row)
+    const numeroEtude = explicitNumeroEtude || fromAffaireDemandeur.numeroEtude
+    const numeroAffaireNge = fromAffaireDemandeur.numeroAffaireNge
+
+    const etudeKeys = etudeCandidates(numeroEtude)
+    const ngeKey = normCode(numeroAffaireNge)
+
+    return affaires.find((a) => {
+      const affaireEtudeKeys = etudeCandidates(a.numero_etude)
+      const etudeMatch = etudeKeys.length > 0 && affaireEtudeKeys.some((key) => etudeKeys.includes(key))
+      const ngeMatch = !!ngeKey && normCode(a.affaire_nge) === ngeKey
+      return etudeMatch || ngeMatch
+    }) || null
+  }
+
+  function buildDemandePrefill(matchedAffaire = null) {
     const chrono = selected['N° chrono'] || ''
+    const fromAffaireDemandeur = classifyAffaireDemandeur(selected['N° affaire demandeur'])
+    const explicitNumeroEtude = dstNumeroEtude(selected)
+    const numeroAffaireNge = fromAffaireDemandeur.numeroAffaireNge
+    const numeroEtude = explicitNumeroEtude || fromAffaireDemandeur.numeroEtude
+    const dstField = (...keys) => keys.map((key) => String(selected?.[key] || '').trim()).find(Boolean) || ''
     const objet = String(selected['Objet de la demande (Problématiques, Hypothèses, Objectifs, Remarques)'] || '')
       .replace(/_x000D_/gi, '').trim()
+    const typePrestation = dstField('Type de prestation attendue', 'Autre type de prestation')
     return {
       target: 'demande_rst',
       source_type: 'dst',
       source_id: selected.id,
       prefill: {
-        affaire_rst_id: affaire.uid,
+        affaire_rst_id: matchedAffaire?.uid || undefined,
         numero_dst:     chrono,
-        type_mission:   'À définir',
+        numero_affaire_nge: numeroAffaireNge,
+        numero_etude:   numeroEtude,
+        type_mission:   typePrestation,
         nature:         selected['Cadre de la demande'] || 'Demande DST',
+        domaine_etude:  dstField("Domaine d'étude", "Autre domaine d'étude"),
+        type_prestation_attendue: typePrestation,
+        documents_fournis: dstField('Liste des documents fournis'),
+        lien_pieces_jointes: dstField("Lien d'accès pièces jointes volumineuses"),
+        service_interne: dstField('Service'),
+        societe_interne: dstField('Société'),
+        urgence_source: dstField('Urgence'),
         demandeur:      shortName(selected['Demandeur']),
         description:    [chrono ? `DST: ${chrono}` : '', selected['Libellé du projet'] || '', objet].filter(Boolean).join('\n'),
         observations:   `Préremplie depuis DST ${chrono}`.trim(),
@@ -169,25 +275,22 @@ export default function DstPage() {
 
   function createDemande() {
     if (!selected) return
-    const affaire = findMatchingRst(selected)
-    if (affaire) {
-      // Match direct — on y va
-      sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill(affaire)))
-      navigate('/demandes?create=1')
-    } else {
-      // Pas de match — on demande quelle affaire RST utiliser
-      setPickedAffaire('')
-      setPickAffaire(true)
-    }
+    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill()))
+    navigate('/demandes?create=1')
   }
 
-  function confirmPickAffaire() {
-    if (!pickedAffaire) return
-    const affaire = affairesRst.find(a => String(a.uid) === pickedAffaire)
-    if (!affaire) return
-    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill(affaire)))
-    setPickAffaire(false)
-    navigate('/demandes?create=1')
+  function openEditDst() {
+    if (!selected) return
+    setEditNumeroAffaireDemandeur(String(selected['N° affaire demandeur'] || '').trim())
+    setEditDstOpen(true)
+  }
+
+  function saveEditDst() {
+    if (!selected?.id) return
+    const payload = {
+      'N° affaire demandeur': editNumeroAffaireDemandeur.trim(),
+    }
+    updateDstMutation.mutate({ rowId: selected.id, data: payload })
   }
 
   function handleFileDrop(e) {
@@ -272,6 +375,7 @@ export default function DstPage() {
                 {sorted.map(row => (
                   <tr key={row.id}
                     onClick={() => setSelected(selected?.id === row.id ? null : row)}
+                    onDoubleClick={() => navigate(`/dst/${row.id}`)}
                     className={`border-b border-border cursor-pointer transition-colors ${
                       selected?.id === row.id ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
@@ -324,8 +428,10 @@ export default function DstPage() {
             )}
 
             <div className="flex flex-wrap gap-2 px-[18px] py-3.5 border-t border-border shrink-0">
+              <Button size="sm" variant="secondary" onClick={() => navigate(`/dst/${selected.id}`)}>📋 Fiche DST</Button>
               <Button size="sm" variant="primary" onClick={createAffaire}>📋 Créer affaire RST</Button>
               <Button size="sm" onClick={createDemande}>📂 Créer demande</Button>
+              <Button size="sm" variant="secondary" onClick={openEditDst}>✏️ Éditer DST</Button>
             </div>
           </div>
         )}
@@ -376,44 +482,33 @@ export default function DstPage() {
           </div>
         </div>
       </Modal>
-      {/* Modal choix affaire RST quand pas de match automatique */}
-      {pickAffaire && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-surface border border-border rounded-xl w-[480px] max-w-[95vw] p-6 shadow-2xl">
-            <div className="text-[15px] font-semibold mb-1">Aucune affaire RST trouvée automatiquement</div>
-            <p className="text-[13px] text-text-muted mb-4">
-              Le N° affaire demandeur <strong>{selected?.['N° affaire demandeur'] || '—'}</strong> ne correspond à aucune affaire RST existante.
-              Sélectionnez une affaire existante ou créez-en une nouvelle.
+
+      <Modal open={editDstOpen} onClose={() => setEditDstOpen(false)} title="Corriger le dossier DST" size="sm">
+        <div className="flex flex-col gap-3">
+          <div className="text-xs text-text-muted">
+            Corriger les identifiants source quand la ligne DST contient une erreur.
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-text-muted">N° affaire demandeur</label>
+            <input
+              value={editNumeroAffaireDemandeur}
+              onChange={e => setEditNumeroAffaireDemandeur(e.target.value)}
+              className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
+            />
+          </div>
+          {updateDstMutation.error ? (
+            <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2">
+              {updateDstMutation.error.message}
             </p>
-            <div className="flex flex-col gap-3">
-              <select
-                value={pickedAffaire}
-                onChange={e => setPickedAffaire(e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
-                <option value="">— Sélectionner une affaire RST existante —</option>
-                {affairesRst.map(a => (
-                  <option key={a.uid} value={a.uid}>{a.reference} — {a.chantier || a.client}</option>
-                ))}
-              </select>
-              <div className="flex items-center gap-2 text-[12px] text-text-muted">
-                <div className="flex-1 h-px bg-border"></div>
-                <span>ou</span>
-                <div className="flex-1 h-px bg-border"></div>
-              </div>
-              <Button onClick={() => { setPickAffaire(false); navigate(buildAffaireUrl(selected)) }}>
-                📋 Créer une nouvelle affaire RST
-              </Button>
-            </div>
-            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-border">
-              <Button onClick={() => setPickAffaire(false)}>Annuler</Button>
-              <Button variant="primary" onClick={confirmPickAffaire} disabled={!pickedAffaire}>
-                ✓ Créer la demande
-              </Button>
-            </div>
+          ) : null}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button onClick={() => setEditDstOpen(false)} variant="secondary">Annuler</Button>
+            <Button onClick={saveEditDst} variant="primary" disabled={updateDstMutation.isPending}>
+              {updateDstMutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+            </Button>
           </div>
         </div>
-      )}
-
+      </Modal>
     </div>
   )
 }

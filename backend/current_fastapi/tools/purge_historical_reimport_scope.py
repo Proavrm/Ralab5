@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -222,6 +223,7 @@ def _build_cleanup_plan(conn: sqlite3.Connection, limit: int) -> dict[str, Any]:
     return {
         "keep_policy": describe_keep_ranges(DEFAULT_REIMPORT_KEEP_SUFFIX_RANGES),
         "counts": counts,
+        "deletable_affaire_ids": [int(item["affaire_id"]) for item in imported_affaires_deletable],
         "samples": {
             "outside_imported_affaires": outside_imported_affaires,
             "imported_affaires_to_delete": imported_affaires_deletable[:limit],
@@ -232,9 +234,27 @@ def _build_cleanup_plan(conn: sqlite3.Connection, limit: int) -> dict[str, Any]:
     }
 
 
-def _delete_historical_rows(conn: sqlite3.Connection) -> dict[str, int]:
+def _delete_historical_rows(conn: sqlite3.Connection, affaire_ids_to_delete: list[int]) -> dict[str, int]:
     deleted: dict[str, int] = {}
-    historical_demande_where = _historical_demande_where()
+
+    if not affaire_ids_to_delete:
+        return {
+            "essais": 0,
+            "interventions": 0,
+            "echantillons": 0,
+            "prelevements": 0,
+            "interventions_reelles": 0,
+            "demandes": 0,
+            "historical_import_batches": 0,
+            "historical_import_files_remaining_after_batch_delete": _safe_count(conn, "SELECT COUNT(*) FROM historical_import_files") if _table_exists(conn, "historical_import_files") else 0,
+            "affaires_rst": 0,
+        }
+
+    placeholders = ", ".join("?" for _ in affaire_ids_to_delete)
+    scope_params = tuple(affaire_ids_to_delete)
+    historical_demande_scope_where = (
+        f"{_historical_demande_where()} AND affaire_rst_id IN ({placeholders})"
+    )
 
     delete_statements = [
         (
@@ -244,29 +264,29 @@ def _delete_historical_rows(conn: sqlite3.Connection) -> dict[str, int]:
             WHERE echantillon_id IN (
                 SELECT id
                 FROM echantillons
-                WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_where})
+                WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_scope_where})
             )
             """,
         ),
         (
             "interventions",
-            f"DELETE FROM interventions WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_where})",
+            f"DELETE FROM interventions WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_scope_where})",
         ),
         (
             "echantillons",
-            f"DELETE FROM echantillons WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_where})",
+            f"DELETE FROM echantillons WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_scope_where})",
         ),
         (
             "prelevements",
-            f"DELETE FROM prelevements WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_where})",
+            f"DELETE FROM prelevements WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_scope_where})",
         ),
         (
             "interventions_reelles",
-            f"DELETE FROM interventions_reelles WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_where})",
+            f"DELETE FROM interventions_reelles WHERE demande_id IN (SELECT id FROM demandes WHERE {historical_demande_scope_where})",
         ),
         (
             "demandes",
-            f"DELETE FROM demandes WHERE {historical_demande_where}",
+            f"DELETE FROM demandes WHERE {historical_demande_scope_where}",
         ),
     ]
 
@@ -274,55 +294,19 @@ def _delete_historical_rows(conn: sqlite3.Connection) -> dict[str, int]:
         if not _table_exists(conn, table_name):
             deleted[table_name] = 0
             continue
-        cursor = conn.execute(sql)
+        cursor = conn.execute(sql, scope_params)
         deleted[table_name] = int(cursor.rowcount if cursor.rowcount != -1 else 0)
 
-    if _table_exists(conn, "historical_import_batches"):
-        cursor = conn.execute("DELETE FROM historical_import_batches")
-        deleted["historical_import_batches"] = int(cursor.rowcount if cursor.rowcount != -1 else 0)
-    else:
-        deleted["historical_import_batches"] = 0
+    deleted["historical_import_batches"] = 0
 
     if _table_exists(conn, "historical_import_files"):
         deleted["historical_import_files_remaining_after_batch_delete"] = _safe_count(conn, "SELECT COUNT(*) FROM historical_import_files")
+    else:
+        deleted["historical_import_files_remaining_after_batch_delete"] = 0
 
     cursor = conn.execute(
-        """
-        DELETE FROM affaires_rst
-        WHERE id IN (
-            SELECT a.id
-            FROM affaires_rst a
-            WHERE (COALESCE(a.responsable, '') = ? OR COALESCE(a.statut, '') = 'Importée')
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM demandes d
-                  WHERE d.affaire_rst_id = a.id
-                                                AND COALESCE(d.nature, '') NOT LIKE ?
-              )
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM passations p
-                  WHERE p.affaire_rst_id = a.id
-              )
-        )
-        """,
-        (HISTORICAL_RESPONSABLE, f"{HISTORICAL_NATURE_PREFIX}%"),
-    ) if _table_exists(conn, "passations") else conn.execute(
-        """
-        DELETE FROM affaires_rst
-        WHERE id IN (
-            SELECT a.id
-            FROM affaires_rst a
-            WHERE (COALESCE(a.responsable, '') = ? OR COALESCE(a.statut, '') = 'Importée')
-              AND NOT EXISTS (
-                  SELECT 1
-                  FROM demandes d
-                  WHERE d.affaire_rst_id = a.id
-                AND COALESCE(d.nature, '') NOT LIKE ?
-              )
-        )
-        """,
-        (HISTORICAL_RESPONSABLE, f"{HISTORICAL_NATURE_PREFIX}%"),
+        f"DELETE FROM affaires_rst WHERE id IN ({placeholders})",
+        scope_params,
     )
     deleted["affaires_rst"] = int(cursor.rowcount if cursor.rowcount != -1 else 0)
     return deleted
@@ -351,7 +335,8 @@ def apply_purge(db_path: Path, limit: int = 20) -> dict[str, Any]:
 
         try:
             conn.execute("BEGIN")
-            deleted = _delete_historical_rows(conn)
+            affaire_ids_to_delete = [int(value) for value in plan.get("deletable_affaire_ids", [])]
+            deleted = _delete_historical_rows(conn, affaire_ids_to_delete)
             conn.commit()
         except Exception:
             conn.rollback()
@@ -363,6 +348,12 @@ def apply_purge(db_path: Path, limit: int = 20) -> dict[str, Any]:
         "deleted": deleted,
         "post_purge_audit": build_perimeter_report(db_path, limit=limit),
     }
+
+
+def _backup_db(source_db_path: Path, backup_db_path: Path) -> Path:
+    backup_db_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_db_path, backup_db_path)
+    return backup_db_path
 
 
 def main() -> None:
@@ -384,10 +375,27 @@ def main() -> None:
         action="store_true",
         help="Apply the purge instead of returning a dry-run report",
     )
+    parser.add_argument(
+        "--backup-db",
+        dest="backup_db",
+        default="",
+        help="Mandatory when --apply is used. Path where a backup copy of target DB will be created before purge",
+    )
     args = parser.parse_args()
 
     db_path = Path(args.target_db)
-    result = apply_purge(db_path, limit=args.limit) if args.apply else build_purge_report(db_path, limit=args.limit)
+
+    if args.apply:
+        backup_text = (args.backup_db or "").strip()
+        if not backup_text:
+            parser.error("--backup-db is required when --apply is used")
+        backup_path = Path(backup_text)
+        backup_created_at = _backup_db(db_path, backup_path)
+        result = apply_purge(db_path, limit=args.limit)
+        result["backup_db_path"] = str(backup_created_at)
+    else:
+        result = build_purge_report(db_path, limit=args.limit)
+
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 

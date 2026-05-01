@@ -5,14 +5,14 @@
  * 2 modaux: édition demande + configuration préparation/modules
  */
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { useLocation, useParams, useNavigate } from 'react-router-dom'
+import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, demandesApi, interventionCampaignsApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { applyInterventionTypeToPath } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
-import { buildLocationTarget, buildPathWithReturnTo } from '@/lib/detailNavigation'
+import { buildLocationTarget, buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
 
 
@@ -122,11 +122,6 @@ const CAMPAIGN_TYPE_OPTIONS = [
     defaults: { type_intervention: 'Reconnaissance géotechnique', finalite: 'Diagnostic d’anomalie', materiau: 'Sol' },
   },
   {
-    code: 'PMT',
-    label: 'Macrotexture / PMT',
-    defaults: { type_intervention: 'Suivi d’enrobés', finalite: 'Contrôle de matériaux', materiau: 'Enrobé' },
-  },
-  {
     code: 'AUT',
     label: 'Autre campagne',
     defaults: {},
@@ -135,7 +130,6 @@ const CAMPAIGN_TYPE_OPTIONS = [
 
 const CAMPAIGN_CODE_PREFILLS = {
   ...Object.fromEntries(CAMPAIGN_TYPE_OPTIONS.map((item) => [item.code, item.defaults])),
-  PMT: { type_intervention: 'Suivi d’enrobés', finalite: 'Contrôle de matériaux', materiau: 'Enrobé' },
   DE: { type_intervention: 'Suivi d’enrobés', finalite: 'Contrôle de matériaux', materiau: 'Enrobé' },
   DF: { type_intervention: 'Suivi d’enrobés', finalite: 'Contrôle de matériaux', materiau: 'Enrobé' },
   SC: { type_intervention: 'Suivi d’enrobés', finalite: 'Contrôle de matériaux', materiau: 'Enrobé' },
@@ -244,30 +238,6 @@ function getCampaignPrefillDefaults(campaign) {
   return CAMPAIGN_CODE_PREFILLS[code] || CAMPAIGN_LABEL_PREFILLS[label] || {}
 }
 
-function buildCampaignFormState(campaign) {
-  const currentCode = normalizeNonEmpty(campaign?.code).toUpperCase()
-  const knownType = CAMPAIGN_TYPE_OPTIONS.find((item) => item.code === currentCode)
-
-  return {
-    code: knownType?.code || 'AUT',
-    label: knownType?.label || normalizeNonEmpty(campaign?.label),
-    designation: normalizeNonEmpty(campaign?.designation),
-    zone_scope: normalizeNonEmpty(campaign?.zone_scope),
-    temporalite: normalizeNonEmpty(campaign?.temporalite),
-    programme_specifique:   normalizeNonEmpty(campaign?.programme_specifique),
-    nb_points_prevus:       normalizeNonEmpty(campaign?.nb_points_prevus),
-    types_essais_prevus:    normalizeNonEmpty(campaign?.types_essais_prevus),
-    notes:                 normalizeNonEmpty(campaign?.notes),
-    date_debut_prevue:     normalizeNonEmpty(campaign?.date_debut_prevue),
-    date_fin_prevue:       normalizeNonEmpty(campaign?.date_fin_prevue),
-    priorite:              campaign?.priorite              || 'Normale',
-    responsable_technique: normalizeNonEmpty(campaign?.responsable_technique),
-    attribue_a:            normalizeNonEmpty(campaign?.attribue_a),
-    criteres_controle:     normalizeNonEmpty(campaign?.criteres_controle),
-    livrables_attendus:    normalizeNonEmpty(campaign?.livrables_attendus),
-  }
-}
-
 function buildCampaignCreateDefaults(campaign, preparation, demande) {
   const codeDefaults = getCampaignPrefillDefaults(campaign)
   const campaignTypes = getUniqueNonEmptyValues((campaign?.interventions || []).map((item) => item?.type_intervention))
@@ -328,6 +298,29 @@ function getInterventionObjectLabel(item) {
 
 function getRelatedNodeKey(item) {
   return `related:${item?.kind || 'item'}:${item?.uid || item?.reference || 'unknown'}`
+}
+
+function collectSupportObjectsByIntervention(interventions) {
+  const groups = []
+  const list = Array.isArray(interventions) ? interventions : []
+  list.forEach((intervention) => {
+    const relatedObjects = Array.isArray(intervention?.related_objects) ? intervention.related_objects : []
+    const supportObjects = relatedObjects.filter((item) => item?.category === 'support')
+    if (!supportObjects.length) return
+
+    const deduped = new Map()
+    supportObjects.forEach((item) => {
+      const key = `${item?.kind || 'support'}:${item?.uid || item?.reference || item?.title || item?.subtitle || ''}`
+      if (!deduped.has(key)) deduped.set(key, item)
+    })
+
+    groups.push({
+      intervention_uid: intervention?.uid,
+      intervention_reference: intervention?.reference || `Intervention #${intervention?.uid || '—'}`,
+      objects: Array.from(deduped.values()),
+    })
+  })
+  return groups
 }
 
 function openRelatedObject(navigate, item, detailReturnTo) {
@@ -625,6 +618,7 @@ function InterventionAccordion({
 
 function CampaignAccordion({
   campaign,
+  isVirtual,
   detailReturnTo,
   navigate,
   onCreateIntervention,
@@ -634,6 +628,11 @@ function CampaignAccordion({
 }) {
   const accordionKey = `campaign:${campaign?.uid || campaign?.reference || 'unknown'}`
   const isOpen = getExpandedState(accordionKey, false)
+  const campaignSupportGroups = useMemo(
+    () => collectSupportObjectsByIntervention(campaign?.interventions || []),
+    [campaign?.interventions]
+  )
+  const campaignSupportCount = campaignSupportGroups.reduce((total, group) => total + group.objects.length, 0)
 
   return (
     <details
@@ -702,13 +701,40 @@ function CampaignAccordion({
           </div>
         </div>
 
+        <div className="rounded-lg border border-border bg-surface px-3 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Supports PI / NI de la campagne</div>
+            <div className="text-[11px] text-text-muted">{campaignSupportCount} objet{campaignSupportCount > 1 ? 's' : ''}</div>
+          </div>
+          {campaignSupportGroups.length > 0 ? (
+            <div className="mt-2 flex flex-col gap-3">
+              {campaignSupportGroups.map((group) => (
+                <div key={group.intervention_uid || group.intervention_reference} className="flex flex-col gap-2">
+                  <div className="text-[11px] font-semibold text-accent">{group.intervention_reference}</div>
+                  <div className="flex flex-col gap-2">
+                    {group.objects.map((item) => (
+                      <RelatedObjectNode
+                        key={`${item.kind}-${item.uid}`}
+                        item={item}
+                        navigate={navigate}
+                        detailReturnTo={detailReturnTo}
+                        getExpandedState={getExpandedState}
+                        setExpandedState={setExpandedState}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-2 text-[12px] text-text-muted">Aucun plan d’implantation / nivellement visible pour cette campagne.</div>
+          )}
+        </div>
+
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => onEditCampaign?.(campaign)}>
-            Configurer la campagne
-          </Button>
-          {campaign.report_uid ? (
-            <Button size="sm" variant="secondary" onClick={() => navigate(buildPathWithReturnTo(`/pmt/rapports/${campaign.report_uid}`, detailReturnTo))}>
-              Ouvrir le rapport campagne
+          {!isVirtual ? (
+            <Button size="sm" variant="secondary" onClick={() => onEditCampaign?.(campaign)}>
+              Configurer la campagne
             </Button>
           ) : null}
           <Button size="sm" variant="primary" onClick={() => onCreateIntervention?.(campaign)}>
@@ -745,200 +771,6 @@ function FG({ label, children, full }) {
   )
 }
 
-function CampaignModal({ open, onClose, demande, campaign, onSaved }) {
-  const isEdit = Boolean(campaign?.uid)
-  const [form, setForm] = useState(() => buildCampaignFormState(campaign))
-
-  useEffect(() => {
-    if (open) {
-      setForm(buildCampaignFormState(campaign))
-    }
-  }, [open, campaign])
-
-  const mutation = useMutation({
-    mutationFn: async ({ mode, payload, campaignUid, demandeUid }) => {
-      if (mode === 'edit') {
-        return interventionCampaignsApi.update(campaignUid, payload)
-      }
-      return interventionCampaignsApi.create({ demande_id: demandeUid, ...payload })
-    },
-    onSuccess: (saved) => {
-      onSaved?.(saved)
-      onClose()
-    },
-  })
-
-  function set(key, value) {
-    setForm((current) => ({ ...current, [key]: value }))
-  }
-
-  function handleTypeChange(nextCode) {
-    const typeOption = CAMPAIGN_TYPE_OPTIONS.find((item) => item.code === nextCode)
-    setForm((current) => ({
-      ...current,
-      code: nextCode,
-      label: nextCode === 'AUT' ? current.label : (typeOption?.label || current.label),
-    }))
-  }
-
-  function handleSave() {
-    const typeOption = CAMPAIGN_TYPE_OPTIONS.find((item) => item.code === form.code)
-    const label = normalizeNonEmpty(form.code === 'AUT' ? form.label : (typeOption?.label || form.label)) || 'Campagne'
-    const payload = {
-      code: form.code,
-      label,
-      designation:           normalizeNonEmpty(form.designation),
-      zone_scope:            normalizeNonEmpty(form.zone_scope),
-      temporalite:           normalizeNonEmpty(form.temporalite),
-      programme_specifique:  normalizeNonEmpty(form.programme_specifique),
-      nb_points_prevus:      normalizeNonEmpty(form.nb_points_prevus),
-      types_essais_prevus:   normalizeNonEmpty(form.types_essais_prevus),
-      notes:                 normalizeNonEmpty(form.notes),
-      date_debut_prevue:     normalizeNonEmpty(form.date_debut_prevue),
-      date_fin_prevue:       normalizeNonEmpty(form.date_fin_prevue),
-      priorite:              form.priorite || 'Normale',
-      responsable_technique: normalizeNonEmpty(form.responsable_technique),
-      attribue_a:            normalizeNonEmpty(form.attribue_a),
-      criteres_controle:     normalizeNonEmpty(form.criteres_controle),
-      livrables_attendus:    normalizeNonEmpty(form.livrables_attendus),
-      statut:                campaign?.statut || '\u00c0 cadrer',
-    }
-
-    mutation.mutate({
-      mode: isEdit ? 'edit' : 'create',
-      payload,
-      campaignUid: campaign?.uid,
-      demandeUid: demande?.uid,
-    })
-  }
-
-  const canSave = form.code !== 'AUT' || Boolean(normalizeNonEmpty(form.label))
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={isEdit ? 'Configurer la campagne' : 'Nouvelle campagne'}
-      size="lg"
-    >
-      <div className="flex flex-col gap-4">
-        <div className="rounded-lg border border-border bg-bg px-4 py-3 text-[12px] text-text-muted">
-          La campagne cadre un programme concret: zone, cadence, contenu technique, responsable et livrables. Les interventions se rattachent ensuite à ce cadre.
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          {isEdit && campaign?.reference ? (
-            <FG label="Référence">
-              <Input value={campaign.reference} readOnly className="text-text-muted" />
-            </FG>
-          ) : null}
-          <FG label="Type de campagne" full={!isEdit || !campaign?.reference}>
-            <Select value={form.code} onChange={(event) => handleTypeChange(event.target.value)} className="w-full">
-              {CAMPAIGN_TYPE_OPTIONS.map((item) => (
-                <option key={item.code} value={item.code}>{item.label}</option>
-              ))}
-            </Select>
-          </FG>
-          {form.code === 'AUT' ? (
-            <FG label="Libellé libre" full>
-              <Input value={form.label} onChange={(event) => set('label', event.target.value)} placeholder="Campagne de contrôles spécifiques" />
-            </FG>
-          ) : null}
-          <FG label="Objectif / désignation" full>
-            <Input
-              value={form.designation}
-              onChange={(event) => set('designation', event.target.value)}
-              placeholder="Ce que la campagne doit couvrir ou sécuriser"
-            />
-          </FG>
-          <FG label="Zone / secteur / phase / lot" full>
-            <Input
-              value={form.zone_scope}
-              onChange={(event) => set('zone_scope', event.target.value)}
-              placeholder={demande?.chantier || 'Zone concernée'}
-            />
-          </FG>
-          <FG label="Temporalité / cadence" full>
-            <Input
-              value={form.temporalite}
-              onChange={(event) => set('temporalite', event.target.value)}
-              placeholder="Ex. phase 1, durant les enrobés, hebdomadaire..."
-            />
-          </FG>
-          <FG label="Programme spécifique" full>
-            <textarea
-              value={form.programme_specifique}
-              onChange={(event) => set('programme_specifique', event.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
-              placeholder="Ce que cette campagne doit couvrir concrètement."
-            />
-          </FG>
-          <FG label="Nb points prévus">
-            <Input value={form.nb_points_prevus} onChange={(event) => set('nb_points_prevus', event.target.value)} placeholder="Ex. 6" />
-          </FG>
-          <FG label="Types d'essais prévus">
-            <Input value={form.types_essais_prevus} onChange={(event) => set('types_essais_prevus', event.target.value)} placeholder="PANDA, PL, WE..." />
-          </FG>
-          <FG label="Date début prévue">
-            <Input type="date" value={form.date_debut_prevue} onChange={(event) => set('date_debut_prevue', event.target.value)} />
-          </FG>
-          <FG label="Date fin / échéance">
-            <Input type="date" value={form.date_fin_prevue} onChange={(event) => set('date_fin_prevue', event.target.value)} />
-          </FG>
-          <FG label="Priorité">
-            <Select value={form.priorite} onChange={(event) => set('priorite', event.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
-              {['Basse','Normale','Haute','Urgente'].map(p => <option key={p}>{p}</option>)}
-            </Select>
-          </FG>
-          <FG label="Responsable technique" full>
-            <Input value={form.responsable_technique} onChange={(event) => set('responsable_technique', event.target.value)} placeholder="Nom du responsable technique" />
-          </FG>
-          <FG label="Attribué à" full>
-            <Input value={form.attribue_a} onChange={(event) => set('attribue_a', event.target.value)} placeholder="Equipe ou personne cible" />
-          </FG>
-          <FG label="Critères de contrôle" full>
-            <textarea
-              value={form.criteres_controle}
-              onChange={(event) => set('criteres_controle', event.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
-              placeholder="Critères d'acceptation ou de conformité."
-            />
-          </FG>
-          <FG label="Livrables attendus" full>
-            <textarea
-              value={form.livrables_attendus}
-              onChange={(event) => set('livrables_attendus', event.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
-              placeholder="PV, note, rapport, synthèse..."
-            />
-          </FG>
-          <FG label="Notes de cadrage" full>
-            <textarea
-              value={form.notes}
-              onChange={(event) => set('notes', event.target.value)}
-              rows={3}
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
-              placeholder="Contraintes d'accès, coactivité, HSE, livrables attendus…"
-            />
-          </FG>
-        </div>
-
-        {mutation.error ? <p className="text-danger text-xs">{mutation.error.message}</p> : null}
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button onClick={onClose} variant="secondary">Annuler</Button>
-          <Button onClick={handleSave} variant="primary" disabled={!canSave || mutation.isPending}>
-            {mutation.isPending ? 'Enregistrement…' : (isEdit ? 'Enregistrer la campagne' : 'Créer la campagne')}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
 // ── Modal Édition ─────────────────────────────────────────────────────────────
 function EditModal({ open, onClose, demande, onSaved }) {
   const [form, setForm] = useState({})
@@ -949,9 +781,16 @@ function EditModal({ open, onClose, demande, onSaved }) {
         labo_code:          demande.labo_code      || 'SP',
         statut:             demande.statut         || 'À qualifier',
         priorite:           demande.priorite       || 'Normale',
-        type_mission:       demande.type_mission   || 'À définir',
+        type_mission:       demande.type_mission   || '',
         nature:             demande.nature         || '',
         numero_dst:         demande.numero_dst     || '',
+        domaine_etude:      demande.domaine_etude  || '',
+        type_prestation_attendue: demande.type_prestation_attendue || '',
+        documents_fournis:  demande.documents_fournis || '',
+        lien_pieces_jointes: demande.lien_pieces_jointes || '',
+        service_interne:    demande.service_interne || '',
+        societe_interne:    demande.societe_interne || '',
+        urgence_source:     demande.urgence_source || '',
         demandeur:          demande.demandeur      || '',
         date_reception:     demande.date_reception || '',
         date_echeance:      demande.date_echeance  || '',
@@ -998,9 +837,7 @@ function EditModal({ open, onClose, demande, onSaved }) {
           </Select>
         </FG>
         <FG label="Type mission" full>
-          <Select value={form.type_mission || ''} onChange={e => set('type_mission', e.target.value)} className="w-full">
-            {MISSIONS.map(m => <option key={m}>{m}</option>)}
-          </Select>
+          <Input value={form.type_mission || ''} onChange={e => set('type_mission', e.target.value)} placeholder="Texte libre" />
         </FG>
         <FG label="Nature">
           <Input value={form.nature} onChange={e => set('nature', e.target.value)} />
@@ -1008,8 +845,23 @@ function EditModal({ open, onClose, demande, onSaved }) {
         <FG label="N° DST">
           <Input value={form.numero_dst} onChange={e => set('numero_dst', e.target.value)} placeholder="CET0001234" />
         </FG>
+        <FG label="Domaine d'étude">
+          <Input value={form.domaine_etude} onChange={e => set('domaine_etude', e.target.value)} />
+        </FG>
+        <FG label="Type prestation attendue" full>
+          <Input value={form.type_prestation_attendue} onChange={e => set('type_prestation_attendue', e.target.value)} />
+        </FG>
+        <FG label="Urgence source">
+          <Input value={form.urgence_source} onChange={e => set('urgence_source', e.target.value)} />
+        </FG>
         <FG label="Demandeur">
           <Input value={form.demandeur} onChange={e => set('demandeur', e.target.value)} />
+        </FG>
+        <FG label="Service interne">
+          <Input value={form.service_interne} onChange={e => set('service_interne', e.target.value)} />
+        </FG>
+        <FG label="Société interne">
+          <Input value={form.societe_interne} onChange={e => set('societe_interne', e.target.value)} />
         </FG>
         <FG label="Date réception">
           <Input type="date" value={form.date_reception} onChange={e => set('date_reception', e.target.value)} />
@@ -1020,7 +872,14 @@ function EditModal({ open, onClose, demande, onSaved }) {
         <FG label="Date clôture">
           <Input type="date" value={form.date_cloture} onChange={e => set('date_cloture', e.target.value)} />
         </FG>
-        <div />
+        <FG label="Documents fournis" full>
+          <textarea value={form.documents_fournis} onChange={e => set('documents_fournis', e.target.value)} rows={2}
+            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+        </FG>
+        <FG label="Lien pièces jointes volumineuses" full>
+          <textarea value={form.lien_pieces_jointes} onChange={e => set('lien_pieces_jointes', e.target.value)} rows={2}
+            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+        </FG>
         <FG label="Description" full>
           <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
             className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
@@ -1182,10 +1041,9 @@ export default function DemandePage() {
   const { uid } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
-  const [campaignModalOpen, setCampaignModalOpen] = useState(false)
-  const [campaignDraft, setCampaignDraft] = useState(null)
   const [interventionCreateDraft, setInterventionCreateDraft] = useState(null)
   const [refEditOpen, setRefEditOpen] = useState(false)
   const [refEditVal,  setRefEditVal]  = useState('')
@@ -1257,6 +1115,24 @@ export default function DemandePage() {
 
   const d = demande
   const detailReturnTo = buildLocationTarget(location)
+  const explicitReturnTo = resolveReturnTo(searchParams, '')
+  const defaultBackTarget = d?.affaire_rst_id ? `/affaires/${d.affaire_rst_id}` : '/demandes'
+
+  function handleBackNavigation() {
+    if (explicitReturnTo) {
+      navigate(explicitReturnTo)
+      return
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate(defaultBackTarget)
+  }
+
+  const backButtonLabel = explicitReturnTo.startsWith('/affaires/') || (!explicitReturnTo && Boolean(d?.affaire_rst_id))
+    ? '← Affaire'
+    : '← Demandes'
 
   function getExpandedState(key, fallback = false) {
     const value = uiState?.expanded?.[key]
@@ -1283,6 +1159,42 @@ export default function DemandePage() {
       ...(interventionsByUid.get(Number(item.uid)) || {}),
     })),
   }))
+  const campaignInterventionUids = new Set(
+    campaigns.flatMap((campaign) => (campaign?.interventions || []).map((item) => Number(item?.uid))).filter((value) => Number.isFinite(value))
+  )
+  const standaloneInterventions = navigationInterventions.filter((item) => !campaignInterventionUids.has(Number(item?.uid)))
+  const virtualCampaign = campaigns.length === 0 && standaloneInterventions.length > 0
+    ? {
+      uid: 'virtual-unassigned',
+      code: 'AUT',
+      reference: `${d.reference || 'DEM'}-HORS-CAMPAGNE`,
+      label: 'Campagne fictive',
+      designation: 'Interventions existantes sans campagne explicite.',
+      workflow_label: 'Campagne auto-générée pour regrouper les interventions existantes.',
+      source_mode: 'auto',
+      source_label: 'Auto-générée',
+      target_mode: 'manuel',
+      target_label: 'À cadrer',
+      intervention_count: standaloneInterventions.length,
+      intervention_uids: standaloneInterventions.map((item) => item.uid),
+      interventions: standaloneInterventions,
+      report_ref: '',
+      preparation_status: 'À cadrer',
+      statut: 'À cadrer',
+      is_virtual: true,
+    }
+    : null
+  const campaignsForDisplay = virtualCampaign ? [virtualCampaign] : campaigns
+  const demandeSupportCampaignGroups = campaignsForDisplay
+    .map((campaign) => ({
+      campaign,
+      interventionGroups: collectSupportObjectsByIntervention(campaign?.interventions || []),
+    }))
+    .filter((entry) => entry.interventionGroups.length > 0)
+  const demandeSupportCount = demandeSupportCampaignGroups.reduce(
+    (total, entry) => total + entry.interventionGroups.reduce((acc, group) => acc + group.objects.length, 0),
+    0
+  )
   const preparation = nav?.preparation || {}
   const familyCatalog = nav?.family_catalog || []
   const familyLabelMap = Object.fromEntries(familyCatalog.map((item) => [item.family_code, item.label]))
@@ -1333,13 +1245,22 @@ export default function DemandePage() {
   const urgCls = urgDate !== null ? (urgDate < 0 ? 'text-danger font-bold' : urgDate <= 7 ? 'text-warn font-bold' : '') : ''
 
   function openNewCampaignModal() {
-    setCampaignDraft(null)
-    setCampaignModalOpen(true)
+    if (!uid) return
+    interventionCampaignsApi.create({ demande_id: Number(uid), label: 'Campagne' })
+      .then((saved) => {
+        if (!saved?.uid) return
+        qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
+        navigate(buildPathWithReturnTo(`/campagnes/${saved.uid}`, detailReturnTo))
+      })
+      .catch(() => {
+        // Keep silent fallback to avoid blocking the page with an intrusive alert.
+      })
   }
 
   function openEditCampaignModal(campaign) {
-    setCampaignDraft(campaign)
-    setCampaignModalOpen(true)
+    const campaignUid = campaign?.uid
+    if (!campaignUid) return
+    navigate(buildPathWithReturnTo(`/campagnes/${campaignUid}`, detailReturnTo))
   }
 
   function openInterventionTypeModal(basePath, campaign = null) {
@@ -1359,9 +1280,9 @@ export default function DemandePage() {
     <div className="flex flex-col h-full -m-6 overflow-y-auto">
       {/* Header */}
       <div className="flex items-center gap-2 px-6 bg-surface border-b border-border h-[58px] shrink-0 sticky top-0 z-10 flex-wrap">
-        <button onClick={() => navigate('/demandes')}
+        <button onClick={handleBackNavigation}
           className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors">
-          ← Demandes
+          {backButtonLabel}
         </button>
         <span className="text-[15px] font-semibold flex-1">{d.reference}</span>
         <Button size="sm" onClick={() => navigate(`/affaires/${d.affaire_rst_id}`)}>📋 Affaire</Button>
@@ -1486,27 +1407,64 @@ export default function DemandePage() {
           </details>
         </div>
 
+        <Card
+          title="Synthèse PI / NI (demande)"
+          action={<span className="text-[11px] text-text-muted">{demandeSupportCount} objet{demandeSupportCount > 1 ? 's' : ''}</span>}
+        >
+          {demandeSupportCampaignGroups.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {demandeSupportCampaignGroups.map((entry) => (
+                <div key={entry.campaign?.uid || entry.campaign?.reference} className="rounded-lg border border-border bg-bg px-3 py-3">
+                  <div className="text-[12px] font-semibold text-accent">{entry.campaign?.reference || entry.campaign?.label || 'Campagne'}</div>
+                  <div className="mt-2 flex flex-col gap-3">
+                    {entry.interventionGroups.map((group) => (
+                      <div key={group.intervention_uid || group.intervention_reference} className="flex flex-col gap-2">
+                        <div className="text-[11px] font-semibold text-text">{group.intervention_reference}</div>
+                        <div className="flex flex-col gap-2">
+                          {group.objects.map((item) => (
+                            <RelatedObjectNode
+                              key={`${item.kind}-${item.uid}`}
+                              item={item}
+                              navigate={navigate}
+                              detailReturnTo={detailReturnTo}
+                              getExpandedState={getExpandedState}
+                              setExpandedState={setExpandedState}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[13px] text-text-muted">Aucun PI / NI visible pour cette demande.</div>
+          )}
+        </Card>
+
         {/* Campagnes */}
-        {(visibility.campagnes !== false || campaigns.length > 0) && (
+        {(visibility.campagnes !== false || campaignsForDisplay.length > 0) && (
           <Card
             title="Campagnes d'intervention"
             action={(
               <div className="flex items-center gap-2">
-                <span className="text-[11px] text-text-muted">{campaigns.length} campagne{campaigns.length > 1 ? 's' : ''}</span>
+                <span className="text-[11px] text-text-muted">{campaignsForDisplay.length} campagne{campaignsForDisplay.length > 1 ? 's' : ''}</span>
                 <Button size="sm" variant="primary" onClick={openNewCampaignModal}>Nouvelle campagne</Button>
               </div>
             )}
           >
-            {campaigns.length > 0 ? (
+            {campaignsForDisplay.length > 0 ? (
               <div className="flex flex-col gap-4">
-                {campaigns.map((campaign) => (
+                {campaignsForDisplay.map((campaign) => (
                   <CampaignAccordion
                     key={campaign.uid}
                     campaign={campaign}
+                    isVirtual={Boolean(campaign.is_virtual)}
                     detailReturnTo={detailReturnTo}
                     navigate={navigate}
                     onEditCampaign={openEditCampaignModal}
-                    onCreateIntervention={() => openInterventionTypeModal(buildCreateInterventionHref(uid, preparation, campaign, d, detailReturnTo), campaign)}
+                    onCreateIntervention={() => openInterventionTypeModal(buildCreateInterventionHref(uid, preparation, campaign.is_virtual ? null : campaign, d, detailReturnTo), campaign.is_virtual ? null : campaign)}
                     getExpandedState={getExpandedState}
                     setExpandedState={setExpandedState}
                   />
@@ -1540,15 +1498,24 @@ export default function DemandePage() {
             <FieldRow label="Type mission" value={d.type_mission} />
             <FieldRow label="Nature"       value={d.nature} />
             <FieldRow label="N° DST"       value={d.numero_dst} />
+            <FieldRow label="Domaine d'étude" value={d.domaine_etude} />
+            <FieldRow label="Type prestation attendue" value={d.type_prestation_attendue} />
+            <FieldRow label="Urgence source" value={d.urgence_source} />
             <FieldRow label="Laboratoire"  value={LABO_NOM[d.labo_code] || d.labo_code} />
           </Card>
           <Card title="Acteurs">
             <FieldRow label="Demandeur" value={d.demandeur} />
+            <FieldRow label="Service interne" value={d.service_interne} />
+            <FieldRow label="Société interne" value={d.societe_interne} />
           </Card>
           <Card title="Dates">
             <FieldRow label="Réception" value={formatDate(d.date_reception)} />
             <FieldRow label="Échéance"  value={d.date_echeance ? formatDate(d.date_echeance) : '—'} warn={urgCls !== ''} />
             <FieldRow label="Clôture"   value={d.date_cloture ? formatDate(d.date_cloture) : 'En cours'} />
+          </Card>
+          <Card title="Pièces source">
+            <FieldRow label="Documents fournis" value={d.documents_fournis} />
+            <FieldRow label="Lien pièces jointes" value={d.lien_pieces_jointes} />
           </Card>
           <Card title="Rapport / Admin">
             <FieldRow label="Réf. rapport"  value={d.rapport_ref} />
@@ -1608,15 +1575,6 @@ export default function DemandePage() {
           setDemande(saved)
           qc.setQueryData(['demande', uid], saved)
           qc.invalidateQueries({ queryKey: ['demandes'] })
-        }}
-      />
-      <CampaignModal
-        open={campaignModalOpen}
-        onClose={() => setCampaignModalOpen(false)}
-        demande={d}
-        campaign={campaignDraft}
-        onSaved={() => {
-          qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
         }}
       />
       <InterventionTypeModal

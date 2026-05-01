@@ -1,0 +1,781 @@
+/* rapport-nge.css */
+:root {
+    --rapport-border: #111111;
+    --rapport-text: #111111;
+    --rapport-muted: #333333;
+    --rapport-background: #ffffff;
+    --rapport-page-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
+}
+
+.rapport-screen {
+    min-height: 100vh;
+    padding: 24px;
+    background: #e5e7eb;
+    color: var(--rapport-text);
+    font-family: "Century Gothic",  "Trebuchet MS", Arial, Helvetica, sans-serif;
+}
+
+.rapport-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid #dcd8d0;
+    border-radius: 14px;
+    background: #f8f7f4;
+}
+
+.rapport-toolbar button {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 8px 14px;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.rapport-toolbar button:hover {
+    background: #f8fafc;
+}
+
+.rapport-toolbar button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: #f3f4f6;
+}
+
+.rapport-page {
+    position: relative;
+    margin: 0 auto;
+    background: var(--rapport-background);
+    box-shadow: var(--rapport-page-shadow);
+    display: flex;
+    flex-direction: column;
+    font-size: 10px;
+    line-height: 1.12;
+}
+
+.rapport-page-a4 {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 7mm 9mm 7mm 7mm;
+}
+
+.rapport-print-frame {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: calc(297mm - 14mm);
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+}
+
+.rapport-header-main-grid {
+    display: grid;
+    grid-template-columns: 23% 54% 23%;
+    border: 1px solid var(--rapport-border);
+    min-height: 19mm;
+}
+
+.rapport-logo-cell,
+.rapport-title-cell,
+.rapport-site-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 5px;
+}
+
+.rapport-logo-cell,
+.rapport-title-cell {
+    border-right: 1px solid var(--rapport-border);
+}
+
+.rapport-logo {
+    width: 31mm;
+    max-height: 13mm;
+    object-fit: contain;
+}
+
+.rapport-logo-fallback {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 31mm;
+    min-height: 11mm;
+    padding: 1mm 2mm;
+    color: #1b1570;
+    border-right: 5mm solid #f6d224;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    line-height: 1;
+}
+
+.rapport-title-cell {
+    flex-direction: column;
+    text-align: center;
+    gap: 1px;
+    padding-bottom: 0;
+}
+
+.rapport-main-title {
+    font-size: 9.6px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.rapport-subtitle {
+    max-width: 95%;
+    font-size: 8.2px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.rapport-standard {
+    font-size: 7.7px;
+    font-weight: 700;
+}
+
+.rapport-reference-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: stretch;
+    width: calc(100% + 10px);
+    margin-top: auto;
+    border-top: 1px solid var(--rapport-border);
+}
+
+.rapport-reference-item {
+    min-height: 6.5mm;
+    padding: 1px 3px;
+    text-align: center;
+    border-right: 1px solid var(--rapport-border);
+}
+
+.rapport-reference-item:last-child {
+    border-right: 0;
+}
+
+.rapport-reference-item span,
+.rapport-reference-item strong {
+    display: block;
+}
+
+.rapport-reference-item span {
+    font-size: 7px;
+    font-weight: 700;
+}
+
+.rapport-reference-item strong {
+    margin-top: 1px;
+    font-size: 8.4px;
+    font-weight: 700;
+}
+
+.rapport-site-cell {
+    flex-direction: column;
+    text-align: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.rapport-laboratory-line {
+    display: grid;
+    grid-template-columns: 55mm 1fr;
+    align-items: center;
+    min-height: 8mm;
+    border-left: 1px solid var(--rapport-border);
+    border-right: 1px solid var(--rapport-border);
+    border-bottom: 1px solid var(--rapport-border);
+    padding: 0 9mm;
+}
+
+.rapport-laboratory-line span {
+    font-weight: 700;
+}
+
+.rapport-laboratory-line strong {
+    font-weight: 400;
+}
+
+.rapport-section {
+    border-left: 1px solid var(--rapport-border);
+    border-right: 1px solid var(--rapport-border);
+    border-bottom: 1px solid var(--rapport-border);
+}
+
+.rapport-section h2,
+.rapport-section-title-row h2,
+.rapport-conclusion-block h2,
+.rapport-comments-block h2 {
+    margin: 0;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.rapport-section h2 span,
+.rapport-section-title-row h2 span,
+.rapport-conclusion-block h2 span,
+.rapport-comments-block h2 span {
+    text-decoration: underline;
+}
+
+.rapport-section-general {
+    min-height: 33mm;
+    padding: 2mm 3mm 1.5mm 3mm;
+}
+
+.rapport-general-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 14mm;
+    row-gap: 1mm;
+    padding: 1.5mm 5mm 0 5mm;
+}
+
+.rapport-field-list {
+    display: grid;
+    gap: 1px;
+}
+
+.rapport-field-list div,
+.rapport-field-full {
+    display: grid;
+    grid-template-columns: 40mm 1fr;
+    align-items: baseline;
+}
+
+.rapport-field-list span,
+.rapport-field-full span,
+.rapport-criteria-grid span,
+.rapport-section-title-row span {
+    color: var(--rapport-muted);
+}
+
+.rapport-field-list strong,
+.rapport-field-full strong,
+.rapport-criteria-grid strong {
+    font-weight: 400;
+}
+
+.rapport-field-full {
+    grid-column: 1 / 3;
+}
+
+.rapport-section-criteria {
+    min-height: 17mm;
+    padding: 2mm 3mm 1.5mm 3mm;
+}
+
+.rapport-criteria-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 1.5mm 5mm 0 5mm;
+}
+
+.rapport-criteria-grid div {
+    display: grid;
+    grid-template-columns: 90mm 1fr;
+}
+
+.rapport-inline-symbol {
+    display: inline-block;
+    margin: 0 7mm;
+    color: var(--rapport-text) !important;
+}
+
+.rapport-section-results {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    padding: 0;
+}
+
+.rapport-section-title-row {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    align-items: center;
+    min-height: 6.8mm;
+    padding: 1mm 3mm;
+}
+
+.rapport-section-title-row div {
+    display: grid;
+    grid-template-columns: 1fr 24mm 15mm;
+    align-items: center;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+
+
+
+
+.rapport-final-block {
+    display: grid;
+    grid-template-columns: 1fr 60mm;
+    min-height: 34mm;
+    border-left: 1px solid var(--rapport-border);
+    border-right: 1px solid var(--rapport-border);
+    border-bottom: 1px solid var(--rapport-border);
+}
+
+.rapport-conclusion-comments {
+    display: grid;
+    grid-template-rows: 15mm 1fr;
+    border-right: 1px solid var(--rapport-border);
+}
+
+.rapport-conclusion-block {
+    border-bottom: 1px solid var(--rapport-border);
+    padding: 1.5mm 3mm;
+}
+
+.rapport-conclusion-lines {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3mm;
+    padding-top: 0.5mm;
+    text-align: center;
+    font-size: 9px;
+}
+
+.rapport-comments-block {
+    padding: 1.5mm 3mm;
+}
+
+.rapport-comments-block div {
+    min-height: 10mm;
+    padding: 2mm 4mm;
+}
+
+.rapport-signature-block {
+    display: grid;
+    grid-template-rows: 11mm 13mm 1fr;
+}
+
+.rapport-signature-row {
+    display: grid;
+    grid-template-columns: 20mm 1fr;
+    border-bottom: 1px solid var(--rapport-border);
+}
+
+.rapport-signature-row:last-child {
+    border-bottom: 0;
+}
+
+.rapport-signature-row span,
+.rapport-signature-row strong {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1mm;
+    text-align: center;
+}
+
+.rapport-signature-row span {
+    border-right: 1px solid var(--rapport-border);
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+.rapport-signature-row strong {
+    font-weight: 400;
+}
+
+.rapport-signature-visa {
+    min-height: 18mm;
+}
+
+.rapport-document-footer {
+    position: absolute;
+    right: 2.5mm;
+    bottom: 50mm;
+    max-width: 85mm;
+    transform: rotate(270deg);
+    transform-origin: right bottom;
+    white-space: nowrap;
+    font-size: 7px;
+    line-height: 1;
+}
+
+@page {
+    size: A4 portrait;
+    margin: 0;
+}
+
+@media print {
+    html,
+    body {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    .rapport-screen {
+        min-height: auto;
+        padding: 0;
+        background: #ffffff;
+    }
+
+    .rapport-page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0;
+        box-shadow: none;
+        page-break-after: always;
+    }
+
+    .rapport-page-a4 {
+        padding: 7mm 9mm 7mm 7mm;
+    }
+
+    .rapport-print-frame {
+        min-height: calc(297mm - 14mm);
+    }
+
+    .rapport-overflow-note {
+        margin: 1mm 7mm 0 7mm;
+        font-size: 7.5px;
+        font-style: italic;
+    }
+}
+
+/* Common report page layout */
+
+.rapport-page-shell {
+    min-height: 100vh;
+    padding: 12px 0;
+    background: #f6f5f1;
+    color: var(--rapport-text);
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+}
+
+.rapport-page-shell-inner {
+    width: 100%;
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.rapport-page-interface {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.rapport-work-block {
+    overflow: hidden;
+    border: 1px solid #dcd8d0;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.rapport-work-block-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid #e2ded7;
+    background: #f8f7f4;
+    padding: 16px 20px;
+}
+
+.rapport-work-block-title {
+    color: #676b82;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.rapport-work-block-description {
+    margin: 6px 0 0 0;
+    color: #676b82;
+    font-size: 13px;
+}
+
+.rapport-toolbar-frame {
+    width: 100%;
+    margin: 0mm 0mm 0 0mm;
+    padding: 10px;
+    background: #ffffff;
+    border: 1px solid #e2ded7;
+    border-radius: 16px;
+    display: flex;
+    justify-content: center;
+}
+
+
+
+.rapport-paper-frame {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 18px 20px 24px 20px;
+    background: #f1efea;
+    border-radius: 0 0 18px 18px;
+}
+
+/* Common report management header */
+
+.rapport-management-page-header {
+    overflow: hidden;
+    border: 1px solid #dcd8d0;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.rapport-management-page-header-main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 24px 26px;
+}
+
+.rapport-management-eyebrow {
+    color: #676b82;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.rapport-management-title {
+    margin: 8px 0 0 0;
+    color: #1f2030;
+    font-size: 28px;
+    font-weight: 650;
+    line-height: 1.1;
+}
+
+.rapport-management-description {
+    margin: 14px 0 0 0;
+    color: #676b82;
+    font-size: 16px;
+    line-height: 1.45;
+}
+
+.rapport-management-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 2px;
+}
+
+.rapport-management-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0 14px;
+    border: 1px solid #dedbd4;
+    border-radius: 999px;
+    background: #faf9f6;
+    color: #676b82;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.rapport-management-panel {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 18px;
+    overflow: hidden;
+    border: 1px solid #dcd8d0;
+    border-radius: 16px;
+    background: #ffffff;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.rapport-management-list-card,
+.rapport-management-edit-card {
+    border: 1px solid #dedbd4;
+    border-radius: 10px;
+    background: #f8f7f4;
+    padding: 14px;
+}
+
+.rapport-management-card-title,
+.rapport-management-reference-field span {
+    display: block;
+    margin-bottom: 10px;
+    color: #676b82;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.rapport-management-report-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.rapport-management-report-button {
+    width: 100%;
+    border: 1px solid #dedbd4;
+    border-radius: 9px;
+    background: #ffffff;
+    padding: 12px 14px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.rapport-management-report-button-active {
+    border-color: #6665f2;
+}
+
+.rapport-management-report-reference {
+    color: #1f2030;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.rapport-management-report-status {
+    margin-top: 4px;
+    color: #676b82;
+    font-size: 13px;
+}
+
+.rapport-management-new-button {
+    width: 100%;
+    min-height: 42px;
+    margin-top: 14px;
+    border: 1px solid #dedbd4;
+    border-radius: 9px;
+    background: #ffffff;
+    color: #1f2030;
+    font-size: 14px;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.rapport-management-edit-grid {
+    display: grid;
+    grid-template-columns: 1fr 390px;
+    gap: 22px;
+    align-items: start;
+}
+
+.rapport-management-reference-field input {
+    width: 100%;
+    height: 54px;
+    border: 1px solid #dedbd4;
+    border-radius: 10px;
+    background: #ffffff;
+    padding: 0 16px;
+    color: #1f2030;
+    font-size: 16px;
+    outline: none;
+}
+
+.rapport-management-reference-field input:focus {
+    border-color: #6665f2;
+}
+
+.rapport-management-status-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    color: #676b82;
+    font-size: 14px;
+}
+
+.rapport-management-status-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.rapport-management-primary-button,
+.rapport-management-secondary-button {
+    min-height: 48px;
+    border-radius: 9px;
+    padding: 0 20px;
+    font-size: 16px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.rapport-management-primary-button {
+    border: 1px solid #6665f2;
+    background: #6665f2;
+    color: #ffffff;
+}
+
+.rapport-management-secondary-button {
+    border: 1px solid #dedbd4;
+    background: #ffffff;
+    color: #8a8c96;
+}
+
+.rapport-management-primary-button:disabled,
+.rapport-management-secondary-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+.rapport-management-empty {
+    border: 1px dashed #d6d2ca;
+    border-radius: 9px;
+    padding: 18px;
+    color: #676b82;
+    font-size: 14px;
+}
+
+@media print {
+    .rapport-page-shell {
+        min-height: auto;
+        padding: 0;
+        background: #ffffff;
+    }
+
+    .rapport-page-shell-inner {
+        max-width: none;
+        gap: 0;
+    }
+
+    .rapport-page-interface,
+    .rapport-work-block-header,
+    .rapport-toolbar-frame {
+        display: none !important;
+    }
+
+    .rapport-work-block {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: #ffffff;
+    }
+
+    .rapport-paper-frame {
+        display: block;
+        width: auto;
+        padding: 0;
+        background: #ffffff;
+    }
+}

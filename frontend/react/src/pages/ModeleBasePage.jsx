@@ -9,6 +9,7 @@ import {
     deleteModelDefinitionDE,
     getModelDefinitionDE,
     getRapportModelDefinitionDEById,
+    listModelDefinitionsDE,
     listRapportModelDefinitionsDE,
     migrateLegacyDeDraftIfNeeded,
     upsertRapportModelDefinitionDE,
@@ -22,7 +23,7 @@ import { formatDate } from '@/lib/utils'
 import { getFeuilleTypeConfig } from '@/pages/terrain/feuilleTypeRegistry'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
-const TERRAIN_CODES = new Set(['DE', 'CFE', 'PMT', 'PLD', 'DF', 'SC', 'SO', 'SP'])
+const TERRAIN_CODES = new Set(['DE', 'CFE', 'PLD', 'DF', 'SC', 'SO', 'SP'])
 
 const SOURCE_TONE_CLS = {
     manual: 'border-l-4 border-l-[#7fc998] bg-[#f7fcf9]',
@@ -320,6 +321,9 @@ function renderDeView({
     onRemoveRow,
     }) 
     {
+    // NOTE (2026-05-01):
+    // This DE renderer is the visual reference for runtime parity.
+    // Runtime DE should mirror this structure; future essai types should follow the same pattern.
     const meta = draft?.meta || {}
     const pointsRows = Array.isArray(draft?.points_rows) ? draft.points_rows : []
     const summary = computeDeSummary(pointsRows)
@@ -3561,6 +3565,7 @@ export default function ModeleBasePage() {
             const modelDefinition = migrated.model || getModelDefinitionDE()
             if (modelDefinition) {
                 return {
+                    id: String(modelDefinition.id || ''),
                     reference: String(modelDefinition.reference || ''),
                     values: modelDefinition.values && typeof modelDefinition.values === 'object' ? modelDefinition.values : {},
                     source: modelDefinition.source && typeof modelDefinition.source === 'object' ? modelDefinition.source : null,
@@ -3572,12 +3577,13 @@ export default function ModeleBasePage() {
 
         try {
             const raw = localStorage.getItem(storageKey)
-            if (!raw) return { reference: '', values: {}, source: null, status: 'draft', migrated: false }
+            if (!raw) return { id: '', reference: '', values: {}, source: null, status: 'draft', migrated: false }
 
             const parsed = JSON.parse(raw)
-            if (!parsed || typeof parsed !== 'object') return { reference: '', values: {}, source: null, status: 'draft', migrated: false }
+            if (!parsed || typeof parsed !== 'object') return { id: '', reference: '', values: {}, source: null, status: 'draft', migrated: false }
 
             return {
+                id: String(parsed.id || ''),
                 reference: String(parsed.reference || ''),
                 values: parsed.values && typeof parsed.values === 'object' ? parsed.values : {},
                 source: parsed.source && typeof parsed.source === 'object' ? parsed.source : null,
@@ -3585,9 +3591,23 @@ export default function ModeleBasePage() {
                 migrated: false,
             }
         } catch {
-            return { reference: '', values: {}, source: null, status: 'draft', migrated: false }
+            return { id: '', reference: '', values: {}, source: null, status: 'draft', migrated: false }
         }
     }, [code, storageKey])
+
+    const initialModelDefinitions = useMemo(
+        () => (code === 'DE' ? listModelDefinitionsDE() : []),
+        [code]
+    )
+    const [modelDefinitions, setModelDefinitions] = useState(initialModelDefinitions)
+    // NOTE:
+    // Multi-model list/selection is DE-first implementation.
+    // This model lifecycle pattern (draft -> approved -> selectable versions) should be reused per essai type.
+    const [selectedModelId, setSelectedModelId] = useState(() => (
+        code === 'DE'
+            ? String(initialModelDefinitions[0]?.id || initialDraft?.id || '')
+            : ''
+    ))
 
     const [reference, setReference] = useState(initialDraft.reference)
     const [values, setValues] = useState(initialDraft.values)
@@ -3638,6 +3658,16 @@ export default function ModeleBasePage() {
                 ? values
                 : {}
     )
+
+    const hasDraftContent = useMemo(() => {
+        if (code !== 'DE') return false
+        if (String(reference || '').trim()) return true
+        if (source && typeof source === 'object') return true
+        const rows = Array.isArray(deDraft?.points_rows) ? deDraft.points_rows : []
+        if (rows.length > 0) return true
+        const meta = deDraft?.meta && typeof deDraft.meta === 'object' ? deDraft.meta : {}
+        return Object.keys(meta).length > 0
+    }, [code, reference, source, deDraft])
     useEffect(() => {
         let cancelled = false
     
@@ -3766,6 +3796,65 @@ export default function ModeleBasePage() {
     }, [code, scDraft?.points, selectedScPointUid])
 
 
+
+    function refreshModelDefinitions(nextSelectedId = selectedModelId) {
+        if (code !== 'DE') return
+        const nextModels = listModelDefinitionsDE()
+        setModelDefinitions(nextModels)
+        if (!nextModels.length) {
+            setSelectedModelId('')
+            return
+        }
+        const targetId = String(nextSelectedId || '')
+        const exists = targetId ? nextModels.some((item) => String(item.id) === targetId) : false
+        setSelectedModelId(exists ? targetId : String(nextModels[0].id))
+    }
+
+    useEffect(() => {
+        if (code !== 'DE') return
+        if (!hasDraftContent) return
+        const existing = listModelDefinitionsDE()
+        if (existing.length > 0) return
+
+        const created = upsertModelDefinitionDE({
+            id: String(selectedModelId || `DE-model-${Date.now()}`),
+            reference: String(reference || ''),
+            status: modelStatus === 'approved' ? 'approved' : 'draft',
+            values: getNormalizedValues(),
+            source: source && typeof source === 'object' ? source : null,
+        })
+        refreshModelDefinitions(created.id)
+    }, [code, hasDraftContent])
+
+    useEffect(() => {
+        if (code !== 'DE') return
+        if (!selectedModelId) return
+        const current = modelDefinitions.find((item) => String(item.id) === String(selectedModelId))
+        if (!current) return
+        setReference(String(current.reference || ''))
+        const currentValues = current.values && typeof current.values === 'object' ? current.values : {}
+        setValues(currentValues)
+        setDeDraft(toDeDraft(currentValues))
+        setSource(current.source && typeof current.source === 'object' ? current.source : null)
+        setModelStatus(current.status === 'approved' ? 'approved' : 'draft')
+    }, [code, modelDefinitions, selectedModelId])
+
+    function createNewModelDefinition() {
+        if (code !== 'DE') return
+        const nextId = `DE-model-${Date.now()}`
+        setSelectedModelId(nextId)
+        setReference('')
+        setValues({})
+        setDeDraft({ meta: {}, points_rows: [] })
+        setSource(null)
+        setModelStatus('draft')
+        setResult({ type: 'ok', msg: 'Nouveau modèle DE prêt. Renseigne puis enregistre.' })
+    }
+
+    useEffect(() => {
+        if (code !== 'DE') return
+        refreshModelDefinitions(selectedModelId)
+    }, [code])
 
     function refreshRapportModels(nextSelectedId = selectedRapportModelId) {
         if (code !== 'DE') return
@@ -3944,15 +4033,19 @@ export default function ModeleBasePage() {
 
     function persist(next) {
         if (code === 'DE') {
-            upsertModelDefinitionDE({
+            const saved = upsertModelDefinitionDE({
+                id: String(next.id || selectedModelId || `DE-model-${Date.now()}`),
                 reference: next.reference,
                 status: next.status,
                 values: next.values,
                 source: next.source,
             })
+            refreshModelDefinitions(saved.id)
+            return saved
         }
 
         localStorage.setItem(storageKey, JSON.stringify(next))
+        return null
     }
 
     function getNormalizedValues() {
@@ -4011,7 +4104,8 @@ export default function ModeleBasePage() {
     function saveDraft() {
         const normalizedValues = getNormalizedValues()
         setValues(normalizedValues)
-        persist({ reference, status: modelStatus, values: normalizedValues, source })
+        const saved = persist({ id: selectedModelId, reference, status: modelStatus, values: normalizedValues, source })
+        if (saved?.id) setSelectedModelId(String(saved.id))
         void (async () => {
             try {
                 await persistFeuilleTerrainDeIfNeeded(normalizedValues)
@@ -4032,13 +4126,17 @@ export default function ModeleBasePage() {
     }
 
     function applyModelStatus(nextStatus) {
+        // NOTE:
+        // Status transition currently controls DE model approval.
+        // Work page later associates approved feuille + approved rapport and publishes runtime snapshots.
         const normalizedStatus = nextStatus === 'approved' ? 'approved' : 'draft'
         const normalizedValues = getNormalizedValues()
-        const next = { reference, status: normalizedStatus, values: normalizedValues, source }
+        const next = { id: selectedModelId, reference, status: normalizedStatus, values: normalizedValues, source }
 
         setValues(normalizedValues)
         setModelStatus(normalizedStatus)
-        persist(next)
+        const saved = persist(next)
+        if (saved?.id) setSelectedModelId(String(saved.id))
         void (async () => {
             try {
                 await persistFeuilleTerrainDeIfNeeded(normalizedValues)
@@ -4068,9 +4166,11 @@ export default function ModeleBasePage() {
         setSource(null)
         setModelStatus('draft')
         setLookup('')
+        setSelectedModelId('')
 
         if (code === 'DE') deleteModelDefinitionDE()
         localStorage.removeItem(storageKey)
+        refreshModelDefinitions('')
         refreshRapportModels('')
         setResult({ type: 'ok', msg: 'Modèle de base réinitialisé.' })
     }
@@ -4410,6 +4510,29 @@ export default function ModeleBasePage() {
                                 </div>
                                 <div className="rounded-lg border border-dashed border-border bg-surface px-2 py-2">
                                     Gestion du modèle {code}. La feuille métier commence dans le bloc “Structure du modèle”.
+                                </div>
+                            </div>
+                        ) : null}
+                        {code === 'DE' ? (
+                            <div className="flex flex-col gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-xs text-text-muted md:col-span-2">
+                                <span className="font-medium uppercase tracking-wide">Modèles DE existants</span>
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                    <select
+                                        value={selectedModelId || ''}
+                                        onChange={(event) => setSelectedModelId(String(event.target.value || ''))}
+                                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                                    >
+                                        <option value="">Sélectionner un modèle…</option>
+                                        {modelDefinitions.map((item) => (
+                                            <option key={item.id} value={String(item.id)}>
+                                                {item.reference || item.id} · {item.status === 'approved' ? 'Approuvé' : 'Brouillon'}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <Button variant="secondary" onClick={createNewModelDefinition}>Nouveau modèle</Button>
+                                </div>
+                                <div className="text-[11px]">
+                                    {modelDefinitions.length} modèle(s) enregistré(s) pour DE.
                                 </div>
                             </div>
                         ) : null}

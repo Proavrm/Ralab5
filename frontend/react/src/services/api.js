@@ -62,11 +62,38 @@ async function request(method, path, body = null) {
 }
 
 export const api = {
+  list: (params = {}) => api.get('/feuilles-terrain?' + new URLSearchParams(params)),
   get:    (path)         => request('GET',    path),
   post:   (path, body)   => request('POST',   path, body),
   patch:  (path, body)   => request('PATCH',  path, body),
   put:    (path, body)   => request('PUT',    path, body),
   delete: (path)         => request('DELETE', path),
+  postForm: async (path, formData) => {
+    const headers = {}
+    const token = getToken()
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers,
+      credentials: 'same-origin',
+      body: formData,
+    })
+
+    if (res.status === 401) {
+      localStorage.removeItem('ralab_token')
+      localStorage.removeItem('ralab_user')
+      window.location.href = '/login'
+      return
+    }
+
+    if (!res.ok) {
+      const error = await parseResponse(res).catch((parseError) => ({ detail: parseError.message || res.statusText }))
+      throw new Error(error.detail || `Erreur ${res.status}`)
+    }
+
+    return parseResponse(res)
+  },
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
@@ -140,6 +167,7 @@ export const interventionsApi = {
 }
 
 export const interventionCampaignsApi = {
+  get:    (uid)         => api.get(`/intervention-campaigns/${uid}`),
   create: (data)        => api.post('/intervention-campaigns', data),
   update: (uid, data)   => api.patch(`/intervention-campaigns/${uid}`, data),
 }
@@ -170,17 +198,6 @@ export const essaisApi = {
   syncInterventionEssais: (interventionId) => api.post(`/essais/interventions/${interventionId}/sync`, {}),
 }
 
-// ── PMT ───────────────────────────────────────────────────────────────────────
-export const pmtApi = {
-  listCampaignsByDemande:   (demandeId, preparationPhase = '') => api.get(`/pmt/demandes/${demandeId}/campagnes?preparation_phase=${encodeURIComponent(preparationPhase)}`),
-  getInterventionWorkflow:  (interventionId, preparationPhase = '') => api.get(`/pmt/interventions/${interventionId}/workflow?preparation_phase=${encodeURIComponent(preparationPhase)}`),
-  ensureEssaiForIntervention: (interventionId) => api.post(`/pmt/interventions/${interventionId}/essai`, {}),
-  getEssai:                 (uid) => api.get(`/pmt/essais/${uid}`),
-  updateEssai:              (uid, data) => api.put(`/pmt/essais/${uid}`, data),
-  getRapport:               (uid) => api.get(`/pmt/rapports/${uid}`),
-}
-
-
 // ── Intervention requalification ─────────────────────────────────────────────
 export const interventionRequalificationApi = {
   listRaw:                (params = {}) => api.get('/intervention-requalification/raw?' + new URLSearchParams(params)),
@@ -201,26 +218,35 @@ export const interventionRequalificationApi = {
 export const qualiteApi = {
   stats:      ()            => api.get('/qualite/stats'),
   equipment:  {
-    list:   () => api.get('/qualite/equipment'),
-    create: (d) => api.post('/qualite/equipment', d),
-    update: (id, d) => api.patch(`/qualite/equipment/${id}`, d),
+      list:   () => api.get('/qualite/equipment'),
+      create: (d) => api.post('/qualite/equipment', d),
+      update: (id, d) => api.put(`/qualite/equipment/${id}`, d),
+  },
+  equipmentOptions: {
+      list: (params = {}) => {
+          const query = new URLSearchParams(
+              Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+          ).toString()
+
+          return api.get(`/qualite/equipment-options${query ? `?${query}` : ''}`)
+      },
   },
   metrology:  {
-    list:   () => api.get('/qualite/metrology'),
-    create: (d) => api.post('/qualite/metrology', d),
+      list:   () => api.get('/qualite/metrology'),
+      create: (d) => api.post('/qualite/metrology', d),
   },
   procedures: {
-    list:   () => api.get('/qualite/procedures'),
-    create: (d) => api.post('/qualite/procedures', d),
+      list:   () => api.get('/qualite/procedures'),
+      create: (d) => api.post('/qualite/procedures', d),
   },
   standards:  {
-    list:   () => api.get('/qualite/standards'),
-    create: (d) => api.post('/qualite/standards', d),
+      list:   () => api.get('/qualite/standards'),
+      create: (d) => api.post('/qualite/standards', d),
   },
   nc:         {
-    list:   () => api.get('/qualite/nc'),
-    create: (d) => api.post('/qualite/nc', d),
-    update: (id, d) => api.patch(`/qualite/nc/${id}`, d),
+      list:   () => api.get('/qualite/nc'),
+      create: (d) => api.post('/qualite/nc', d),
+      update: (id, d) => api.patch(`/qualite/nc/${id}`, d),
   },
 }
 
@@ -255,7 +281,11 @@ export const adminApi = {
 
 
 export const feuillesTerrainApi = {
+  list:         (params = {}) => api.get('/feuilles-terrain?' + new URLSearchParams(params)),
   get:          (uid) => api.get(`/feuilles-terrain/${uid}`),
+  create:       (data) => api.post('/feuilles-terrain', data),
+  update:       (uid, data) => api.put(`/feuilles-terrain/${uid}`, data),
+  delete:       (uid) => api.delete(`/feuilles-terrain/${uid}`),
   createPoint:  (uid, data) => api.post(`/feuilles-terrain/${uid}/points`, data),
   updatePoint:  (uid, pointUid, data) => api.put(`/feuilles-terrain/${uid}/points/${pointUid}`, data),
   deletePoint:  (uid, pointUid) => api.delete(`/feuilles-terrain/${uid}/points/${pointUid}`),
@@ -269,14 +299,45 @@ export const feuillesTerrainApi = {
   getAllCustomValues: () => api.get('/feuilles-terrain/custom-values'),
   saveCustomValue: (champ, valeur) => api.post('/feuilles-terrain/custom-values', { champ, valeur }),
   deleteCustomValue: (champ, valeur) => api.delete(`/feuilles-terrain/custom-values/${encodeURIComponent(champ)}/${encodeURIComponent(valeur)}`),
+  listEssaiPhotos: (essaiId) => api.get(`/photos/essai/${essaiId}/gallery`),
+  uploadEssaiPhoto: (essaiId, file, affaire = '', options = {}) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (affaire) form.append('affaire', affaire)
+    if (options?.coupe_code) form.append('coupe_code', String(options.coupe_code))
+    return api.postForm(`/photos/essai/${essaiId}`, form)
+  },
+  setPrimaryEssaiPhoto: (essaiId, storedName) => api.patch(`/photos/essai/${essaiId}/primary`, { stored_name: storedName }),
+  deleteEssaiPhoto: (essaiId, storedName) => api.delete(`/photos/essai/${essaiId}/files/${encodeURIComponent(storedName)}`),
 }
 
 // ── Nivellements ──────────────────────────────────────────────────────────────
 export const nivellementsApi = {
   get: (uid) => api.get(`/nivellements/${uid}`),
+  create: (data) => api.post('/nivellements', data),
+  update: (uid, data) => api.put(`/nivellements/${uid}`, data),
 }
 
 // ── Plans d'implantation ──────────────────────────────────────────────────────
 export const plansImplantationApi = {
   get: (uid) => api.get(`/plans-implantation/${uid}`),
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])
+    ).toString()
+    return api.get(`/plans-implantation${qs ? '?' + qs : ''}`)
+  },
+  create: (data) => api.post('/plans-implantation', data),
+  update: (uid, data) => api.put(`/plans-implantation/${uid}`, data),
+  updateCanvas: (uid, data) => api.put(`/plans-implantation/${uid}/canvas`, data),
+  listImageFiles: (uid) => api.get(`/plans-implantation/${uid}/image-files`),
+  listInterventionPoints: (uid, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])
+    ).toString()
+    return api.get(`/plans-implantation/${uid}/intervention-points${qs ? '?' + qs : ''}`)
+  },
+  createInterventionPoint: (uid, data) => api.post(`/plans-implantation/${uid}/intervention-points`, data),
+  searchPoints: (interventionId, code = '') =>
+    api.get(`/plans-implantation/search-points?intervention_id=${interventionId}&code=${encodeURIComponent(code)}`),
 }

@@ -276,6 +276,7 @@ class DemandesRstRepository:
                     SELECT
                         id,
                         reference,
+                        source_essai_id,
                         intervention_id,
                         campagne_id,
                         code_feuille,
@@ -376,6 +377,16 @@ class DemandesRstRepository:
             if not intervention_id:
                 continue
             feuilles_by_intervention.setdefault(int(intervention_id), []).append(item)
+
+        terrain_source_essai_ids_by_intervention: dict[int, set[int]] = {}
+        for intervention_id, items in feuilles_by_intervention.items():
+            source_ids = {
+                int(entry.get('source_essai_id'))
+                for entry in items
+                if entry.get('source_essai_id')
+            }
+            if source_ids:
+                terrain_source_essai_ids_by_intervention[intervention_id] = source_ids
 
         def _build_essai_object(item: dict) -> dict:
             result_value = ''
@@ -486,7 +497,12 @@ class DemandesRstRepository:
                 related_objects.append(_build_echantillon_object(item) | {'category': 'echantillon'})
 
             linked_echantillon_ids = {int(item['uid']) for item in echantillons_by_intervention.get(intervention_id, [])}
+            terrain_source_essai_ids = terrain_source_essai_ids_by_intervention.get(intervention_id, set())
             for item in essais_by_intervention.get(intervention_id, []):
+                code = str(item.get('essai_code') or '').strip().upper()
+                if code in {'SC', 'SO'} and int(item['uid']) in terrain_source_essai_ids:
+                    # SC/SO displayed on terrain axis via feuille_terrain; avoid duplicate "Essais labo directs" entry.
+                    continue
                 echantillon_id = item.get('echantillon_id')
                 if echantillon_id and int(echantillon_id) in linked_echantillon_ids:
                     continue
@@ -585,11 +601,13 @@ class DemandesRstRepository:
                 """
                 INSERT INTO demandes
                 (reference,annee,labo_code,numero,affaire_rst_id,
-                 numero_dst,type_mission,nature,description,observations,
+                 numero_dst,type_mission,nature,domaine_etude,type_prestation_attendue,
+                 documents_fournis,lien_pieces_jointes,service_interne,societe_interne,urgence_source,
+                 description,observations,
                  demandeur,date_reception,date_echeance,statut,priorite,
                  a_revoir,note_reconciliation,suivi_notes,dossier_nom,dossier_path,
                  rapport_ref,devis_ref,facture_ref,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     ref,
@@ -600,6 +618,13 @@ class DemandesRstRepository:
                     body.numero_dst,
                     body.type_mission,
                     body.nature,
+                    body.domaine_etude,
+                    body.type_prestation_attendue,
+                    body.documents_fournis,
+                    body.lien_pieces_jointes,
+                    body.service_interne,
+                    body.societe_interne,
+                    body.urgence_source,
                     body.description,
                     body.observations,
                     body.demandeur,
@@ -676,6 +701,13 @@ class DemandesRstRepository:
             numero_dst=r.numero_dst,
             type_mission=r.type_mission,
             nature=r.nature,
+            domaine_etude=r.domaine_etude,
+            type_prestation_attendue=r.type_prestation_attendue,
+            documents_fournis=r.documents_fournis,
+            lien_pieces_jointes=r.lien_pieces_jointes,
+            service_interne=r.service_interne,
+            societe_interne=r.societe_interne,
+            urgence_source=r.urgence_source,
             description=r.description,
             observations=r.observations,
             demandeur=r.demandeur,
@@ -724,6 +756,13 @@ class DemandesRstRepository:
             numero_dst=row['numero_dst'] or '',
             type_mission=row['type_mission'] or 'À définir',
             nature=row['nature'] or '',
+            domaine_etude=(row['domaine_etude'] or '') if 'domaine_etude' in keys else '',
+            type_prestation_attendue=(row['type_prestation_attendue'] or '') if 'type_prestation_attendue' in keys else '',
+            documents_fournis=(row['documents_fournis'] or '') if 'documents_fournis' in keys else '',
+            lien_pieces_jointes=(row['lien_pieces_jointes'] or '') if 'lien_pieces_jointes' in keys else '',
+            service_interne=(row['service_interne'] or '') if 'service_interne' in keys else '',
+            societe_interne=(row['societe_interne'] or '') if 'societe_interne' in keys else '',
+            urgence_source=(row['urgence_source'] or '') if 'urgence_source' in keys else '',
             description=row['description'] or '',
             observations=row['observations'] or '',
             demandeur=row['demandeur'] or '',

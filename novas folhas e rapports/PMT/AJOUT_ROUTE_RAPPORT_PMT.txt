@@ -1,0 +1,15 @@
+AJOUT ROUTE RAPPORT PMT - RaLab5
+
+Fichier a modifier: le fichier de routing React reel du projet (souvent App.jsx, router.jsx ou routes.jsx).
+
+Ajouter l'import:
+
+import RapportPMTPage from '@/pages/rapports/RapportPMTPage'
+
+Ajouter la route avec les autres rapports:
+
+<Route path="/rapports/pmt/:essaiId" element={<RapportPMTPage />} />
+
+Remarque:
+- ModeleBasePage.jsx contient deja le bouton "Ouvrir le rapport PMT" qui navigue vers /rapports/pmt/:essaiId.
+- L'import Excel PMT n'a pas ete traite ici, comme demande. La feuille PMT reste saisie manuelle / valeurs deja chargees par payload.

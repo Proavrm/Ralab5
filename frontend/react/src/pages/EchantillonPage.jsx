@@ -659,6 +659,12 @@ export default function EchantillonPage() {
   )
 
   const d = isNew ? null : ech
+  const parentPrelevementId = Number.parseInt(String(d?.prelevement_id || (hasLinkedPrelevementId ? linkedPrelevementId : '')), 10)
+  const hasParentPrelevement = Number.isInteger(parentPrelevementId) && parentPrelevementId > 0
+  const parentInterventionId = Number.parseInt(String(d?.intervention_reelle_id || (hasLinkedInterventionReelleId ? linkedInterventionReelleId : '')), 10)
+  const hasParentIntervention = Number.isInteger(parentInterventionId) && parentInterventionId > 0
+  const parentDemandeId = Number.parseInt(String(d?.demande_id || form.demande_id || demandeIdFromUrl || ''), 10)
+  const hasParentDemande = Number.isInteger(parentDemandeId) && parentDemandeId > 0
 
   return (
     <div className={`flex flex-col h-full overflow-y-auto ${deleteMode ? 'bg-red-50' : ''}`}>
@@ -673,6 +679,25 @@ export default function EchantillonPage() {
         <span className="text-[14px] font-semibold flex-1 font-mono">
           {isNew ? 'Nouvel échantillon' : (d?.reference || `ECH #${uid}`)}
         </span>
+        {!isNew && (
+          <div className="flex items-center gap-2">
+            {hasParentPrelevement ? (
+              <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${parentPrelevementId}`, childReturnTo)}>
+                Prélèvement
+              </Button>
+            ) : null}
+            {hasParentIntervention ? (
+              <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/interventions/${parentInterventionId}`, childReturnTo)}>
+                Intervention
+              </Button>
+            ) : null}
+            {hasParentDemande ? (
+              <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/demandes/${parentDemandeId}`, childReturnTo)}>
+                Demande
+              </Button>
+            ) : null}
+          </div>
+        )}
         {!isNew && <Badge s={d?.statut} map={STAT_CLS} />}
         {editing && !isNew ? (
           <>
@@ -728,8 +753,15 @@ export default function EchantillonPage() {
         ) : null}
 
         {!d?.prelevement_id && !(isNew && linkedPrelevement) && (d?.intervention_reelle_id || (isNew && hasLinkedInterventionReelleId)) ? (
-          <div className="rounded-lg border border-[#dfe6d3] bg-[#f4f7ed] px-4 py-3 text-sm text-[#4d6632]">
-            Ce groupe d’essais est rattaché directement à l’intervention {d?.intervention_reelle_reference || linkedInterventionReference || `#${d?.intervention_reelle_id || linkedInterventionReelleId}`}. Il reste le point d’entrée pour créer et suivre les essais.
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dfe6d3] bg-[#f4f7ed] px-4 py-3 text-sm text-[#4d6632]">
+            <div>
+              Ce groupe d’essais est rattaché directement à l’intervention {d?.intervention_reelle_reference || linkedInterventionReference || `#${d?.intervention_reelle_id || linkedInterventionReelleId}`}. Il reste le point d’entrée pour créer et suivre les essais.
+            </div>
+            {hasParentIntervention ? (
+              <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/interventions/${parentInterventionId}`, childReturnTo)}>
+                Ouvrir l’intervention
+              </Button>
+            ) : null}
           </div>
         ) : null}
 

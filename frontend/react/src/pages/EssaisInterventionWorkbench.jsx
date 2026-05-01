@@ -48,7 +48,7 @@ function classifyNature(row) {
         || ''
     ).toUpperCase().trim()
 
-    const terrainCodes = new Set(['PL', 'PLD', 'PDL', 'PA', 'INF', 'EA', 'EE', 'PER PO', 'PMT', 'DF', 'DS'])
+    const terrainCodes = new Set(['PL', 'PLD', 'PDL', 'PA', 'INF', 'EA', 'EE', 'PER PO', 'DF', 'DS'])
     if (terrainCodes.has(code)) return 'Essai terrain'
 
     const label = String(

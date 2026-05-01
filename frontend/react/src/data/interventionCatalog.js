@@ -206,7 +206,6 @@ export const CODE_REFERENTIAL = [
     { code: 'EA', label: 'Étanchéité à l’air', family: 'Réseaux / Assainissement' },
     { code: 'EE', label: 'Étanchéité à l’eau', family: 'Réseaux / Assainissement' },
     { code: 'PER PO', label: 'Percolation', family: 'Réseaux / Assainissement' },
-    { code: 'PMT', label: 'Macrotexture', family: 'Chaussées / Revêtements' },
     { code: 'TEG', label: 'Taux épandage granulats', family: 'Chaussées / Revêtements' },
     { code: 'TEL', label: 'Taux épandage liant', family: 'Chaussées / Revêtements' },
     { code: 'SO', label: 'Coupe de sondage', family: 'Géotechnique / Reconnaissance' },

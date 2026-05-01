@@ -7,8 +7,9 @@ from typing import Mapping
 
 CANONICAL_AFFAIRE_SUFFIX_WIDTH = 3
 DEFAULT_REIMPORT_KEEP_SUFFIX_RANGES: dict[int, tuple[int, int]] = {
+    2021: (2, 2),
     2025: (1, 16),
-    2026: (1, 24),
+    2026: (1, 30),
 }
 
 _RA_AFFAIRE_REFERENCE_PATTERN = re.compile(

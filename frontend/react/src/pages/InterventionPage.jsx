@@ -8,7 +8,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { buildInterventionTypeOptions } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
-import { api, demandesApi, echantillonsApi, essaisApi, interventionRequalificationApi, interventionsApi, prelevementsApi } from '@/services/api'
+import { api, demandesApi, echantillonsApi, essaisApi, interventionRequalificationApi, interventionsApi } from '@/services/api'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 
 const FINALITY_OPTIONS = [
@@ -51,7 +51,6 @@ const HISTORICAL_CODE_LABELS = {
     DE: 'Contrôle densité enrobés',
     DF: 'Déflexion',
     PLD: 'Portances dynaplaque',
-    PMT: 'Macrotexture PMT',
     SC: 'Coupe de sondage carotté',
     SO: 'Coupes de sondages',
 }
@@ -79,7 +78,6 @@ const DIRECT_ESSAI_TEMPLATES = [
     { code: 'GEN', label: 'Essai générique', typeEssai: 'Essai générique', norme: '' },
     { code: 'DE', label: 'Densité enrobés', typeEssai: 'Densité enrobés in situ', norme: '' },
     { code: 'DF', label: 'Déflexions', typeEssai: 'Déflexions', norme: '' },
-    { code: 'PMT', label: 'Macrotexture PMT', typeEssai: 'Macrotexture PMT', norme: '' },
     { code: 'PLD', label: 'Portances dynaplaque', typeEssai: 'Portances dynaplaque', norme: '' },
     { code: 'PL', label: 'Portances à la plaque', typeEssai: 'Portances à la plaque', norme: '' },
     { code: 'DS', label: 'Densité sols in situ', typeEssai: 'Densité sols in situ', norme: '' },
@@ -117,6 +115,8 @@ const INTERVENTION_TYPE_SUGGESTED_FINALITY = {
 const DIRECT_ESSAIS_BY_INTERVENTION_TYPE = {
     'Essai de plaque': ['PL', 'PLD'],
     'Sondage': ['SO', 'SC', 'PA'],
+    'Sondage carotté': ['SC'],
+    'Sondage carotte': ['SC'],
     'Carottage': ['SC', 'SO'],
     'Campagne de description géotechnique': ['SO', 'SC', 'PA'],
     'Prélèvement': [],
@@ -133,7 +133,6 @@ const DIRECT_ESSAIS_BY_INTERVENTION_TYPE = {
 }
 
 const DIRECT_ESSAIS_BY_HISTORICAL_CODE = {
-    PMT: ['PMT'],
     DF: ['DF'],
     PLD: ['PLD'],
     DE: ['DE'],
@@ -143,6 +142,7 @@ const DIRECT_ESSAIS_BY_HISTORICAL_CODE = {
 
 function inferDirectEssaiCodes(source = {}) {
     const normalizedType = String(source?.type_intervention || '').trim()
+    const normalizedTypeLookup = normalizeHistoricalLookup(normalizedType)
     const historicalCode = String(source?.historicalCode || '').trim().toUpperCase()
     const explicitLabel = String(source?.historicalLabel || '').toLowerCase()
 
@@ -152,7 +152,13 @@ function inferDirectEssaiCodes(source = {}) {
     const byHistoricalCode = DIRECT_ESSAIS_BY_HISTORICAL_CODE[historicalCode]
     if (Array.isArray(byHistoricalCode) && byHistoricalCode.length) return byHistoricalCode
 
-    if (explicitLabel.includes('macrotexture')) return ['PMT']
+    if (normalizedTypeLookup.includes('sondage carotte') || normalizedTypeLookup.includes('carottage')) {
+        return ['SC']
+    }
+    if (normalizedTypeLookup.includes('sondage')) {
+        return ['SO', 'SC', 'PA']
+    }
+
     if (explicitLabel.includes('déflex') || explicitLabel.includes('deflex')) return ['DF']
     if (explicitLabel.includes('dynaplaque')) return ['PLD']
     if (explicitLabel.includes('densité enrobés') || explicitLabel.includes('densite enrobes')) return ['DE']
@@ -705,40 +711,6 @@ function findHistoricalSummaryNumber(rows, rowFragments, valueFragments = []) {
 function buildImportedResultRows(code, rows) {
     if (!Array.isArray(rows) || !rows.length) return []
 
-    if (code === 'PMT') {
-        return rows
-            .map((row) => {
-                const rowText = normalizeHistoricalLookup(collectHistoricalRowText(row))
-                if (
-                    rowText.includes('pourcentage de valeurs conformes')
-                    || rowText.includes('profondeur de macrotexture generale')
-                    || rowText.includes('nb d essais')
-                    || rowText.includes('conclusions')
-                    || rowText.includes('commentaires')
-                    || rowText.includes('visa')
-                ) {
-                    return null
-                }
-
-                const pointKey = findHistoricalRowKey(row, ['essai', 'point'])
-                const diametreKey = findHistoricalRowKey(row, ['diametre'])
-                const macrotextureKey = findHistoricalRowKey(row, ['macrotexture', 'profondeur'])
-                const positionKey = findHistoricalRowKey(row, ['position', 'localisation'])
-
-                const point = pointKey ? parseHistoricalNumber(row[pointKey]) : null
-                const macrotexture = macrotextureKey ? parseHistoricalNumber(row[macrotextureKey]) : null
-                if (point == null || macrotexture == null) return null
-
-                return {
-                    point,
-                    position: positionKey ? formatHistoricalValue(row[positionKey]) : '',
-                    diametre_mm: diametreKey ? parseHistoricalNumber(row[diametreKey]) : null,
-                    macrotexture_mm: macrotexture,
-                }
-            })
-            .filter(Boolean)
-    }
-
     if (code === 'PLD') {
         return rows
             .map((row) => {
@@ -789,23 +761,6 @@ function buildImportedResultRows(code, rows) {
 }
 
 function buildImportedResultMetrics(code, payload, rows, normalizedRows) {
-    if (code === 'PMT' && normalizedRows.length > 0) {
-        const macrotextureValues = normalizedRows.map((row) => row.macrotexture_mm).filter((value) => value != null)
-        const diametreValues = normalizedRows.map((row) => row.diametre_mm).filter((value) => value != null)
-        const macrotextureAverage = findHistoricalSummaryNumber(rows, ['profondeur de macrotexture generale'], ['macrotexture'])
-            ?? averageHistoricalNumbers(macrotextureValues)
-        const conformite = findHistoricalSummaryNumber(rows, ['pourcentage de valeurs conformes'], ['macrotexture'])
-
-        return [
-            { label: 'Mesures', value: `${normalizedRows.length}` },
-            { label: 'Macrotexture moy.', value: formatHistoricalMetric(macrotextureAverage, 'mm'), tone: 'accent' },
-            { label: 'Mini', value: formatHistoricalMetric(Math.min(...macrotextureValues), 'mm') },
-            { label: 'Maxi', value: formatHistoricalMetric(Math.max(...macrotextureValues), 'mm') },
-            { label: 'Diamètre moy.', value: formatHistoricalMetric(averageHistoricalNumbers(diametreValues), 'mm') },
-            { label: 'Conformes', value: formatHistoricalMetric(conformite, '%') },
-        ].filter((item) => hasHistoricalValue(item.value))
-    }
-
     if (code === 'PLD' && normalizedRows.length > 0) {
         const values = normalizedRows.map((row) => row.ev2_mpa).filter((value) => value != null)
         return [
@@ -832,18 +787,6 @@ function buildImportedResultMetrics(code, payload, rows, normalizedRows) {
 
 function buildImportedResultTable(code, normalizedRows) {
     if (!normalizedRows.length) return null
-
-    if (code === 'PMT') {
-        return {
-            title: 'Mesures relevées',
-            columns: [
-                { key: 'point', label: 'Point' },
-                { key: 'position', label: 'Position' },
-                { key: 'diametre_mm', label: 'Diamètre (mm)', unit: 'mm' },
-                { key: 'macrotexture_mm', label: 'Macrotexture (mm)', unit: 'mm' },
-            ],
-        }
-    }
 
     if (code === 'PLD') {
         return {
@@ -949,7 +892,7 @@ function buildHistoricalSummaryItems(code, payload, observations, interventionIn
         )
     }
 
-    if (code === 'PMT' || code === 'DF') {
+    if (code === 'DF') {
         items.push(
             { label: 'En-tête extrait', value: hasHistoricalValue(payload?.header_snapshot) ? 'Oui' : '' },
             { label: 'Tableau importé', value: Array.isArray(payload?.rows) ? `${payload.rows.length} ligne(s)` : '' },
@@ -1113,8 +1056,10 @@ function buildQuickEssaiForm(source = null) {
     const essaiCode = guessDirectEssaiCode(source)
     const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[essaiCode] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
     return {
+        option_value: template.code,
         essai_code: template.code,
         norme: template.norme || '',
+        source_label: '',
     }
 }
 
@@ -1206,6 +1151,9 @@ export default function InterventionPage() {
     const [linkedEssais, setLinkedEssais] = useState([])
     const [linkedEssaisLoading, setLinkedEssaisLoading] = useState(false)
     const [linkedEssaisError, setLinkedEssaisError] = useState('')
+    const [linkedFeuillesTerrain, setLinkedFeuillesTerrain] = useState([])
+    const [linkedPointsTerrain, setLinkedPointsTerrain] = useState([])
+    const [linkedCouchesTerrain, setLinkedCouchesTerrain] = useState([])
     const [quickEchantillonForm, setQuickEchantillonForm] = useState(buildQuickEchantillonForm())
     const [quickEssaiForm, setQuickEssaiForm] = useState(buildQuickEssaiForm())
     const [creatingPrelevement, setCreatingPrelevement] = useState(false)
@@ -1334,12 +1282,6 @@ export default function InterventionPage() {
         [planningChecklistItems]
     )
 
-    async function fetchDirectLinkedEchantillons(interventionReelleId) {
-        if (!interventionReelleId) return []
-        const rows = await echantillonsApi.list({ intervention_reelle_id: interventionReelleId })
-        return Array.isArray(rows) ? rows.filter((item) => !item.prelevement_id) : []
-    }
-
     useEffect(() => {
         let active = true
 
@@ -1399,85 +1341,6 @@ export default function InterventionPage() {
         loadDemande()
         return () => { active = false }
     }, [demandeId])
-
-    useEffect(() => {
-        let active = true
-
-        async function loadLinkedPrelevements() {
-            if (isCreate) {
-                setLinkedPrelevements([])
-                setLinkedPrelevementsError('')
-                setLinkedPrelevementsLoading(false)
-                return
-            }
-
-            const interventionReelleId = interventionInfo?.intervention_reelle_id
-            const directPrelevementId = interventionInfo?.prelevement_id
-
-            if (!interventionReelleId && !directPrelevementId) {
-                setLinkedPrelevements([])
-                setLinkedPrelevementsError('')
-                setLinkedPrelevementsLoading(false)
-                return
-            }
-
-            try {
-                setLinkedPrelevementsLoading(true)
-                setLinkedPrelevementsError('')
-
-                let rows = []
-                if (interventionReelleId) {
-                    rows = await prelevementsApi.list({ intervention_reelle_id: interventionReelleId })
-                } else if (directPrelevementId) {
-                    rows = [await prelevementsApi.get(directPrelevementId)]
-                }
-
-                if (!active) return
-                setLinkedPrelevements(Array.isArray(rows) ? rows : [])
-            } catch (err) {
-                if (!active) return
-                setLinkedPrelevements([])
-                setLinkedPrelevementsError(err.message || 'Impossible de charger les prélèvements liés.')
-            } finally {
-                if (active) setLinkedPrelevementsLoading(false)
-            }
-        }
-
-        loadLinkedPrelevements()
-        return () => { active = false }
-    }, [isCreate, interventionInfo?.intervention_reelle_id, interventionInfo?.prelevement_id])
-
-    useEffect(() => {
-        let active = true
-
-        async function loadLinkedEchantillons() {
-            const interventionReelleId = interventionInfo?.intervention_reelle_id
-
-            if (isCreate || !interventionReelleId) {
-                setLinkedEchantillons([])
-                setLinkedEchantillonsError('')
-                setLinkedEchantillonsLoading(false)
-                return
-            }
-
-            try {
-                setLinkedEchantillonsLoading(true)
-                setLinkedEchantillonsError('')
-                const rows = await fetchDirectLinkedEchantillons(interventionReelleId)
-                if (!active) return
-                setLinkedEchantillons(rows)
-            } catch (err) {
-                if (!active) return
-                setLinkedEchantillons([])
-                setLinkedEchantillonsError(err.message || 'Impossible de charger les groupes liés.')
-            } finally {
-                if (active) setLinkedEchantillonsLoading(false)
-            }
-        }
-
-        loadLinkedEchantillons()
-        return () => { active = false }
-    }, [isCreate, interventionInfo?.intervention_reelle_id])
 
     const title = useMemo(() => {
         if (isCreate) return 'Nouvelle intervention'
@@ -1582,15 +1445,28 @@ export default function InterventionPage() {
     useEffect(() => {
         let active = true
 
-        async function loadLinkedEssais() {
+        async function loadLinkedObjects() {
             if (isCreate || !uid) {
+                setLinkedPrelevements([])
+                setLinkedPrelevementsError('')
+                setLinkedPrelevementsLoading(false)
+                setLinkedEchantillons([])
+                setLinkedEchantillonsError('')
+                setLinkedEchantillonsLoading(false)
                 setLinkedEssais([])
                 setLinkedEssaisError('')
                 setLinkedEssaisLoading(false)
+                setLinkedFeuillesTerrain([])
+                setLinkedPointsTerrain([])
+                setLinkedCouchesTerrain([])
                 return
             }
 
             try {
+                setLinkedPrelevementsLoading(true)
+                setLinkedPrelevementsError('')
+                setLinkedEchantillonsLoading(true)
+                setLinkedEchantillonsError('')
                 setLinkedEssaisLoading(true)
                 setLinkedEssaisError('')
 
@@ -1598,19 +1474,37 @@ export default function InterventionPage() {
                     await essaisApi.syncInterventionEssais(uid)
                 }
 
-                const rows = await essaisApi.list({ intervention_id: uid })
+                const chain = await api.get(`/interventions/${uid}/linked-chain`)
                 if (!active) return
-                setLinkedEssais(Array.isArray(rows) ? rows : [])
+
+                setLinkedPrelevements(Array.isArray(chain?.prelevements) ? chain.prelevements : [])
+                setLinkedEchantillons(Array.isArray(chain?.echantillons) ? chain.echantillons : [])
+                setLinkedEssais(Array.isArray(chain?.essais) ? chain.essais : [])
+                setLinkedFeuillesTerrain(Array.isArray(chain?.feuilles_terrain) ? chain.feuilles_terrain : [])
+                setLinkedPointsTerrain(Array.isArray(chain?.points_terrain) ? chain.points_terrain : [])
+                setLinkedCouchesTerrain(Array.isArray(chain?.couches_terrain) ? chain.couches_terrain : [])
             } catch (err) {
                 if (!active) return
+                const message = err.message || 'Impossible de charger les objets liés.'
+                setLinkedPrelevements([])
+                setLinkedPrelevementsError(message)
+                setLinkedEchantillons([])
+                setLinkedEchantillonsError(message)
                 setLinkedEssais([])
-                setLinkedEssaisError(err.message || 'Impossible de charger les essais liés.')
+                setLinkedEssaisError(message)
+                setLinkedFeuillesTerrain([])
+                setLinkedPointsTerrain([])
+                setLinkedCouchesTerrain([])
             } finally {
-                if (active) setLinkedEssaisLoading(false)
+                if (active) {
+                    setLinkedPrelevementsLoading(false)
+                    setLinkedEchantillonsLoading(false)
+                    setLinkedEssaisLoading(false)
+                }
             }
         }
 
-        loadLinkedEssais()
+        loadLinkedObjects()
         return () => { active = false }
     }, [isCreate, uid, showHistoricalImportedResult])
     const importedResultMeta = useMemo(() => {
@@ -1666,11 +1560,77 @@ export default function InterventionPage() {
         }),
         [form.type_intervention, historicalCode, historicalObservations, interventionInfo]
     )
+    const directEssaiSelectOptions = useMemo(() => {
+        const options = []
+        for (const template of allowedDirectEssaiTemplates) {
+            const code = String(template?.code || '').toUpperCase()
+            if ((code === 'SC' || code === 'SO' || code === 'DE') && linkedFeuillesTerrain.length > 0) {
+                const matchingFeuilles = linkedFeuillesTerrain.filter(
+                    (item) => String(item?.code_feuille || '').toUpperCase() === code
+                )
+                if (matchingFeuilles.length > 0) {
+                    for (const feuille of matchingFeuilles) {
+                        options.push({
+                            value: `${code}::${feuille.uid}`,
+                            essai_code: template.code,
+                            type_essai: template.typeEssai,
+                            norme: template.norme || '',
+                            source_label: feuille.reference || '',
+                            label: feuille.reference || template.label,
+                        })
+                    }
+                    continue
+                }
+            }
+
+            options.push({
+                value: template.code,
+                essai_code: template.code,
+                type_essai: template.typeEssai,
+                norme: template.norme || '',
+                source_label: '',
+                label: template.label,
+            })
+        }
+        return options
+    }, [allowedDirectEssaiTemplates, linkedFeuillesTerrain])
+
+    const directEssaiOptionMap = useMemo(
+        () => Object.fromEntries(directEssaiSelectOptions.map((item) => [item.value, item])),
+        [directEssaiSelectOptions]
+    )
+
+    const selectedDirectEssaiOption = useMemo(
+        () => directEssaiOptionMap[quickEssaiForm.option_value] || directEssaiSelectOptions[0] || null,
+        [directEssaiOptionMap, directEssaiSelectOptions, quickEssaiForm.option_value]
+    )
+    const selectedLinkedFeuilleUid = useMemo(() => {
+        const rawValue = String(selectedDirectEssaiOption?.value || quickEssaiForm.option_value || '')
+        if (!rawValue.includes('::')) return null
+        const [code, rawUid] = rawValue.split('::')
+        const normalizedCode = String(code || '').toUpperCase()
+        if (!['SC', 'SO', 'DE'].includes(normalizedCode)) return null
+        const feuilleUid = Number.parseInt(String(rawUid || ''), 10)
+        return Number.isInteger(feuilleUid) && feuilleUid > 0 ? feuilleUid : null
+    }, [selectedDirectEssaiOption, quickEssaiForm.option_value])
     const canCreateDirectEssai = allowedDirectEssaiTemplates.length > 0
     const contextDemandeLabel = demandeInfo?.reference || (demandeId ? `#${demandeId}` : '')
     const contextCampaignLabel = campaignInfo.reference || campaignInfo.code || campaignInfo.label || campaignInfo.designation || ''
     const hasContextBanner = Boolean(contextDemandeLabel || contextCampaignLabel)
     const hasDirectObjectsCard = Boolean(!isCreate && (!isSondageComposite || linkedEchantillons.length || linkedPrelevements.length || canCreateDirectEchantillons))
+    const parentDemandeId = Number.parseInt(String(demandeId || interventionInfo?.demande_id || ''), 10)
+    const hasParentDemande = Number.isInteger(parentDemandeId) && parentDemandeId > 0
+    const parentAffaireId = Number.parseInt(String(demandeInfo?.affaire_rst_id || interventionInfo?.affaire_rst_id || ''), 10)
+    const hasParentAffaire = Number.isInteger(parentAffaireId) && parentAffaireId > 0
+    const parentCampaignId = Number.parseInt(String(campaignInfo?.uid || interventionInfo?.campaign_id || ''), 10)
+    const hasParentCampaign = Number.isInteger(parentCampaignId) && parentCampaignId > 0
+    const parentDemandePath = hasParentDemande
+        ? (() => {
+            const params = new URLSearchParams()
+            if (hasParentCampaign) params.set('campaign_uid', String(parentCampaignId))
+            return params.toString() ? `/demandes/${parentDemandeId}?${params.toString()}` : `/demandes/${parentDemandeId}`
+        })()
+        : ''
 
     function setField(key, value) {
         setForm((prev) => ({ ...prev, [key]: value }))
@@ -1688,30 +1648,35 @@ export default function InterventionPage() {
     }
 
     function setQuickEssaiCode(value) {
-        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[value] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
+        const selected = directEssaiOptionMap[value]
+        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[selected?.essai_code || value] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
         setQuickEssaiForm((prev) => ({
+            option_value: value,
             essai_code: template.code,
-            norme: template.norme || '',
+            norme: selected?.norme || template.norme || '',
+            source_label: selected?.source_label || '',
             target_status: prev?.target_status || 'realise',
         }))
         setSuccess('')
     }
 
     useEffect(() => {
-        if (!allowedDirectEssaiTemplates.length) return
+        if (!directEssaiSelectOptions.length) return
 
-        const currentAllowed = allowedDirectEssaiTemplates.some((item) => item.code === quickEssaiForm.essai_code)
-        if (currentAllowed) return
-
-        const fallback = allowedDirectEssaiTemplates[0]
+        const fallback = selectedDirectEssaiOption || directEssaiSelectOptions[0]
         if (!fallback) return
+
+        const isCurrentValid = directEssaiSelectOptions.some((item) => item.value === quickEssaiForm.option_value)
+        if (isCurrentValid && quickEssaiForm.essai_code === fallback.essai_code) return
 
         setQuickEssaiForm((prev) => ({
             ...prev,
-            essai_code: fallback.code,
+            option_value: fallback.value,
+            essai_code: fallback.essai_code,
             norme: fallback.norme || '',
+            source_label: fallback.source_label || '',
         }))
-    }, [allowedDirectEssaiTemplates, quickEssaiForm.essai_code])
+    }, [directEssaiSelectOptions, selectedDirectEssaiOption, quickEssaiForm.option_value, quickEssaiForm.essai_code])
 
     async function persistInlineForm(nextForm, successMessage = 'Intervention mise à jour.') {
         if (isCreate || !uid) {
@@ -1813,16 +1778,25 @@ export default function InterventionPage() {
     }
 
     function buildDirectEssaiDraftPath(interventionUid, options = {}) {
-        const essaiCode = options.essaiCode || quickEssaiForm.essai_code
+        const selected = selectedDirectEssaiOption || {
+            essai_code: options.essaiCode || quickEssaiForm.essai_code,
+            type_essai: undefined,
+            norme: quickEssaiForm.norme,
+            source_label: quickEssaiForm.source_label || '',
+        }
+        const essaiCode = selected.essai_code || options.essaiCode || quickEssaiForm.essai_code
         const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[essaiCode] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
         const params = new URLSearchParams({
             intervention_id: String(interventionUid),
             essai_code: template.code,
-            type_essai: template.typeEssai,
+            type_essai: selected.type_essai || template.typeEssai,
         })
 
-        const norme = options.norme ?? quickEssaiForm.norme
+        const norme = options.norme ?? selected.norme ?? quickEssaiForm.norme
         if (norme) params.set('norme', norme)
+
+        const sourceLabel = options.sourceLabel ?? selected.source_label ?? quickEssaiForm.source_label
+        if (sourceLabel) params.set('source_label', sourceLabel)
 
         const reference = options.interventionReference || interventionInfo?.reference || ''
         if (reference) params.set('intervention_ref', reference)
@@ -1908,6 +1882,10 @@ export default function InterventionPage() {
     }
 
     function handleOpenDirectEssaiDraft() {
+        if (selectedLinkedFeuilleUid) {
+            navigateWithReturnTo(navigate, `/feuilles-terrain/${selectedLinkedFeuilleUid}`, childReturnTo)
+            return
+        }
         openDirectEssaiDraft()
     }
 
@@ -2045,9 +2023,31 @@ export default function InterventionPage() {
                 <span className="text-[14px] font-semibold flex-1 font-mono">{title}</span>
                 {!isCreate && form.statut ? <Badge>{form.statut}</Badge> : null}
                 {historicalCode ? <Badge>{`Import ${historicalCode}`}</Badge> : null}
-                {demandeId ? (
-                    <Button size="sm" variant="secondary" onClick={() => navigate(`/demandes/${demandeId}`)}>
+                {hasParentDemande ? (
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigateWithReturnTo(navigate, parentDemandePath, childReturnTo)}
+                    >
                         Demande
+                    </Button>
+                ) : null}
+                {hasParentAffaire ? (
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigateWithReturnTo(navigate, `/affaires/${parentAffaireId}`, childReturnTo)}
+                    >
+                        Affaire
+                    </Button>
+                ) : null}
+                {hasParentCampaign && hasParentDemande ? (
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigateWithReturnTo(navigate, parentDemandePath, childReturnTo)}
+                    >
+                        Campagne
                     </Button>
                 ) : null}
                 {!isCreate && !editing ? (
@@ -2442,23 +2442,99 @@ export default function InterventionPage() {
 
                 {!isCreate ? (
                     <Card title={`Essais (${linkedEssais.length})`}>
+                        <div className="mb-4 pb-4 border-b border-border flex flex-wrap gap-2">
+                            <span className="inline-flex items-center rounded-full border border-border bg-bg px-3 py-1 text-[11px] text-text-muted">
+                                {linkedFeuillesTerrain.length} coupe(s)
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-border bg-bg px-3 py-1 text-[11px] text-text-muted">
+                                {linkedPointsTerrain.length} point(s)
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-border bg-bg px-3 py-1 text-[11px] text-text-muted">
+                                {linkedCouchesTerrain.length} couche(s)
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-border bg-bg px-3 py-1 text-[11px] text-text-muted">
+                                {linkedPrelevements.length} prélèvement(s)
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-border bg-bg px-3 py-1 text-[11px] text-text-muted">
+                                {linkedEchantillons.length} échantillon(s)
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-border bg-bg px-3 py-1 text-[11px] text-text-muted">
+                                {linkedEssais.length} essai(s)
+                            </span>
+                        </div>
+
+                        {linkedFeuillesTerrain.length > 0 ? (
+                            <div className="mb-4 pb-4 border-b border-border flex flex-col gap-2">
+                                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Sondages / feuilles terrain liées</div>
+                                <div className="flex flex-col gap-2">
+                                    {linkedFeuillesTerrain.map((item) => (
+                                        <button
+                                            key={item.uid}
+                                            type="button"
+                                            onClick={() => navigateWithReturnTo(navigate, `/feuilles-terrain/${item.uid}`, childReturnTo)}
+                                            className="rounded-lg border border-border bg-bg px-3 py-3 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <div className="text-[13px] font-semibold text-text">
+                                                        {item.reference || `${item.code_feuille || 'Feuille'} #${item.uid}`}
+                                                    </div>
+                                                    <div className="mt-1 text-[12px] text-text-muted">
+                                                        {[item.label, item.code_feuille, item.date_feuille].filter(Boolean).join(' · ') || 'Feuille terrain liée'}
+                                                    </div>
+                                                </div>
+                                                <div className="shrink-0 text-[11px] text-text-muted">
+                                                    {item.points_count ?? 0} point(s)
+                                                </div>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+
+                        {(linkedPrelevements.length > 0 || linkedEchantillons.length > 0) ? (
+                            <div className="mb-4 pb-4 border-b border-border grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted mb-2">Prélèvements liés</div>
+                                    <LinkedPrelevementsContent
+                                        items={linkedPrelevements.slice(0, 3)}
+                                        loading={linkedPrelevementsLoading}
+                                        error={linkedPrelevementsError}
+                                        onOpen={(prelevementUid) => navigateWithReturnTo(navigate, `/prelevements/${prelevementUid}`, childReturnTo)}
+                                        emptyMessage="Aucun prélèvement lié"
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted mb-2">Échantillons liés</div>
+                                    <LinkedEchantillonsContent
+                                        items={linkedEchantillons.slice(0, 3)}
+                                        loading={linkedEchantillonsLoading}
+                                        error={linkedEchantillonsError}
+                                        onOpen={(echantillonUid) => navigateWithReturnTo(navigate, `/echantillons/${echantillonUid}`, childReturnTo)}
+                                        emptyMessage="Aucun échantillon lié"
+                                    />
+                                </div>
+                            </div>
+                        ) : null}
+
                         <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border flex-wrap">
                             <Select
-                                value={canCreateDirectEssai ? quickEssaiForm.essai_code : ''}
+                                value={canCreateDirectEssai ? (quickEssaiForm.option_value || selectedDirectEssaiOption?.value || '') : ''}
                                 onChange={(e) => setQuickEssaiCode(e.target.value)}
                                 className="text-sm"
                                 disabled={!canCreateDirectEssai}
                             >
                                 {canCreateDirectEssai ? (
-                                    allowedDirectEssaiTemplates.map((item) => (
-                                        <option key={item.code} value={item.code}>{item.label}</option>
+                                    directEssaiSelectOptions.map((item) => (
+                                        <option key={item.value} value={item.value}>{item.label}</option>
                                     ))
                                 ) : (
                                     <option value="">Aucun essai direct lié à ce type d'intervention</option>
                                 )}
                             </Select>
                             <Button variant="primary" size="sm" onClick={handleOpenDirectEssaiDraft} disabled={saving || !canCreateDirectEssai}>
-                                + Créer cet essai
+                                {selectedLinkedFeuilleUid ? 'Ouvrir la feuille liée' : '+ Créer cet essai'}
                             </Button>
                         </div>
 

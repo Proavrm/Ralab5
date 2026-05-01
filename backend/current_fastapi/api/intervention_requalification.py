@@ -96,6 +96,22 @@ def _prelevement_select_sql(where_clause: str = "WHERE 1=1") -> str:
             a.chantier AS chantier,
             a.site AS site,
             i.reference AS intervention_reference,
+            pt.id AS point_terrain_uid,
+            pt.point_code AS point_terrain_code,
+            (
+                SELECT ft1.id
+                FROM feuilles_terrain ft1
+                WHERE ft1.serie_id = pt.serie_id
+                ORDER BY ft1.id
+                LIMIT 1
+            ) AS feuille_terrain_uid,
+            (
+                SELECT ft2.reference
+                FROM feuilles_terrain ft2
+                WHERE ft2.serie_id = pt.serie_id
+                ORDER BY ft2.id
+                LIMIT 1
+            ) AS feuille_terrain_reference,
             COALESCE(ech_stats.echantillon_count, 0) AS echantillon_count,
             COALESCE(ech_stats.last_reception_labo, '') AS last_reception_labo,
             COALESCE(essai_stats.essai_count, 0) AS essai_count
@@ -103,6 +119,7 @@ def _prelevement_select_sql(where_clause: str = "WHERE 1=1") -> str:
         LEFT JOIN demandes d ON d.id = p.demande_id
         LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
         LEFT JOIN interventions i ON i.id = p.intervention_id
+        LEFT JOIN points_terrain pt ON pt.id = p.point_terrain_id
         LEFT JOIN (
             SELECT
                 prelevement_id,
@@ -149,6 +166,10 @@ def _prelevement_row_to_dict(row: sqlite3.Row) -> dict:
         "finalite": row["finalite"] or "",
         "notes": row["notes"] or "",
         "statut": row["statut"] or "",
+        "point_terrain_id": row["point_terrain_uid"],
+        "point_terrain_code": row["point_terrain_code"] or "",
+        "feuille_terrain_id": row["feuille_terrain_uid"],
+        "feuille_terrain_reference": row["feuille_terrain_reference"] or "",
         "echantillon_count": int(row["echantillon_count"] or 0),
         "essai_count": int(row["essai_count"] or 0),
     }

@@ -170,7 +170,7 @@ class SourcePrefillService:
         numero_dst = record.first_text("N° chrono")
         chantier = record.first_text("Libellé du projet")
         site = record.first_text("Situation Géographique", "Situation géographique projet")
-        demandeur = record.first_text("Demandeur").split(",")[0].strip()
+        demandeur = self._normalize_dst_demandeur(record.first_text("Demandeur"))
         affaire_nge = record.first_text("N° affaire demandeur")
         objet = self._clean_multiline(record.first_text("Objet de la demande (Problématiques, Hypothèses, Objectifs, Remarques)"))
         description_parts = [f"DST: {numero_dst}" if numero_dst else "", chantier, objet]
@@ -205,6 +205,22 @@ class SourcePrefillService:
                 },
             },
         }
+
+    @staticmethod
+    def _normalize_dst_demandeur(value: str) -> str:
+        text = " ".join(str(value or "").replace("\n", " ").split())
+        if not text:
+            return ""
+
+        parts = [part.strip() for part in text.split(",") if part.strip()]
+        if not parts:
+            return ""
+
+        tail = parts[-1]
+        if len(parts) >= 3 and __import__("re").match(r"^[A-Z]?\d[A-Z0-9]*$", tail, __import__("re").IGNORECASE):
+            parts = parts[:-1]
+
+        return " ".join(parts)
 
     def _build_demande_prefill_from_affaire_nge(self, source_id: int) -> dict[str, Any]:
         row = self._get_affaire_nge_by_id(source_id)

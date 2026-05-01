@@ -1,0 +1,14 @@
+RaLab5 - Route Rapport SC
+
+Ajouter le rapport SC dans le router principal.
+
+Import :
+import RapportSCPage from "./pages/rapports/RapportSCPage";
+
+Route :
+<Route path="/rapports/sc/:essaiId" element={<RapportSCPage />} />
+
+Important :
+- Ne pas dupliquer les imports react-router-dom existants.
+- Le bouton d'ouverture du rapport SC est dans ModeleBasePage.jsx quand code === 'SC'.
+- La page ModeleBasePage.jsx est à remplacer à l'emplacement confirmé : frontend/react/src/pages/ModeleBasePage.jsx.

@@ -24,10 +24,11 @@
 import { useState, useEffect } from 'react'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/services/api'
+import { api, feuillesTerrainApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import SondageCarotteCoupe from './SondageCarotteCoupe'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function Card({ title, children }) {
@@ -130,6 +131,13 @@ function getStatusFromMeta(metaLike) {
 
 function getStatusSelectClass(statut) {
   return STAT_SELECT_CLS[statut] || 'bg-surface border-border text-text'
+}
+
+function buildDisplayEssaiReference(essai, uid, isNew) {
+  if (essai?.reference) return essai.reference
+  if (isNew) return 'Brouillon non enregistré'
+
+  return `ESSAI-${String(uid).padStart(4, '0')}`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -344,8 +352,7 @@ function TeneurEnEau({ res, onChange, readOnly }) {
 // GR — ANALYSE GRANULOMÉTRIQUE PAR TAMISAGE
 // NF P 94-056 (sols) / NF EN 933-1 (granulats)
 //
-// Version actuelle: sans coupure
-// TODO: ajouter coupure(s) — chaque fraction aura son propre WE + facteur b
+// Version actuelle: directe + avec coupure(s)
 // TODO: ajouter sédimentométrie NF P 94-057 pour fines < 0.08mm
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -364,30 +371,88 @@ const ALL_TAMIS = [...new Set([
 ])].sort((a, b) => a - b)
 
 function initGRTamis(res) {
-  if (res.tamis?.length) return res.tamis
+  if (Array.isArray(res.tamis) && res.tamis.length) return res.tamis
   return GR_MODELES['Sols GTR'].map(d => ({ d, r: '' }))
 }
 
+function buildSegmentTamis(modele, minD = null, maxD = null, fallbackEnd = 0.08) {
+  const base = Array.isArray(GR_MODELES[modele]) ? GR_MODELES[modele] : GR_MODELES['Sols GTR']
+  const vals = base.filter(d => {
+    if (minD !== null && d < minD) return false
+    if (maxD !== null && d > maxD) return false
+    return true
+  })
+  const withBounds = [...vals]
+  if (maxD !== null && !withBounds.includes(maxD)) withBounds.push(maxD)
+  if (minD !== null && !withBounds.includes(minD)) withBounds.push(minD)
+  if (minD === null && !withBounds.includes(fallbackEnd)) withBounds.push(fallbackEnd)
+  return [...new Set(withBounds)].sort((a, b) => a - b).map(d => ({ d, r: '' }))
+}
+
+function initGRCutoffState(res, modele) {
+  const d1 = num(res.d1) ?? 20
+  const hasD2 = !!res.has_d2
+  const d2 = num(res.d2) ?? 5
+  return {
+    d1,
+    has_d2: hasD2,
+    d2,
+    coarse: Array.isArray(res.coarse_tamis) && res.coarse_tamis.length
+      ? res.coarse_tamis
+      : buildSegmentTamis(modele, d1, null),
+    frac1: {
+      m1: res.frac1?.m1 ?? '',
+      m2: res.frac1?.m2 ?? '',
+      m3: res.frac1?.m3 ?? '',
+      mh: res.frac1?.mh ?? '',
+      tamis: Array.isArray(res.frac1?.tamis) && res.frac1.tamis.length
+        ? res.frac1.tamis
+        : buildSegmentTamis(modele, hasD2 ? d2 : 0.08, d1),
+    },
+    frac2: {
+      m1: res.frac2?.m1 ?? '',
+      m2: res.frac2?.m2 ?? '',
+      m3: res.frac2?.m3 ?? '',
+      mh: res.frac2?.mh ?? '',
+      tamis: Array.isArray(res.frac2?.tamis) && res.frac2.tamis.length
+        ? res.frac2.tamis
+        : buildSegmentTamis(modele, 0.08, d2),
+    },
+  }
+}
+
+function calcWaterInputs(m1, m2, m3, mh) {
+  const n1 = num(m1)
+  const n2 = num(m2)
+  const n3 = num(m3)
+  const mhNum = num(mh)
+  const m_eau = n1 !== null && n2 !== null && n3 !== null ? rnd(n2 - n3, 2) : null
+  const m_sol_sec = n1 !== null && n3 !== null ? rnd(n3 - n1, 2) : null
+  const w = m_sol_sec !== null && m_sol_sec > 0 ? rnd((m_eau / m_sol_sec) * 100, 2) : null
+  const ms = w !== null && mhNum !== null ? rnd(mhNum / (1 + w / 100), 2) : null
+  return { m_eau, m_sol_sec, w, ms, mh: mhNum }
+}
+
 function calcGR(tamis, ms) {
-  if (!ms || ms <= 0) return tamis.map(t => ({ ...t, rc_g: null, rc_pct: null, passant: null }))
+  if (!ms || ms <= 0) return (Array.isArray(tamis) ? tamis : []).map(t => ({ ...t, rc_g: null, rc_pct: null, passant: null }))
   let rc = 0
-  return [...tamis]
+  return [...(Array.isArray(tamis) ? tamis : [])]
     .sort((a, b) => b.d - a.d)
     .map(t => {
       const rp = parseFloat(t.r) || 0
       rc += rp
-      const rc_pct = rnd(rc / ms * 100)
-      return { ...t, rc_g: rnd(rc), rc_pct, passant: rnd(Math.max(0, 100 - rc_pct)) }
+      const rc_pct = rnd((rc / ms) * 100, 2)
+      return { ...t, rc_g: rnd(rc, 2), rc_pct, passant: rnd(Math.max(0, 100 - rc_pct), 2) }
     })
     .sort((a, b) => a.d - b.d)
 }
 
-// Interpolation log-linéaire pour D10, D30, D60
 function interpolateDp(calcs, p) {
-  const pts = calcs.filter(t => t.passant !== null).sort((a, b) => a.d - b.d)
+  const pts = (Array.isArray(calcs) ? calcs : []).filter(t => t.passant !== null).sort((a, b) => a.d - b.d)
   if (pts.length < 2) return null
   for (let i = 0; i < pts.length - 1; i++) {
-    const lo = pts[i], hi = pts[i + 1]
+    const lo = pts[i]
+    const hi = pts[i + 1]
     if (lo.passant <= p && hi.passant >= p) {
       if (hi.passant === lo.passant) return lo.d
       const t = (p - lo.passant) / (hi.passant - lo.passant)
@@ -401,35 +466,100 @@ function calcCuCc(calcs) {
   const d10 = interpolateDp(calcs, 10)
   const d30 = interpolateDp(calcs, 30)
   const d60 = interpolateDp(calcs, 60)
-  const cu  = d10 && d60 ? rnd(d60 / d10, 2) : null
-  const cc  = d10 && d30 && d60 ? rnd((d30 * d30) / (d10 * d60), 2) : null
+  const cu = d10 && d60 ? rnd(d60 / d10, 2) : null
+  const cc = d10 && d30 && d60 ? rnd((d30 * d30) / (d10 * d60), 2) : null
   return { d10, d30, d60, cu, cc }
 }
 
 function calcCoeffVBSFromCalcs(calcs) {
-  const p5 = num(calcs.find(t => Number(t.d) === 5)?.passant)
-  const p50 = num(calcs.find(t => Number(t.d) === 50)?.passant)
+  const p5 = num((Array.isArray(calcs) ? calcs : []).find(t => Number(t.d) === 5)?.passant)
+  const p50 = num((Array.isArray(calcs) ? calcs : []).find(t => Number(t.d) === 50)?.passant)
   if (p5 === null || p50 === null || p50 <= 0) return null
   return rnd(p5 / p50, 3)
+}
+
+function computePassantAtD(calcs, d) {
+  return (Array.isArray(calcs) ? calcs : []).find(t => Number(t.d) === Number(d))?.passant ?? null
+}
+
+function reconstructGlobalGR({ d1, d2, hasD2, coarseTamis, frac1Calcs, frac2Calcs, ms1, ms2 }) {
+  const coarseSorted = [...(Array.isArray(coarseTamis) ? coarseTamis : [])].sort((a, b) => b.d - a.d)
+  const massGtD1 = rnd(coarseSorted.reduce((sum, row) => sum + (num(row.r) || 0), 0), 2)
+  const massLtD1 = ms1 !== null ? ms1 : null
+  const msTotal = massLtD1 !== null ? rnd(massGtD1 + massLtD1, 2) : null
+  const passingD1 = msTotal && msTotal > 0 ? rnd((massLtD1 / msTotal) * 100, 2) : null
+
+  const passingD2Local = hasD2 ? computePassantAtD(frac1Calcs, d2) : null
+  const passingD2 = hasD2 && passingD1 !== null && passingD2Local !== null
+    ? rnd((passingD1 * passingD2Local) / 100, 2)
+    : null
+
+  const union = new Set()
+  coarseSorted.forEach(t => union.add(Number(t.d)))
+  ;(Array.isArray(frac1Calcs) ? frac1Calcs : []).forEach(t => union.add(Number(t.d)))
+  if (hasD2) (Array.isArray(frac2Calcs) ? frac2Calcs : []).forEach(t => union.add(Number(t.d)))
+  if (d1 !== null) union.add(Number(d1))
+  if (hasD2 && d2 !== null) union.add(Number(d2))
+
+  const sizes = [...union].filter(v => Number.isFinite(v)).sort((a, b) => b - a)
+
+  const rawRows = sizes.map(d => {
+    let pass = null
+    if (d >= d1) {
+      if (msTotal !== null && msTotal > 0) {
+        const retained = coarseSorted.filter(t => Number(t.d) >= d).reduce((sum, row) => sum + (num(row.r) || 0), 0)
+        pass = rnd(Math.max(0, 100 - (retained / msTotal) * 100), 2)
+      }
+    } else if (hasD2 && d < d2) {
+      const local = computePassantAtD(frac2Calcs, d)
+      if (passingD2 !== null && local !== null) pass = rnd((passingD2 * local) / 100, 2)
+    } else {
+      const local = computePassantAtD(frac1Calcs, d)
+      if (passingD1 !== null && local !== null) pass = rnd((passingD1 * local) / 100, 2)
+    }
+    return { d, passant: pass }
+  })
+
+  const rows = rawRows.map((row, idx) => {
+    if (msTotal === null || row.passant === null) return { ...row, rc_g: null, rc_pct: null, retained_g: null }
+    const rc_pct = rnd(Math.max(0, 100 - row.passant), 2)
+    const rc_g = rnd((rc_pct / 100) * msTotal, 2)
+    const nextRc = idx === 0 ? 0 : (rawRows[idx - 1].passant !== null ? rnd((Math.max(0, 100 - rawRows[idx - 1].passant) / 100) * msTotal, 2) : 0)
+    return { ...row, rc_pct, rc_g, retained_g: rnd(rc_g - nextRc, 2) }
+  }).sort((a, b) => a.d - b.d)
+
+  const p80 = rows.find(t => Number(t.d) === 0.08 || Number(t.d) === 0.063)?.passant ?? null
+  const dmax = [...rows].sort((a, b) => b.d - a.d).find(t => t.passant !== null && t.passant < 100)?.d ?? null
+  const coeffVBS = calcCoeffVBSFromCalcs(rows)
+
+  return {
+    rows,
+    msTotal,
+    massGtD1,
+    massLtD1,
+    passingD1,
+    passingD2,
+    p80,
+    dmax,
+    coeffVBS,
+  }
 }
 
 function GRChart({ tamis, calcs }) {
   const W = 560, H = 300, PL = 45, PR = 15, PT = 15, PB = 45
   const iW = W - PL - PR, iH = H - PT - PB
-  // Couleurs explicites — CSS vars ne fonctionnent pas dans SVG inline
   const BG = '#ffffff', GRID = '#d4d2ca', TXT = '#888', ACC = '#3b82f6'
   const { d10, d30, d60 } = calcCuCc(calcs)
-  const points = calcs.filter(t => t.passant !== null)
+  const points = (Array.isArray(calcs) ? calcs : []).filter(t => t.passant !== null)
   if (points.length < 2) return (
-    <div className="flex items-center justify-center bg-bg border border-border rounded-lg" style={{height: H}}>
+    <div className="flex items-center justify-center bg-bg border border-border rounded-lg" style={{ height: H }}>
       <span className="text-[12px] text-text-muted italic">Saisir les refus pour afficher la courbe</span>
     </div>
   )
   const xMin = Math.log10(0.063), xMax = Math.log10(200)
-  const xScale = d => PL + (Math.log10(d) - xMin) / (xMax - xMin) * iW
+  const xScale = d => PL + ((Math.log10(d) - xMin) / (xMax - xMin)) * iW
   const yScale = p => PT + iH - (p / 100) * iH
   const xTicks = [0.08, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200]
-  // Complete logarithmic scale
   const allLogValues = [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
   const logGridlines = allLogValues.filter(d => !xTicks.includes(d) && d >= 0.063 && d <= 200)
   const yTicks = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
@@ -441,49 +571,134 @@ function GRChart({ tamis, calcs }) {
   ].filter(x => x.d !== null)
   return (
     <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="rounded-lg overflow-visible">
-      <rect x={PL} y={PT} width={iW} height={iH} fill={BG} stroke={GRID} strokeWidth="1"/>
+      <rect x={PL} y={PT} width={iW} height={iH} fill={BG} stroke={GRID} strokeWidth="1" />
       {yTicks.map(p => (
         <g key={p}>
-          <line x1={PL} y1={yScale(p)} x2={PL+iW} y2={yScale(p)}
-            stroke={GRID} strokeWidth={p===0||p===100?1:0.5} strokeDasharray={p%20===0?'none':'2,3'}/>
-          <text x={PL-5} y={yScale(p)+4} textAnchor="end" fontSize="9" fill={TXT}>{p}</text>
+          <line x1={PL} y1={yScale(p)} x2={PL + iW} y2={yScale(p)} stroke={GRID} strokeWidth={p === 0 || p === 100 ? 1 : 0.5} strokeDasharray={p % 20 === 0 ? 'none' : '2,3'} />
+          <text x={PL - 5} y={yScale(p) + 4} textAnchor="end" fontSize="9" fill={TXT}>{p}</text>
         </g>
       ))}
-      {/* Intermediate log scale gridlines (lighter) */}
       {logGridlines.map(d => (
-        <line key={`log-${d}`} x1={xScale(d)} y1={PT} x2={xScale(d)} y2={PT+iH} stroke={GRID} strokeWidth="0.5" opacity="0.5"/>
+        <line key={`log-${d}`} x1={xScale(d)} y1={PT} x2={xScale(d)} y2={PT + iH} stroke={GRID} strokeWidth="0.5" opacity="0.5" />
       ))}
       {xTicks.map(d => (
         <g key={d}>
-          <line x1={xScale(d)} y1={PT} x2={xScale(d)} y2={PT+iH} stroke={GRID} strokeWidth="1" strokeDasharray="none" opacity="0.6"/>
-          <text x={xScale(d)} y={PT+iH+14} textAnchor="middle" fontSize="8" fill="#999999">{d}</text>
+          <line x1={xScale(d)} y1={PT} x2={xScale(d)} y2={PT + iH} stroke={GRID} strokeWidth="1" strokeDasharray="none" opacity="0.6" />
+          <text x={xScale(d)} y={PT + iH + 14} textAnchor="middle" fontSize="8" fill="#999999">{d}</text>
         </g>
       ))}
-      <text x={PL+iW/2} y={H-2} textAnchor="middle" fontSize="10" fill={TXT}>Tamis (mm) — échelle log</text>
-      <text x={10} y={PT+iH/2} textAnchor="middle" fontSize="10" fill={TXT} transform={`rotate(-90, 10, ${PT+iH/2})`}>Passant (%)</text>
-      {/* Courbe */}
-      <polyline points={linePoints} fill="none" stroke={ACC} strokeWidth="2.5" strokeLinejoin="round"/>
-      {/* Valeurs de passant */}
+      <text x={PL + iW / 2} y={H - 2} textAnchor="middle" fontSize="10" fill={TXT}>Tamis (mm) — échelle log</text>
+      <text x={10} y={PT + iH / 2} textAnchor="middle" fontSize="10" fill={TXT} transform={`rotate(-90, 10, ${PT + iH / 2})`}>Passant (%)</text>
+      <polyline points={linePoints} fill="none" stroke={ACC} strokeWidth="2.5" strokeLinejoin="round" />
       {points.map(t => (
-        <text key={t.d} x={xScale(t.d)} y={yScale(t.passant)-7} textAnchor="middle" fontSize="8" fill={ACC}>{t.passant}</text>
+        <text key={t.d} x={xScale(t.d)} y={yScale(t.passant) - 7} textAnchor="middle" fontSize="8" fill={ACC}>{t.passant}</text>
       ))}
-      {/* Ligne 80µm */}
-      <line x1={xScale(0.08)} y1={PT} x2={xScale(0.08)} y2={PT+iH} stroke="#dc2626" strokeWidth="1" strokeDasharray="4,2"/>
-      <text x={xScale(0.08)+3} y={PT+12} fontSize="8" fill="#dc2626">80µm</text>
-      {/* Lignes D10, D30, D60 */}
+      <line x1={xScale(0.08)} y1={PT} x2={xScale(0.08)} y2={PT + iH} stroke="#dc2626" strokeWidth="1" strokeDasharray="4,2" />
+      <text x={xScale(0.08) + 3} y={PT + 12} fontSize="8" fill="#dc2626">80µm</text>
       {dLines.map(({ d, p, color, label }) => (
         <g key={label}>
-          <line x1={xScale(d)} y1={yScale(p)} x2={xScale(d)} y2={PT+iH} stroke={color} strokeWidth="1" strokeDasharray="3,2" opacity="0.8"/>
-          <line x1={PL} y1={yScale(p)} x2={xScale(d)} y2={yScale(p)} stroke={color} strokeWidth="1" strokeDasharray="3,2" opacity="0.8"/>
-          <text x={xScale(d)} y={PT+iH+26} textAnchor="middle" fontSize="8" fill={color} fontWeight="bold">{label}</text>
+          <line x1={xScale(d)} y1={yScale(p)} x2={xScale(d)} y2={PT + iH} stroke={color} strokeWidth="1" strokeDasharray="3,2" opacity="0.8" />
+          <line x1={PL} y1={yScale(p)} x2={xScale(d)} y2={yScale(p)} stroke={color} strokeWidth="1" strokeDasharray="3,2" opacity="0.8" />
+          <text x={xScale(d)} y={PT + iH + 26} textAnchor="middle" fontSize="8" fill={color} fontWeight="bold">{label}</text>
         </g>
       ))}
     </svg>
   )
 }
 
+function GRTamisTable({ title, rows, ms, onSetR, allowEdit = true, onAdd, onRemove, addOptions = [] }) {
+  const [showAdd, setShowAdd] = useState(false)
+  const [tamisToAdd, setTamisToAdd] = useState('')
+  const calcs = calcGR(rows, ms)
+  const availableTamis = addOptions.filter(d => !rows.find(t => Number(t.d) === Number(d)))
+
+  useEffect(() => {
+    if (!tamisToAdd) return
+    if (!availableTamis.find(d => Number(d) === Number(tamisToAdd))) {
+      setTamisToAdd('')
+    }
+  }, [tamisToAdd, availableTamis])
+
+  function handleAdd() {
+    if (!tamisToAdd || !onAdd) return
+    onAdd(tamisToAdd)
+    setTamisToAdd('')
+    setShowAdd(false)
+  }
+
+  return (
+    <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-border bg-bg flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{title}</span>
+      </div>
+      <div className="p-4">
+        <div className="overflow-y-auto" style={{ maxHeight: '280px' }}>
+          <table className="w-full border-collapse text-sm">
+            <thead className="sticky top-0">
+              <tr className="bg-bg border-b border-border">
+                <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Tamis</th>
+                <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Refus (g)</th>
+                <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Rc%</th>
+                <th className="px-2 py-2 text-right text-[11px] font-bold text-accent">Pass%</th>
+                <th className="w-5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...calcs].reverse().map(t => (
+                <tr key={t.d} className="border-b border-border">
+                  <td className="px-2 py-1 font-mono text-[12px] font-bold">{t.d}</td>
+                  <td className="px-1 py-1">
+                    {allowEdit ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={t.r}
+                        onChange={e => onSetR(t.d, e.target.value)}
+                        className="w-[80px] px-2 py-0.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right"
+                        tabIndex={0}
+                      />
+                    ) : (
+                      <span className="text-[12px]">{t.r || '—'}</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-1 text-right text-[11px] text-text-muted">{t.rc_pct ?? '—'}</td>
+                  <td className="px-2 py-1 text-right font-bold text-[12px] text-accent">{t.passant ?? '—'}</td>
+                  <td className="px-1 py-1 text-center">
+                    {allowEdit && !!onRemove && (
+                      <button onClick={() => onRemove(t.d)} className="text-[10px] text-text-muted hover:text-danger" tabIndex={-1}>×</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {allowEdit && !!onAdd && (
+          <div className="mt-2">
+            {showAdd ? (
+              <div className="flex items-center gap-2">
+                <select value={tamisToAdd} onChange={e => setTamisToAdd(e.target.value)} className="px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}>
+                  <option value="">— Tamis —</option>
+                  {availableTamis.map(d => <option key={d} value={d}>{d} mm</option>)}
+                </select>
+                <Button size="sm" onClick={handleAdd} disabled={!tamisToAdd} tabIndex={0}>+</Button>
+                <Button size="sm" onClick={() => { setShowAdd(false); setTamisToAdd('') }} tabIndex={0}>✕</Button>
+              </div>
+            ) : (
+              <button onClick={() => setShowAdd(true)} className="text-[12px] text-accent hover:underline" tabIndex={0}>+ Ajouter un tamis</button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Granulometrie({ res, onChange, readOnly }) {
+  const initialModePreparation = res.mode_preparation || 'directe'
+  const [modePreparation, setModePreparation] = useState(initialModePreparation)
   const [modele, setModele] = useState(res.modele || 'Sols GTR')
+
   const [m1, setM1] = useState(res.m1 || '')
   const [m2, setM2] = useState(res.m2 || '')
   const [m3, setM3] = useState(res.m3 || '')
@@ -493,259 +708,735 @@ function Granulometrie({ res, onChange, readOnly }) {
   const [tamisToAdd, setTamisToAdd] = useState('')
   const [showPassantEditor, setShowPassantEditor] = useState(false)
 
-  const n1 = num(m1)
-  const n2 = num(m2)
-  const n3 = num(m3)
-  const mhNum = num(mh)
-  const m_eau = n1 !== null && n2 !== null && n3 !== null ? rnd(n2 - n3) : null
-  const m_sol_sec = n1 !== null && n3 !== null ? rnd(n3 - n1) : null
-  const w = m_sol_sec !== null && m_sol_sec > 0 ? rnd(m_eau / m_sol_sec * 100) : null
-  const ms = w !== null && mhNum !== null ? rnd(mhNum / (1 + w / 100)) : null
-  const calcs = calcGR(tamis, ms)
-  const p80 = calcs.find(t=>t.d===0.08||t.d===0.063)?.passant??null
-  const dmax = [...calcs].sort((a,b)=>b.d-a.d).find(t=>t.passant!==null&&t.passant<100)?.d??null
+  const initialCutoff = initGRCutoffState(res, modele)
+  const [d1, setD1] = useState(initialCutoff.d1)
+  const [hasD2, setHasD2] = useState(initialCutoff.has_d2)
+  const [d2, setD2] = useState(initialCutoff.d2)
+  const [coarseTamis, setCoarseTamis] = useState(initialCutoff.coarse)
+  const [frac1, setFrac1] = useState(initialCutoff.frac1)
+  const [frac2, setFrac2] = useState(initialCutoff.frac2)
+  const [coarseAdd, setCoarseAdd] = useState('')
+  const [frac1Add, setFrac1Add] = useState('')
+  const [frac2Add, setFrac2Add] = useState('')
+
+  const directWater = calcWaterInputs(m1, m2, m3, mh)
+  const calcs = calcGR(tamis, directWater.ms)
+  const p80 = calcs.find(t => t.d === 0.08 || t.d === 0.063)?.passant ?? null
+  const dmax = [...calcs].sort((a, b) => b.d - a.d).find(t => t.passant !== null && t.passant < 100)?.d ?? null
   const coeffVBS = calcCoeffVBSFromCalcs(calcs)
 
-  function emitAll(t,_m1,_m2,_m3,_mh,_mod) {
-    const a = num(_m1)
-    const b_ = num(_m2)
-    const cc = num(_m3)
-    const mhNum = num(_mh)
-    const w_ = a !== null && b_ !== null && cc !== null && (cc - a) > 0 ? rnd((b_ - cc) / (cc - a) * 100) : null
-    const ms_ = w_ !== null && mhNum !== null ? rnd(mhNum / (1 + w_ / 100)) : null
-    const calced = calcGR(t, ms_)
-    const p80_=calced.find(x=>x.d===0.08||x.d===0.063)?.passant??null
-    const dm_=[...calced].sort((a,b)=>b.d-a.d).find(x=>x.passant!==null&&x.passant<100)?.d??null
-    const coeffVBS_ = calcCoeffVBSFromCalcs(calced)
-    const p20_=calced.find(x=>Number(x.d)===20)?.passant??null
-    onChange(JSON.stringify({modele:_mod,m1:_m1,m2:_m2,m3:_m3,mh:_mh,w:w_,ms:ms_,tamis:t,passant_80:p80_,passant_20:p20_,dmax:dm_,coeff_vbs:coeffVBS_}))
+  const frac1Water = calcWaterInputs(frac1.m1, frac1.m2, frac1.m3, frac1.mh)
+  const frac2Water = calcWaterInputs(frac2.m1, frac2.m2, frac2.m3, frac2.mh)
+  const frac1Calcs = calcGR(frac1.tamis, frac1Water.ms)
+  const frac2Calcs = calcGR(frac2.tamis, frac2Water.ms)
+  const cutoffGlobal = reconstructGlobalGR({
+    d1,
+    d2,
+    hasD2,
+    coarseTamis,
+    frac1Calcs,
+    frac2Calcs,
+    ms1: frac1Water.ms,
+    ms2: frac2Water.ms,
+  })
+
+  const cutoffCuCc = calcCuCc(cutoffGlobal.rows)
+
+  function emitDirect(next = {}) {
+    const nextModele = next.modele ?? modele
+    const nextM1 = next.m1 ?? m1
+    const nextM2 = next.m2 ?? m2
+    const nextM3 = next.m3 ?? m3
+    const nextMh = next.mh ?? mh
+    const nextTamis = next.tamis ?? tamis
+    const water = calcWaterInputs(nextM1, nextM2, nextM3, nextMh)
+    const nextCalcs = calcGR(nextTamis, water.ms)
+    const p80_ = nextCalcs.find(x => x.d === 0.08 || x.d === 0.063)?.passant ?? null
+    const dmax_ = [...nextCalcs].sort((a, b) => b.d - a.d).find(x => x.passant !== null && x.passant < 100)?.d ?? null
+    const coeffVBS_ = calcCoeffVBSFromCalcs(nextCalcs)
+    const p20_ = nextCalcs.find(x => Number(x.d) === 20)?.passant ?? null
+    onChange(JSON.stringify({
+      mode_preparation: 'directe',
+      modele: nextModele,
+      m1: nextM1,
+      m2: nextM2,
+      m3: nextM3,
+      mh: nextMh,
+      w: water.w,
+      ms: water.ms,
+      tamis: nextTamis,
+      passant_80: p80_,
+      passant_20: p20_,
+      dmax: dmax_,
+      coeff_vbs: coeffVBS_,
+    }))
   }
 
-  function applyModele(m) {
-    setModele(m)
-    const ex=Object.fromEntries(tamis.map(t=>[t.d,t.r]))
-    const nt=GR_MODELES[m].map(d=>({d,r:ex[d]||''}))
-    setTamis(nt);emitAll(nt,m1,m2,m3,mh,m)
+  function emitCutoff(override = {}) {
+    const nextModele = override.modele ?? modele
+    const nextD1 = num(override.d1 ?? d1) ?? 20
+    const nextHasD2 = override.has_d2 ?? hasD2
+    const nextD2 = num(override.d2 ?? d2) ?? 5
+    const nextCoarse = override.coarse_tamis ?? coarseTamis
+    const nextFrac1 = override.frac1 ?? frac1
+    const nextFrac2 = override.frac2 ?? frac2
+    const nextFrac1Water = calcWaterInputs(nextFrac1.m1, nextFrac1.m2, nextFrac1.m3, nextFrac1.mh)
+    const nextFrac2Water = calcWaterInputs(nextFrac2.m1, nextFrac2.m2, nextFrac2.m3, nextFrac2.mh)
+    const nextFrac1Calcs = calcGR(nextFrac1.tamis, nextFrac1Water.ms)
+    const nextFrac2Calcs = calcGR(nextFrac2.tamis, nextFrac2Water.ms)
+    const nextGlobal = reconstructGlobalGR({
+      d1: nextD1,
+      d2: nextD2,
+      hasD2: nextHasD2,
+      coarseTamis: nextCoarse,
+      frac1Calcs: nextFrac1Calcs,
+      frac2Calcs: nextFrac2Calcs,
+      ms1: nextFrac1Water.ms,
+      ms2: nextFrac2Water.ms,
+    })
+    const nextGlobalSimple = nextGlobal.rows.map(row => ({ d: row.d, r: row.retained_g ?? '' }))
+    onChange(JSON.stringify({
+      mode_preparation: 'coupures',
+      modele: nextModele,
+      d1: nextD1,
+      has_d2: nextHasD2,
+      d2: nextHasD2 ? nextD2 : null,
+      coarse_tamis: nextCoarse,
+      frac1: { ...nextFrac1, w: nextFrac1Water.w, ms: nextFrac1Water.ms },
+      frac2: nextHasD2 ? { ...nextFrac2, w: nextFrac2Water.w, ms: nextFrac2Water.ms } : null,
+      tamis: nextGlobalSimple,
+      tamis_global: nextGlobal.rows,
+      ms_total: nextGlobal.msTotal,
+      mass_gt_d1: nextGlobal.massGtD1,
+      mass_lt_d1: nextGlobal.massLtD1,
+      passant_d1: nextGlobal.passingD1,
+      passant_d2: nextGlobal.passingD2,
+      passant_20: nextGlobal.rows.find(x => Number(x.d) === 20)?.passant ?? null,
+      passant_5: nextGlobal.rows.find(x => Number(x.d) === 5)?.passant ?? null,
+      passant_80: nextGlobal.p80,
+      dmax: nextGlobal.dmax,
+      coeff_vbs: nextGlobal.coeffVBS,
+    }))
   }
-  function setR(d,v){const nt=tamis.map(t=>t.d===d?{...t,r:v}:t);setTamis(nt);emitAll(nt,m1,m2,m3,mh,modele)}
-  function onM1(v){setM1(v);emitAll(tamis,v,m2,m3,mh,modele)}
-  function onM2(v){setM2(v);emitAll(tamis,m1,v,m3,mh,modele)}
-  function onM3(v){setM3(v);emitAll(tamis,m1,m2,v,mh,modele)}
-  function onMh(v){setMh(v);emitAll(tamis,m1,m2,m3,v,modele)}
-  function addTamis(){
-    const d=parseFloat(tamisToAdd)
-    if(!d||tamis.find(t=>t.d===d)){setShowAdd(false);return}
-    const nt=[...tamis,{d,r:''}].sort((a,b)=>a.d-b.d)
-    setTamis(nt);setShowAdd(false);setTamisToAdd('');emitAll(nt,m1,m2,m3,mh,modele)
+
+  function applyModele(nextModele) {
+    setModele(nextModele)
+    if (modePreparation === 'directe') {
+      const ex = Object.fromEntries(tamis.map(t => [t.d, t.r]))
+      const nt = GR_MODELES[nextModele].map(d => ({ d, r: ex[d] || '' }))
+      setTamis(nt)
+      emitDirect({ modele: nextModele, tamis: nt })
+      return
+    }
+    const nextCoarse = buildSegmentTamis(nextModele, d1, null).map(row => ({ d: row.d, r: coarseTamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac1Tamis = buildSegmentTamis(nextModele, hasD2 ? d2 : 0.08, d1).map(row => ({ d: row.d, r: frac1.tamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac2Tamis = buildSegmentTamis(nextModele, 0.08, d2).map(row => ({ d: row.d, r: frac2.tamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac1 = { ...frac1, tamis: nextFrac1Tamis }
+    const nextFrac2 = { ...frac2, tamis: nextFrac2Tamis }
+    setCoarseTamis(nextCoarse)
+    setFrac1(nextFrac1)
+    setFrac2(nextFrac2)
+    emitCutoff({ modele: nextModele, coarse_tamis: nextCoarse, frac1: nextFrac1, frac2: nextFrac2 })
   }
-  function removeTamis(d){const nt=tamis.filter(t=>t.d!==d);setTamis(nt);emitAll(nt,m1,m2,m3,mh,modele)}
-  function setPassant(d,newPassant){
-    if(!ms||ms<=0) return
+
+  function setR(d, v) {
+    const nt = tamis.map(t => (t.d === d ? { ...t, r: v } : t))
+    setTamis(nt)
+    emitDirect({ tamis: nt })
+  }
+  function onM1(v) { setM1(v); emitDirect({ m1: v }) }
+  function onM2(v) { setM2(v); emitDirect({ m2: v }) }
+  function onM3(v) { setM3(v); emitDirect({ m3: v }) }
+  function onMh(v) { setMh(v); emitDirect({ mh: v }) }
+  function addTamis() {
+    const d = parseFloat(tamisToAdd)
+    if (!d || tamis.find(t => t.d === d)) { setShowAdd(false); return }
+    const nt = [...tamis, { d, r: '' }].sort((a, b) => a.d - b.d)
+    setTamis(nt)
+    setShowAdd(false)
+    setTamisToAdd('')
+    emitDirect({ tamis: nt })
+  }
+  function removeTamis(d) {
+    const nt = tamis.filter(t => t.d !== d)
+    setTamis(nt)
+    emitDirect({ tamis: nt })
+  }
+  function setPassant(d, newPassant) {
+    if (!directWater.ms || directWater.ms <= 0) return
     const newPassantNum = parseFloat(newPassant)
-    if(isNaN(newPassantNum)) return
-    // Calculate cumulative refus needed for this passant
-    const targetRc = ((100 - newPassantNum) / 100) * ms
-    // Sort tamis by size descending to find cumulative position
-    const sortedTamis = [...tamis].sort((a,b)=>b.d-a.d)
-    let cumulativeRefus = 0
+    if (isNaN(newPassantNum)) return
+    const targetRc = ((100 - newPassantNum) / 100) * directWater.ms
+    const sortedTamis = [...tamis].sort((a, b) => b.d - a.d)
     const newTamis = tamis.map(t => {
-      if(t.d === d) {
-        // Find position and calculate needed refus
-        const pos = sortedTamis.findIndex(st=>st.d===d)
-        const prevRefus = sortedTamis.slice(0, pos).reduce((sum, st) => sum + (parseFloat(st.r)||0), 0)
+      if (t.d === d) {
+        const pos = sortedTamis.findIndex(st => st.d === d)
+        const prevRefus = sortedTamis.slice(0, pos).reduce((sum, st) => sum + (parseFloat(st.r) || 0), 0)
         const newRefusVal = Math.max(0, targetRc - prevRefus)
-        return {...t, r: rnd(newRefusVal)}
+        return { ...t, r: rnd(newRefusVal, 2) }
       }
       return t
     })
     setTamis(newTamis)
-    emitAll(newTamis, m1, m2, m3, mh, modele)
+    emitDirect({ tamis: newTamis })
   }
 
-  if (readOnly) return (
-    <div className="flex flex-col gap-4">
-      <Card title="Paramètres">
-        <div className="grid grid-cols-4 gap-3">
-          <FR label="Modèle" value={res.modele}/>
-          <FR label="w (%)" value={res.w!=null?`${res.w} %`:null}/>
-          <FR label="Mh (g)" value={res.mh?`${res.mh} g`:null}/>
-          <FR label="Ms (g)" value={res.ms?`${res.ms} g`:null}/>
+  function addSegmentTamis(kind, d) {
+    if (!d) return
+    const val = parseFloat(d)
+    if (!val) return
+    if (kind === 'coarse') {
+      if (coarseTamis.find(t => t.d === val)) return
+      const nt = [...coarseTamis, { d: val, r: '' }].sort((a, b) => a.d - b.d)
+      setCoarseTamis(nt)
+      setCoarseAdd('')
+      emitCutoff({ coarse_tamis: nt })
+      return
+    }
+    if (kind === 'frac1') {
+      if (frac1.tamis.find(t => t.d === val)) return
+      const nt = [...frac1.tamis, { d: val, r: '' }].sort((a, b) => a.d - b.d)
+      const nextFrac1 = { ...frac1, tamis: nt }
+      setFrac1(nextFrac1)
+      setFrac1Add('')
+      emitCutoff({ frac1: nextFrac1 })
+      return
+    }
+    if (frac2.tamis.find(t => t.d === val)) return
+    const nt = [...frac2.tamis, { d: val, r: '' }].sort((a, b) => a.d - b.d)
+    const nextFrac2 = { ...frac2, tamis: nt }
+    setFrac2(nextFrac2)
+    setFrac2Add('')
+    emitCutoff({ frac2: nextFrac2 })
+  }
+
+  function removeSegmentTamis(kind, d) {
+    if (kind === 'coarse') {
+      const nt = coarseTamis.filter(t => t.d !== d)
+      setCoarseTamis(nt)
+      emitCutoff({ coarse_tamis: nt })
+      return
+    }
+    if (kind === 'frac1') {
+      const nt = frac1.tamis.filter(t => t.d !== d)
+      const nextFrac1 = { ...frac1, tamis: nt }
+      setFrac1(nextFrac1)
+      emitCutoff({ frac1: nextFrac1 })
+      return
+    }
+    const nt = frac2.tamis.filter(t => t.d !== d)
+    const nextFrac2 = { ...frac2, tamis: nt }
+    setFrac2(nextFrac2)
+    emitCutoff({ frac2: nextFrac2 })
+  }
+
+  function setSegmentRefus(kind, d, v) {
+    if (kind === 'coarse') {
+      const nt = coarseTamis.map(t => (t.d === d ? { ...t, r: v } : t))
+      setCoarseTamis(nt)
+      emitCutoff({ coarse_tamis: nt })
+      return
+    }
+    if (kind === 'frac1') {
+      const nt = frac1.tamis.map(t => (t.d === d ? { ...t, r: v } : t))
+      const nextFrac1 = { ...frac1, tamis: nt }
+      setFrac1(nextFrac1)
+      emitCutoff({ frac1: nextFrac1 })
+      return
+    }
+    const nt = frac2.tamis.map(t => (t.d === d ? { ...t, r: v } : t))
+    const nextFrac2 = { ...frac2, tamis: nt }
+    setFrac2(nextFrac2)
+    emitCutoff({ frac2: nextFrac2 })
+  }
+
+  function updateFrac(kind, field, value) {
+    if (kind === 'frac1') {
+      const next = { ...frac1, [field]: value }
+      setFrac1(next)
+      emitCutoff({ frac1: next })
+      return
+    }
+    const next = { ...frac2, [field]: value }
+    setFrac2(next)
+    emitCutoff({ frac2: next })
+  }
+
+  function applyCutoffMode(nextMode) {
+    setModePreparation(nextMode)
+    if (nextMode === 'directe') {
+      emitDirect()
+      return
+    }
+    emitCutoff()
+  }
+
+  function updateD1(nextD1) {
+    const val = parseFloat(nextD1)
+    if (!val) return
+    setD1(val)
+    const nextCoarse = buildSegmentTamis(modele, val, null).map(row => ({ d: row.d, r: coarseTamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac1Tamis = buildSegmentTamis(modele, hasD2 ? d2 : 0.08, val).map(row => ({ d: row.d, r: frac1.tamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac1 = { ...frac1, tamis: nextFrac1Tamis }
+    setCoarseTamis(nextCoarse)
+    setFrac1(nextFrac1)
+    emitCutoff({ d1: val, coarse_tamis: nextCoarse, frac1: nextFrac1 })
+  }
+
+  function updateD2Enabled(enabled) {
+    setHasD2(enabled)
+    const nextFrac1Tamis = buildSegmentTamis(modele, enabled ? d2 : 0.08, d1).map(row => ({ d: row.d, r: frac1.tamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac1 = { ...frac1, tamis: nextFrac1Tamis }
+    setFrac1(nextFrac1)
+    emitCutoff({ has_d2: enabled, frac1: nextFrac1 })
+  }
+
+  function updateD2(nextD2) {
+    const val = parseFloat(nextD2)
+    if (!val) return
+    setD2(val)
+    const nextFrac1Tamis = buildSegmentTamis(modele, val, d1).map(row => ({ d: row.d, r: frac1.tamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac2Tamis = buildSegmentTamis(modele, 0.08, val).map(row => ({ d: row.d, r: frac2.tamis.find(t => t.d === row.d)?.r || '' }))
+    const nextFrac1 = { ...frac1, tamis: nextFrac1Tamis }
+    const nextFrac2 = { ...frac2, tamis: nextFrac2Tamis }
+    setFrac1(nextFrac1)
+    setFrac2(nextFrac2)
+    emitCutoff({ d2: val, frac1: nextFrac1, frac2: nextFrac2 })
+  }
+
+  if (readOnly) {
+    if ((res.mode_preparation || 'directe') === 'coupures') {
+      const globalRows = Array.isArray(res.tamis_global) ? res.tamis_global : cutoffGlobal.rows
+      const chartRows = globalRows.map(row => ({ d: row.d, r: row.retained_g ?? row.r ?? '' }))
+      const chartCalcs = globalRows.map(row => ({ d: row.d, r: row.retained_g ?? row.r ?? '', rc_g: row.rc_g ?? null, rc_pct: row.rc_pct ?? null, passant: row.passant ?? null }))
+      return (
+        <div className="flex flex-col gap-4">
+          <Card title="Paramètres">
+            <div className="grid grid-cols-5 gap-3">
+              <FR label="Mode" value="Avec coupure(s)" />
+              <FR label="Modèle" value={res.modele || modele} />
+              <FR label="D1" value={res.d1 != null ? `${res.d1} mm` : `${d1} mm`} />
+              <FR label="D2" value={res.has_d2 ? `${res.d2} mm` : '—'} />
+              <FR label="Ms totale" value={res.ms_total != null ? `${res.ms_total} g` : cutoffGlobal.msTotal != null ? `${cutoffGlobal.msTotal} g` : null} />
+            </div>
+          </Card>
+          <Card title="Reconstitution globale">
+            <div className="flex gap-2 mb-3 flex-wrap">
+              {(res.passant_20 ?? cutoffGlobal.rows.find(x => Number(x.d) === 20)?.passant) != null && (
+                <div className="px-4 py-2 bg-[#e6f1fb] border border-[#90bfe8] rounded text-center">
+                  <div className="text-[20px] font-bold text-[#185fa5]">{res.passant_20 ?? cutoffGlobal.rows.find(x => Number(x.d) === 20)?.passant}%</div>
+                  <div className="text-[10px] text-[#185fa5]">Passant 20 mm</div>
+                </div>
+              )}
+              {(res.passant_5 ?? cutoffGlobal.rows.find(x => Number(x.d) === 5)?.passant) != null && (
+                <div className="px-4 py-2 bg-[#eaf3de] border border-[#b5d88a] rounded text-center">
+                  <div className="text-[20px] font-bold text-[#3b6d11]">{res.passant_5 ?? cutoffGlobal.rows.find(x => Number(x.d) === 5)?.passant}%</div>
+                  <div className="text-[10px] text-[#5a8f30]">Passant 5 mm</div>
+                </div>
+              )}
+            </div>
+            <GRChart tamis={chartRows} calcs={chartCalcs} />
+          </Card>
         </div>
-      </Card>
-      <Card title="Courbe granulométrique">
-        <div className="flex gap-2 mb-3 flex-wrap">
-          {p80!==null&&<div className="px-4 py-2 bg-[#eaf3de] border border-[#b5d88a] rounded text-center">
-            <div className="text-[20px] font-bold text-[#3b6d11]">{p80}%</div>
-            <div className="text-[10px] text-[#5a8f30]">Passant 80µm</div>
-          </div>}
-          {dmax!==null&&<div className="px-4 py-2 bg-[#e6f1fb] border border-[#90bfe8] rounded text-center">
-            <div className="text-[20px] font-bold text-[#185fa5]">{dmax} mm</div>
-            <div className="text-[10px] text-[#185fa5]">Dmax</div>
-          </div>}
-          {(() => {
-            const { cu, cc: ccv } = calcCuCc(calcs)
-            return <>
-              {cu!==null&&<div className="px-4 py-2 bg-[#9EA700] border border-[#757a00] rounded text-center">
-                <div className="text-[20px] font-bold text-white">{cu}</div>
-                <div className="text-[10px] text-white">Cu = D60/D10</div>
-              </div>}
-              {ccv!==null&&<div className="px-4 py-2 bg-[#A09074] border border-[#7a6d56] rounded text-center">
-                <div className="text-[20px] font-bold text-white">{ccv}</div>
-                <div className="text-[10px] text-white">Cc = D30²/(D10·D60)</div>
-              </div>}
-              {coeffVBS!==null&&<div className="px-4 py-2 bg-[#7b3f00] border border-[#5b2f00] rounded text-center">
-                <div className="text-[20px] font-bold text-white">{coeffVBS}</div>
-                <div className="text-[10px] text-white">Coeff C (0/5 sur 0/50)</div>
-              </div>}
-            </>
-          })()}
-        </div>
-        <GRChart tamis={tamis} calcs={calcs}/>
-      </Card>
-    </div>
-  )
+      )
+    }
+
+    return (
+      <div className="flex flex-col gap-4">
+        <Card title="Paramètres">
+          <div className="grid grid-cols-4 gap-3">
+            <FR label="Mode" value="Directe" />
+            <FR label="Modèle" value={res.modele} />
+            <FR label="w (%)" value={res.w != null ? `${res.w} %` : null} />
+            <FR label="Mh (g)" value={res.mh ? `${res.mh} g` : null} />
+            <FR label="Ms (g)" value={res.ms ? `${res.ms} g` : null} />
+          </div>
+        </Card>
+        <Card title="Courbe granulométrique">
+          <div className="flex gap-2 mb-3 flex-wrap">
+            {p80 !== null && <div className="px-4 py-2 bg-[#eaf3de] border border-[#b5d88a] rounded text-center">
+              <div className="text-[20px] font-bold text-[#3b6d11]">{p80}%</div>
+              <div className="text-[10px] text-[#5a8f30]">Passant 80µm</div>
+            </div>}
+            {dmax !== null && <div className="px-4 py-2 bg-[#e6f1fb] border border-[#90bfe8] rounded text-center">
+              <div className="text-[20px] font-bold text-[#185fa5]">{dmax} mm</div>
+              <div className="text-[10px] text-[#185fa5]">Dmax</div>
+            </div>}
+            {(() => {
+              const { cu, cc: ccv } = calcCuCc(calcs)
+              return <>
+                {cu !== null && <div className="px-4 py-2 bg-[#9EA700] border border-[#757a00] rounded text-center">
+                  <div className="text-[20px] font-bold text-white">{cu}</div>
+                  <div className="text-[10px] text-white">Cu = D60/D10</div>
+                </div>}
+                {ccv !== null && <div className="px-4 py-2 bg-[#A09074] border border-[#7a6d56] rounded text-center">
+                  <div className="text-[20px] font-bold text-white">{ccv}</div>
+                  <div className="text-[10px] text-white">Cc = D30²/(D10·D60)</div>
+                </div>}
+                {coeffVBS !== null && <div className="px-4 py-2 bg-[#7b3f00] border border-[#5b2f00] rounded text-center">
+                  <div className="text-[20px] font-bold text-white">{coeffVBS}</div>
+                  <div className="text-[10px] text-white">Coeff C (0/5 sur 0/50)</div>
+                </div>}
+              </>
+            })()}
+          </div>
+          <GRChart tamis={tamis} calcs={calcs} />
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="Modèle de tamis">
-        <div className="flex items-center gap-3">
-          <select value={modele} onChange={e=>applyModele(e.target.value)}
-            className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent font-medium" tabIndex={0}>
-            {Object.keys(GR_MODELES).map(m=><option key={m}>{m}</option>)}
+      <Card title="Méthode de préparation">
+        <div className="flex items-center gap-3 flex-wrap">
+          <select
+            value={modePreparation}
+            onChange={e => applyCutoffMode(e.target.value)}
+            className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent font-medium"
+            tabIndex={0}
+          >
+            <option value="directe">Directe</option>
+            <option value="coupures">Avec coupure(s)</option>
           </select>
-          <span className="text-[12px] text-text-muted">{GR_MODELES[modele].length} tamis · {GR_MODELES[modele][0]} → {GR_MODELES[modele].at(-1)} mm</span>
+          <select value={modele} onChange={e => applyModele(e.target.value)} className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent font-medium" tabIndex={0}>
+            {Object.keys(GR_MODELES).map(m => <option key={m}>{m}</option>)}
+          </select>
+          <span className="text-[12px] text-text-muted">{GR_MODELES[modele].length} tamis de base</span>
         </div>
       </Card>
-      <Card title="Teneur en eau — NF P 94-050">
-        <div className="grid grid-cols-4 gap-3 mb-3">
-          <FG label="M1 — Récipient vide (g)">
-            <input type="number" step="0.01" value={m1} onChange={e=>onM1(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
-          </FG>
-          <FG label="M2 — +Sol humide (g)">
-            <input type="number" step="0.01" value={m2} onChange={e=>onM2(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
-          </FG>
-          <FG label="M3 — +Sol sec (g)">
-            <input type="number" step="0.01" value={m3} onChange={e=>onM3(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
-          </FG>
-          <FG label="w calculé (%)">
-            <input readOnly value={w??''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1}/>
-          </FG>
-        </div>
-        <div className="grid grid-cols-4 gap-3">
-          <FG label="Masse humide totale Mh (g)">
-            <input type="number" step="0.01" value={mh} onChange={e=>onMh(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
-          </FG>
-          <FG label="Masse sèche Ms — calculée (g)">
-            <input readOnly value={ms??''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1}/>
-          </FG>
-        </div>
-      </Card>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-border bg-bg flex items-center justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Refus par tamis — du plus grand au plus petit</span>
-            {!readOnly && ms && <button onClick={() => setShowPassantEditor(!showPassantEditor)} className="text-[11px] text-text-muted hover:text-text p-1" tabIndex={0} title="Éditeur passant inverse">⚙️</button>}
-          </div>
-          <div className="p-4">
-            {!ms&&<p className="text-[11px] text-text-muted italic mb-2">Saisir Mh et WE pour activer.</p>}
-            <div className="overflow-y-auto" style={{maxHeight:'400px'}}>
-              <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0">
-                  <tr className="bg-bg border-b border-border">
-                    <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Tamis</th>
-                    <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Refus (g)</th>
-                    <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Rc%</th>
-                    <th className="px-2 py-2 text-right text-[11px] font-bold text-accent">Pass%</th>
-                    <th className="w-5"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...calcs].reverse().map(t=>(
-                    <tr key={t.d} className="border-b border-border">
-                      <td className="px-2 py-1 font-mono text-[12px] font-bold">{t.d}</td>
-                      <td className="px-1 py-1">
-                        <input type="number" step="0.01" value={t.r} onChange={e=>setR(t.d,e.target.value)} disabled={!ms}
-                          className="w-[80px] px-2 py-0.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-30" tabIndex={0}/>
-                      </td>
-                      <td className="px-2 py-1 text-right text-[11px] text-text-muted">{t.rc_pct??'—'}</td>
-                      <td className={`px-2 py-1 text-right font-bold text-[12px] ${t.passant!==null?'text-accent':'text-text-muted'}`}>
-                        {showPassantEditor && t.passant !== null && ms ? (
-                          <input type="number" step="0.1" min="0" max="100" value={t.passant} onChange={e=>setPassant(t.d,e.target.value)}
-                            className="w-[60px] px-1 py-0.5 border border-accent rounded text-[12px] bg-bg outline-none text-right" tabIndex={0}/>
-                        ) : (
-                          t.passant??'—'
-                        )}
-                      </td>
-                      <td className="px-1 py-1 text-center">
-                      <button onClick={()=>removeTamis(t.d)} className="text-[10px] text-text-muted hover:text-danger" tabIndex={-1}>×</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-2">
-            {showAdd?(
-              <div className="flex items-center gap-2">
-                <select value={tamisToAdd} onChange={e=>setTamisToAdd(e.target.value)}
-                  className="px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}>
-                  <option value="">— Tamis —</option>
-                  {ALL_TAMIS.filter(d=>!tamis.find(t=>t.d===d)).map(d=><option key={d} value={d}>{d} mm</option>)}
-                </select>
-                <Button size="sm" onClick={addTamis} disabled={!tamisToAdd} tabIndex={0}>+</Button>
-                <Button size="sm" onClick={()=>setShowAdd(false)} tabIndex={0}>✕</Button>
-              </div>
-            ):(
-              <button onClick={()=>setShowAdd(true)} className="text-[12px] text-accent hover:underline" tabIndex={0}>+ Ajouter un tamis</button>
-            )}
-          </div>
-          </div>
-        </div>
-        <Card title="Courbe granulométrique">
-          <GRChart tamis={tamis} calcs={calcs}/>
-          {ms&&(
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {p80!==null&&<div className="px-3 py-2 bg-[#f6be00] border border-[#d4a200] rounded text-center">
-                <div className="text-[15px] font-bold text-white">{p80}%</div>
-                <div className="text-[10px] text-white">Passant 80µm</div>
-              </div>}
-              {dmax!==null&&<div className="px-3 py-2 bg-[#002C77] border border-[#001a48] rounded text-center">
-                <div className="text-[15px] font-bold text-white">{dmax} mm</div>
-                <div className="text-[10px] text-white">Dmax</div>
-              </div>}
-              {(() => {
-                const { d10, d30, d60, cu, cc: ccv } = calcCuCc(calcs)
-                return <>
-                  {d10!==null&&<div className="px-3 py-2 bg-[#A20067] border border-[#7d004d] rounded text-center">
-                    <div className="text-[15px] font-bold text-white">{d10} mm</div>
-                    <div className="text-[10px] text-white">D10</div>
-                  </div>}
-                  {d30!==null&&<div className="px-3 py-2 bg-[#00A5BD] border border-[#007a8a] rounded text-center">
-                    <div className="text-[15px] font-bold text-white">{d30} mm</div>
-                    <div className="text-[10px] text-white">D30</div>
-                  </div>}
-                  {d60!==null&&<div className="px-3 py-2 bg-[#6068B2] border border-[#454583] rounded text-center">
-                    <div className="text-[15px] font-bold text-white">{d60} mm</div>
-                    <div className="text-[10px] text-white">D60</div>
-                  </div>}
-                  {cu!==null&&<div className="px-3 py-2 bg-[#9EA700] border border-[#757a00] rounded text-center">
-                    <div className="text-[15px] font-bold text-white">{cu}</div>
-                    <div className="text-[10px] text-white">Cu = D60/D10</div>
-                  </div>}
-                  {ccv!==null&&<div className="px-3 py-2 bg-[#A09074] border border-[#7a6d56] rounded text-center">
-                    <div className="text-[15px] font-bold text-white">{ccv}</div>
-                    <div className="text-[10px] text-white">Cc = D30²/(D10·D60)</div>
-                  </div>}
-                  {coeffVBS!==null&&<div className="px-3 py-2 bg-[#7b3f00] border border-[#5b2f00] rounded text-center">
-                    <div className="text-[15px] font-bold text-white">{coeffVBS}</div>
-                    <div className="text-[10px] text-white">Coeff C (0/5 sur 0/50)</div>
-                  </div>}
-                </>
-              })()}
+
+      {modePreparation === 'directe' ? (
+        <>
+          <Card title="Teneur en eau — NF P 94-050">
+            <div className="grid grid-cols-4 gap-3 mb-3">
+              <FG label="M1 — Récipient vide (g)">
+                <input type="number" step="0.01" value={m1} onChange={e => onM1(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+              </FG>
+              <FG label="M2 — +Sol humide (g)">
+                <input type="number" step="0.01" value={m2} onChange={e => onM2(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+              </FG>
+              <FG label="M3 — +Sol sec (g)">
+                <input type="number" step="0.01" value={m3} onChange={e => onM3(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+              </FG>
+              <FG label="w calculé (%)">
+                <input readOnly value={directWater.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+              </FG>
             </div>
+            <div className="grid grid-cols-4 gap-3">
+              <FG label="Masse humide totale Mh (g)">
+                <input type="number" step="0.01" value={mh} onChange={e => onMh(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+              </FG>
+              <FG label="Masse sèche Ms — calculée (g)">
+                <input readOnly value={directWater.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+              </FG>
+            </div>
+          </Card>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-border bg-bg flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Refus par tamis — du plus grand au plus petit</span>
+                {directWater.ms && <button onClick={() => setShowPassantEditor(!showPassantEditor)} className="text-[11px] text-text-muted hover:text-text p-1" tabIndex={0} title="Éditeur passant inverse">⚙️</button>}
+              </div>
+              <div className="p-4">
+                {!directWater.ms && <p className="text-[11px] text-text-muted italic mb-2">Saisir Mh et WE pour activer.</p>}
+                <div className="overflow-y-auto" style={{ maxHeight: '400px' }}>
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="sticky top-0">
+                      <tr className="bg-bg border-b border-border">
+                        <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Tamis</th>
+                        <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Refus (g)</th>
+                        <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Rc%</th>
+                        <th className="px-2 py-2 text-right text-[11px] font-bold text-accent">Pass%</th>
+                        <th className="w-5"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...calcs].reverse().map(t => (
+                        <tr key={t.d} className="border-b border-border">
+                          <td className="px-2 py-1 font-mono text-[12px] font-bold">{t.d}</td>
+                          <td className="px-1 py-1">
+                            <input type="number" step="0.01" value={t.r} onChange={e => setR(t.d, e.target.value)} disabled={!directWater.ms}
+                              className="w-[80px] px-2 py-0.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-30" tabIndex={0} />
+                          </td>
+                          <td className="px-2 py-1 text-right text-[11px] text-text-muted">{t.rc_pct ?? '—'}</td>
+                          <td className={`px-2 py-1 text-right font-bold text-[12px] ${t.passant !== null ? 'text-accent' : 'text-text-muted'}`}>
+                            {showPassantEditor && t.passant !== null && directWater.ms ? (
+                              <input type="number" step="0.1" min="0" max="100" value={t.passant} onChange={e => setPassant(t.d, e.target.value)}
+                                className="w-[60px] px-1 py-0.5 border border-accent rounded text-[12px] bg-bg outline-none text-right" tabIndex={0} />
+                            ) : (
+                              t.passant ?? '—'
+                            )}
+                          </td>
+                          <td className="px-1 py-1 text-center">
+                            <button onClick={() => removeTamis(t.d)} className="text-[10px] text-text-muted hover:text-danger" tabIndex={-1}>×</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-2">
+                  {showAdd ? (
+                    <div className="flex items-center gap-2">
+                      <select value={tamisToAdd} onChange={e => setTamisToAdd(e.target.value)} className="px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}>
+                        <option value="">— Tamis —</option>
+                        {ALL_TAMIS.filter(d => !tamis.find(t => t.d === d)).map(d => <option key={d} value={d}>{d} mm</option>)}
+                      </select>
+                      <Button size="sm" onClick={addTamis} disabled={!tamisToAdd} tabIndex={0}>+</Button>
+                      <Button size="sm" onClick={() => setShowAdd(false)} tabIndex={0}>✕</Button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setShowAdd(true)} className="text-[12px] text-accent hover:underline" tabIndex={0}>+ Ajouter un tamis</button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Card title="Courbe granulométrique">
+              <GRChart tamis={tamis} calcs={calcs} />
+              {directWater.ms && (
+                <div className="flex gap-2 mt-3 flex-wrap">
+                  {p80 !== null && <div className="px-3 py-2 bg-[#f6be00] border border-[#d4a200] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{p80}%</div>
+                    <div className="text-[10px] text-white">Passant 80µm</div>
+                  </div>}
+                  {dmax !== null && <div className="px-3 py-2 bg-[#002C77] border border-[#001a48] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{dmax} mm</div>
+                    <div className="text-[10px] text-white">Dmax</div>
+                  </div>}
+                  {(() => {
+                    const { d10, d30, d60, cu, cc: ccv } = calcCuCc(calcs)
+                    return <>
+                      {d10 !== null && <div className="px-3 py-2 bg-[#A20067] border border-[#7d004d] rounded text-center">
+                        <div className="text-[15px] font-bold text-white">{d10} mm</div>
+                        <div className="text-[10px] text-white">D10</div>
+                      </div>}
+                      {d30 !== null && <div className="px-3 py-2 bg-[#00A5BD] border border-[#007a8a] rounded text-center">
+                        <div className="text-[15px] font-bold text-white">{d30} mm</div>
+                        <div className="text-[10px] text-white">D30</div>
+                      </div>}
+                      {d60 !== null && <div className="px-3 py-2 bg-[#6068B2] border border-[#454583] rounded text-center">
+                        <div className="text-[15px] font-bold text-white">{d60} mm</div>
+                        <div className="text-[10px] text-white">D60</div>
+                      </div>}
+                      {cu !== null && <div className="px-3 py-2 bg-[#9EA700] border border-[#757a00] rounded text-center">
+                        <div className="text-[15px] font-bold text-white">{cu}</div>
+                        <div className="text-[10px] text-white">Cu = D60/D10</div>
+                      </div>}
+                      {ccv !== null && <div className="px-3 py-2 bg-[#A09074] border border-[#7a6d56] rounded text-center">
+                        <div className="text-[15px] font-bold text-white">{ccv}</div>
+                        <div className="text-[10px] text-white">Cc = D30²/(D10·D60)</div>
+                      </div>}
+                      {coeffVBS !== null && <div className="px-3 py-2 bg-[#7b3f00] border border-[#5b2f00] rounded text-center">
+                        <div className="text-[15px] font-bold text-white">{coeffVBS}</div>
+                        <div className="text-[10px] text-white">Coeff C (0/5 sur 0/50)</div>
+                      </div>}
+                    </>
+                  })()}
+                </div>
+              )}
+            </Card>
+          </div>
+        </>
+      ) : (
+        <>
+          <Card title="Paramètres des coupures">
+            <div className="grid grid-cols-4 gap-3">
+              <FG label="Coupure D1 (mm)">
+                <select value={d1} onChange={e => updateD1(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}>
+                  {ALL_TAMIS.filter(d => d >= 0.08).map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </FG>
+              <FG label="2ème coupure">
+                <div className="flex items-center gap-2 h-[42px]">
+                  <input type="checkbox" checked={hasD2} onChange={e => updateD2Enabled(e.target.checked)} />
+                  <select value={d2} onChange={e => updateD2(e.target.value)} disabled={!hasD2} className="flex-1 px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent disabled:opacity-50" tabIndex={0}>
+                    {ALL_TAMIS.filter(d => Number(d) < Number(d1 || 0)).map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+              </FG>
+              <FG label="Massa > D1 calculée (g sec)">
+                <input readOnly value={cutoffGlobal.massGtD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+              </FG>
+            </div>
+            <div className="grid grid-cols-4 gap-3 mt-3">
+              <FG label="Masse < D1 calculée (g sec)">
+                <input readOnly value={cutoffGlobal.massLtD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+              </FG>
+              <FG label="Masse totale calculée (g sec)">
+                <input readOnly value={cutoffGlobal.msTotal ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+              </FG>
+              <FG label="Passant D1 (%)">
+                <input readOnly value={cutoffGlobal.passingD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+              </FG>
+              <FG label="Passant D2 (%)">
+                <input readOnly value={hasD2 ? (cutoffGlobal.passingD2 ?? '') : ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+              </FG>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-2 gap-4">
+            <GRTamisTable
+              title={`Partie > ${d1} mm`}
+              rows={coarseTamis}
+              ms={cutoffGlobal.msTotal || cutoffGlobal.massGtD1 || 1}
+              onSetR={(d, v) => setSegmentRefus('coarse', d, v)}
+              onAdd={d => addSegmentTamis('coarse', d)}
+              addOptions={ALL_TAMIS.filter(d => Number(d) >= Number(d1))}
+              onRemove={d => removeSegmentTamis('coarse', d)}
+            />
+
+            <Card title={`Fraction passante < ${d1} mm — WE / masse de travail`}>
+              <div className="grid grid-cols-4 gap-3 mb-3">
+                <FG label="M1 — Récipient vide (g)">
+                  <input type="number" step="0.01" value={frac1.m1} onChange={e => updateFrac('frac1', 'm1', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                </FG>
+                <FG label="M2 — +Sol humide (g)">
+                  <input type="number" step="0.01" value={frac1.m2} onChange={e => updateFrac('frac1', 'm2', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                </FG>
+                <FG label="M3 — +Sol sec (g)">
+                  <input type="number" step="0.01" value={frac1.m3} onChange={e => updateFrac('frac1', 'm3', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                </FG>
+                <FG label="w calculé (%)">
+                  <input readOnly value={frac1Water.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                </FG>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FG label={`Masse humide de la fraction < ${d1} (g)`}>
+                  <input type="number" step="0.01" value={frac1.mh} onChange={e => updateFrac('frac1', 'mh', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                </FG>
+                <FG label={`Masse sèche de la fraction < ${d1} (g)`}>
+                  <input readOnly value={frac1Water.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                </FG>
+              </div>
+            </Card>
+          </div>
+
+          <GRTamisTable
+            title={hasD2 ? `Travail local ${d1} → ${d2} mm sur fraction < ${d1}` : `Travail local ${d1} → fond sur fraction < ${d1}`}
+            rows={frac1.tamis}
+            ms={frac1Water.ms}
+            onSetR={(d, v) => setSegmentRefus('frac1', d, v)}
+            onAdd={d => addSegmentTamis('frac1', d)}
+            addOptions={ALL_TAMIS.filter(d => Number(d) <= Number(d1) && Number(d) >= Number(hasD2 ? d2 : 0.08))}
+            onRemove={d => removeSegmentTamis('frac1', d)}
+          />
+
+          {hasD2 && (
+            <>
+              <Card title={`Fraction passante < ${d2} mm — WE / masse de travail`}>
+                <div className="grid grid-cols-4 gap-3 mb-3">
+                  <FG label="M1 — Récipient vide (g)">
+                    <input type="number" step="0.01" value={frac2.m1} onChange={e => updateFrac('frac2', 'm1', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  </FG>
+                  <FG label="M2 — +Sol humide (g)">
+                    <input type="number" step="0.01" value={frac2.m2} onChange={e => updateFrac('frac2', 'm2', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  </FG>
+                  <FG label="M3 — +Sol sec (g)">
+                    <input type="number" step="0.01" value={frac2.m3} onChange={e => updateFrac('frac2', 'm3', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  </FG>
+                  <FG label="w calculé (%)">
+                    <input readOnly value={frac2Water.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                  </FG>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <FG label={`Masse humide de la fraction < ${d2} (g)`}>
+                    <input type="number" step="0.01" value={frac2.mh} onChange={e => updateFrac('frac2', 'mh', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  </FG>
+                  <FG label={`Masse sèche de la fraction < ${d2} (g)`}>
+                    <input readOnly value={frac2Water.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                  </FG>
+                </div>
+              </Card>
+
+              <GRTamisTable
+                title={`Travail local ${d2} → fond sur fraction < ${d2}`}
+                rows={frac2.tamis}
+                ms={frac2Water.ms}
+                onSetR={(d, v) => setSegmentRefus('frac2', d, v)}
+                onAdd={d => addSegmentTamis('frac2', d)}
+                addOptions={ALL_TAMIS.filter(d => Number(d) <= Number(d2) && Number(d) >= 0.08)}
+                onRemove={d => removeSegmentTamis('frac2', d)}
+              />
+            </>
           )}
-        </Card>
-      </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-border bg-bg">
+                <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Tableau global reconstitué</span>
+              </div>
+              <div className="p-4">
+                <div className="overflow-y-auto" style={{ maxHeight: '360px' }}>
+                  <table className="w-full border-collapse text-sm">
+                    <thead className="sticky top-0">
+                      <tr className="bg-bg border-b border-border">
+                        <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Tamis</th>
+                        <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Rc total %</th>
+                        <th className="px-2 py-2 text-right text-[11px] font-bold text-accent">Passant total %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...cutoffGlobal.rows].reverse().map(row => (
+                        <tr key={row.d} className="border-b border-border">
+                          <td className="px-2 py-1 font-mono text-[12px] font-bold">{row.d}</td>
+                          <td className="px-2 py-1 text-right text-[11px] text-text-muted">{row.rc_pct ?? '—'}</td>
+                          <td className="px-2 py-1 text-right font-bold text-[12px] text-accent">{row.passant ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <Card title="Courbe globale reconstituée">
+              <GRChart
+                tamis={cutoffGlobal.rows.map(row => ({ d: row.d, r: row.retained_g ?? '' }))}
+                calcs={cutoffGlobal.rows.map(row => ({ d: row.d, r: row.retained_g ?? '', rc_g: row.rc_g, rc_pct: row.rc_pct, passant: row.passant }))}
+              />
+              <div className="flex gap-2 mt-3 flex-wrap">
+                {cutoffGlobal.rows.find(x => Number(x.d) === d1)?.passant !== null && (
+                  <div className="px-3 py-2 bg-[#002C77] border border-[#001a48] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{cutoffGlobal.rows.find(x => Number(x.d) === d1)?.passant}%</div>
+                    <div className="text-[10px] text-white">Passant D1</div>
+                  </div>
+                )}
+                {hasD2 && cutoffGlobal.rows.find(x => Number(x.d) === d2)?.passant !== null && (
+                  <div className="px-3 py-2 bg-[#6068B2] border border-[#454583] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{cutoffGlobal.rows.find(x => Number(x.d) === d2)?.passant}%</div>
+                    <div className="text-[10px] text-white">Passant D2</div>
+                  </div>
+                )}
+                {cutoffGlobal.p80 !== null && (
+                  <div className="px-3 py-2 bg-[#f6be00] border border-[#d4a200] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{cutoffGlobal.p80}%</div>
+                    <div className="text-[10px] text-white">Passant 80µm</div>
+                  </div>
+                )}
+                {cutoffGlobal.dmax !== null && (
+                  <div className="px-3 py-2 bg-[#00A5BD] border border-[#007a8a] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{cutoffGlobal.dmax} mm</div>
+                    <div className="text-[10px] text-white">Dmax</div>
+                  </div>
+                )}
+                {cutoffCuCc.cu !== null && (
+                  <div className="px-3 py-2 bg-[#9EA700] border border-[#757a00] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{cutoffCuCc.cu}</div>
+                    <div className="text-[10px] text-white">Cu</div>
+                  </div>
+                )}
+                {cutoffCuCc.cc !== null && (
+                  <div className="px-3 py-2 bg-[#A09074] border border-[#7a6d56] rounded text-center">
+                    <div className="text-[15px] font-bold text-white">{cutoffCuCc.cc}</div>
+                    <div className="text-[10px] text-white">Cc</div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -3922,6 +4613,7 @@ const ESSAI_FORMS = {
   'CBR':  CBRForm,
   'ID':  IdentificationGTR,
   'MVA': MasseVolumiqueEnrobes,
+  'SC':  SondageCarotteCoupe,
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3934,10 +4626,20 @@ export default function EssaiPage() {
   const qc = useQueryClient()
   const [searchParams] = useSearchParams()
   const isNew = uid === 'new'
+  const isModelo = isNew && searchParams.get('modelo') === '1'
   const echantillonIdParam = searchParams.get('echantillon_id') || ''
   const echantillonId = Number.parseInt(echantillonIdParam, 10)
   const linkedEchantillonId = Number.isInteger(echantillonId) && echantillonId > 0 ? echantillonId : null
+  const interventionIdParam = searchParams.get('intervention_id') || ''
+  const interventionId = Number.parseInt(interventionIdParam, 10)
+  const linkedInterventionId = Number.isInteger(interventionId) && interventionId > 0 ? interventionId : null
   const initialEssaiCode = searchParams.get('essai_code') || ''
+  const initialSourceLabel = searchParams.get('source_label') || ''
+  const initialTypeEssai = searchParams.get('type_essai') || ''
+  const normalizedInitialCode = String(initialEssaiCode || '').trim().toUpperCase()
+  const normalizedInitialType = String(initialTypeEssai || '').trim().toUpperCase()
+  const allowsInterventionParent = ['SC', 'SO'].includes(normalizedInitialCode) || ['SC', 'SO'].includes(normalizedInitialType)
+  const effectiveInterventionId = allowsInterventionParent ? linkedInterventionId : null
 
   const initResultats = searchParams.get('init_resultats') || '{}'
   const initMeta = {
@@ -3949,6 +4651,9 @@ export default function EssaiPage() {
   const [editing,  setEditing]  = useState(isNew)
   const [resJson,  setResJson]  = useState(isNew ? initResultats : null)
   const [metaForm, setMetaForm] = useState(isNew ? initMeta : {})
+  const [modeloSearchQ,       setModeloSearchQ]       = useState('')
+  const [modeloSearchLoading, setModeloSearchLoading] = useState(false)
+  const [modeloSearchMsg,     setModeloSearchMsg]     = useState(null)
   function setMeta(k, v) {
     setMetaForm(f => {
       const next = { ...f, [k]: v }
@@ -3971,6 +4676,15 @@ export default function EssaiPage() {
     queryFn:  () => api.get(`/essais/echantillons/${linkedEchantillonId}`),
     enabled:  isNew && !!linkedEchantillonId,
   })
+  const {
+    data: linkedIntervention,
+    isLoading: isLinkedInterventionLoading,
+    isError: isLinkedInterventionError,
+  } = useQuery({
+    queryKey: ['intervention', String(effectiveInterventionId)],
+    queryFn:  () => api.get(`/interventions/${effectiveInterventionId}`),
+    enabled:  isNew && !linkedEchantillonId && !!effectiveInterventionId,
+  })
   const { data: meta } = useQuery({
     queryKey: ['essais-meta'],
     queryFn:  () => api.get('/essais/meta'),
@@ -3982,6 +4696,8 @@ export default function EssaiPage() {
       ? api.post('/essais', {
           ...d,
           echantillon_id: linkedEchantillonId,
+          intervention_id: linkedEchantillonId ? undefined : effectiveInterventionId,
+          source_label: initialSourceLabel || undefined,
           essai_code: initialEssaiCode,
         })
       : api.put(`/essais/${uid}`, d),
@@ -3992,13 +4708,71 @@ export default function EssaiPage() {
         qc.setQueryData(['essai', String(saved.uid)], saved)
         setEditing(false)
         setResJson(null)
-        navigateWithReturnTo(navigate, `/essais/${saved.uid}`, resolveReturnTo(searchParams, saved.echantillon_id ? `/echantillons/${saved.echantillon_id}` : ''), { replace: true })
+        const savedInterventionId = saved.intervention_id || effectiveInterventionId
+        const defaultReturnPath = saved.echantillon_id
+          ? `/echantillons/${saved.echantillon_id}`
+          : savedInterventionId
+            ? `/interventions/${savedInterventionId}`
+            : ''
+        navigateWithReturnTo(navigate, `/essais/${saved.uid}`, resolveReturnTo(searchParams, defaultReturnPath), { replace: true })
       } else {
         qc.setQueryData(['essai', String(uid)], saved)
         setEditing(false); setResJson(null)
       }
     },
   })
+
+  async function loadModeloData() {
+    const q = String(modeloSearchQ).trim()
+    if (!q) return
+    setModeloSearchLoading(true)
+    setModeloSearchMsg(null)
+    try {
+      const terrainCodes = ['CFE', 'PLD', 'DF', 'SC', 'SO']
+      const isTerrainType = terrainCodes.includes(String(initialEssaiCode).toUpperCase())
+      let rows
+      if (isTerrainType) {
+        rows = await feuillesTerrainApi.list({ q, limit: 8, code_feuille: String(initialEssaiCode || '').toUpperCase() })
+      } else {
+        rows = await api.get(`/essais?q=${encodeURIComponent(q)}&limit=8`)
+      }
+      const items = Array.isArray(rows) ? rows : []
+      if (items.length === 0) {
+        setModeloSearchMsg({ type: 'err', msg: `Nenhum ${isTerrainType ? 'feuille terrain' : 'essai'} encontrado para “${q}”.` })
+        return
+      }
+      const normalizedQ = q.toUpperCase()
+      const found = items.find((item) => String(item?.reference || '').toUpperCase() === normalizedQ) || items[0]
+
+      let payloadSource = found
+      if (isTerrainType && found?.uid != null) {
+        // list() returns summary only; get(uid) returns payload with full detailed data.
+        payloadSource = await feuillesTerrainApi.get(found.uid)
+      }
+
+      setMetaForm(buildMetaFromEssai(payloadSource, initMeta))
+      const loadedResultats = payloadSource?.resultats ?? payloadSource?.payload ?? {}
+      setResJson(typeof loadedResultats === 'string' ? loadedResultats : JSON.stringify(loadedResultats))
+
+      const ref =
+        payloadSource?.reference ||
+        payloadSource?.essai_code ||
+        payloadSource?.code_feuille ||
+        payloadSource?.echantillon_reference ||
+        payloadSource?.intervention_reference ||
+        `#${payloadSource?.id || payloadSource?.uid}`
+      setModeloSearchMsg({
+        type: items.length > 1 ? 'info' : 'ok',
+        msg: items.length > 1
+          ? `${items.length} resultados — a carregar o mais recente: ${ref}`
+          : `Dados carregados: ${ref}`,
+      })
+    } catch (e) {
+      setModeloSearchMsg({ type: 'err', msg: `Erro: ${e.message}` })
+    } finally {
+      setModeloSearchLoading(false)
+    }
+  }
 
   function openEdit() {
     if (isNew) return
@@ -4008,7 +4782,7 @@ export default function EssaiPage() {
   }
 
   function handleSave() {
-    if (isNew && !linkedEchantillonId) return
+    if (isNew && !linkedEchantillonId && !effectiveInterventionId) return
     saveMut.mutate({
       ...metaForm,
       statut: getStatusFromMeta(metaForm),
@@ -4026,21 +4800,32 @@ export default function EssaiPage() {
     </div>
   )
 
-  if (isNew && !linkedEchantillonId) return (
+  if (isNew && !isModelo && !linkedEchantillonId && !effectiveInterventionId) return (
     <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Échantillon manquant</p>
+      <p className="text-text-muted text-sm mb-3">
+        {allowsInterventionParent
+          ? 'Parent manquant (échantillon ou intervention)'
+          : 'Échantillon manquant pour ce type d’essai'}
+      </p>
       <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
     </div>
   )
 
-  if (isNew && isLinkedEchantillonLoading) {
+  if (isNew && (isLinkedEchantillonLoading || isLinkedInterventionLoading)) {
     return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
   }
 
-  if (isNew && (isLinkedEchantillonError || !linkedEchantillon)) return (
+  if (isNew && linkedEchantillonId && (isLinkedEchantillonError || !linkedEchantillon)) return (
     <div className="text-center py-16">
       <p className="text-text-muted text-sm mb-3">Échantillon introuvable</p>
       <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
+    </div>
+  )
+
+  if (isNew && !linkedEchantillonId && effectiveInterventionId && (isLinkedInterventionError || !linkedIntervention)) return (
+    <div className="text-center py-16">
+      <p className="text-text-muted text-sm mb-3">Intervention introuvable</p>
+      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, effectiveInterventionId ? `/interventions/${effectiveInterventionId}` : '')} tabIndex={0}>← Retour</Button>
     </div>
   )
 
@@ -4049,6 +4834,7 @@ export default function EssaiPage() {
         uid: 'new',
         reference: '',
         echantillon_id: linkedEchantillonId,
+        intervention_id: effectiveInterventionId,
         essai_code: initialEssaiCode,
         code_essai: initialEssaiCode,
         type_essai: metaForm.type_essai || initMeta.type_essai,
@@ -4058,9 +4844,12 @@ export default function EssaiPage() {
         date_debut: metaForm.date_debut || '',
         date_fin: metaForm.date_fin || '',
         resultats: resJson ?? initResultats,
+        source_label: initialSourceLabel || '',
         ech_ref: linkedEchantillon?.reference || '',
         echantillon_reference: linkedEchantillon?.reference || '',
         designation: linkedEchantillon?.designation || '',
+        intervention_reference: linkedIntervention?.reference || '',
+        intervention_subject: linkedIntervention?.sujet || '',
         demande_ref: linkedEchantillon?.demande_ref || '',
         demande_reference: linkedEchantillon?.demande_reference || '',
         affaire_ref: linkedEchantillon?.affaire_ref || '',
@@ -4081,9 +4870,14 @@ export default function EssaiPage() {
     : null
   const childReturnTo = buildLocationTarget(location)
   const parentEchantillonUid = Number.parseInt(String(currentEssai?.echantillon_id || linkedEchantillonId || ''), 10) || null
+  const parentInterventionUid = Number.parseInt(String(currentEssai?.intervention_id || linkedInterventionId || ''), 10) || null
   const fallbackReturnTo = resolveReturnTo(
     searchParams,
-    parentEchantillonUid ? `/echantillons/${parentEchantillonUid}` : ''
+    parentEchantillonUid
+      ? `/echantillons/${parentEchantillonUid}`
+      : parentInterventionUid
+        ? `/interventions/${parentInterventionUid}`
+        : ''
   )
   const readOnlyDates = formatEssaiDateRange(currentEssai?.date_debut, currentEssai?.date_fin)
   const displayStatus = editing ? editingMeta?.statut : getStatusFromMeta(currentEssai)
@@ -4129,12 +4923,18 @@ export default function EssaiPage() {
         <span className="text-[13px] text-text-muted">
           {(currentEssai.demande_ref || currentEssai.demande_reference) && `${currentEssai.demande_ref || currentEssai.demande_reference} › `}
           {currentEssai.ech_ref && `${currentEssai.ech_ref} › `}
+          {!currentEssai.ech_ref && currentEssai.intervention_reference && `${currentEssai.intervention_reference} › `}
         </span>
         <span className="text-[14px] font-semibold flex-1">{currentEssai.type_essai || (isNew ? 'Nouvel essai' : `Essai #${uid}`)}</span>
         <Badge s={displayStatus} />
         {parentEchantillonUid ? (
           <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${parentEchantillonUid}`, childReturnTo)} tabIndex={0}>
             🧪 Échantillon
+          </Button>
+        ) : null}
+        {!parentEchantillonUid && parentInterventionUid ? (
+          <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/interventions/${parentInterventionUid}`, childReturnTo)} tabIndex={0}>
+            🔗 Intervention
           </Button>
         ) : null}
         {editing ? (
@@ -4154,12 +4954,59 @@ export default function EssaiPage() {
 
       <div className="p-5 max-w-[1400px] mx-auto w-full flex flex-col gap-4">
 
+        {/* MODELO — banner + procura */}
+        {isNew && isModelo && (
+          <div className="rounded-lg border-2 border-[#d5c9a8] bg-[#fdfaf2] p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-[#f0e8c0] text-[#7a5f00] uppercase tracking-wide shrink-0">MODELO</span>
+              <span className="text-[12px] font-semibold text-[#7a5f00]">
+                Folha vazia de teste — {initMeta.type_essai || initialEssaiCode || 'tipo livre'}
+              </span>
+              <span className="text-[11px] text-text-muted">
+                A referência de ensaio é editável neste modo. Para guardar, associa um echantillon ou intervenção.
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                value={modeloSearchQ}
+                onChange={(e) => setModeloSearchQ(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadModeloData() } }}
+                placeholder="Número, código ou referência de essai existente para carregar dados…"
+                className="flex-1 px-2 py-1.5 border border-[#d5c9a8] rounded text-xs bg-white outline-none focus:border-accent"
+              />
+              <button
+                type="button"
+                onClick={loadModeloData}
+                disabled={modeloSearchLoading}
+                className="px-3 py-1.5 rounded border border-[#d5c9a8] bg-[#f0e8c0] text-[#7a5f00] text-xs font-medium hover:bg-[#e8d898] disabled:opacity-50 transition-colors shrink-0"
+              >
+                {modeloSearchLoading ? 'A carregar…' : 'Carregar dados'}
+              </button>
+              {modeloSearchMsg && (
+                <button type="button" onClick={() => setModeloSearchMsg(null)} className="text-text-muted text-sm hover:text-text shrink-0">×</button>
+              )}
+            </div>
+            {modeloSearchMsg && (
+              <div className={`text-[11px] px-2 py-1.5 rounded border ${
+                modeloSearchMsg.type === 'ok'   ? 'bg-[#eaf3de] text-[#3b6d11] border-[#b6d98b]' :
+                modeloSearchMsg.type === 'err'  ? 'bg-[#fcebeb] text-[#a32d2d] border-[#f0a0a0]' :
+                'bg-[#eef4ff] text-[#204575] border-[#cfddff]'
+              }`}>
+                {modeloSearchMsg.msg}
+              </div>
+            )}
+            <div className="text-[10px] text-text-muted">
+              Carregar dados de um essai existente preenche o formulário para comparação e homogeneização. Os dados originais não são alterados.
+            </div>
+          </div>
+        )}
+
         {/* Card infos — référence + échantillon */}
         <Card>
           {editing ? (
             <div className="grid grid-cols-3 gap-3">
               <FG label="Échantillon lié">
-                <Input value={currentEssai.ech_ref || currentEssai.echantillon_reference || ''} readOnly className="text-text-muted" tabIndex={-1} />
+                <Input value={currentEssai.ech_ref || currentEssai.echantillon_reference || currentEssai.intervention_reference || currentEssai.source_label || ''} readOnly className="text-text-muted" tabIndex={-1} />
               </FG>
               <FG label="Statut">
                 <Select value={editingMeta.statut} onChange={e => setMeta('statut', e.target.value)} className={`w-full font-medium ${getStatusSelectClass(editingMeta.statut)}`} tabIndex={0}>
@@ -4180,7 +5027,7 @@ export default function EssaiPage() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-[18px] font-bold text-accent font-mono">
-                  {currentEssai.reference || (isNew ? 'Brouillon non enregistré' : `ESSAI-${String(uid).padStart(4,'0')}`)}
+                  {buildDisplayEssaiReference(currentEssai, uid, isNew)}
                 </div>
                 <div className="flex flex-col gap-0.5 mt-1">
                   {(currentEssai.ech_ref || currentEssai.echantillon_reference) && (
@@ -4191,6 +5038,21 @@ export default function EssaiPage() {
                         <button
                           type="button"
                           onClick={() => navigateWithReturnTo(navigate, `/echantillons/${parentEchantillonUid}`, childReturnTo)}
+                          className="ml-2 text-accent hover:underline"
+                        >
+                          Ouvrir
+                        </button>
+                      ) : null}
+                    </span>
+                  )}
+                  {!(currentEssai.ech_ref || currentEssai.echantillon_reference) && currentEssai.intervention_reference && (
+                    <span className="text-[12px] text-text-muted">
+                      Intervention : <span className="font-medium text-text font-mono">{currentEssai.intervention_reference}</span>
+                      {currentEssai.source_label ? ` — Coupe ${currentEssai.source_label}` : ''}
+                      {parentInterventionUid ? (
+                        <button
+                          type="button"
+                          onClick={() => navigateWithReturnTo(navigate, `/interventions/${parentInterventionUid}`, childReturnTo)}
                           className="ml-2 text-accent hover:underline"
                         >
                           Ouvrir

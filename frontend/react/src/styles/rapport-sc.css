@@ -1,0 +1,366 @@
+/**
+ * FILE: rapport-sc.css
+ * EXPECTED PROJECT PATH: frontend/react/src/styles/rapport-sc.css
+ * INTEGRATION NOTE: Import this stylesheet from RapportSCPage.jsx.
+ */
+
+/**
+ * rapport-sc.css
+ * Specific A4 report styles for SC core sample borehole logs.
+ */
+
+ .rapport-sc-viewer {
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: auto;
+    background: #e8e8e8;
+}
+
+.rapport-sc-viewer .rapport-page-a4 {
+    display: block;
+    margin: 6mm auto 12mm auto;
+}
+
+.rapport-sc-page {
+    color: #000;
+    background: #fff;
+}
+
+.rapport-sc-frame {
+    display: flex;
+    flex-direction: column;
+    min-height: 287mm;
+}
+
+.rapport-sc-content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2.2mm;
+    padding: 0 5mm 0 5mm;
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+    font-size: 7.4px;
+}
+
+.rapport-sc-project-row {
+    display: grid;
+    grid-template-columns: 1fr 67mm;
+    gap: 3mm;
+    margin-top: 1mm;
+}
+
+.rapport-sc-project-main,
+.rapport-sc-project-side,
+.rapport-sc-characteristics-grid {
+    display: grid;
+    gap: 0;
+}
+
+.rapport-sc-info-line {
+    display: grid;
+    grid-template-columns: 38mm 1fr;
+    min-height: 4.3mm;
+    align-items: center;
+    border-bottom: 0.2mm solid #000;
+}
+
+.rapport-sc-project-side .rapport-sc-info-line {
+    grid-template-columns: 32mm 1fr;
+}
+
+.rapport-sc-info-line span {
+    padding: 0 1mm;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.rapport-sc-info-line strong {
+    min-height: 3.2mm;
+    padding: 0.45mm 1mm;
+    font-weight: 400;
+    white-space: pre-wrap;
+}
+
+.rapport-sc-section-title {
+    display: grid;
+    grid-template-columns: 8mm 1fr;
+    align-items: center;
+    height: 4.8mm;
+    margin-top: 1.8mm;
+    border: 0.25mm solid #000;
+    background: #fff;
+    font-size: 7.8px;
+}
+
+.rapport-sc-section-title span,
+.rapport-sc-section-title strong {
+    padding: 0 1mm;
+}
+
+.rapport-sc-section-title strong {
+    font-weight: 700;
+}
+
+.rapport-sc-characteristics-grid {
+    grid-template-columns: 1fr 1fr;
+    border-left: 0.2mm solid #000;
+    border-top: 0.2mm solid #000;
+}
+
+.rapport-sc-characteristics-grid .rapport-sc-info-line {
+    grid-template-columns: 37mm 1fr;
+    border-right: 0.2mm solid #000;
+    border-bottom: 0.2mm solid #000;
+}
+
+.rapport-sc-material-legend {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.2mm;
+    align-items: center;
+    min-height: 4.3mm;
+    margin-top: -0.5mm;
+    font-size: 6.8px;
+}
+
+.rapport-sc-material-item {
+    display: flex;
+    align-items: center;
+    gap: 1mm;
+    min-width: 0;
+}
+
+.rapport-sc-material-swatch {
+    width: 6mm;
+    height: 2.2mm;
+    border: 0.2mm solid #000;
+    background: repeating-linear-gradient(135deg, #d8d8d8 0, #d8d8d8 1mm, #f5f5f5 1mm, #f5f5f5 2mm);
+}
+
+.rapport-sc-results-grid {
+    display: grid;
+    grid-template-columns: 26mm 1fr;
+    align-items: stretch;
+    min-height: 154mm;
+    margin-top: 0.5mm;
+}
+
+.rapport-sc-depth-scale {
+    display: grid;
+    grid-template-rows: 12.6mm 1fr;
+    border-left: 0.25mm solid #000;
+    border-top: 0.25mm solid #000;
+    border-bottom: 0.25mm solid #000;
+}
+
+.rapport-sc-depth-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 0.2mm solid #000;
+    border-bottom: 0.2mm solid #000;
+    text-align: center;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.rapport-sc-depth-body {
+    position: relative;
+    border-right: 0.2mm solid #000;
+    background: #fff;
+}
+
+.rapport-sc-depth-marker {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    border-top: 0.15mm solid #000;
+}
+
+.rapport-sc-depth-marker span {
+    position: absolute;
+    top: -1.6mm;
+    right: 1.3mm;
+    padding: 0 0.5mm;
+    background: #fff;
+    font-size: 6.8px;
+}
+
+.rapport-sc-results-table {
+    width: 100%;
+    min-height: 154mm;
+    table-layout: fixed;
+    border-collapse: collapse;
+    border: 0.25mm solid #000;
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+    font-size: 7px;
+}
+
+.rapport-sc-results-table th,
+.rapport-sc-results-table td {
+    border: 0.2mm solid #000;
+    padding: 0.8mm 1mm;
+    vertical-align: middle;
+    color: #000;
+    background: #fff;
+}
+
+.rapport-sc-results-table th {
+    height: 4.2mm;
+    text-align: center;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.rapport-sc-results-table tbody tr {
+    height: 34mm;
+}
+
+.rapport-sc-col-coupe {
+    width: 18mm;
+}
+
+.rapport-sc-col-description {
+    width: 42mm;
+}
+
+.rapport-sc-col-photo {
+    width: 51mm;
+}
+
+.rapport-sc-col-lab {
+    width: 13mm;
+}
+
+.rapport-sc-col-lab-wide {
+    width: 19mm;
+}
+
+.rapport-sc-graphic-td {
+    padding: 0 !important;
+}
+
+.rapport-sc-graphic-cell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 32mm;
+    background: #fff;
+}
+
+.rapport-sc-graphic-layer {
+    position: absolute;
+    left: 4.5mm;
+    right: 4.5mm;
+    min-height: 2.5mm;
+    border: 0.2mm solid #000;
+    background: repeating-linear-gradient(135deg, #d2d2d2 0, #d2d2d2 0.8mm, #f6f6f6 0.8mm, #f6f6f6 1.6mm);
+}
+
+.rapport-sc-graphic-drainant {
+    background: radial-gradient(circle at 22% 22%, #fff 0, #fff 0.8mm, transparent 0.9mm), repeating-linear-gradient(135deg, #cfcfcf 0, #cfcfcf 1mm, #f5f5f5 1mm, #f5f5f5 2mm);
+}
+
+.rapport-sc-graphic-enrobe014,
+.rapport-sc-graphic-standard {
+    background: repeating-linear-gradient(135deg, #c6c6c6 0, #c6c6c6 1mm, #f2f2f2 1mm, #f2f2f2 2mm);
+}
+
+.rapport-sc-graphic-arret {
+    background: repeating-linear-gradient(0deg, #fff 0, #fff 1.1mm, #bfbfbf 1.1mm, #bfbfbf 1.35mm);
+}
+
+.rapport-sc-description-td {
+    white-space: pre-line;
+    line-height: 1.18;
+}
+
+.rapport-sc-photo-td {
+    padding: 0 !important;
+    vertical-align: middle !important;
+}
+
+.rapport-sc-photo-box,
+.rapport-sc-photo-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    min-height: 136mm;
+    background: #fff;
+}
+
+.rapport-sc-photo-box img {
+    display: block;
+    max-width: 100%;
+    max-height: 152mm;
+    object-fit: contain;
+}
+
+.rapport-sc-photo-placeholder {
+    color: #555;
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: repeating-linear-gradient(45deg, #fff 0, #fff 2mm, #f3f3f3 2mm, #f3f3f3 4mm);
+}
+
+.rapport-sc-paper-stack {
+    width: 100%;
+    max-width: 230mm;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rapport-sc-inline-alert {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 6px 10px;
+    border: 1px solid #9a9a9a;
+    border-radius: 8px;
+    background: #fff;
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    line-height: 1.2;
+}
+
+.rapport-sc-inline-alert-warning {
+    border-color: #b78b00;
+    background: #fff7d6;
+}
+
+.rapport-loading-banner,
+.rapport-warning-banner {
+    width: 210mm;
+    margin: 4mm auto 0 auto;
+    padding: 2mm 4mm;
+    border: 0.2mm solid #9a9a9a;
+    background: #fff;
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+    font-size: 11px;
+}
+
+.rapport-warning-banner {
+    border-color: #b78b00;
+    background: #fff7d6;
+}
+
+@media print {
+    .rapport-sc-viewer {
+        background: #fff;
+    }
+
+    .rapport-loading-banner,
+    .rapport-warning-banner,
+    .rapport-sc-inline-alert {
+        display: none;
+    }
+
+    .rapport-sc-page {
+        margin: 0;
+        box-shadow: none;
+    }
+}

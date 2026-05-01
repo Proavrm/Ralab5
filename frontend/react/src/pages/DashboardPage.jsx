@@ -168,6 +168,14 @@ const DASHBOARD_SHORTCUTS = [
     tone: 'red',
     icon: ShieldAlert,
   },
+  {
+    key: 'outils-feuilles',
+    title: 'Outils terrain & essais',
+    desc: 'Ouvrir directement une feuille terrain ou un essai par numero ou reference',
+    to: '/tools#feuilles-preparation',
+    tone: 'teal',
+    icon: FileText,
+  },
 ]
 
 const QUALITY_FUTURE_AREAS = [

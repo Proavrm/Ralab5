@@ -1,24 +1,32 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import { essaisApi, feuillesTerrainApi } from '@/services/api'
 import {
-  computeDeSummary,
   createWorkDocumentDEFromModel,
+  deleteWorkDocumentDE,
+  findWorkDocumentDEBySourceEssaiUid,
+  findWorkDocumentDEBySourceTerrainUid,
   getRapportModelDefinitionDEById,
   getWorkDocumentDE,
   listApprovedModelDefinitionsDE,
   listApprovedRapportModelDefinitionsDE,
   listWorkDocumentsDE,
+  publishRuntimeDE,
   WORK_STATUS_DE,
   updateWorkDocumentDE,
 } from '@/services/modelWorkLocalStore'
 
-function formatResult(value, unit) {
-  if (value == null || value === '') return ''
-  const numeric = Number(value)
-  if (Number.isFinite(numeric)) return `${numeric.toLocaleString('fr-FR', { maximumFractionDigits: 2 })}${unit ? ` ${unit}` : ''}`
-  return `${value}${unit ? ` ${unit}` : ''}`
+// NOTE (2026-05-01):
+// This page is intentionally DE-only for now (selection/association/validation/publication).
+// Keep the workflow rules generic because this same orchestration will be reused for other essai types.
+
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return date.toLocaleString('fr-FR')
 }
 
 function toDraft(values = {}) {
@@ -31,6 +39,10 @@ function toDraft(values = {}) {
 }
 
 export default function WorkDePage() {
+  // NOTE (2026-05-01):
+  // Work DE is the managerial gate: select approved model, associate approved rapport,
+  // validate, then publish the runtime package consumed by the technician page.
+  // Current implementation is DE-specific by design; orchestration is intended to be reused per essai type.
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -39,6 +51,9 @@ export default function WorkDePage() {
   const [documents, setDocuments] = useState(() => listWorkDocumentsDE())
   const selectedDocId = searchParams.get('doc') || ''
   const selectedModelId = searchParams.get('model') || ''
+  const essaiUidParam = searchParams.get('essai_uid') || ''
+  const sourceFamily = String(searchParams.get('source_family') || '').trim().toLowerCase()
+  const sourceUidParam = searchParams.get('source_uid') || ''
 
   const selectedDocument = useMemo(() => {
     if (!selectedDocId) return null
@@ -58,11 +73,35 @@ export default function WorkDePage() {
     [selectedRapportModelId, rapportModels]
   )
 
-  const activeValues = selectedDocument?.runtime_values || selectedModel?.values || {}
-  const summary = computeDeSummary(activeValues?.points_rows || [])
   const hasRapportLinkedToDocument = Boolean(selectedDocument?.rapport_model_definition_id) && linkedRapportModel?.status === 'approved'
   const workStatus = selectedDocument?.work_status || WORK_STATUS_DE.DRAFT
-  const canPrint = Boolean(selectedDocId && hasRapportLinkedToDocument && workStatus === WORK_STATUS_DE.VALIDATED)
+  const mustChooseModel = models.length > 1 && !selectedModelId
+  const returnTo = String(searchParams.get('return_to') || '').trim()
+  const backPath = returnTo || '/tools#feuilles-preparation'
+
+  function updateSearch(next = {}) {
+    const params = new URLSearchParams(searchParams)
+    Object.entries(next).forEach(([key, value]) => {
+      if (value == null || value === '') params.delete(key)
+      else params.set(key, String(value))
+    })
+    setSearchParams(params)
+  }
+
+  function parseEssaiResultats(essai) {
+    const raw = essai?.resultats
+    if (raw && typeof raw === 'object') return raw
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw) } catch { return {} }
+    }
+    return {}
+  }
+
+  function parseTerrainPayload(terrain) {
+    const payload = terrain?.payload
+    if (payload && typeof payload === 'object') return payload
+    return {}
+  }
 
   function refreshAll(nextDocId = selectedDocId) {
     setModels(listApprovedModelDefinitionsDE())
@@ -73,6 +112,34 @@ export default function WorkDePage() {
       setRuntimeDraft(toDraft(fresh?.runtime_values || {}))
     }
   }
+
+  useEffect(() => {
+    if (!essaiUidParam) return
+    if (selectedDocId) return
+    const existing = findWorkDocumentDEBySourceEssaiUid(essaiUidParam)
+    if (existing?.id) {
+      updateSearch({
+        doc: existing.id,
+        model: existing.model_definition_id || '',
+      })
+      return
+    }
+    setResult({ type: 'ok', msg: 'Sélectionne un modèle approuvé, puis clique sur "Créer document depuis modèle".' })
+  }, [essaiUidParam, selectedDocId])
+
+  useEffect(() => {
+    if (sourceFamily !== 'terrain' || !sourceUidParam) return
+    if (selectedDocId) return
+    const existing = findWorkDocumentDEBySourceTerrainUid(sourceUidParam)
+    if (existing?.id) {
+      updateSearch({
+        doc: existing.id,
+        model: existing.model_definition_id || '',
+      })
+      return
+    }
+    setResult({ type: 'ok', msg: 'Sélectionne un modèle approuvé, puis clique sur "Créer document depuis modèle".' })
+  }, [sourceFamily, sourceUidParam, selectedDocId])
 
   function handleAssociateRapport(rapportModelId) {
     if (!selectedDocId) {
@@ -107,36 +174,84 @@ export default function WorkDePage() {
     setResult({ type: 'ok', msg: 'Association du rapport supprimée.' })
   }
 
-  function handleCreateFromModel() {
+  async function handleCreateFromModel() {
+    if (mustChooseModel) {
+      setResult({ type: 'err', msg: 'Escolhe primeiro o modelo aprovado a usar.' })
+      return
+    }
     if (!selectedModel) {
       setResult({ type: 'err', msg: 'Aucun modèle DE approuvé disponible.' })
       return
     }
-    const created = createWorkDocumentDEFromModel(selectedModel)
-    setSearchParams({ doc: String(created.id), model: String(selectedModel.id) })
-    setRuntimeDraft(toDraft(created.runtime_values || {}))
-    refreshAll(created.id)
-    setResult({ type: 'ok', msg: `Document de travail créé (${created.id}). Version modèle fixée: v${created.model_version}.` })
+    try {
+      const created = createWorkDocumentDEFromModel(selectedModel)
+      const autoRapport = rapportModels[0] || null
+      let nextRuntime = created.runtime_values || {}
+      let extra = {}
+
+      if (sourceFamily === 'terrain' && sourceUidParam) {
+        const terrain = await feuillesTerrainApi.get(sourceUidParam)
+        nextRuntime = parseTerrainPayload(terrain)
+        extra = {
+          source_terrain_uid: Number(sourceUidParam),
+          source_essai_uid: terrain?.source_essai_id ?? null,
+        }
+      } else if (essaiUidParam) {
+        const essai = await essaisApi.get(essaiUidParam)
+        nextRuntime = parseEssaiResultats(essai)
+        extra = {
+          source_essai_uid: Number(essaiUidParam),
+        }
+      }
+
+      if (autoRapport?.id) {
+        updateWorkDocumentDE(created.id, {
+          ...extra,
+          runtime_values: nextRuntime,
+          rapport_model_definition_id: autoRapport.id,
+          rapport_model_version: autoRapport.schema_version,
+        })
+      } else {
+        updateWorkDocumentDE(created.id, {
+          ...extra,
+          runtime_values: nextRuntime,
+        })
+      }
+
+      updateSearch({ doc: String(created.id), model: String(selectedModel.id) })
+      const freshCreated = getWorkDocumentDE(created.id) || created
+      setRuntimeDraft(toDraft(freshCreated.runtime_values || {}))
+      refreshAll(created.id)
+      setResult({
+        type: 'ok',
+        msg: autoRapport?.id
+          ? `Document créé (${created.id}) avec modèle et rapport approuvés associés.`
+          : `Document créé (${created.id}) com modelo aprovado. Falta associar um rapport aprovado.`,
+      })
+    } catch (e) {
+      setResult({ type: 'err', msg: e?.message || 'Impossible de créer le document depuis le modèle sélectionné.' })
+    }
   }
 
-  function handleSaveRuntime() {
-    if (!selectedDocId) {
-      setResult({ type: 'err', msg: 'Crée d’abord un document de travail DE.' })
+  function handleDeleteDocument(docId) {
+    const id = String(docId || '')
+    if (!id) return
+    if (!window.confirm(`Supprimer le document ${id} ?`)) return
+    const ok = deleteWorkDocumentDE(id)
+    if (!ok) {
+      setResult({ type: 'err', msg: 'Impossible de supprimer le document.' })
       return
     }
-    const rows = Array.isArray(runtimeDraft.points_rows) ? runtimeDraft.points_rows : []
-    const runtimeValues = {
-      meta: runtimeDraft.meta || {},
-      points_rows: rows,
-      resume: computeDeSummary(rows),
+    const nextDoc = documents.find((item) => String(item.id) !== id)
+    if (String(selectedDocId) === id) {
+      updateSearch({
+        doc: nextDoc?.id || '',
+        model: nextDoc?.model_definition_id || '',
+      })
+      setRuntimeDraft(toDraft(nextDoc?.runtime_values || {}))
     }
-    const updated = updateWorkDocumentDE(selectedDocId, { runtime_values: runtimeValues })
-    if (!updated) {
-      setResult({ type: 'err', msg: 'Document introuvable.' })
-      return
-    }
-    refreshAll(selectedDocId)
-    setResult({ type: 'ok', msg: 'Document de travail DE mis à jour.' })
+    refreshAll(nextDoc?.id || '')
+    setResult({ type: 'ok', msg: `Document supprimé: ${id}.` })
   }
 
   function handleChangeWorkStatus(nextStatus) {
@@ -163,22 +278,67 @@ export default function WorkDePage() {
       setResult({ type: 'err', msg: 'Impossible de mettre à jour le statut.' })
       return
     }
+    if (nextStatus === WORK_STATUS_DE.VALIDATED) {
+      if (!updated?.rapport_model_definition_id) {
+        setResult({ type: 'err', msg: 'Validation enregistrée, mas sem rapport associado para publicação runtime.' })
+        refreshAll(selectedDocId)
+        return
+      }
+      const publishedModel = models.find((item) => String(item.id) === String(updated.model_definition_id)) || null
+      const publishedRapport = getRapportModelDefinitionDEById(updated.rapport_model_definition_id) || null
+      // NOTE:
+      // Publication stores explicit snapshots so runtime executes a fixed approved version.
+      // This "snapshot publish" mechanism should become generic (per code/type), not DE-only.
+      const published = publishRuntimeDE({
+        work_document_id: updated.id,
+        model_definition_id: updated.model_definition_id,
+        rapport_model_definition_id: updated.rapport_model_definition_id,
+        model_snapshot: publishedModel ? {
+          id: publishedModel.id,
+          reference: publishedModel.reference || '',
+          schema_version: publishedModel.schema_version,
+          values: publishedModel.values && typeof publishedModel.values === 'object' ? publishedModel.values : {},
+        } : null,
+        rapport_snapshot: publishedRapport ? {
+          id: publishedRapport.id,
+          reference: publishedRapport.reference || '',
+          schema_version: publishedRapport.schema_version,
+          template: publishedRapport.template && typeof publishedRapport.template === 'object' ? publishedRapport.template : {},
+        } : null,
+      })
+      if (!published) {
+        setResult({ type: 'err', msg: 'Validation enregistrée, mas publication runtime falhou.' })
+        refreshAll(selectedDocId)
+        return
+      }
+      refreshAll(selectedDocId)
+      setResult({ type: 'ok', msg: 'Statut validé et runtime DE global publicado.' })
+      return
+    }
     refreshAll(selectedDocId)
     setResult({ type: 'ok', msg: `Statut mis à jour: ${nextStatus}.` })
   }
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-3">
-      <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">Work DE</div>
-            <h1 className="mt-1 text-2xl font-semibold text-text">Feuille de travail DE (runtime)</h1>
-            <p className="mt-2 text-sm text-text-muted">
-              Cette page n’utilise que des modèles DE approuvés et fixe la version du modèle à la création du document.
-            </p>
+      <div className="sticky top-2 z-20 rounded-2xl border border-border bg-surface p-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={() => navigate(backPath)}>
+              ← Retour
+            </Button>
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">Work DE</div>
+              <div className="truncate text-[14px] font-semibold text-text">
+                {selectedDocId ? `Document ${selectedDocId}` : 'Feuille de travail DE'}
+              </div>
+            </div>
           </div>
-          <Button variant="secondary" onClick={() => navigate('/modelos-base/DE')}>Ouvrir le modèle DE</Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="primary" size="sm" onClick={() => refreshAll(selectedDocId)}>
+              Actualiser
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -190,22 +350,29 @@ export default function WorkDePage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-surface p-4">
-          <h2 className="text-sm font-semibold text-text">Modèles approuvés</h2>
-          <p className="mt-1 text-xs text-text-muted">{models.length} modèle(s) DE approved</p>
-          <div className="mt-3 flex flex-col gap-2">
-            {models.length ? models.map((model) => (
-              <button
-                key={model.id}
-                type="button"
-                onClick={() => setSearchParams({ model: String(model.id) })}
-                className={`rounded-lg border px-3 py-2 text-left text-xs ${String(selectedModel?.id) === String(model.id) ? 'border-accent bg-bg' : 'border-border bg-surface'}`}
-              >
-                <div className="font-semibold text-text">{model.reference || model.id}</div>
-                <div className="text-text-muted">v{model.schema_version} · {model.status}</div>
-              </button>
-            )) : <div className="rounded-lg border border-dashed border-border px-3 py-4 text-xs text-text-muted">Aucun modèle approuvé.</div>}
-          </div>
+          <h2 className="text-sm font-semibold text-text">Nouveau document de travail</h2>
+          <p className="mt-1 text-xs text-text-muted">
+            Crée un document runtime à partir du dernier modèle DE approuvé.
+          </p>
           <Button className="mt-3" variant="primary" onClick={handleCreateFromModel} disabled={!selectedModel}>Créer document depuis modèle</Button>
+          <div className="mt-3">
+            <label className="mb-1 block text-xs text-text-muted">Modèle approuvé</label>
+            <select
+              value={selectedModelId || ''}
+              onChange={(e) => updateSearch({ model: e.target.value || '' })}
+              className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+            >
+              {!selectedModelId ? <option value="">Sélectionner un modèle…</option> : null}
+              {models.map((model) => (
+                <option key={model.id} value={String(model.id)}>
+                  {model.reference || model.id}
+                </option>
+              ))}
+            </select>
+            {mustChooseModel ? (
+              <div className="mt-1 text-xs text-[#8a5c11]">Choix obligatoire car plusieurs modèles sont approuvés.</div>
+            ) : null}
+          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-4">
@@ -213,21 +380,43 @@ export default function WorkDePage() {
           <p className="mt-1 text-xs text-text-muted">{documents.length} document(s)</p>
           <div className="mt-3 flex flex-col gap-2 max-h-[260px] overflow-auto">
             {documents.length ? documents.map((doc) => (
-              <button
+              <div
                 key={doc.id}
-                type="button"
-                onClick={() => {
-                  setSearchParams({ doc: String(doc.id), model: String(doc.model_definition_id || '') })
-                  setRuntimeDraft(toDraft(doc.runtime_values || {}))
-                }}
-                className={`rounded-lg border px-3 py-2 text-left text-xs ${String(selectedDocId) === String(doc.id) ? 'border-accent bg-bg' : 'border-border bg-surface'}`}
+                className={`rounded-lg border px-3 py-2 text-xs ${String(selectedDocId) === String(doc.id) ? 'border-accent bg-bg' : 'border-border bg-surface'}`}
               >
-                <div className="font-semibold text-text">{doc.id}</div>
-                <div className="text-text-muted">
-                  model={doc.model_definition_id} · v{doc.model_version}
-                  {doc.rapport_model_definition_id ? ` · rapport=${doc.rapport_model_definition_id}` : ' · sem rapport'}
+                <div className="flex items-start justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateSearch({ doc: String(doc.id), model: String(doc.model_definition_id || '') })
+                      setRuntimeDraft(toDraft(doc.runtime_values || {}))
+                    }}
+                    className="flex-1 text-left"
+                  >
+                    {(() => {
+                      const modelRef = models.find((item) => String(item.id) === String(doc.model_definition_id))?.reference
+                      const rapportRef = rapportModels.find((item) => String(item.id) === String(doc.rapport_model_definition_id))?.reference
+                      return (
+                        <>
+                          <div className="font-semibold text-text">{doc.id}</div>
+                          <div className="text-text-muted">
+                            modèle: {modelRef || doc.model_definition_id || 'introuvable'}
+                            {modelRef ? '' : ' (id technique)'}
+                          </div>
+                          <div className="text-text-muted">
+                            rapport: {doc.rapport_model_definition_id ? (rapportRef || doc.rapport_model_definition_id) : 'sem rapport'}
+                            {doc.rapport_model_definition_id && !rapportRef ? ' (id technique)' : ''}
+                          </div>
+                          <div className="text-text-muted">
+                            criado: {formatDateTime(doc.created_at)} · atualizado: {formatDateTime(doc.updated_at)}
+                          </div>
+                        </>
+                      )
+                    })()}
+                  </button>
+                  <Button variant="danger" size="sm" onClick={() => handleDeleteDocument(doc.id)}>✕</Button>
                 </div>
-              </button>
+              </div>
             )) : <div className="rounded-lg border border-dashed border-border px-3 py-4 text-xs text-text-muted">Aucun document de travail.</div>}
           </div>
         </div>
@@ -323,94 +512,6 @@ export default function WorkDePage() {
             Valider document
           </Button>
         </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-surface p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-text">Runtime DE</h2>
-          <div className="text-xs text-text-muted">
-            Points {summary.points} · Compacité {formatResult(summary.moyenne_compacite_pct, '%')} · Vides {formatResult(summary.moyenne_vides_pct, '%')} · MV {formatResult(summary.moyenne_mv, 'g/cm³')}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="text-xs text-text-muted">
-            Opérateur
-            <Input value={runtimeDraft.meta?.operateur || ''} onChange={(e) => setRuntimeDraft((prev) => ({ ...prev, meta: { ...(prev.meta || {}), operateur: e.target.value } }))} />
-          </label>
-          <label className="text-xs text-text-muted">
-            Conditions météo
-            <Input value={runtimeDraft.meta?.conditions_meteo || ''} onChange={(e) => setRuntimeDraft((prev) => ({ ...prev, meta: { ...(prev.meta || {}), conditions_meteo: e.target.value } }))} />
-          </label>
-        </div>
-
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[920px] text-[12px]">
-            <thead className="bg-bg">
-              <tr>
-                <th className="border-b border-border px-2 py-2 text-left">Point</th>
-                <th className="border-b border-border px-2 py-2 text-left">Profil</th>
-                <th className="border-b border-border px-2 py-2 text-left">Position</th>
-                <th className="border-b border-border px-2 py-2 text-right">MV</th>
-                <th className="border-b border-border px-2 py-2 text-right">Compacité</th>
-                <th className="border-b border-border px-2 py-2 text-right">Vides</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(runtimeDraft.points_rows || []).map((row, index) => (
-                <tr key={row?.id || index}>
-                  <td className="border-b border-border px-2 py-1.5"><Input value={row?.point || ''} onChange={(e) => setRuntimeDraft((prev) => {
-                    const rows = [...(prev.points_rows || [])]
-                    rows[index] = { ...(rows[index] || {}), point: e.target.value }
-                    return { ...prev, points_rows: rows }
-                  })} /></td>
-                  <td className="border-b border-border px-2 py-1.5"><Input value={row?.profil || ''} onChange={(e) => setRuntimeDraft((prev) => {
-                    const rows = [...(prev.points_rows || [])]
-                    rows[index] = { ...(rows[index] || {}), profil: e.target.value }
-                    return { ...prev, points_rows: rows }
-                  })} /></td>
-                  <td className="border-b border-border px-2 py-1.5"><Input value={row?.position || ''} onChange={(e) => setRuntimeDraft((prev) => {
-                    const rows = [...(prev.points_rows || [])]
-                    rows[index] = { ...(rows[index] || {}), position: e.target.value }
-                    return { ...prev, points_rows: rows }
-                  })} /></td>
-                  <td className="border-b border-border px-2 py-1.5"><Input value={row?.masse_volumique || ''} onChange={(e) => setRuntimeDraft((prev) => {
-                    const rows = [...(prev.points_rows || [])]
-                    rows[index] = { ...(rows[index] || {}), masse_volumique: e.target.value }
-                    return { ...prev, points_rows: rows }
-                  })} className="text-right" /></td>
-                  <td className="border-b border-border px-2 py-1.5"><Input value={row?.compacite_pct || ''} onChange={(e) => setRuntimeDraft((prev) => {
-                    const rows = [...(prev.points_rows || [])]
-                    rows[index] = { ...(rows[index] || {}), compacite_pct: e.target.value }
-                    return { ...prev, points_rows: rows }
-                  })} className="text-right" /></td>
-                  <td className="border-b border-border px-2 py-1.5"><Input value={row?.vides_pct || ''} onChange={(e) => setRuntimeDraft((prev) => {
-                    const rows = [...(prev.points_rows || [])]
-                    rows[index] = { ...(rows[index] || {}), vides_pct: e.target.value }
-                    return { ...prev, points_rows: rows }
-                  })} className="text-right" /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setRuntimeDraft((prev) => ({ ...prev, points_rows: [...(prev.points_rows || []), { id: Date.now(), point: '', profil: '', position: '', masse_volumique: '', compacite_pct: '', vides_pct: '' }] }))}>+ Ligne</Button>
-          <Button variant="primary" onClick={handleSaveRuntime}>Enregistrer runtime</Button>
-          <Button
-            variant="secondary"
-            onClick={() => navigate(`/rapports/de/${encodeURIComponent(selectedDocId || 'modele')}?mode=work`)}
-            disabled={!canPrint}
-          >
-            Imprimer / Ouvrir rapport DE
-          </Button>
-        </div>
-        {!canPrint && selectedDocId ? (
-          <div className="mt-2 text-xs text-[#8a5c11]">
-            Impression active uniquement quand le document est validé et un rapport DE approuvé est associé.
-          </div>
-        ) : null}
       </div>
 
       {result ? (

@@ -526,6 +526,14 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "affaires_rst", "dossier_nom", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "dossier_path", "TEXT NOT NULL DEFAULT ''")
 
+        _ensure_column(conn, "demandes", "domaine_etude", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demandes", "type_prestation_attendue", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demandes", "documents_fournis", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demandes", "lien_pieces_jointes", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demandes", "service_interne", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demandes", "societe_interne", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demandes", "urgence_source", "TEXT NOT NULL DEFAULT ''")
+
         _ensure_column(conn, "qualite_equipment", "m_tare", "REAL")
         _ensure_column(conn, "qualite_equipment", "volume_cm3", "REAL")
         _ensure_column(conn, "qualite_equipment", "division", "TEXT")

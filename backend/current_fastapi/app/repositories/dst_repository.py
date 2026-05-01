@@ -103,6 +103,29 @@ class DstRepository:
             row = conn.execute(query, (row_id,)).fetchone()
         return self._row_to_record(columns, row) if row else None
 
+    def update_by_id(self, row_id: int, data: dict[str, Any]) -> DstRecord | None:
+        if not self.is_available:
+            return None
+        columns = self.get_columns()
+        if not columns:
+            return None
+
+        allowed_fields = {k: v for k, v in (data or {}).items() if k in columns}
+        if not allowed_fields:
+            return self.get_by_id(row_id)
+
+        assignments = ", ".join(f"{self._quote(col)} = ?" for col in allowed_fields.keys())
+        params = [allowed_fields[col] for col in allowed_fields.keys()]
+        params.append(row_id)
+
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE {self._quote(self.table_name)} SET {assignments} WHERE \"id\" = ?",
+                params,
+            )
+
+        return self.get_by_id(row_id)
+
     def get_columns(self) -> list[str]:
         if not self.is_available:
             return []

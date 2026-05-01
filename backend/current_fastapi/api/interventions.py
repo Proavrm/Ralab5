@@ -117,6 +117,11 @@ def _demande_id_for_intervention(conn: sqlite3.Connection, uid: int) -> Optional
     return int(row["demande_id"]) if row else None
 
 
+def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return {str(row["name"] if isinstance(row, sqlite3.Row) else row[1]) for row in rows}
+
+
 def _next_ref(conn, demande_id: int) -> tuple[str, int, str, int]:
     row = conn.execute("SELECT d.annee, d.labo_code FROM demandes d WHERE d.id = ?", (demande_id,)).fetchone()
     annee = row["annee"] if row else datetime.now().year
@@ -226,6 +231,513 @@ def get_intervention(uid: int):
             raise HTTPException(404, f"Intervention #{uid} introuvable")
         _require_interventions_enabled(conn, int(row["demande_id"]))
     return _row_to_dict(row)
+
+
+def _linked_prelevements(
+    conn: sqlite3.Connection,
+    intervention_uid: int,
+    direct_prelevement_id: Optional[int],
+    *,
+    point_ids: list[int],
+    couche_ids: list[int],
+) -> list[dict]:
+    prelevement_ids: set[int] = set()
+    if direct_prelevement_id:
+        prelevement_ids.add(int(direct_prelevement_id))
+
+    rows_by_intervention = conn.execute(
+        "SELECT id FROM prelevements WHERE intervention_id = ?",
+        (intervention_uid,),
+    ).fetchall()
+    for row in rows_by_intervention:
+        prelevement_ids.add(int(row["id"]))
+
+    prelevements_cols = _table_columns(conn, "prelevements")
+    if "point_terrain_id" in prelevements_cols and point_ids:
+        placeholders = ",".join("?" for _ in point_ids)
+        point_rows = conn.execute(
+            f"SELECT id FROM prelevements WHERE point_terrain_id IN ({placeholders})",
+            tuple(point_ids),
+        ).fetchall()
+        for row in point_rows:
+            prelevement_ids.add(int(row["id"]))
+
+    if "sondage_couche_id" in prelevements_cols and couche_ids:
+        placeholders = ",".join("?" for _ in couche_ids)
+        couche_rows = conn.execute(
+            f"SELECT id FROM prelevements WHERE sondage_couche_id IN ({placeholders})",
+            tuple(couche_ids),
+        ).fetchall()
+        for row in couche_rows:
+            prelevement_ids.add(int(row["id"]))
+
+    if not prelevement_ids:
+        return []
+
+    placeholders = ",".join("?" for _ in prelevement_ids)
+    prelevements_cols = _table_columns(conn, "prelevements")
+    point_col_sql = "p.point_terrain_id" if "point_terrain_id" in prelevements_cols else "NULL"
+    couche_col_sql = "p.sondage_couche_id" if "sondage_couche_id" in prelevements_cols else "NULL"
+
+    rows = conn.execute(
+        f"""
+        SELECT
+            p.id,
+            p.reference,
+            p.description,
+            p.quantite,
+            p.zone,
+            p.materiau,
+            p.statut,
+            p.intervention_id,
+            {point_col_sql} AS point_terrain_id,
+            {couche_col_sql} AS sondage_couche_id,
+            COALESCE(ec.echantillon_count, 0) AS echantillon_count,
+            COALESCE(es.essai_count, 0) AS essai_count
+        FROM prelevements p
+        LEFT JOIN (
+            SELECT prelevement_id, COUNT(*) AS echantillon_count
+            FROM echantillons
+            WHERE prelevement_id IS NOT NULL
+            GROUP BY prelevement_id
+        ) ec ON ec.prelevement_id = p.id
+        LEFT JOIN (
+            SELECT ech.prelevement_id AS prelevement_id, COUNT(e.id) AS essai_count
+            FROM echantillons ech
+            LEFT JOIN essais e ON e.echantillon_id = ech.id
+            WHERE ech.prelevement_id IS NOT NULL
+            GROUP BY ech.prelevement_id
+        ) es ON es.prelevement_id = p.id
+        WHERE p.id IN ({placeholders})
+        ORDER BY p.id DESC
+        """,
+        tuple(prelevement_ids),
+    ).fetchall()
+
+    return [
+        {
+            "uid": int(row["id"]),
+            "reference": row["reference"] or "",
+            "description": row["description"] or "",
+            "quantite": row["quantite"] or "",
+            "zone": row["zone"] or "",
+            "materiau": row["materiau"] or "",
+            "statut": row["statut"] or "",
+            "intervention_id": row["intervention_id"],
+            "intervention_reelle_id": row["intervention_id"],
+            "point_terrain_id": row["point_terrain_id"],
+            "sondage_couche_id": row["sondage_couche_id"],
+            "echantillon_count": int(row["echantillon_count"] or 0),
+            "essai_count": int(row["essai_count"] or 0),
+        }
+        for row in rows
+    ]
+
+
+def _linked_echantillons(conn: sqlite3.Connection, intervention_uid: int, prelevements: list[dict]) -> list[dict]:
+    prelevement_ids = [int(item["uid"]) for item in prelevements if item.get("uid") is not None]
+    params: list[object] = [intervention_uid]
+    where = "ech.intervention_id = ?"
+    if prelevement_ids:
+        placeholders = ",".join("?" for _ in prelevement_ids)
+        where += f" OR ech.prelevement_id IN ({placeholders})"
+        params.extend(prelevement_ids)
+
+    rows = conn.execute(
+        f"""
+        SELECT
+            ech.id,
+            ech.reference,
+            ech.designation,
+            ech.localisation,
+            ech.statut,
+            ech.prelevement_id,
+            ech.intervention_id,
+            COALESCE((SELECT COUNT(*) FROM essais es WHERE es.echantillon_id = ech.id), 0) AS essai_count
+        FROM echantillons ech
+        WHERE {where}
+        ORDER BY ech.id DESC
+        """,
+        tuple(params),
+    ).fetchall()
+
+    return [
+        {
+            "uid": int(row["id"]),
+            "reference": row["reference"] or "",
+            "designation": row["designation"] or "",
+            "localisation": row["localisation"] or "",
+            "statut": row["statut"] or "",
+            "prelevement_id": row["prelevement_id"],
+            "intervention_id": row["intervention_id"],
+            "intervention_reelle_id": row["intervention_id"],
+            "essai_count": int(row["essai_count"] or 0),
+        }
+        for row in rows
+    ]
+
+
+def _linked_essais(conn: sqlite3.Connection, intervention_uid: int, echantillons: list[dict]) -> list[dict]:
+    echantillon_ids = [int(item["uid"]) for item in echantillons if item.get("uid") is not None]
+    params: list[object] = [intervention_uid]
+    where = "e.intervention_id = ?"
+    if echantillon_ids:
+        placeholders = ",".join("?" for _ in echantillon_ids)
+        where += f" OR e.echantillon_id IN ({placeholders})"
+        params.extend(echantillon_ids)
+
+    rows = conn.execute(
+        f"""
+        SELECT
+            e.id,
+            COALESCE(NULLIF(e.source_label, ''), NULLIF(e.type_essai, ''), NULLIF(e.essai_code, ''), '') AS reference,
+            e.essai_code,
+            e.type_essai,
+            e.statut,
+            e.intervention_id,
+            e.echantillon_id,
+            e.source_label,
+            e.resultat_principal,
+            e.resultat_unite,
+            e.resultat_label
+        FROM essais e
+        WHERE {where}
+        ORDER BY e.id DESC
+        """,
+        tuple(params),
+    ).fetchall()
+
+    return [
+        {
+            "uid": int(row["id"]),
+            "reference": row["reference"] or "",
+            "essai_code": row["essai_code"] or "",
+            "code_essai": row["essai_code"] or "",
+            "type_essai": row["type_essai"] or "",
+            "statut": row["statut"] or "",
+            "intervention_id": row["intervention_id"],
+            "intervention_reelle_id": row["intervention_id"],
+            "echantillon_id": row["echantillon_id"],
+            "source_label": row["source_label"] or "",
+            "resultat_principal": row["resultat_principal"],
+            "resultat_unite": row["resultat_unite"] or "",
+            "resultat_label": row["resultat_label"] or "",
+        }
+        for row in rows
+    ]
+
+
+def _linked_feuilles_terrain(conn: sqlite3.Connection, intervention_uid: int) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT
+            f.id,
+            f.serie_id,
+            f.reference,
+            f.code_feuille,
+            f.label,
+            f.date_feuille,
+            f.statut,
+            f.intervention_id,
+            COALESCE((
+                SELECT COUNT(*)
+                FROM points_terrain pt
+                WHERE pt.serie_id = f.serie_id
+            ), 0) AS points_count
+        FROM feuilles_terrain f
+        WHERE f.intervention_id = ?
+        ORDER BY f.id DESC
+        """,
+        (intervention_uid,),
+    ).fetchall()
+
+    return [
+        {
+            "uid": int(row["id"]),
+            "serie_id": row["serie_id"],
+            "reference": row["reference"] or "",
+            "code_feuille": row["code_feuille"] or "",
+            "label": row["label"] or "",
+            "date_feuille": row["date_feuille"] or "",
+            "statut": row["statut"] or "",
+            "intervention_id": row["intervention_id"],
+            "intervention_reelle_id": row["intervention_id"],
+            "points_count": int(row["points_count"] or 0),
+        }
+        for row in rows
+    ]
+
+
+def _support_scope(campagne_id: Optional[int], intervention_id: Optional[int]) -> str:
+    if intervention_id:
+        return 'intervention'
+    if campagne_id:
+        return 'campagne'
+    return 'demande'
+
+
+def _support_origin_label(scope: str, reference: str, uid: Optional[int]) -> str:
+    fallback = f'#{uid}' if uid else ''
+    if scope == 'intervention':
+        return f'Intervention {reference or fallback}'.strip()
+    if scope == 'campagne':
+        return f'Campagne {reference or fallback}'.strip()
+    return f'Demande {reference or fallback}'.strip()
+
+
+def _support_scope_for_current(
+    current_intervention_uid: int,
+    current_campagne_id: Optional[int],
+    item_campagne_id: Optional[int],
+    item_intervention_id: Optional[int],
+) -> str:
+    if item_intervention_id and int(item_intervention_id) == int(current_intervention_uid):
+        return 'intervention'
+    if current_campagne_id and item_campagne_id and int(item_campagne_id) == int(current_campagne_id):
+        return 'campagne'
+    return _support_scope(item_campagne_id, item_intervention_id)
+
+
+def _linked_plans_implantation(
+    conn: sqlite3.Connection,
+    intervention_uid: int,
+    demande_id: int,
+    campagne_id: Optional[int],
+) -> list[dict]:
+    rows = conn.execute(
+        '''
+        SELECT
+            p.id,
+            p.reference,
+            p.titre,
+            p.date_plan,
+            p.statut,
+            p.demande_id,
+            p.campagne_id,
+            p.intervention_id,
+            d.reference AS demande_reference,
+            c.reference AS campagne_reference,
+            owner.reference AS owner_intervention_reference,
+            COALESCE((
+                SELECT COUNT(*)
+                FROM plan_implantation_points pip
+                WHERE pip.plan_implantation_id = p.id
+            ), 0) AS points_count
+        FROM plans_implantation p
+        LEFT JOIN demandes d ON d.id = p.demande_id
+        LEFT JOIN campagnes c ON c.id = p.campagne_id
+        LEFT JOIN interventions owner ON owner.id = p.intervention_id
+        WHERE p.demande_id = ?
+        AND p.intervention_id = ?
+        ORDER BY
+            p.id DESC
+        ''',
+        (
+            demande_id,
+            intervention_uid,
+        ),
+    ).fetchall()
+
+    result: list[dict] = []
+    for row in rows:
+        scope = _support_scope_for_current(intervention_uid, campagne_id, row['campagne_id'], row['intervention_id'])
+        origin_ref = row['owner_intervention_reference'] if scope == 'intervention' else (
+            row['campagne_reference'] if scope == 'campagne' else row['demande_reference']
+        )
+        origin_uid = row['intervention_id'] if scope == 'intervention' else (row['campagne_id'] if scope == 'campagne' else row['demande_id'])
+        result.append({
+            'uid': int(row['id']),
+            'reference': row['reference'] or '',
+            'titre': row['titre'] or '',
+            'date_plan': row['date_plan'] or '',
+            'statut': row['statut'] or '',
+            'demande_id': row['demande_id'],
+            'campagne_id': row['campagne_id'],
+            'intervention_id': row['intervention_id'],
+            'ownership_scope': scope,
+            'ownership_origin_label': _support_origin_label(scope, origin_ref or '', origin_uid),
+            'is_owner_intervention': int(row['intervention_id'] or 0) == int(intervention_uid),
+            'points_count': int(row['points_count'] or 0),
+        })
+    return result
+
+
+def _linked_nivellements(
+    conn: sqlite3.Connection,
+    intervention_uid: int,
+    demande_id: int,
+    campagne_id: Optional[int],
+) -> list[dict]:
+    rows = conn.execute(
+        '''
+        SELECT
+            n.id,
+            n.reference,
+            n.titre,
+            n.date_releve,
+            n.statut,
+            n.demande_id,
+            n.campagne_id,
+            n.intervention_id,
+            d.reference AS demande_reference,
+            c.reference AS campagne_reference,
+            owner.reference AS owner_intervention_reference,
+            COALESCE((
+                SELECT COUNT(*)
+                FROM nivellement_points np
+                WHERE np.nivellement_id = n.id
+            ), 0) AS points_count
+        FROM nivellements n
+        LEFT JOIN demandes d ON d.id = n.demande_id
+        LEFT JOIN campagnes c ON c.id = n.campagne_id
+        LEFT JOIN interventions owner ON owner.id = n.intervention_id
+        WHERE n.demande_id = ?
+        AND n.intervention_id = ?
+        ORDER BY
+            n.id DESC
+        ''',
+        (
+            demande_id,
+            intervention_uid,
+        ),
+    ).fetchall()
+
+    result: list[dict] = []
+    for row in rows:
+        scope = _support_scope_for_current(intervention_uid, campagne_id, row['campagne_id'], row['intervention_id'])
+        origin_ref = row['owner_intervention_reference'] if scope == 'intervention' else (
+            row['campagne_reference'] if scope == 'campagne' else row['demande_reference']
+        )
+        origin_uid = row['intervention_id'] if scope == 'intervention' else (row['campagne_id'] if scope == 'campagne' else row['demande_id'])
+        result.append({
+            'uid': int(row['id']),
+            'reference': row['reference'] or '',
+            'titre': row['titre'] or '',
+            'date_releve': row['date_releve'] or '',
+            'statut': row['statut'] or '',
+            'demande_id': row['demande_id'],
+            'campagne_id': row['campagne_id'],
+            'intervention_id': row['intervention_id'],
+            'ownership_scope': scope,
+            'ownership_origin_label': _support_origin_label(scope, origin_ref or '', origin_uid),
+            'is_owner_intervention': int(row['intervention_id'] or 0) == int(intervention_uid),
+            'points_count': int(row['points_count'] or 0),
+        })
+    return result
+
+
+def _linked_points_terrain(conn: sqlite3.Connection, feuilles_terrain: list[dict]) -> list[dict]:
+    serie_ids = [int(item["serie_id"]) for item in feuilles_terrain if item.get("serie_id") is not None]
+    if not serie_ids:
+        return []
+
+    placeholders = ",".join("?" for _ in serie_ids)
+    rows = conn.execute(
+        f"""
+        SELECT
+            pt.id,
+            pt.serie_id,
+            pt.point_code,
+            pt.point_type,
+            pt.ordre,
+            pt.profondeur_bas,
+            COALESCE((
+                SELECT COUNT(*)
+                FROM sondage_couches sc
+                WHERE sc.point_terrain_id = pt.id
+            ), 0) AS couches_count
+        FROM points_terrain pt
+        WHERE pt.serie_id IN ({placeholders})
+        ORDER BY pt.id DESC
+        """,
+        tuple(serie_ids),
+    ).fetchall()
+
+    return [
+        {
+            "uid": int(row["id"]),
+            "serie_id": row["serie_id"],
+            "point_code": row["point_code"] or "",
+            "point_type": row["point_type"] or "",
+            "ordre": int(row["ordre"] or 0),
+            "profondeur_bas": row["profondeur_bas"],
+            "couches_count": int(row["couches_count"] or 0),
+        }
+        for row in rows
+    ]
+
+
+def _linked_couches(conn: sqlite3.Connection, points_terrain: list[dict]) -> list[dict]:
+    point_ids = [int(item["uid"]) for item in points_terrain if item.get("uid") is not None]
+    if not point_ids:
+        return []
+
+    placeholders = ",".join("?" for _ in point_ids)
+    rows = conn.execute(
+        f"""
+        SELECT
+            sc.id,
+            sc.point_terrain_id,
+            sc.ordre,
+            sc.description_libre,
+            sc.z_haut,
+            sc.z_bas
+        FROM sondage_couches sc
+        WHERE sc.point_terrain_id IN ({placeholders})
+        ORDER BY sc.id DESC
+        """,
+        tuple(point_ids),
+    ).fetchall()
+
+    return [
+        {
+            "uid": int(row["id"]),
+            "point_terrain_id": row["point_terrain_id"],
+            "ordre": int(row["ordre"] or 0),
+            "description_libre": row["description_libre"] or "",
+            "z_haut": row["z_haut"],
+            "z_bas": row["z_bas"],
+        }
+        for row in rows
+    ]
+
+
+@router.get("/{uid}/linked-chain")
+def get_intervention_linked_chain(uid: int):
+    with _conn() as conn:
+        row = conn.execute(_base_select() + " WHERE i.id = ?", (uid,)).fetchone()
+        if not row:
+            raise HTTPException(404, f"Intervention #{uid} introuvable")
+        _require_interventions_enabled(conn, int(row["demande_id"]))
+
+        direct_prelevement_id = row["prelevement_id"] if "prelevement_id" in row.keys() else None
+        plans_implantation = _linked_plans_implantation(conn, uid, int(row['demande_id']), row['campagne_id'])
+        nivellements = _linked_nivellements(conn, uid, int(row['demande_id']), row['campagne_id'])
+        feuilles_terrain = _linked_feuilles_terrain(conn, uid)
+        points_terrain = _linked_points_terrain(conn, feuilles_terrain)
+        couches_terrain = _linked_couches(conn, points_terrain)
+
+        prelevements = _linked_prelevements(
+            conn,
+            uid,
+            direct_prelevement_id,
+            point_ids=[int(item["uid"]) for item in points_terrain],
+            couche_ids=[int(item["uid"]) for item in couches_terrain],
+        )
+        echantillons = _linked_echantillons(conn, uid, prelevements)
+        essais = _linked_essais(conn, uid, echantillons)
+
+    return {
+        "intervention_uid": uid,
+        "plans_implantation": plans_implantation,
+        "nivellements": nivellements,
+        "feuilles_terrain": feuilles_terrain,
+        "points_terrain": points_terrain,
+        "couches_terrain": couches_terrain,
+        "prelevements": prelevements,
+        "echantillons": echantillons,
+        "essais": essais,
+    }
 
 
 @router.post("", status_code=201)

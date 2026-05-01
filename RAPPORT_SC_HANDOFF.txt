@@ -1,0 +1,23 @@
+RaLab5 - Rapport SC / sondage carotté - Package corrigé
+
+Correction demandée
+- Le fichier SondageCarotteCoupe.jsx est maintenant placé dans :
+  frontend/react/src/pages/SondageCarotteCoupe.jsx
+
+À remplacer
+- Remplacer le fichier existant :
+  frontend/react/src/pages/SondageCarotteCoupe.jsx
+  par celui fourni dans ce package.
+
+À ajouter
+- Ajouter :
+  frontend/react/src/pages/rapports/RapportSCPage.jsx
+- Ajouter :
+  frontend/react/src/styles/rapport-sc.css
+
+À modifier
+- Ajouter l'import et la route indiqués dans APP_ROUTE_PATCH.txt.
+
+Note
+- Le chemin réel de SondageCarotteCoupe.jsx a été fourni par Marco et intégré directement dans le commentaire de tête du fichier.
+- Aucun chemin components/essais ne doit être créé pour SondageCarotteCoupe.jsx avec ce package.

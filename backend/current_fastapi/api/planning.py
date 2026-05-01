@@ -211,6 +211,8 @@ def _build_item(
     subtitle: str = "",
     open_label: str = "Ouvrir",
     source_demande_id: Optional[int] = None,
+    affaire_ref: Optional[str] = None,
+    wbs: str = "",
 ) -> dict:
     state = _display_state(_planning_state(kind, raw_stat, start, ech))
     return {
@@ -235,7 +237,14 @@ def _build_item(
         "editable_ech": editable_ech,
         "editable_stat": editable_stat,
         "source_demande_id": source_demande_id,
+        "affaire_ref": str(affaire_ref or "").strip(),
+        "wbs": str(wbs or "").strip(),
     }
+
+
+def _build_wbs(*parts: Optional[str]) -> str:
+    cleaned = [str(part or "").strip() for part in parts if str(part or "").strip()]
+    return " > ".join(cleaned)
 
 
 # Schémas — mêmes champs que l'ancien (ref, tit, stat, start, ech, dst, urg, labo)
@@ -280,6 +289,8 @@ class PlanningItemOut(BaseModel):
     editable_ech: bool = True
     editable_stat: bool = True
     source_demande_id: Optional[int] = None
+    affaire_ref: str = ""
+    wbs: str = ""
 
 
 def _to_out(r) -> PlanningDemandeOut:
@@ -317,6 +328,8 @@ def _load_demande_items() -> list[dict]:
                 views=["organiser", "demandes", "analyser"],
                 dst=bool((row.numero_dst or "").strip()),
                 source_demande_id=row.uid,
+                affaire_ref=getattr(row, "affaire_ref", ""),
+                wbs=_build_wbs(getattr(row, "affaire_ref", ""), row.reference),
             )
         )
     return items
@@ -337,6 +350,7 @@ def _load_campaign_items(conn: sqlite3.Connection) -> list[dict]:
             c.attribue_a,
             c.responsable_technique,
             d.id AS demande_id,
+            a.reference AS affaire_reference,
             d.labo_code,
             d.reference AS demande_reference,
             a.chantier,
@@ -367,6 +381,8 @@ def _load_campaign_items(conn: sqlite3.Connection) -> list[dict]:
                 open_label="Ouvrir la demande",
                 views=["organiser", "terrain", "analyser"],
                 source_demande_id=int(row["demande_id"]),
+                affaire_ref=row["affaire_reference"],
+                wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
             )
         )
     return items
@@ -385,6 +401,7 @@ def _load_intervention_items(conn: sqlite3.Connection) -> list[dict]:
             i.technicien,
             i.geotechnicien,
             i.demande_id,
+            a.reference AS affaire_reference,
             d.reference AS demande_reference,
             d.labo_code,
             a.chantier,
@@ -416,6 +433,8 @@ def _load_intervention_items(conn: sqlite3.Connection) -> list[dict]:
                 views=["organiser", "terrain", "labo", "analyser"],
                 editable_ech=False,
                 source_demande_id=int(row["demande_id"]),
+                affaire_ref=row["affaire_reference"],
+                wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
             )
         )
     return items
@@ -432,8 +451,10 @@ def _load_passation_items(conn: sqlite3.Connection) -> list[dict]:
             p.chantier,
             p.client,
             p.responsable,
-            p.affaire_rst_id
+            p.affaire_rst_id,
+            a.reference AS affaire_reference
         FROM passations p
+        LEFT JOIN affaires_rst a ON a.id = p.affaire_rst_id
         ORDER BY COALESCE(NULLIF(p.date_passation, ''), p.created_at) DESC, p.id DESC
         """
     ).fetchall()
@@ -458,6 +479,8 @@ def _load_passation_items(conn: sqlite3.Connection) -> list[dict]:
                 views=["organiser", "terrain", "analyser"],
                 editable_ech=False,
                 editable_stat=False,
+                affaire_ref=row["affaire_reference"],
+                wbs=_build_wbs(row["affaire_reference"], row["reference"]),
             )
         )
     return items
@@ -478,6 +501,7 @@ def _load_prelevement_items(conn: sqlite3.Connection) -> list[dict]:
             p.finalite,
             p.statut,
             p.demande_id,
+            a.reference AS affaire_reference,
             d.reference AS demande_reference,
             d.labo_code,
             a.chantier,
@@ -508,6 +532,8 @@ def _load_prelevement_items(conn: sqlite3.Connection) -> list[dict]:
                 open_label="Ouvrir le prelevement",
                 views=["organiser", "terrain", "labo", "analyser"],
                 source_demande_id=int(row["demande_id"]) if row["demande_id"] is not None else None,
+                affaire_ref=row["affaire_reference"],
+                wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
             )
         )
     return items
@@ -525,6 +551,7 @@ def _load_echantillon_items(conn: sqlite3.Connection) -> list[dict]:
             ech.date_reception_labo,
             ech.statut,
             ech.demande_id,
+            a.reference AS affaire_reference,
             d.reference AS demande_reference,
             COALESCE(ech.labo_code, d.labo_code) AS labo_code,
             a.chantier,
@@ -554,6 +581,8 @@ def _load_echantillon_items(conn: sqlite3.Connection) -> list[dict]:
                 route=f"/echantillons/{int(row['id'])}",
                 views=["organiser", "labo", "analyser"],
                 source_demande_id=int(row["demande_id"]) if row["demande_id"] is not None else None,
+                affaire_ref=row["affaire_reference"],
+                wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
             )
         )
     return items
@@ -572,6 +601,7 @@ def _load_essai_items(conn: sqlite3.Connection) -> list[dict]:
             e.operateur,
             ech.reference AS echantillon_reference,
             d.id AS demande_id,
+            a.reference AS affaire_reference,
             d.reference AS demande_reference,
             COALESCE(ech.labo_code, d.labo_code) AS labo_code,
             a.chantier,
@@ -604,6 +634,8 @@ def _load_essai_items(conn: sqlite3.Connection) -> list[dict]:
                 route=f"/essais/{int(row['id'])}",
                 views=["organiser", "labo", "analyser"],
                 source_demande_id=int(row["demande_id"]) if row["demande_id"] is not None else None,
+                affaire_ref=row["affaire_reference"],
+                wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], ref),
             )
         )
     return items

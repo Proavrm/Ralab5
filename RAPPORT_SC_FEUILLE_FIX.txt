@@ -1,0 +1,17 @@
+RaLab5 - Correctif ModeleBasePage pour feuille terrain SC
+
+Chemin confirmé par Marco :
+- frontend/react/src/pages/ModeleBasePage.jsx
+
+Ce correctif ajoute dans ModeleBasePage :
+- une structure visuelle dédiée à la feuille terrain SC, au lieu du textarea JSON provisoire ;
+- des champs d'en-tête SC : affaire, chantier, site, ouvrage, sondeur, procédé, diamètre, date, photo, arrêt de sondage, commentaires ;
+- des sondages SC avec localisation, profil, profondeur finale et hauteur totale de carotte ;
+- des coupes par sondage ;
+- des couches par coupe avec Z haut / Z bas en cm, description, graphique, d, % vide, compacité et observations ;
+- la sauvegarde locale dans ralab5_modele_base_SC ;
+- l'ouverture du rapport SC depuis ModeleBasePage via /rapports/sc/<id>?modele_base=SC.
+
+Ce correctif ne modifie pas SondageCarotteCoupe.jsx.
+Ce correctif ne modifie pas FeuilleTerrainPage.jsx.
+La logique est volontairement locale pour le modèle, afin de ne pas brancher prématurément la base de données.

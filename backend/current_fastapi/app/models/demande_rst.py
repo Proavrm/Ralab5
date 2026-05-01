@@ -33,6 +33,13 @@ class DemandeRstRecord:
     numero_dst:             str
     type_mission:           str
     nature:                 str
+    domaine_etude:          str
+    type_prestation_attendue: str
+    documents_fournis:      str
+    lien_pieces_jointes:    str
+    service_interne:        str
+    societe_interne:        str
+    urgence_source:         str
     description:            str
     observations:           str
     demandeur:              str
@@ -71,6 +78,10 @@ class DemandeRstRecord:
 
     nb_echantillons:        int = 0
     nb_interventions:       int = 0
+    nb_feuilles_sc:         int = 0
+    nb_feuilles_so:         int = 0
+    nb_feuilles_de:         int = 0
+    nb_points_de:           int = 0
 
 
 class DemandeRstCreateSchema(BaseModel):
@@ -79,6 +90,13 @@ class DemandeRstCreateSchema(BaseModel):
     numero_dst:             str            = Field("")
     type_mission:           str            = Field("À définir")
     nature:                 str            = Field("")
+    domaine_etude:          str            = Field("")
+    type_prestation_attendue: str          = Field("")
+    documents_fournis:      str            = Field("")
+    lien_pieces_jointes:    str            = Field("")
+    service_interne:        str            = Field("")
+    societe_interne:        str            = Field("")
+    urgence_source:         str            = Field("")
     description:            str            = Field("")
     observations:           str            = Field("")
     demandeur:              str            = Field("")
@@ -102,6 +120,13 @@ class DemandeRstUpdateSchema(BaseModel):
     numero_dst:             Optional[str]  = None
     type_mission:           Optional[str]  = None
     nature:                 Optional[str]  = None
+    domaine_etude:          Optional[str]  = None
+    type_prestation_attendue: Optional[str] = None
+    documents_fournis:      Optional[str]  = None
+    lien_pieces_jointes:    Optional[str]  = None
+    service_interne:        Optional[str]  = None
+    societe_interne:        Optional[str]  = None
+    urgence_source:         Optional[str]  = None
     description:            Optional[str]  = None
     observations:           Optional[str]  = None
     demandeur:              Optional[str]  = None
@@ -146,6 +171,13 @@ class DemandeRstResponseSchema(BaseModel):
     numero_dst:             str
     type_mission:           str
     nature:                 str
+    domaine_etude:          str
+    type_prestation_attendue: str
+    documents_fournis:      str
+    lien_pieces_jointes:    str
+    service_interne:        str
+    societe_interne:        str
+    urgence_source:         str
     description:            str
     observations:           str
     demandeur:              str
@@ -167,6 +199,10 @@ class DemandeRstResponseSchema(BaseModel):
     source_legacy_id:       Optional[int]
     nb_echantillons:        int = 0
     nb_interventions:       int = 0
+    nb_feuilles_sc:         int = 0
+    nb_feuilles_so:         int = 0
+    nb_feuilles_de:         int = 0
+    nb_points_de:           int = 0
     created_at:             str
     updated_at:             str
 

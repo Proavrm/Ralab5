@@ -1,0 +1,20 @@
+[
+  {
+    "stored_name": "essai_1051.JPEG",
+    "original_name": "essai_1051.JPEG",
+    "created_at": "2026-04-24 23:03:08",
+    "is_primary": false
+  },
+  {
+    "stored_name": "essai_1051__20260424_232437_014383.jpg",
+    "original_name": "Image1.jpg",
+    "created_at": "2026-04-24 23:24:37",
+    "is_primary": true
+  },
+  {
+    "stored_name": "essai_1051__20260424_234948_449759.jpg",
+    "original_name": "percolation.jpg",
+    "created_at": "2026-04-24 23:49:48",
+    "is_primary": false
+  }
+]

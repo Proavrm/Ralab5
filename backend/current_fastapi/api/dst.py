@@ -53,6 +53,10 @@ class DstImportResultSchema(BaseModel):
     table_created: bool
 
 
+class DstUpdateSchema(BaseModel):
+    data: dict[str, Any]
+
+
 # ── helpers ───────────────────────────────────────────────────────────────────
 def _record_to_schema(r: DstRecord) -> DstRowSchema:
     return DstRowSchema(row_id=r.row_id, data=r.data)
@@ -164,6 +168,26 @@ def get_dst(row_id: int):
         raise HTTPException(status_code=404, detail=f"Registo DST #{row_id} introuvable")
 
     return _record_to_schema(record)
+
+
+@router.patch(
+    "/{row_id}",
+    response_model=DstRowSchema,
+    summary="Atualizar campos de um registo DST",
+)
+def update_dst(row_id: int, body: DstUpdateSchema):
+    if not _repo.is_available:
+        raise HTTPException(status_code=503, detail="Base DST não disponível")
+
+    existing = _repo.get_by_id(row_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Registo DST #{row_id} introuvable")
+
+    updated = _repo.update_by_id(row_id, body.data)
+    if not updated:
+        raise HTTPException(status_code=500, detail="Mise à jour DST impossible")
+
+    return _record_to_schema(updated)
 
 
 # ── GET /api/dst/{row_id}/affaire-prefill ─────────────────────────────────────

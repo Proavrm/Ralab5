@@ -48,12 +48,7 @@ def _slugify_text(value: object) -> str:
 
 
 def _campaign_signature(item: dict) -> tuple[str, str, str] | None:
-    type_text = _normalize_text(item.get("type_intervention")).casefold()
-    subject_text = _normalize_text(item.get("sujet")).casefold()
-
-    if "pmt" in type_text or "macrotexture" in type_text or "macrotexture" in subject_text:
-        return ("PMT", "Campagne PMT", "Macrotexture de chaussee")
-
+    # Campaign auto-detection is disabled for now.
     return None
 
 
@@ -76,7 +71,7 @@ def _build_campaigns(demande, preparation: dict, related: dict) -> list[dict]:
                 "reference": reference,
                 "label": label,
                 "designation": designation,
-                "workflow_label": "Campagne -> Preparation de l'intervention -> Intervention -> Essai PMT -> Rapport",
+                "workflow_label": "Campagne -> Preparation de l'intervention -> Intervention -> Essai -> Rapport",
                 "source_mode": "historique_importe",
                 "source_label": "Historique importe",
                 "target_mode": "manuel",
@@ -86,12 +81,12 @@ def _build_campaigns(demande, preparation: dict, related: dict) -> list[dict]:
                 "interventions": [],
                 "report_ref": _first_non_empty(demande.rapport_ref),
                 "preparation_status": _first_non_empty(preparation.get("phase_operation"), "A cadrer"),
-                "next_step": "Structurer la campagne PMT, reprendre la saisie manuelle des valeurs et preparer le rapport.",
+                "next_step": "Structurer la campagne, reprendre la saisie manuelle des valeurs et preparer le rapport.",
                 "steps": [
                     {"code": "campagne", "label": "Campagne", "status": "Structuree a la demande"},
                     {"code": "preparation", "label": "Preparation", "status": _first_non_empty(preparation.get("phase_operation"), "A cadrer")},
                     {"code": "intervention", "label": "Interventions", "status": "A planifier"},
-                    {"code": "essai", "label": "Essai PMT", "status": "Saisie manuelle a reprendre"},
+                    {"code": "essai", "label": "Essai", "status": "Saisie manuelle a reprendre"},
                     {"code": "rapport", "label": "Rapport", "status": _first_non_empty(demande.rapport_ref, "A produire")},
                 ],
             }
@@ -125,6 +120,34 @@ def _build_campaigns(demande, preparation: dict, related: dict) -> list[dict]:
     return campaigns
 
 
+def _build_default_campaign(demande, preparation: dict) -> dict:
+    return {
+        "uid": f"demande-{demande.uid}-default",
+        "code": "GEN",
+        "reference": f"{demande.reference}-C001" if demande.reference else "C001",
+        "label": "Campagne principale",
+        "designation": "Campagne de regroupement de la demande",
+        "workflow_label": "Campagne -> Preparation de l'intervention -> Intervention -> Essai -> Rapport",
+        "source_mode": "auto",
+        "source_label": "Auto-générée",
+        "target_mode": "manuel",
+        "target_label": "Cadrage manuel",
+        "intervention_count": 0,
+        "intervention_uids": [],
+        "interventions": [],
+        "report_ref": _first_non_empty(demande.rapport_ref),
+        "preparation_status": _first_non_empty(preparation.get("phase_operation"), "A cadrer"),
+        "next_step": "Structurer la campagne et rattacher les interventions au fil de l'execution.",
+        "steps": [
+            {"code": "campagne", "label": "Campagne", "status": "Initialisee"},
+            {"code": "preparation", "label": "Preparation", "status": _first_non_empty(preparation.get("phase_operation"), "A cadrer")},
+            {"code": "intervention", "label": "Interventions", "status": "A planifier"},
+            {"code": "essai", "label": "Essais", "status": "A planifier"},
+            {"code": "rapport", "label": "Rapport", "status": _first_non_empty(demande.rapport_ref, "A produire")},
+        ],
+    }
+
+
 def _find_dst_record(numero_dst: str):
     numero = _normalize_text(numero_dst)
     if not numero or not _dst_repo.is_available:
@@ -145,6 +168,7 @@ def _build_dst_context(numero_dst: str) -> dict[str, str]:
     return {
         "dst_libelle_projet": record.first_text("Libellé du projet", "Objet"),
         "dst_societe": record.first_text("Société"),
+        "dst_service": record.first_text("Service"),
         "dst_direction_regionale": record.first_text("Direction régionale"),
         "dst_affaire_demandeur": record.first_text("N° affaire demandeur"),
         "dst_situation_geographique": record.first_text("Situation Géographique", "Situation géographique projet", "Site"),
@@ -155,6 +179,8 @@ def _build_dst_context(numero_dst: str) -> dict[str, str]:
         "dst_cadre_demande": record.first_text("Cadre de la demande"),
         "dst_domaine_etude": record.first_text("Domaine d'étude", "Autre domaine d'étude"),
         "dst_type_prestation": record.first_text("Type de prestation attendue", "Autre type de prestation"),
+        "dst_documents_fournis": record.first_text("Liste des documents fournis"),
+        "dst_lien_pieces_jointes": record.first_text("Lien d'accès pièces jointes volumineuses"),
         "dst_objet_demande": record.first_text("Objet de la demande (Problématiques, Hypothèses, Objectifs, Remarques)", "Objet"),
     }
 
@@ -239,7 +265,8 @@ def _build_visibility(enabled_codes: set[str], has_campaigns: bool = False) -> d
     essais_terrain_visible = "essais_terrain" in enabled_codes
     return {
         "preparation": True,
-        "campagnes": has_campaigns and (interventions_visible or essais_terrain_visible),
+        # Keep campaign rail available whenever campaign context exists.
+        "campagnes": has_campaigns,
         "interventions": interventions_visible,
         "echantillons": echantillons_visible,
         "essais": essais_visible,
@@ -333,6 +360,10 @@ def get_demande_navigation(uid: int):
     modules = [item.model_dump(mode="json") for item in config.modules]
     enabled_codes = {item["module_code"] for item in modules if item.get("is_enabled")}
     campaigns = list_campaigns_for_demande(uid, preparation.get("phase_operation") or "")
+    if not campaigns and related.get("interventions"):
+        campaigns = _build_campaigns(r, preparation, related)
+    if not campaigns:
+        campaigns = [_build_default_campaign(r, preparation)]
     related_counts = {
         **related["counts"],
         "campagnes": len(campaigns),
@@ -355,9 +386,10 @@ def get_demande_navigation(uid: int):
         "visibility": visibility,
         "counts": counts_visible,
         "counts_total": counts_total,
-        "campagnes": campaigns if visibility.get("campagnes") else [],
+        "campagnes": campaigns,
         "campagnes_total": campaigns,
-        "interventions": related["interventions"] if visibility.get("interventions") else [],
+        # Interventions are returned for campaign fallback/grouping on demande sheet.
+        "interventions": related["interventions"],
         "echantillons": related["echantillons"] if visibility.get("echantillons") else [],
         "essais": related["essais"] if visibility.get("essais") else [],
         "linked_items": linked_items_visible,
