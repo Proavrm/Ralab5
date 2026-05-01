@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { navigateBackWithFallback, navigateWithReturnTo, buildLocationTarget } from '@/lib/detailNavigation'
 import { feuillesTerrainApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
+import { getFeuilleTypeConfig } from '@/pages/terrain/feuilleTypeRegistry'
 
 const TEXTURE_OPTIONS = ['', 'argileux', 'argilo-limoneux', 'argilo-sableux', 'limono-argilo-sableux', 'limoneux', 'limono-argileux', 'limono-sableux', 'sableux', 'sablo-limoneux']
 const PROPORTION_OPTIONS = ['', '0-25 %', '25-50 %', '50-75 %', '75-90 %', '100 %']
@@ -1123,7 +1124,8 @@ export default function FeuilleTerrainPage() {
         enabled: Boolean(uid),
     })
 
-    const isSondageSheet = ['SO', 'SC'].includes(String(data?.code_feuille || '').toUpperCase())
+    const feuilleType = useMemo(() => getFeuilleTypeConfig(data?.code_feuille), [data?.code_feuille])
+    const isSondageSheet = Boolean(feuilleType.flags?.usesPointDetailView)
     const points = useMemo(() => Array.isArray(data?.points) ? data.points : [], [data?.points])
     const selectedPoint = useMemo(
         () => points.find((item) => String(item.uid) === String(pointParam)) || null,
@@ -1335,6 +1337,15 @@ export default function FeuilleTerrainPage() {
                     <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, '/demandes')}>Retour</Button>
                 </div>
             </div>
+        )
+    }
+
+    if (feuilleType.renderer === 'technical-de') {
+        return (
+            <Navigate
+                replace
+                to={`/modelos-base/DE?source_family=terrain&source_uid=${encodeURIComponent(String(uid))}`}
+            />
         )
     }
 
