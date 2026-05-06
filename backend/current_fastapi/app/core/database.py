@@ -184,6 +184,57 @@ CREATE INDEX IF NOT EXISTS idx_prelevements_demande ON prelevements(demande_id);
 CREATE INDEX IF NOT EXISTS idx_prelevements_intervention ON prelevements(intervention_id);
 """
 
+PMT_WORKFLOW_DDL = """
+CREATE TABLE IF NOT EXISTS pmt_essais (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER REFERENCES pmt_campaigns(id) ON DELETE SET NULL,
+    demande_id INTEGER REFERENCES demandes(id) ON DELETE SET NULL,
+    intervention_id INTEGER REFERENCES interventions(id) ON DELETE SET NULL,
+    reference TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT 'Brouillon',
+    date_essai TEXT NOT NULL DEFAULT '',
+    operateur TEXT NOT NULL DEFAULT '',
+    section_controlee TEXT NOT NULL DEFAULT '',
+    observations TEXT NOT NULL DEFAULT '',
+    resultats_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS pmt_essais_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pmt_id INTEGER NOT NULL REFERENCES pmt_essais(id) ON DELETE CASCADE,
+    ordre INTEGER NOT NULL DEFAULT 0,
+    numero_essai TEXT NOT NULL DEFAULT '',
+    profil TEXT NOT NULL DEFAULT '',
+    position TEXT NOT NULL DEFAULT '',
+    position_g INTEGER NOT NULL DEFAULT 0,
+    position_a INTEGER NOT NULL DEFAULT 0,
+    position_d INTEGER NOT NULL DEFAULT 0,
+    position_codes_json TEXT NOT NULL DEFAULT '[]',
+    localisation TEXT NOT NULL DEFAULT '',
+    diametre_moyen_tache_mm REAL,
+    profondeur_macrotexture_mm REAL,
+    observation TEXT NOT NULL DEFAULT '',
+    volume_materiau_mm3 REAL,
+    seuil_pmt_min_mm REAL,
+    conforme INTEGER,
+    ecart_au_seuil_mm REAL,
+    donnees_ligne_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_pmt_essais_campaign_id ON pmt_essais(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_pmt_essais_demande_id ON pmt_essais(demande_id);
+CREATE INDEX IF NOT EXISTS idx_pmt_essais_intervention_id ON pmt_essais(intervention_id);
+CREATE INDEX IF NOT EXISTS idx_pmt_essais_reference ON pmt_essais(reference);
+CREATE INDEX IF NOT EXISTS idx_pmt_essais_points_pmt_id ON pmt_essais_points(pmt_id);
+CREATE INDEX IF NOT EXISTS idx_pmt_essais_points_numero_essai ON pmt_essais_points(numero_essai);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_pmt_essais_points_pmt_numero
+    ON pmt_essais_points(pmt_id, numero_essai);
+"""
+
 DEFAULT_LABS = [
     ("SP", "Saint-Priest", "RA"),
     ("PDC", "Pont-du-Château", "AUV"),
@@ -457,13 +508,203 @@ def _ensure_historical_sondage_prelevement_links(conn: sqlite3.Connection) -> No
     )
 
 
+def _ensure_pmt_essais_harmonized_schema(conn: sqlite3.Connection) -> None:
+    """
+    Harmonize legacy PMT table that may carry restrictive UNIQUE constraints
+    (notably UNIQUE(intervention_id)) from previous experiments.
+    """
+    if not _table_exists(conn, "pmt_essais"):
+        return
+
+    idx_rows = conn.execute("PRAGMA index_list(pmt_essais)").fetchall()
+    has_legacy_unique = False
+    for idx in idx_rows:
+        is_unique = int(idx[2]) == 1
+        origin = str(idx[3] or "")
+        if not is_unique:
+            continue
+        name = str(idx[1] or "")
+        cols = [str(col[2]) for col in conn.execute(f"PRAGMA index_info({name})").fetchall()]
+        if origin == "u" and cols in (["intervention_id"], ["reference"]):
+            has_legacy_unique = True
+            break
+    if not has_legacy_unique:
+        return
+
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.executescript(
+            """
+            BEGIN IMMEDIATE;
+
+            DROP TABLE IF EXISTS pmt_essais__new;
+            CREATE TABLE pmt_essais__new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                campaign_id INTEGER REFERENCES pmt_campaigns(id) ON DELETE SET NULL,
+                demande_id INTEGER REFERENCES demandes(id) ON DELETE SET NULL,
+                intervention_id INTEGER REFERENCES interventions(id) ON DELETE SET NULL,
+                reference TEXT NOT NULL DEFAULT '',
+                statut TEXT NOT NULL DEFAULT 'Brouillon',
+                date_essai TEXT NOT NULL DEFAULT '',
+                operateur TEXT NOT NULL DEFAULT '',
+                section_controlee TEXT NOT NULL DEFAULT '',
+                observations TEXT NOT NULL DEFAULT '',
+                resultats_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                essai_id INTEGER,
+                import_source_file TEXT NOT NULL DEFAULT '',
+                import_source_sheet TEXT NOT NULL DEFAULT '',
+                import_uid TEXT NOT NULL DEFAULT '',
+                imported_at TEXT,
+                code_essai TEXT NOT NULL DEFAULT 'PMT',
+                norme TEXT NOT NULL DEFAULT '',
+                chrono TEXT NOT NULL DEFAULT '',
+                reference_affaire TEXT NOT NULL DEFAULT '',
+                date_redaction TEXT NOT NULL DEFAULT '',
+                laboratoire TEXT NOT NULL DEFAULT '',
+                produit_controle TEXT NOT NULL DEFAULT '',
+                numero_formule TEXT NOT NULL DEFAULT '',
+                couche TEXT NOT NULL DEFAULT '',
+                lieu_fabrication TEXT NOT NULL DEFAULT '',
+                date_essai_texte TEXT NOT NULL DEFAULT '',
+                date_essai_debut TEXT NOT NULL DEFAULT '',
+                date_essai_fin TEXT NOT NULL DEFAULT '',
+                date_mise_en_oeuvre_texte TEXT NOT NULL DEFAULT '',
+                date_mise_en_oeuvre_debut TEXT NOT NULL DEFAULT '',
+                date_mise_en_oeuvre_fin TEXT NOT NULL DEFAULT '',
+                epaisseur_couche_texte TEXT NOT NULL DEFAULT '',
+                epaisseur_couche_cm REAL,
+                conditions_meteorologiques TEXT NOT NULL DEFAULT '',
+                atelier_mise_en_oeuvre TEXT NOT NULL DEFAULT '',
+                volume_materiau_texte TEXT NOT NULL DEFAULT '',
+                volume_materiau_m3 REAL,
+                volume_materiau_mm3 REAL,
+                volume_materiau_cm3 REAL,
+                source_criteres TEXT NOT NULL DEFAULT '',
+                definition_criteres TEXT NOT NULL DEFAULT '',
+                seuil_pmt_min_mm REAL,
+                pourcentage_conformite_min REAL,
+                nombre_essais INTEGER,
+                pmt_moyenne_mm REAL,
+                pmt_min_mm REAL,
+                pmt_max_mm REAL,
+                pmt_ecart_type_mm REAL,
+                pourcentage_valeurs_conformes REAL,
+                nombre_points_conformes INTEGER,
+                nombre_points_non_conformes INTEGER,
+                conclusion_excel_texte TEXT NOT NULL DEFAULT '',
+                conclusion_calculee TEXT NOT NULL DEFAULT '',
+                conclusion_finale TEXT NOT NULL DEFAULT '',
+                commentaire TEXT NOT NULL DEFAULT '',
+                signataire_nom TEXT NOT NULL DEFAULT '',
+                signataire_fonction TEXT NOT NULL DEFAULT '',
+                visa_texte TEXT NOT NULL DEFAULT '',
+                donnees_entete_json TEXT NOT NULL DEFAULT '{}',
+                donnees_synthese_json TEXT NOT NULL DEFAULT '{}'
+            );
+
+            INSERT INTO pmt_essais__new (
+                id, campaign_id, demande_id, intervention_id, reference, statut, date_essai, operateur, section_controlee,
+                observations, resultats_json, created_at, updated_at, essai_id, import_source_file, import_source_sheet,
+                import_uid, imported_at, code_essai, norme, chrono, reference_affaire, date_redaction, laboratoire,
+                produit_controle, numero_formule, couche, lieu_fabrication, date_essai_texte, date_essai_debut, date_essai_fin,
+                date_mise_en_oeuvre_texte, date_mise_en_oeuvre_debut, date_mise_en_oeuvre_fin, epaisseur_couche_texte,
+                epaisseur_couche_cm, conditions_meteorologiques, atelier_mise_en_oeuvre, volume_materiau_texte,
+                volume_materiau_m3, volume_materiau_mm3, volume_materiau_cm3, source_criteres, definition_criteres,
+                seuil_pmt_min_mm, pourcentage_conformite_min, nombre_essais, pmt_moyenne_mm, pmt_min_mm, pmt_max_mm,
+                pmt_ecart_type_mm, pourcentage_valeurs_conformes, nombre_points_conformes, nombre_points_non_conformes,
+                conclusion_excel_texte, conclusion_calculee, conclusion_finale, commentaire, signataire_nom,
+                signataire_fonction, visa_texte, donnees_entete_json, donnees_synthese_json
+            )
+            SELECT
+                id,
+                campaign_id,
+                demande_id,
+                intervention_id,
+                COALESCE(reference, ''),
+                COALESCE(statut, 'Brouillon'),
+                COALESCE(date_essai, ''),
+                COALESCE(operateur, ''),
+                COALESCE(section_controlee, ''),
+                COALESCE(observations, ''),
+                COALESCE(resultats_json, '{}'),
+                COALESCE(created_at, datetime('now')),
+                COALESCE(updated_at, datetime('now')),
+                essai_id,
+                COALESCE(import_source_file, ''),
+                COALESCE(import_source_sheet, ''),
+                COALESCE(import_uid, ''),
+                imported_at,
+                COALESCE(code_essai, 'PMT'),
+                COALESCE(norme, ''),
+                COALESCE(chrono, ''),
+                COALESCE(reference_affaire, ''),
+                COALESCE(date_redaction, ''),
+                COALESCE(laboratoire, ''),
+                COALESCE(produit_controle, ''),
+                COALESCE(numero_formule, ''),
+                COALESCE(couche, ''),
+                COALESCE(lieu_fabrication, ''),
+                COALESCE(date_essai_texte, ''),
+                COALESCE(date_essai_debut, ''),
+                COALESCE(date_essai_fin, ''),
+                COALESCE(date_mise_en_oeuvre_texte, ''),
+                COALESCE(date_mise_en_oeuvre_debut, ''),
+                COALESCE(date_mise_en_oeuvre_fin, ''),
+                COALESCE(epaisseur_couche_texte, ''),
+                epaisseur_couche_cm,
+                COALESCE(conditions_meteorologiques, ''),
+                COALESCE(atelier_mise_en_oeuvre, ''),
+                COALESCE(volume_materiau_texte, ''),
+                volume_materiau_m3,
+                volume_materiau_mm3,
+                volume_materiau_cm3,
+                COALESCE(source_criteres, ''),
+                COALESCE(definition_criteres, ''),
+                seuil_pmt_min_mm,
+                pourcentage_conformite_min,
+                nombre_essais,
+                pmt_moyenne_mm,
+                pmt_min_mm,
+                pmt_max_mm,
+                pmt_ecart_type_mm,
+                pourcentage_valeurs_conformes,
+                nombre_points_conformes,
+                nombre_points_non_conformes,
+                COALESCE(conclusion_excel_texte, ''),
+                COALESCE(conclusion_calculee, ''),
+                COALESCE(conclusion_finale, ''),
+                COALESCE(commentaire, ''),
+                COALESCE(signataire_nom, ''),
+                COALESCE(signataire_fonction, ''),
+                COALESCE(visa_texte, ''),
+                COALESCE(donnees_entete_json, '{}'),
+                COALESCE(donnees_synthese_json, '{}')
+            FROM pmt_essais;
+
+            DROP TABLE pmt_essais;
+            ALTER TABLE pmt_essais__new RENAME TO pmt_essais;
+
+            COMMIT;
+            """
+        )
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+
 def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
     path = db_path or get_db_path()
     with connect_db(path) as conn:
         conn.executescript(PASSATION_DDL)
         conn.executescript(DEMANDE_CONFIGURATION_DDL)
         conn.executescript(LAB_WORKFLOW_DDL)
+        conn.executescript(PMT_WORKFLOW_DDL)
         _ensure_generic_essais_parent_schema(conn)
+        _ensure_pmt_essais_harmonized_schema(conn)
 
         _ensure_column(conn, "prelevements", "date_reception_labo", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "prelevements", "description", "TEXT NOT NULL DEFAULT ''")
@@ -473,6 +714,10 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "prelevements", "point_terrain_id", "INTEGER")
         _ensure_column(conn, "prelevements", "sondage_couche_id", "INTEGER")
         _ensure_column(conn, "prelevements", "ignore_sondage_couche_match", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "pmt_essais_points", "position_g", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "pmt_essais_points", "position_a", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "pmt_essais_points", "position_d", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(conn, "pmt_essais_points", "position_codes_json", "TEXT NOT NULL DEFAULT '[]'")
 
         _ensure_column(conn, "campagnes", "code", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "campagnes", "designation", "TEXT NOT NULL DEFAULT ''")
@@ -542,6 +787,56 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "qualite_equipment", "sensibilite", "REAL")
         _ensure_column(conn, "qualite_equipment", "facteur_k", "REAL")
 
+        _ensure_column(conn, "pmt_essais", "essai_id", "INTEGER")
+        _ensure_column(conn, "pmt_essais", "import_source_file", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "import_source_sheet", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "import_uid", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "imported_at", "TEXT")
+        _ensure_column(conn, "pmt_essais", "code_essai", "TEXT NOT NULL DEFAULT 'PMT'")
+        _ensure_column(conn, "pmt_essais", "norme", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "chrono", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "reference_affaire", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "date_redaction", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "laboratoire", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "produit_controle", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "numero_formule", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "lieu_fabrication", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "date_essai_texte", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "date_essai_debut", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "date_essai_fin", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "date_mise_en_oeuvre_texte", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "date_mise_en_oeuvre_debut", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "date_mise_en_oeuvre_fin", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "epaisseur_couche_texte", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "epaisseur_couche_cm", "REAL")
+        _ensure_column(conn, "pmt_essais", "conditions_meteorologiques", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "atelier_mise_en_oeuvre", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "volume_materiau_texte", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "volume_materiau_m3", "REAL")
+        _ensure_column(conn, "pmt_essais", "volume_materiau_mm3", "REAL")
+        _ensure_column(conn, "pmt_essais", "volume_materiau_cm3", "REAL")
+        _ensure_column(conn, "pmt_essais", "source_criteres", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "definition_criteres", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "seuil_pmt_min_mm", "REAL")
+        _ensure_column(conn, "pmt_essais", "pourcentage_conformite_min", "REAL")
+        _ensure_column(conn, "pmt_essais", "nombre_essais", "INTEGER")
+        _ensure_column(conn, "pmt_essais", "pmt_moyenne_mm", "REAL")
+        _ensure_column(conn, "pmt_essais", "pmt_min_mm", "REAL")
+        _ensure_column(conn, "pmt_essais", "pmt_max_mm", "REAL")
+        _ensure_column(conn, "pmt_essais", "pmt_ecart_type_mm", "REAL")
+        _ensure_column(conn, "pmt_essais", "pourcentage_valeurs_conformes", "REAL")
+        _ensure_column(conn, "pmt_essais", "nombre_points_conformes", "INTEGER")
+        _ensure_column(conn, "pmt_essais", "nombre_points_non_conformes", "INTEGER")
+        _ensure_column(conn, "pmt_essais", "conclusion_excel_texte", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "conclusion_calculee", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "conclusion_finale", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "commentaire", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "signataire_nom", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "signataire_fonction", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "visa_texte", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "pmt_essais", "donnees_entete_json", "TEXT NOT NULL DEFAULT '{}'")
+        _ensure_column(conn, "pmt_essais", "donnees_synthese_json", "TEXT NOT NULL DEFAULT '{}'")
+
         conn.execute("CREATE INDEX IF NOT EXISTS idx_echantillons_prelevement_id ON echantillons(prelevement_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_echantillons_intervention_id ON echantillons(intervention_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_interventions_prelevement_id ON interventions(prelevement_id)")
@@ -549,6 +844,8 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_intervention_id ON prelevements(intervention_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_point_terrain_id ON prelevements(point_terrain_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_sondage_couche_id ON prelevements(sondage_couche_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_import_uid ON pmt_essais(import_uid)")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_pmt_essais_import_source_sheet ON pmt_essais(import_source_file, import_source_sheet)")
 
         _ensure_historical_sondage_prelevement_links(conn)
 

@@ -14,69 +14,11 @@ import {
     listRapportModelDefinitionsDE,
     upsertRapportModelDefinitionDE,
 } from "@/services/modelWorkLocalStore";
+import { hasPositionCode, normalizePositionCodes } from "@/lib/positionCodes";
 import "@/styles/rapport-nge.css";
 import "@/styles/rapport-de.css";
 
-const DEFAULT_REPORT = {
-    header: {
-        reportNumber: "",
-        chronoNumber: "19",
-        affaireNumber: "RA L1EC",
-        editionDate: "10/10/2025",
-        siteTitle: "VL3 -\nAlbigny sur Saône",
-        laboratory: "Laboratoire Rhône Auvergne - 29-31 rue des tâches - ZI mi-plaine - 69800 SAINT PRIEST",
-    },
-    general: {
-        operator: "F. Montet",
-        testDate: "Nuit 09-10/10/2025",
-        layer: "Roulement",
-        implementationDate: "Nuit 09-10/10/2025",
-        gammadensimeter: "PQI",
-        lastCalibrationDate: "Mars 2025",
-        implementationWorkshop: "Finisseur Volvo titan P7820C, Bomag bw161ad, bomag bw120ad",
-        controlledProduct: "BBSG 0/10 Classe 3",
-        formulaNumber: "110",
-        layerThickness: "5 cm",
-        manufacturingLocation: "P2R",
-        controlledSection: "Avenue de la gare",
-        weatherConditions: "Nuit",
-        measurementDepth: "Rétrodiffusion",
-    },
-    criteria: {
-        source: "",
-        minVoid: "4",
-        maxVoid: "8",
-    },
-    results: {
-        mvre: "2,440",
-        points: [
-            { essayNumber: "1", profileNumber: "", position: "", density: "2,324", compacity: "95,2", voids: "4,8", observations: "" },
-            { essayNumber: "2", profileNumber: "", position: "", density: "2,302", compacity: "94,3", voids: "5,7", observations: "" },
-            { essayNumber: "3", profileNumber: "", position: "", density: "2,269", compacity: "93,0", voids: "7,0", observations: "" },
-            { essayNumber: "4", profileNumber: "", position: "", density: "2,279", compacity: "93,4", voids: "6,6", observations: "" },
-            { essayNumber: "5", profileNumber: "", position: "", density: "2,257", compacity: "92,5", voids: "7,5", observations: "" },
-            { essayNumber: "6", profileNumber: "", position: "", density: "2,290", compacity: "93,9", voids: "6,1", observations: "" },
-            { essayNumber: "7", profileNumber: "", position: "", density: "2,260", compacity: "92,6", voids: "7,4", observations: "" },
-            { essayNumber: "8", profileNumber: "", position: "", density: "2,300", compacity: "94,3", voids: "5,7", observations: "" },
-        ],
-        averageDensity: "2,290",
-        averageCompacity: "93,7",
-        averageVoids: "6,4",
-        conformityRate: "100,0 %",
-    },
-    conclusion: {
-        controlLabel: "Contrôle",
-        conformityLabel: "Conforme",
-        name: "F. MONTET",
-        functionName: "Technicien de laboratoire",
-        comments: "",
-    },
-    footer: {
-        documentCode: "CODE WBS / CODE DOCUMENT À DÉFINIR",
-    },
-};
-
-/** Fallback pour mode=work : pas de valeurs démo, uniquement ce qui vient du runtime. */
+/** Structure vide : le rapport ne remplit que depuis la source (modèle / work / feuille). */
 const EMPTY_RUNTIME_FALLBACK = {
     header: {
         reportNumber: "",
@@ -166,7 +108,7 @@ function normalizeDeRows(rows) {
             ...source,
             essayNumber: firstValue(source.essayNumber, source.essai, source.point, String(index + 1)),
             profileNumber: firstValue(source.profileNumber, source.profil, source.profile, ""),
-            position: firstValue(source.position, ""),
+            position_codes: normalizePositionCodes(source.position_codes),
             density: firstValue(source.density, source.masse_volumique, source.mv, ""),
             compacity: firstValue(source.compacity, source.compacite_pct, ""),
             voids: firstValue(source.voids, source.vides_pct, ""),
@@ -432,7 +374,7 @@ function buildRows(points, minRows = 18) {
         ...Array.from({ length: emptyCount }, () => ({
             essayNumber: "",
             profileNumber: "",
-            position: "",
+            position_codes: [],
             density: "",
             compacity: "",
             voids: "",
@@ -441,7 +383,7 @@ function buildRows(points, minRows = 18) {
     ];
 }
 
-export default function RapportDEPage({ report = DEFAULT_REPORT }) {
+export default function RapportDEPage() {
     const { essaiId = "modele" } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -456,10 +398,10 @@ export default function RapportDEPage({ report = DEFAULT_REPORT }) {
         campagneId: "",
     });
     const resolvedReport = useMemo(() => {
-        const fallback = isWorkMode ? EMPTY_RUNTIME_FALLBACK : (report || DEFAULT_REPORT);
-        const seed = isWorkMode ? (source || {}) : (source || report);
+        const fallback = EMPTY_RUNTIME_FALLBACK;
+        const seed = source && typeof source === "object" ? source : {};
         return buildDeReportFromSource(seed, fallback);
-    }, [source, report, isWorkMode]);
+    }, [source]);
 
     const RESULT_ROWS_COUNT = 22
 
@@ -841,9 +783,9 @@ export default function RapportDEPage({ report = DEFAULT_REPORT }) {
                                     >
                                         <td>{row.isEmpty ? "" : valueOrEmpty(row.essayNumber)}</td>
                                         <td>{row.isEmpty ? "" : valueOrEmpty(row.profileNumber)}</td>
-                                        <td>{row.isEmpty ? "" : row.position === "G" ? "X" : ""}</td>
-                                        <td>{row.isEmpty ? "" : row.position === "A" ? "X" : ""}</td>
-                                        <td>{row.isEmpty ? "" : row.position === "D" ? "X" : ""}</td>
+                                        <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "G") ? "X" : ""}</td>
+                                        <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "A") ? "X" : ""}</td>
+                                        <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "D") ? "X" : ""}</td>
                                         <td>{row.isEmpty ? "" : valueOrEmpty(row.density)}</td>
                                         <td>{row.isEmpty ? "" : valueOrEmpty(row.compacity)}</td>
                                         <td className={videsNonConforme ? "rapport-cell-nonconforme" : ""}>{row.isEmpty ? "" : valueOrEmpty(row.voids)}</td>

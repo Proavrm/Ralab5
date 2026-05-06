@@ -279,6 +279,13 @@ export const adminApi = {
   },
 }
 
+/** Essais PMT (source unique en base : pmt_essais / pmt_essais_points). */
+export const pmtEssaisApi = {
+  get: (pmtId) => api.get(`/pmt-essais/${Number(pmtId)}`),
+  getByReference: (reference) =>
+    api.get(`/pmt-essais/by-reference?${new URLSearchParams({ reference: String(reference || '').trim() })}`),
+  putRuntimeValues: (pmtId, body) => api.put(`/pmt-essais/${Number(pmtId)}/runtime-values`, body),
+}
 
 export const feuillesTerrainApi = {
   list:         (params = {}) => api.get('/feuilles-terrain?' + new URLSearchParams(params)),

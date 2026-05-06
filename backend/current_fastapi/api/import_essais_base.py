@@ -18,6 +18,9 @@ This architecture ensures:
   - NO duplicate hierarchy logic between types
   - NEW types reuse the entire engine (just plug in an extractor)
   - CONSISTENT preview/filtering across all types
+
+Temporal 120/7 matching and affaire→demande listing live in api.hierarchy_temporal_select (importable without Pydantic).
+Provisional import labels on new rows may later be replaced by recompute_aggregate_hierarchy_labels (DE+PMT, etc.).
 """
 
 from __future__ import annotations
@@ -30,6 +33,15 @@ from typing import Any, Optional
 
 from app.core.database import get_db_path
 from app.repositories.demandes_rst_repository import DemandesRstRepository
+
+from api.hierarchy_temporal_select import (
+    HIERARCHY_TEMPORAL_CAMPAGNE_GAP_DAYS,
+    HIERARCHY_TEMPORAL_DEMANDE_GAP_DAYS,
+    _find_campagnes_by_demande,
+    _find_demandes_by_affaire,
+    _select_campagne_id_for_anchor,
+    _select_demande_id_for_anchor,
+)
 
 
 def _clean(value: Any) -> str:
@@ -131,97 +143,8 @@ def _resolve_affaire_context(
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 1: HIERARCHY FIND/CREATE
+# (_find_demandes_by_affaire / _find_campagnes_by_demande / temporal selection: api.hierarchy_temporal_select)
 # ──────────────────────────────────────────────────────────────────────────────
-
-
-def _find_demandes_by_affaire(
-    conn: sqlite3.Connection,
-    affaire_nge: str,
-    affaire_rst_id: int = 0,
-) -> list[dict[str, Any]]:
-    """Find demandes linked to an affaire (by NGE or by affaire_rst_id)."""
-    if affaire_rst_id:
-        rows = conn.execute(
-            """
-            SELECT id, reference, statut, annee, date_reception, created_at
-            FROM demandes
-            WHERE affaire_rst_id = ?
-            ORDER BY created_at DESC
-            """,
-            (affaire_rst_id,),
-        ).fetchall()
-        if rows:
-            return [dict(row) for row in rows]
-
-    normalized_target = _normalize_affaire_nge(affaire_nge)
-    if not normalized_target:
-        return []
-
-    # Fallback 1: if demandes.affaire_nge exists, use it for legacy rows not linked by affaire_rst_id.
-    demande_cols = {row[1] for row in conn.execute("PRAGMA table_info(demandes)").fetchall()}
-    if "affaire_nge" in demande_cols:
-        rows = conn.execute(
-            """
-            SELECT id, reference, statut, annee, date_reception, created_at, affaire_nge
-            FROM demandes
-            ORDER BY created_at DESC
-            """
-        ).fetchall()
-        legacy_matches = [dict(row) for row in rows if _normalize_affaire_nge(_clean(row["affaire_nge"])) == normalized_target]
-        if legacy_matches:
-            return legacy_matches
-
-    # Fallback 2: resolve affaire_rst by normalized NGE and fetch demandes by FK.
-    aff_rows = conn.execute(
-        """
-        SELECT id, affaire_nge
-        FROM affaires_rst
-        ORDER BY id DESC
-        """
-    ).fetchall()
-    matched_affaire_id: Optional[int] = None
-    for aff_row in aff_rows:
-        if _normalize_affaire_nge(_clean(aff_row["affaire_nge"])) == normalized_target:
-            matched_affaire_id = int(aff_row["id"])
-            break
-    if matched_affaire_id is None:
-        return []
-
-    rows = conn.execute(
-        """
-        SELECT id, reference, statut, annee, date_reception, created_at
-        FROM demandes
-        WHERE affaire_rst_id = ?
-        ORDER BY created_at DESC
-        """,
-        (matched_affaire_id,),
-    ).fetchall()
-    return [dict(row) for row in rows]
-
-
-def _find_campagnes_by_demande(
-    conn: sqlite3.Connection,
-    demande_id: int,
-) -> list[dict[str, Any]]:
-    """Find campagnes under a demande."""
-    if not demande_id:
-        return []
-
-    rows = conn.execute(
-        """
-        SELECT
-            id,
-            reference,
-            statut,
-            date_debut_prevue AS date_debut,
-            date_fin_prevue AS date_fin
-        FROM campagnes
-        WHERE demande_id = ?
-        ORDER BY created_at DESC
-        """,
-        (demande_id,),
-    ).fetchall()
-    return [dict(row) for row in rows]
 
 
 def _find_interventions_by_campagne(
@@ -434,13 +357,13 @@ def ensure_hierarchy(
     conn: sqlite3.Connection,
     affaire_context: dict[str, Any],
     anchor_date: date,
-    demande_gap_days: int = 120,
-    campagne_gap_days: int = 7,
+    demande_gap_days: int = HIERARCHY_TEMPORAL_DEMANDE_GAP_DAYS,
+    campagne_gap_days: int = HIERARCHY_TEMPORAL_CAMPAGNE_GAP_DAYS,
     demande_id: Optional[int] = None,
     campagne_id: Optional[int] = None,
     intervention_id: Optional[int] = None,
     labo_code: str = "SP",
-    hierarchy_type_hint: str = "",
+    import_profile_label: str = "",
 ) -> dict[str, Any]:
     """
     UNIFIED ORCHESTRATOR: Find or create Demande/Campagne/Intervention hierarchy.
@@ -452,13 +375,13 @@ def ensure_hierarchy(
         conn: SQLite connection
         affaire_context: Result from _resolve_affaire_context()
         anchor_date: Reference date for grouping (e.g. date_sondage for SC, date_essai for DE)
-        demande_gap_days: Max days gap for grouping into same demande (default 120)
-        campagne_gap_days: Max days gap for grouping into same campagne (default 7)
-        demande_id: If provided, skip demande lookup/creation and use this ID
-        campagne_id: If provided, skip campagne lookup/creation and use this ID
-        intervention_id: If provided, skip intervention lookup/creation and use this ID
+        demande_gap_days: Max days gap for grouping into same demande (default HIERARCHY_TEMPORAL_DEMANDE_GAP_DAYS)
+        campagne_gap_days: Max days gap for grouping into same campagne (default HIERARCHY_TEMPORAL_CAMPAGNE_GAP_DAYS)
+        demande_id: If provided, skip demande lookup/creation and use this ID (explicit bind)
+        campagne_id: If provided, skip campagne lookup/creation and use this ID (explicit bind)
+        intervention_id: If provided, skip intervention lookup/creation and use this ID (explicit bind)
         labo_code: Lab code for reference generation (default "SP")
-        hierarchy_type_hint: Optional note (e.g. "SC sondage carotte", "DE densités") for audit trail
+        import_profile_label: Short provisional label for new rows (e.g. "PMT import"); not the final aggregate label
     
     Returns:
         {
@@ -488,21 +411,15 @@ def ensure_hierarchy(
     # STEP 1: Find or create DEMANDE
     # ─────────────────────────────────────────────────────────────────
     if not demande_id:
-        demandes = _find_demandes_by_affaire(conn, affaire_nge, affaire_rst_id)
-        best_demande: Optional[dict[str, Any]] = None
-        best_gap: Optional[int] = None
-
-        for d in demandes:
-            d_date = _parse_iso_date(d.get("date_reception") or d.get("created_at"))
-            if not d_date:
-                continue
-            gap = abs((anchor_date - d_date).days)
-            if gap <= max(0, int(demande_gap_days)) and (best_gap is None or gap < best_gap):
-                best_gap = gap
-                best_demande = d
-
-        if best_demande:
-            demande_id = int(best_demande["id"])
+        picked = _select_demande_id_for_anchor(
+            conn,
+            affaire_nge,
+            affaire_rst_id,
+            anchor_date,
+            int(demande_gap_days),
+        )
+        if picked is not None:
+            demande_id = picked
         else:
             # Create new demande
             ref, annee, numero = _next_demande_reference(conn, labo_code=labo_code, annee=anchor_date.year)
@@ -516,8 +433,8 @@ def ensure_hierarchy(
                 "annee": annee,
                 "labo_code": labo_code,
                 "numero": numero,
-                "nature": f"Import {hierarchy_type_hint}" if hierarchy_type_hint else "Import automatique",
-                "description": f"Import automatique {hierarchy_type_hint}",
+                "nature": f"Import {import_profile_label}" if import_profile_label else "Import automatique",
+                "description": f"Import automatique {import_profile_label}",
                 "demandeur": "Import Outils",
                 "statut": "en_cours",
                 "priorite": "normale",
@@ -540,29 +457,14 @@ def ensure_hierarchy(
     # STEP 2: Find or create CAMPAGNE
     # ─────────────────────────────────────────────────────────────────
     if not campagne_id:
-        campagnes = _find_campagnes_by_demande(conn, int(demande_id))
-        best_campagne: Optional[dict[str, Any]] = None
-        best_gap = None
-
-        for c in campagnes:
-            start = _parse_iso_date(c.get("date_debut"))
-            end = _parse_iso_date(c.get("date_fin"))
-            # Exact match: date within campagne's range
-            if start and end and start <= anchor_date <= end:
-                best_campagne = c
-                best_gap = 0
-                break
-            # Proximity match: closest endpoint
-            candidates = [d for d in [start, end] if d is not None]
-            if not candidates:
-                continue
-            gap = min(abs((anchor_date - d).days) for d in candidates)
-            if gap <= max(0, int(campagne_gap_days)) and (best_gap is None or gap < best_gap):
-                best_gap = gap
-                best_campagne = c
-
-        if best_campagne:
-            campagne_id = int(best_campagne["id"])
+        picked_c = _select_campagne_id_for_anchor(
+            conn,
+            int(demande_id),
+            anchor_date,
+            int(campagne_gap_days),
+        )
+        if picked_c is not None:
+            campagne_id = picked_c
         else:
             # Create new campagne
             ref = _next_campaign_reference(conn, int(demande_id))
@@ -573,10 +475,10 @@ def ensure_hierarchy(
             }
             optional = {
                 "code": labo_code,
-                "designation": f"Import {hierarchy_type_hint}" if hierarchy_type_hint else "Import automatique",
+                "designation": f"Import {import_profile_label}" if import_profile_label else "Import automatique",
                 "date_debut_prevue": anchor_date.isoformat(),
                 "date_fin_prevue": anchor_date.isoformat(),
-                "notes": f"Import automatique {hierarchy_type_hint}",
+                "notes": f"Import automatique {import_profile_label}",
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             }
@@ -617,8 +519,8 @@ def ensure_hierarchy(
                 "labo_code": labo,
                 "numero": numero,
                 "campagne_id": int(campagne_id),
-                "type_intervention": hierarchy_type_hint if hierarchy_type_hint else "Import",
-                "sujet": f"Import automatique {hierarchy_type_hint}",
+                "type_intervention": import_profile_label if import_profile_label else "Import",
+                "sujet": f"Import automatique {import_profile_label}",
                 "statut": "Réalisée",
                 "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),

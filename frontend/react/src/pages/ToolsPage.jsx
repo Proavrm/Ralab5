@@ -80,6 +80,7 @@ function DbStatRow({ label, value, warn }) {
 const ESSAI_MODEL_TYPES = [
   { essai_code: 'DE',  type_essai: 'Densité gammadensimètre',                  label: 'DE — Densité gammadensimètre',         family: 'terrain' },
   { essai_code: 'CFE', type_essai: 'Contrôle de fabrication enrobés',          label: 'CFE — Contrôle fabrication enrobés',   family: 'terrain' },
+  { essai_code: 'PMT', type_essai: 'Macrotexture PMT',                         label: 'PMT — Macrotexture',                   family: 'terrain' },
   { essai_code: 'PLD', type_essai: 'Portances des plates-formes Dynaplaque',   label: 'PLD — Portance Dynaplaque',            family: 'terrain' },
   { essai_code: 'DF',  type_essai: 'Déflexion',                                label: 'DF — Déflexion',                       family: 'terrain' },
   { essai_code: 'SC',  type_essai: 'Sondage carotté',                          label: 'SC — Sondage carotté',                 family: 'terrain' },
@@ -134,6 +135,15 @@ export default function ToolsPage() {
   const [scImportingSheet, setScImportingSheet] = useState('')
   const [scHideImported, setScHideImported] = useState(true)
   const [scLastImport, setScLastImport] = useState(null)
+
+  // PMT (Macrotexture - terrain) import
+  const [pmtUploadFile, setPmtUploadFile] = useState(null)
+  const [pmtLoading, setPmtLoading] = useState(false)
+  const [pmtResult, setPmtResult] = useState(null)
+  const [pmtPreview, setPmtPreview] = useState(null)
+  const [pmtImportingSheet, setPmtImportingSheet] = useState('')
+  const [pmtHideImported, setPmtHideImported] = useState(true)
+  const [pmtLastImport, setPmtLastImport] = useState(null)
 
   // Export
   const [exportResult, setExportResult] = useState(null)
@@ -435,6 +445,7 @@ export default function ToolsPage() {
   function guessEssaiTypeFromFile(fileName) {
     const name = String(fileName || '').toLowerCase()
     if (name.includes('carotte') || name.includes('carott') || name.includes('sondage')) return 'SC'
+    if (name.includes('pmt') || name.includes('macrotexture')) return 'PMT'
     if (name.includes('densit') || name.includes('gamma')) return 'DE'
     return importEssaiType
   }
@@ -446,9 +457,15 @@ export default function ToolsPage() {
     if (nextType === 'SC') {
       setScUploadFile(file)
       setDeUploadFile(null)
+      setPmtUploadFile(null)
+    } else if (nextType === 'PMT') {
+      setPmtUploadFile(file)
+      setDeUploadFile(null)
+      setScUploadFile(null)
     } else {
       setDeUploadFile(file)
       setScUploadFile(null)
+      setPmtUploadFile(null)
     }
   }
 
@@ -673,6 +690,10 @@ export default function ToolsPage() {
       if (Number(resolvedDemandeId) > 0) formData.append('demande_id', String(resolvedDemandeId))
       if (Number(resolvedCampagneId) > 0) formData.append('campagne_id', String(resolvedCampagneId))
       if (Number(resolvedInterventionId) > 0) formData.append('intervention_id', String(resolvedInterventionId))
+      const scAffairePkMat = Number(scPreview?.affaire_context?.selected?.id)
+      if (scAffairePkMat > 0) {
+        formData.append('affaire_rst_id', String(scAffairePkMat))
+      }
 
       const token = localStorage.getItem('ralab_token')
       const res = await fetch('/api/import-sc/materialize', {
@@ -726,9 +747,111 @@ export default function ToolsPage() {
     }
   }
 
+  async function previewPMTImportUpload() {
+    if (!pmtUploadFile) {
+      setPmtResult({ type: 'err', msg: 'Glisse ou choisis un fichier Excel PMT avant le preview.' })
+      return
+    }
+    setPmtLoading(true)
+    setPmtResult(null)
+    setPmtPreview(null)
+    setPmtLastImport(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', pmtUploadFile)
+      const token = localStorage.getItem('ralab_token')
+      const res = await fetch('/api/import-essais-pmt/preview-upload', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.detail || `HTTP ${res.status}`)
+      }
+      const result = await res.json()
+      setPmtPreview(result)
+      setPmtResult({
+        type: 'ok',
+        msg: [
+          '✓ Preview PMT terminé',
+          `Fichier: ${result?.file_name || pmtUploadFile.name}`,
+          `Feuilles lues: ${result?.sheet_count ?? 0}`,
+        ].join('\n'),
+      })
+    } catch (e) {
+      setPmtResult({ type: 'err', msg: `Erreur preview PMT: ${e.message}` })
+    } finally {
+      setPmtLoading(false)
+    }
+  }
+
+  async function importOnePMTSheet(sheetName) {
+    if (!sheetName || !pmtUploadFile) return
+    setPmtImportingSheet(sheetName)
+    setPmtResult(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', pmtUploadFile)
+      formData.append('sheet_name', sheetName)
+      const token = localStorage.getItem('ralab_token')
+      const res = await fetch('/api/import-essais-pmt/import-upload', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(async () => ({ detail: await res.text().catch(() => '') }))
+        const details = data?.detail ? `: ${data.detail}` : ''
+        throw new Error(`Erreur import PMT [HTTP ${res.status}]${details}`)
+      }
+      const result = await res.json()
+      const importedRow = Array.isArray(result?.imported) ? result.imported[0] : null
+      setPmtLastImport(result)
+      setPmtPreview((prev) => {
+        if (!prev?.sheets) return prev
+        const updatedSheets = prev.sheets.map((sheet) => {
+          if (sheet.import_source_sheet !== sheetName) return sheet
+          return {
+            ...sheet,
+            already_imported: true,
+            existing_pmt_id: importedRow?.pmt_id ?? sheet.existing_pmt_id,
+            existing_demande_id: importedRow?.demande_id ?? sheet.existing_demande_id,
+            existing_campagne_id: importedRow?.campagne_id ?? sheet.existing_campagne_id,
+            existing_intervention_id: importedRow?.intervention_id ?? sheet.existing_intervention_id,
+          }
+        })
+        return {
+          ...prev,
+          sheets: updatedSheets,
+          already_imported_count: updatedSheets.filter((sheet) => sheet.already_imported).length,
+        }
+      })
+      setPmtResult({
+        type: 'ok',
+        msg: [
+          `✓ PMT importée: ${sheetName}`,
+          importedRow ? `Affaire #${importedRow.affaire_id} · Demande #${importedRow.demande_id}` : '',
+          importedRow ? `Campagne #${importedRow.campagne_id} · Intervention #${importedRow.intervention_id}` : '',
+          importedRow ? `PMT #${importedRow.pmt_id} · Points ${importedRow.points_imported}` : '',
+          importedRow?.pmt_id ? `Feuille PMT (runtime): /pmt-essais/${importedRow.pmt_id}/runtime` : '',
+          result?.hierarchy_summary
+            ? `Hiérarchie (créé/existant) A ${result.hierarchy_summary.affaires_rst?.created ?? 0}/${result.hierarchy_summary.affaires_rst?.existing ?? 0} · D ${result.hierarchy_summary.demandes?.created ?? 0}/${result.hierarchy_summary.demandes?.existing ?? 0} · C ${result.hierarchy_summary.campagnes?.created ?? 0}/${result.hierarchy_summary.campagnes?.existing ?? 0} · I ${result.hierarchy_summary.interventions?.created ?? 0}/${result.hierarchy_summary.interventions?.existing ?? 0}`
+            : '',
+        ].filter(Boolean).join('\n'),
+      })
+      qc.invalidateQueries({ queryKey: ['demandes'] })
+    } catch (e) {
+      setPmtResult({ type: 'err', msg: `Erreur import PMT: ${e.message}` })
+    } finally {
+      setPmtImportingSheet('')
+    }
+  }
+
   const demandes_actives   = demandes.filter(d => !['Terminée','Archivée','Envoyé - Perdu','Fini'].includes(d.statut)).length
   const affaires_qualifier = affaires.filter(a => a.statut === 'À qualifier').length
   const isScImport = importEssaiType === 'SC'
+  const isPmtImport = importEssaiType === 'PMT'
 
   // SC preview must reflect only this file's inferred proposals, not full affaire hierarchy.
   const scDemandesForTable = Array.isArray(scPreview?.proposals?.demandes)
@@ -821,13 +944,39 @@ export default function ToolsPage() {
       existing_intervention_id: null,
     })),
   } : null
+  const pmtPreviewAsDe = pmtPreview ? {
+    file_name: pmtPreview.file_name,
+    sheet_count: pmtPreview.sheet_count ?? (pmtPreview.sheets || []).length,
+    already_imported_count: pmtPreview.already_imported_count ?? 0,
+    affaire_nge_detected: pmtPreview.affaire_nge_detected || [],
+    affaire_context: pmtPreview.affaire_context || { selected: null, match_mode: 'none' },
+    proposals: {
+      demandes_count: pmtPreview.proposals?.demandes_count ?? 0,
+      demandes: Array.isArray(pmtPreview.proposals?.demandes) ? pmtPreview.proposals.demandes : [],
+    },
+    sheets: (pmtPreview.sheets || []).map((sheet) => ({
+      sheet: sheet.import_source_sheet,
+      anchor_date: sheet.date_essai_debut || sheet.date_essai_texte || '',
+      predicted_intervention_reference: String(sheet.predicted_intervention_reference || '').trim(),
+      predicted_essai_reference: String(
+        sheet.predicted_essai_reference || sheet.reference || sheet.import_source_sheet || sheet.import_uid || ''
+      ).trim(),
+      existing_intervention_reference: String(sheet.existing_intervention_reference || '').trim(),
+      existing_sc_reference: String(sheet.existing_essai_reference || '').trim(),
+      couche: sheet.couche || 'PMT',
+      points: Array.isArray(sheet.points_rows) ? sheet.points_rows.length : Number(sheet.nombre_essais || 0),
+      already_imported: Boolean(sheet.already_imported),
+      existing_essai_id: sheet.existing_pmt_id ?? null,
+      existing_intervention_id: sheet.existing_intervention_id ?? null,
+    })),
+  } : null
 
-  const activePreview = isScImport ? scPreviewAsDe : dePreview
-  const activeResult = isScImport ? scResult : deResult
-  const activeLoading = isScImport ? scLoading : deLoading
-  const activeImportingSheet = isScImport ? scImportingSheet : deImportingSheet
-  const activeHideImported = isScImport ? scHideImported : deHideImported
-  const activeLastImport = isScImport ? scLastImport : deLastImport
+  const activePreview = isScImport ? scPreviewAsDe : (isPmtImport ? pmtPreviewAsDe : dePreview)
+  const activeResult = isScImport ? scResult : (isPmtImport ? pmtResult : deResult)
+  const activeLoading = isScImport ? scLoading : (isPmtImport ? pmtLoading : deLoading)
+  const activeImportingSheet = isScImport ? scImportingSheet : (isPmtImport ? pmtImportingSheet : deImportingSheet)
+  const activeHideImported = isScImport ? scHideImported : (isPmtImport ? pmtHideImported : deHideImported)
+  const activeLastImport = isScImport ? scLastImport : (isPmtImport ? pmtLastImport : deLastImport)
 
   function buildModeleBasePath(code, sourceFamily, sourceUid) {
     const params = new URLSearchParams()
@@ -884,6 +1033,21 @@ export default function ToolsPage() {
         openPath: buildModeleBasePath(code, 'essai', row?.uid),
       }
       byCode.set(code, rankCandidate(byCode.get(code), candidate))
+    }
+
+    // Ensure PMT appears in the main models grid even before a real base exists.
+    if (!byCode.has('PMT')) {
+      byCode.set('PMT', {
+        key: 'modele-terrain-PMT-fallback',
+        uid: null,
+        code: 'PMT',
+        family: 'terrain',
+        title: 'Macrotexture',
+        sourceReference: 'Base à créer',
+        sourceDate: '',
+        sourceStatus: 'PMT',
+        openPath: '/modeles/pmt',
+      })
     }
 
     return Array.from(byCode.values()).sort((a, b) => {
@@ -973,17 +1137,8 @@ export default function ToolsPage() {
             desc="Atalho técnico interno para abrir rápido qualquer feuille terrain ou essai por número/referência e testar vazio ou preenchido."
             headerRight={(
               <>
-                <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/modelos-base/DE')}>
-                  Modèle DE
-                </Button>
                 <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/work/de')}>
                   Work DE
-                </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/rapports/de/modele')}>
-                  Rapport DE
-                </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/modeles/pmt')}>
-                  Modèle PMT
                 </Button>
                 <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/work/pmt')}>
                   Work PMT
@@ -1125,7 +1280,7 @@ export default function ToolsPage() {
           <ResultBox result={dstResult} />
         </Card>
 
-        <Card icon="🧪" title="Import Essais terrain (DE/SC)" desc="Choisir le type d'essai, glisser le fichier, puis preview/import.">
+        <Card icon="🧪" title="Import terrain (DE/SC/PMT)" desc="Choisir le type terrain, glisser le fichier, puis preview/import.">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-text-muted">Type d'essai à importer</label>
             <select
@@ -1135,6 +1290,7 @@ export default function ToolsPage() {
             >
               <option value="DE">DE - Densités (gammadensimètre)</option>
               <option value="SC">SC - Sondage carotté</option>
+              <option value="PMT">PMT - Macrotexture (terrain)</option>
             </select>
           </div>
 
@@ -1154,7 +1310,7 @@ export default function ToolsPage() {
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-text-muted">
-                Glisser-déposer le fichier Excel ici. Le type (DE/SC) sera proposé automatiquement.
+                Glisser-déposer le fichier Excel ici. Le type (DE/SC/PMT) sera proposé automatiquement.
               </div>
               <label className="inline-flex items-center gap-2 px-2 py-1 border border-border rounded cursor-pointer hover:border-accent hover:bg-bg">
                 <span>📎 Choisir</span>
@@ -1169,9 +1325,9 @@ export default function ToolsPage() {
                 />
               </label>
             </div>
-            {(importEssaiType === 'DE' ? deUploadFile : scUploadFile) ? (
+            {(importEssaiType === 'DE' ? deUploadFile : importEssaiType === 'SC' ? scUploadFile : pmtUploadFile) ? (
               <div className="mt-2 text-[11px] text-text-muted">
-                Fichier prêt ({importEssaiType}): <strong>{(importEssaiType === 'DE' ? deUploadFile : scUploadFile)?.name}</strong>
+                Fichier prêt ({importEssaiType}): <strong>{(importEssaiType === 'DE' ? deUploadFile : importEssaiType === 'SC' ? scUploadFile : pmtUploadFile)?.name}</strong>
               </div>
             ) : null}
           </div>
@@ -1226,10 +1382,10 @@ export default function ToolsPage() {
             </div>
           </div>
 
-          <Button variant="primary" onClick={isScImport ? previewSCImportUpload : previewDEImport} disabled={activeLoading}>
+          <Button variant="primary" onClick={isScImport ? previewSCImportUpload : isPmtImport ? previewPMTImportUpload : previewDEImport} disabled={activeLoading}>
             {activeLoading ? 'Preview en cours…' : `👀 Preview ${importEssaiType}`}
           </Button>
-          <Button variant="secondary" onClick={isScImport ? previewSCImportUpload : previewDEImportUpload} disabled={activeLoading || !(isScImport ? scUploadFile : deUploadFile)}>
+          <Button variant="secondary" onClick={isScImport ? previewSCImportUpload : isPmtImport ? previewPMTImportUpload : previewDEImportUpload} disabled={activeLoading || !(isScImport ? scUploadFile : isPmtImport ? pmtUploadFile : deUploadFile)}>
             {activeLoading ? 'Preview en cours…' : `🧲 Preview ${importEssaiType} via drag & drop`}
           </Button>
 
@@ -1377,7 +1533,7 @@ export default function ToolsPage() {
                   <input
                     type="checkbox"
                     checked={activeHideImported}
-                    onChange={(event) => isScImport ? setScHideImported(event.target.checked) : setDeHideImported(event.target.checked)}
+                    onChange={(event) => isScImport ? setScHideImported(event.target.checked) : isPmtImport ? setPmtHideImported(event.target.checked) : setDeHideImported(event.target.checked)}
                   />
                   Masquer les feuilles déjà importées
                 </label>
@@ -1412,7 +1568,7 @@ export default function ToolsPage() {
                                     value={deInterventionOverrides[sheet.sheet] ?? (sheet.predicted_intervention_reference || '')}
                                     onChange={(e) => setDeInterventionOverrides(prev => ({ ...prev, [sheet.sheet]: e.target.value }))}
                                     title="Référence intervention prédite (éditable)"
-                                    disabled={isScImport}
+                                    disabled={isScImport || isPmtImport}
                                   />
                                 )}
                             </td>
@@ -1460,7 +1616,7 @@ export default function ToolsPage() {
                                   size="sm"
                                   variant="primary"
                                   disabled={Boolean(activeImportingSheet) || activeLoading}
-                                  onClick={() => isScImport ? materializeSCSheet(sheet.sheet, { bindExistingHierarchy: false }) : importOneDESheet(sheet.sheet)}
+                                  onClick={() => isScImport ? materializeSCSheet(sheet.sheet, { bindExistingHierarchy: false }) : isPmtImport ? importOnePMTSheet(sheet.sheet) : importOneDESheet(sheet.sheet)}
                                 >
                                   {loading ? 'Import...' : 'Importer cette feuille'}
                                 </Button>
@@ -1474,7 +1630,7 @@ export default function ToolsPage() {
                 </div>
               </div>
 
-              {(isScImport ? activeLastImport?.essai_id : activeLastImport?.ids?.essai_id) ? (
+              {(isScImport ? activeLastImport?.essai_id : isPmtImport ? false : activeLastImport?.ids?.essai_id) ? (
                 <div className="flex items-center gap-2 pt-1">
                   <Button size="sm" variant="secondary" onClick={() => navigate(`/essais/${isScImport ? activeLastImport.essai_id : activeLastImport.ids.essai_id}`)}>
                     Ouvrir la feuille d'essai importée

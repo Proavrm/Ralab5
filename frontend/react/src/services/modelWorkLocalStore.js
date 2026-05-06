@@ -241,6 +241,22 @@ export function deleteModelDefinitionDE() {
   writeRapportModelsDE([])
 }
 
+export function deleteModelDefinitionDEById(id) {
+  const targetId = String(id || '').trim()
+  if (!targetId) return false
+
+  const definitions = readModelDefinitions()
+  const existing = listModelDefinitionsDE()
+  if (!existing.length) return false
+
+  const next = existing.filter((item) => String(item?.id || '') !== targetId)
+  if (next.length === existing.length) return false
+
+  definitions[MODEL_DEFINITION_CODE_DE] = next
+  writeModelDefinitions(definitions)
+  return true
+}
+
 export function migrateLegacyDeDraftIfNeeded() {
   const existing = getModelDefinitionDE()
   if (existing) return { model: existing, migrated: false }

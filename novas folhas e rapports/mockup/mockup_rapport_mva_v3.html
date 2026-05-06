@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Mockup Rapport MVA v3</title>
+<style>
+    :root {
+        --ink: #000;
+        --blue: rgb(0,44,119);
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        background: #e9e9e9;
+        font-family: "Century Gothic", "DejaVu Sans", Arial, sans-serif;
+        color: var(--ink);
+    }
+
+    .page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 18px auto;
+        background: #fff;
+        padding: 4mm 4mm 4mm 4mm;
+        position: relative;
+    }
+
+    .report {
+        width: 100%;
+        font-size: 8.8pt;
+    }
+
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    .bordered {
+        border: 1px solid #000;
+    }
+
+    .header {
+        height: 21mm;
+        table-layout: fixed;
+        border: 1px solid #000;
+    }
+
+    .header td {
+        border-left: 1px solid #000;
+        vertical-align: middle;
+        padding: 0;
+    }
+
+    .header td:first-child {
+        border-left: 0;
+    }
+
+    .logo-cell {
+        width: 46mm;
+        text-align: center;
+    }
+
+    .logo-word {
+        font-weight: 800;
+        color: var(--blue);
+        font-size: 25pt;
+        line-height: 1;
+        letter-spacing: 1px;
+    }
+
+    .logo-bar {
+        display: block;
+        width: 31mm;
+        height: 2mm;
+        background: var(--blue);
+        margin: 1mm auto 0;
+        transform: skewX(-18deg);
+    }
+
+    .title-cell {
+        width: 106mm;
+        text-align: center;
+    }
+
+    .title-top {
+        font-size: 7.2pt;
+        font-weight: 700;
+        margin-top: 1mm;
+    }
+
+    .title-main {
+        font-size: 12pt;
+        font-weight: 700;
+        line-height: 1.12;
+    }
+
+    .meta-row {
+        width: 100%;
+        border-top: 1px solid #000;
+        margin-top: 1.2mm;
+        display: grid;
+        grid-template-columns: 33% 34% 33%;
+        height: 7.5mm;
+        align-items: start;
+    }
+
+    .meta-row > div {
+        border-left: 1px solid #000;
+        height: 100%;
+        padding-top: 0.6mm;
+        font-size: 6.5pt;
+    }
+
+    .meta-row > div:first-child {
+        border-left: 0;
+    }
+
+    .meta-value {
+        font-size: 8pt;
+        font-weight: 700;
+    }
+
+    .site-cell {
+        width: 50mm;
+        text-align: center;
+        font-weight: 700;
+        font-size: 13pt;
+        line-height: 1.28;
+    }
+
+    .laboratoire {
+        display: grid;
+        grid-template-columns: 52mm 1fr;
+        padding: 4mm 0 3.2mm 13mm;
+        font-size: 8.8pt;
+    }
+
+    .laboratoire .label {
+        font-weight: 700;
+    }
+
+    .section {
+        border: 1px solid #000;
+        margin-top: 3.8mm;
+        padding: 2.4mm 8mm 3.2mm 8mm;
+    }
+
+    .section-title {
+        display: flex;
+        gap: 8mm;
+        font-weight: 700;
+        text-decoration: underline;
+        margin-bottom: 4mm;
+    }
+
+    .section-title .num {
+        text-decoration: none;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 36mm 45mm 42mm 1fr;
+        row-gap: 1.6mm;
+        column-gap: 4mm;
+    }
+
+    .criteria-grid {
+        display: grid;
+        grid-template-columns: 61mm 1fr;
+        row-gap: 1.8mm;
+    }
+
+    .results-section {
+        height: 94mm;
+        padding-bottom: 7mm;
+    }
+
+    .calc-row {
+        display: grid;
+        grid-template-columns: 86mm 86mm;
+        justify-content: space-between;
+        margin: 6mm 0 7mm 0;
+    }
+
+    .calc-table {
+        border: 1px solid #000;
+        table-layout: fixed;
+        height: 21mm;
+    }
+
+    .calc-table td {
+        border: 1px solid #000;
+        text-align: center;
+        font-weight: 700;
+        padding: 1mm;
+    }
+
+    .calc-label {
+        width: 43mm;
+        font-size: 7pt;
+        line-height: 1.12;
+    }
+
+    .calc-value {
+        width: 29mm;
+        font-size: 8pt;
+    }
+
+    .calc-unit {
+        width: 14mm;
+        font-size: 8pt;
+    }
+
+    .main-results {
+        table-layout: fixed;
+        border: 1px solid #000;
+        margin: 0 auto;
+        width: 185mm;
+    }
+
+    .main-results th,
+    .main-results td {
+        border: 1px solid #000;
+        text-align: center;
+        padding: 1.5mm 1mm;
+        height: 7mm;
+    }
+
+    .main-results th {
+        font-size: 7pt;
+        line-height: 1.12;
+        height: 15mm;
+        font-weight: 700;
+    }
+
+    .main-results td {
+        font-size: 8pt;
+    }
+
+    .conclusion-section {
+        border: 1px solid #000;
+        margin-top: 3.8mm;
+        height: 45mm;
+        display: grid;
+        grid-template-columns: 132mm 22mm 1fr;
+        grid-template-rows: 9mm 17mm 19mm;
+        padding: 0;
+    }
+
+    .conclusion-title {
+        grid-column: 1 / 4;
+        grid-row: 1;
+        border-bottom: 1px dashed #000;
+        display: flex;
+        align-items: center;
+        gap: 8mm;
+        padding-left: 8mm;
+        font-weight: 700;
+        text-decoration: underline;
+    }
+
+    .conclusion-title .num {
+        text-decoration: none;
+    }
+
+    .conclusion-result {
+        grid-column: 1;
+        grid-row: 2;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4mm;
+        font-weight: 700;
+        border-right: 1px solid #000;
+    }
+
+    .comments-title {
+        grid-column: 1;
+        grid-row: 3;
+        border-top: 1px solid #000;
+        border-right: 1px solid #000;
+        padding: 2mm 0 0 8mm;
+        font-weight: 700;
+        text-decoration: underline;
+    }
+
+    .sign-labels {
+        grid-column: 2;
+        grid-row: 2 / 4;
+        border-right: 1px solid #000;
+        display: grid;
+        grid-template-rows: 10mm 14mm 1fr;
+        align-items: center;
+        justify-items: center;
+        font-weight: 700;
+    }
+
+    .sign-labels span {
+        text-decoration: underline;
+    }
+
+    .sign-values {
+        grid-column: 3;
+        grid-row: 2 / 4;
+        display: grid;
+        grid-template-rows: 10mm 14mm 1fr;
+    }
+
+    .sign-values > div {
+        border-bottom: 1px solid #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .sign-values > div:last-child {
+        border-bottom: 0;
+    }
+
+    .footer-code {
+        position: absolute;
+        bottom: 8mm;
+        right: 16mm;
+        font-size: 6.5pt;
+    }
+
+    @media print {
+        body {
+            background: #fff;
+        }
+
+        .page {
+            margin: 0;
+            width: 210mm;
+            height: 297mm;
+            box-shadow: none;
+        }
+    }
+</style>
+</head>
+<body>
+    <main class="page">
+        <section class="report">
+            <table class="header">
+                <tr>
+                    <td class="logo-cell">
+                        <div class="logo-word">NGE</div>
+                        <span class="logo-bar"></span>
+                    </td>
+                    <td class="title-cell">
+                        <div class="title-top">COMPTE RENDU D'ESSAIS</div>
+                        <div class="title-main">MASSE VOLUMIQUE DES ENROBES</div>
+                        <div class="title-main">(NF EN 12697-6-A1)</div>
+                        <div class="meta-row">
+                            <div><span>n°</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="meta-value">04</span><br>Chrono</div>
+                            <div><span class="meta-value">RAL1EC</span><br>N° d'affaire</div>
+                            <div><span class="meta-value">18/07/2022</span><br>Date de rédaction</div>
+                        </div>
+                    </td>
+                    <td class="site-cell">PPI - Réseau vélo<br>express</td>
+                </tr>
+            </table>
+
+            <div class="laboratoire">
+                <div class="label">Laboratoire :</div>
+                <div>Laboratoire Rhône-Alpes - 29-31 rue des tâches - ZI mi-plaine - 69800 SAINT PRIEST</div>
+            </div>
+
+            <section class="section">
+                <div class="section-title"><span class="num">1/</span><span>RENSEIGNEMENTS GENERAUX</span></div>
+                <div class="info-grid">
+                    <div>Opérateur :</div><div>F. Montet</div>
+                    <div>Nature du produit :</div><div>BBSG 0/10 Classe 3</div>
+                    <div>Date de(s) prélèvement(s) :</div><div>13/07/2022</div>
+                    <div>Provenance :</div><div>P2R F110</div>
+                    <div>Date de(s) essai(s) :</div><div>18/07/2022</div>
+                    <div>Couche :</div><div>Roulement</div>
+                </div>
+            </section>
+
+            <section class="section">
+                <div class="section-title"><span class="num">2/</span><span>CRITERES DE CONFORMITE</span></div>
+                <div class="criteria-grid">
+                    <div>Source des critères :</div><div></div>
+                    <div>Définition des critères / objectifs :</div><div>4 ≤ %vides ≤ 8%</div>
+                </div>
+            </section>
+
+            <section class="section results-section">
+                <div class="section-title"><span class="num">3/</span><span>RESULTATS DES ESSAIS</span></div>
+
+                <div class="calc-row">
+                    <table class="calc-table">
+                        <tr>
+                            <td class="calc-label">Température mesurée<br>de l'eau :<br>(±1 - °C)</td>
+                            <td class="calc-value">21</td>
+                            <td class="calc-unit">°C</td>
+                        </tr>
+                        <tr>
+                            <td class="calc-label">Masse volumique de l'eau :</td>
+                            <td class="calc-value">998,1</td>
+                            <td class="calc-unit">kg/m³</td>
+                        </tr>
+                    </table>
+
+                    <table class="calc-table">
+                        <tr>
+                            <td class="calc-label">Masse volumique de la<br>paraffine:</td>
+                            <td class="calc-value">890</td>
+                            <td class="calc-unit">kg/m³</td>
+                        </tr>
+                        <tr>
+                            <td class="calc-label">MVR :</td>
+                            <td class="calc-value">2447</td>
+                            <td class="calc-unit">kg/m³</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <table class="main-results">
+                    <colgroup>
+                        <col style="width: 21mm">
+                        <col style="width: 23mm">
+                        <col style="width: 25mm">
+                        <col style="width: 23mm">
+                        <col style="width: 28mm">
+                        <col style="width: 23mm">
+                        <col style="width: 21mm">
+                        <col style="width: 21mm">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th>Référence de<br>l'éprouvette</th>
+                            <th>Masse sèche<br>(g)</th>
+                            <th>Masse sèche<br>paraffinée<br>(g)</th>
+                            <th>Masse dans l'eau<br>(g)</th>
+                            <th>Masse volumique de<br>l'éprouvette<br>(kg/m³)</th>
+                            <th>Compacité %</th>
+                            <th>% vides</th>
+                            <th>Hauteur de<br>l'éprouvette (cm)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>SC3</td><td>1338,6</td><td>1359,4</td><td>752,6</td><td>2289,8</td><td>93,6</td><td>6,4</td><td>5</td></tr>
+                        <tr><td>SC5</td><td>1584,3</td><td>1607,7</td><td>879,1</td><td>2251,4</td><td>92,0</td><td>8,0</td><td>6,5</td></tr>
+                        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                        <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section class="conclusion-section">
+                <div class="conclusion-title"><span class="num">4/</span><span>CONCLUSIONS</span></div>
+                <div class="conclusion-result">
+                    <div>Contrôle</div>
+                    <div>Conforme</div>
+                </div>
+                <div class="comments-title"><span>7/&nbsp;&nbsp;&nbsp;COMMENTAIRES</span></div>
+                <div class="sign-labels">
+                    <span>Nom</span>
+                    <span>Fonction</span>
+                    <span>Visa</span>
+                </div>
+                <div class="sign-values">
+                    <div>F. MONTET</div>
+                    <div>Technicien de laboratoire</div>
+                    <div></div>
+                </div>
+            </section>
+        </section>
+
+        <div class="footer-code">DG-Q / RE ID du 28/06/06</div>
+    </main>
+</body>
+</html>

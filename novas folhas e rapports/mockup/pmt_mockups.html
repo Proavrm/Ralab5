@@ -1,0 +1,928 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RaLab5 PMT Mockups</title>
+<style>
+:root {
+    --nge-blue: rgb(0, 44, 119);
+    --nge-blue-2: rgb(8, 65, 154);
+    --ink: #111827;
+    --muted: #667085;
+    --line: #d7deea;
+    --soft: #f4f7fb;
+    --panel: #ffffff;
+    --green: #087443;
+    --red: #b42318;
+    --amber: #b54708;
+    --violet: #5b21b6;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #dfe6ef;
+    color: var(--ink);
+    font-family: "Century Gothic", "Aptos", Arial, sans-serif;
+}
+
+.board {
+    width: 1680px;
+    margin: 0 auto;
+    padding: 34px;
+}
+
+.board.single {
+    width: 1120px;
+}
+
+.board.report-only {
+    width: 940px;
+}
+
+.mockup-title {
+    margin: 0 0 20px;
+    color: #132238;
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+}
+
+.mockup-title span {
+    color: var(--nge-blue);
+}
+
+.mockup-grid {
+    display: grid;
+    grid-template-columns: 1.06fr 0.94fr;
+    gap: 28px;
+    align-items: start;
+}
+
+.screen-shell {
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.10);
+    border-radius: 30px;
+    background: linear-gradient(180deg, #f7f9fd 0%, #eef3f9 100%);
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18);
+}
+
+.app-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    background: #ffffff;
+    border-bottom: 1px solid var(--line);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--nge-blue);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    font-size: 22px;
+}
+
+.brand-mark {
+    display: grid;
+    width: 44px;
+    height: 34px;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--nge-blue);
+    color: white;
+    font-size: 14px;
+    letter-spacing: -0.08em;
+}
+
+.app-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #475467;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.app-nav span {
+    padding: 8px 11px;
+    border-radius: 999px;
+    background: #f2f4f7;
+}
+
+.app-nav .active {
+    background: #e9f0ff;
+    color: var(--nge-blue);
+}
+
+.feuille {
+    padding: 24px;
+}
+
+.page-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 18px;
+    align-items: start;
+    margin-bottom: 18px;
+}
+
+.eyebrow {
+    margin: 0 0 6px;
+    color: var(--nge-blue);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+}
+
+.page-head h1 {
+    margin: 0;
+    color: #0b1b31;
+    font-size: 30px;
+    line-height: 1.08;
+    letter-spacing: -0.05em;
+}
+
+.page-head p {
+    max-width: 640px;
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.actions {
+    display: flex;
+    gap: 9px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: 430px;
+}
+
+.status-pill {
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: #ecfdf3;
+    color: var(--green);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.status-pill.warning {
+    background: #fff7ed;
+    color: var(--amber);
+}
+
+.btn {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 13px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+    box-shadow: 0 9px 22px rgba(15, 23, 42, 0.09);
+}
+
+.btn.ghost { background: #ffffff; color: #344054; }
+.btn.blue { background: var(--nge-blue); color: #ffffff; }
+.btn.dark { background: #101828; color: #ffffff; }
+
+.summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.summary-card {
+    min-height: 92px;
+    padding: 17px;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+}
+
+.summary-card small {
+    display: block;
+    margin-bottom: 9px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.summary-card strong {
+    display: inline-block;
+    color: #132238;
+    font-size: 26px;
+    letter-spacing: -0.04em;
+}
+
+.summary-card .unit {
+    color: #667085;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.summary-card.good strong { color: var(--green); }
+.summary-card.warn strong { color: var(--amber); }
+
+.layout {
+    display: grid;
+    grid-template-columns: 1fr 330px;
+    gap: 16px;
+}
+
+.card {
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: #ffffff;
+    box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+}
+
+.card + .card {
+    margin-top: 16px;
+}
+
+.card-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 17px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+}
+
+.card-title h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+}
+
+.card-title span {
+    color: #667085;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.card-body {
+    padding: 16px 17px 18px;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.form-grid.two {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.field {
+    min-width: 0;
+}
+
+.field label {
+    display: block;
+    margin-bottom: 6px;
+    color: #475467;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.field .input,
+.field .textarea {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 13px;
+    background: #f8fafc;
+    color: #101828;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.field .textarea {
+    align-items: flex-start;
+    min-height: 76px;
+    line-height: 1.45;
+}
+
+.field.wide {
+    grid-column: span 2;
+}
+
+.field.full {
+    grid-column: 1 / -1;
+}
+
+.calc-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 11px;
+    margin-top: 14px;
+}
+
+.calc-box {
+    padding: 13px;
+    border-radius: 18px;
+    background: #f2f6fd;
+    border: 1px solid #dce6f5;
+}
+
+.calc-box small {
+    display: block;
+    margin-bottom: 5px;
+    color: #667085;
+    font-size: 10px;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.calc-box strong {
+    color: #132238;
+    font-size: 19px;
+    letter-spacing: -0.03em;
+}
+
+.table-wrap {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+th {
+    padding: 10px 8px;
+    background: #edf2fa;
+    color: #344054;
+    border-bottom: 1px solid var(--line);
+    font-size: 10px;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+td {
+    padding: 11px 8px;
+    border-bottom: 1px solid #e5eaf2;
+    color: #101828;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+}
+
+tr:last-child td {
+    border-bottom: 0;
+}
+
+.left {
+    text-align: left;
+}
+
+.ok {
+    display: inline-block;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: #ecfdf3;
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.ko {
+    display: inline-block;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: #fef3f2;
+    color: var(--red);
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.side-card {
+    padding: 16px;
+}
+
+.side-title {
+    margin: 0 0 11px;
+    color: var(--nge-blue);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+}
+
+.mini-list {
+    display: grid;
+    gap: 10px;
+}
+
+.mini-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 11px 0;
+    border-bottom: 1px dashed #d0d5dd;
+    font-size: 12px;
+}
+
+.mini-row span:first-child {
+    color: #667085;
+    font-weight: 800;
+}
+
+.mini-row span:last-child {
+    color: #101828;
+    font-weight: 900;
+    text-align: right;
+}
+
+.note {
+    margin-top: 12px;
+    padding: 13px;
+    border-radius: 18px;
+    background: #eef4ff;
+    color: #1849a9;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.report-paper {
+    width: 760px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #111827;
+    box-shadow: 0 28px 80px rgba(15, 23, 42, 0.24);
+    font-family: "Century Gothic", Arial, sans-serif;
+    color: #111827;
+}
+
+.report-inner {
+    padding: 14px;
+}
+
+.report-head {
+    display: grid;
+    grid-template-columns: 150px 1fr 150px;
+    border: 1px solid #111827;
+}
+
+.logo-box,
+.site-box,
+.title-box {
+    min-height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    text-align: center;
+}
+
+.logo-box {
+    border-right: 1px solid #111827;
+    color: var(--nge-blue);
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.12em;
+}
+
+.site-box {
+    border-left: 1px solid #111827;
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.25;
+}
+
+.title-box {
+    flex-direction: column;
+}
+
+.title-box h1 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 900;
+    line-height: 1.25;
+    text-transform: uppercase;
+}
+
+.title-box p {
+    margin: 6px 0 0;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.ref-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    margin-top: 5px;
+    font-size: 10px;
+}
+
+.ref-row div {
+    text-align: center;
+}
+
+.lab-line {
+    margin: 11px 0;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.report-section {
+    margin-top: 10px;
+    border: 1px solid #111827;
+}
+
+.report-section-title {
+    padding: 6px 8px;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    text-decoration: underline;
+}
+
+.report-section-body {
+    padding: 8px 16px 13px;
+}
+
+.report-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 32px;
+    font-size: 11px;
+}
+
+.report-info-grid div {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 10px;
+}
+
+.report-info-grid b {
+    font-weight: 900;
+}
+
+.report-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 13px;
+}
+
+.metric-box {
+    border: 1px solid #111827;
+    min-height: 57px;
+    display: grid;
+    place-items: center;
+    padding: 6px;
+    font-size: 11px;
+    font-weight: 900;
+    text-align: center;
+}
+
+.metric-box span {
+    display: block;
+    margin-top: 4px;
+    font-size: 16px;
+}
+
+.report-table th,
+.report-table td {
+    border: 1px solid #111827;
+    padding: 6px 5px;
+    font-size: 9px;
+}
+
+.report-table th {
+    background: #f3f4f6;
+    color: #111827;
+    text-transform: none;
+}
+
+.report-table td {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.conclusion-box {
+    display: grid;
+    grid-template-columns: 1fr 170px;
+    min-height: 116px;
+}
+
+.conclusion-left {
+    padding: 16px;
+    border-right: 1px solid #111827;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.conclusion-left strong {
+    display: block;
+    margin-top: 18px;
+    font-size: 14px;
+}
+
+.sign-grid {
+    display: grid;
+    grid-template-rows: repeat(3, 1fr);
+}
+
+.sign-grid div {
+    display: grid;
+    grid-template-columns: 54px 1fr;
+    border-bottom: 1px solid #111827;
+    min-height: 38px;
+}
+
+.sign-grid div:last-child {
+    border-bottom: 0;
+}
+
+.sign-grid b {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #111827;
+    font-size: 10px;
+    text-decoration: underline;
+}
+
+.sign-grid span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 4px;
+    font-size: 10px;
+}
+
+.footer-code {
+    margin-top: 9px;
+    text-align: right;
+    font-size: 9px;
+    color: #111827;
+}
+</style>
+</head>
+<body>
+    <div class="board">
+        <h1 class="mockup-title">RaLab5 · Mockups <span>PMT</span> · Feuille + Rapport</h1>
+        <div class="mockup-grid">
+            <div>
+<div class="screen-shell">
+    <div class="app-topbar">
+        <div class="brand"><div class="brand-mark">NGE</div>RaLab5</div>
+        <div class="app-nav">
+            <span>Demandes</span>
+            <span>Interventions</span>
+            <span class="active">Essais</span>
+            <span>Rapports</span>
+        </div>
+    </div>
+    <div class="feuille">
+        <div class="page-head">
+            <div>
+                <p class="eyebrow">Feuille d'essai · PMT</p>
+                <h1>Profondeur de macrotexture</h1>
+                <p>Mesure de la profondeur moyenne de texture suivant NF EN 13036-1. Saisie terrain par point, calcul automatique de la PMT et préparation directe du rapport.</p>
+            </div>
+            <div class="actions">
+                <span class="status-pill">Conforme</span>
+                <button class="btn ghost">Importer Excel</button>
+                <button class="btn blue">Enregistrer</button>
+                <button class="btn dark">Ouvrir rapport</button>
+            </div>
+        </div>
+
+        <div class="summary">
+            <div class="summary-card good"><small>PMT moyenne</small><strong>0,78</strong> <span class="unit">mm</span></div>
+            <div class="summary-card"><small>Points saisis</small><strong>12</strong> <span class="unit">mesures</span></div>
+            <div class="summary-card"><small>Mini / maxi</small><strong>0,64 / 0,93</strong> <span class="unit">mm</span></div>
+            <div class="summary-card good"><small>Critère</small><strong>≥ 0,60</strong> <span class="unit">mm</span></div>
+        </div>
+
+        <div class="layout">
+            <main>
+                <section class="card">
+                    <div class="card-title"><h2>Renseignements généraux</h2><span>chantier / essai</span></div>
+                    <div class="card-body">
+                        <div class="form-grid">
+                            <div class="field"><label>Chrono</label><div class="input">2026-RA-PMT0004</div></div>
+                            <div class="field"><label>N° affaire</label><div class="input">2026-RA-027</div></div>
+                            <div class="field"><label>Date rédaction</label><div class="input">01/05/2026</div></div>
+                            <div class="field"><label>Opérateur</label><div class="input">F. MONTET</div></div>
+                            <div class="field"><label>Date prélèvement / mesure</label><div class="input">30/04/2026</div></div>
+                            <div class="field"><label>Laboratoire</label><div class="input">Laboratoire Rhône-Alpes</div></div>
+                            <div class="field"><label>Nature produit</label><div class="input">BBSG 0/10 Classe 3</div></div>
+                            <div class="field"><label>Provenance</label><div class="input">P2R F110</div></div>
+                            <div class="field"><label>Couche</label><div class="input">Roulement</div></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-title"><h2>Critères et paramètres</h2><span>conformité / calcul</span></div>
+                    <div class="card-body">
+                        <div class="form-grid two">
+                            <div class="field"><label>Source des critères</label><div class="input">CCTP / fiche chantier</div></div>
+                            <div class="field"><label>Définition critères / objectifs</label><div class="input">PMT moyenne ≥ 0,60 mm</div></div>
+                            <div class="field"><label>Volume de matériau utilisé</label><div class="input">25 000 mm³</div></div>
+                            <div class="field"><label>Mode de calcul</label><div class="input">PMT = 4V / πD²</div></div>
+                        </div>
+                        <div class="calc-strip">
+                            <div class="calc-box"><small>Diamètre moyen global</small><strong>202</strong> mm</div>
+                            <div class="calc-box"><small>Écart type</small><strong>0,09</strong> mm</div>
+                            <div class="calc-box"><small>Points conformes</small><strong>12 / 12</strong></div>
+                            <div class="calc-box"><small>Conclusion auto</small><strong>Conforme</strong></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-title"><h2>Points de mesure</h2><span>profil et position restent éditables</span></div>
+                    <div class="card-body">
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 7%">N°</th>
+                                        <th style="width: 16%">Profil</th>
+                                        <th style="width: 17%">Position</th>
+                                        <th>Volume<br>mm³</th>
+                                        <th>D1<br>mm</th>
+                                        <th>D2<br>mm</th>
+                                        <th>D moyen<br>mm</th>
+                                        <th>PMT<br>mm</th>
+                                        <th>Conf.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>1</td><td class="left">P01</td><td class="left">Axe voie</td><td>25 000</td><td>203</td><td>198</td><td>200,5</td><td>0,79</td><td><span class="ok">OK</span></td></tr>
+                                    <tr><td>2</td><td class="left">P01</td><td class="left">Rive droite</td><td>25 000</td><td>211</td><td>205</td><td>208,0</td><td>0,74</td><td><span class="ok">OK</span></td></tr>
+                                    <tr><td>3</td><td class="left">P02</td><td class="left">Axe voie</td><td>25 000</td><td>196</td><td>194</td><td>195,0</td><td>0,84</td><td><span class="ok">OK</span></td></tr>
+                                    <tr><td>4</td><td class="left">P02</td><td class="left">Rive gauche</td><td>25 000</td><td>226</td><td>221</td><td>223,5</td><td>0,64</td><td><span class="ok">OK</span></td></tr>
+                                    <tr><td>5</td><td class="left">P03</td><td class="left">Axe voie</td><td>25 000</td><td>187</td><td>183</td><td>185,0</td><td>0,93</td><td><span class="ok">OK</span></td></tr>
+                                    <tr><td>6</td><td class="left">P03</td><td class="left">Rive droite</td><td>25 000</td><td>204</td><td>199</td><td>201,5</td><td>0,78</td><td><span class="ok">OK</span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <aside>
+                <section class="card side-card">
+                    <h3 class="side-title">Synthèse PMT</h3>
+                    <div class="mini-list">
+                        <div class="mini-row"><span>Demande</span><span>2026-RA-D0042</span></div>
+                        <div class="mini-row"><span>Intervention</span><span>INT-2026-018</span></div>
+                        <div class="mini-row"><span>Norme</span><span>NF EN 13036-1</span></div>
+                        <div class="mini-row"><span>Moyenne</span><span>0,78 mm</span></div>
+                        <div class="mini-row"><span>Conclusion</span><span>Conforme</span></div>
+                    </div>
+                    <div class="note">La moyenne est calculée sur les points retenus. Les profils et positions restent modifiables même après import.</div>
+                </section>
+
+                <section class="card side-card">
+                    <h3 class="side-title">Conclusion</h3>
+                    <div class="field"><label>Contrôle</label><div class="input">Conforme</div></div>
+                    <div class="field" style="margin-top: 12px"><label>Complément éventuel</label><div class="textarea">Les mesures de macrotexture sont conformes au critère retenu pour la couche de roulement contrôlée.</div></div>
+                </section>
+
+                <section class="card side-card">
+                    <h3 class="side-title">Commentaires</h3>
+                    <div class="field"><label>Observation terrain</label><div class="textarea">Mesures réalisées sur revêtement sec. Aucun point écarté lors de la saisie.</div></div>
+                </section>
+            </aside>
+        </div>
+    </div>
+</div>
+            </div>
+            <div>
+<div class="report-paper">
+    <div class="report-inner">
+        <div class="report-head">
+            <div class="logo-box">NGE</div>
+            <div class="title-box">
+                <h1>COMPTE RENDU D'ESSAIS<br>MESURE DE LA PROFONDEUR DE MACROTEXTURE</h1>
+                <p>(NF EN 13036-1)</p>
+                <div class="ref-row">
+                    <div>n°<br><b>04</b></div>
+                    <div><b>RA-PMT0004</b><br>N° d'affaire</div>
+                    <div><b>01/05/2026</b><br>Date de rédaction</div>
+                </div>
+            </div>
+            <div class="site-box">PPI - Réseau vélo<br>express</div>
+        </div>
+
+        <div class="lab-line"><b>Laboratoire :</b> Laboratoire Rhône-Alpes - 29-31 rue des tâches - ZI mi-plaine - 69800 SAINT PRIEST</div>
+
+        <section class="report-section">
+            <div class="report-section-title">1/ Renseignements généraux</div>
+            <div class="report-section-body">
+                <div class="report-info-grid">
+                    <div><span>Opérateur :</span><b>F. MONTET</b></div>
+                    <div><span>Nature du produit :</span><b>BBSG 0/10 Classe 3</b></div>
+                    <div><span>Date de(s) mesure(s) :</span><b>30/04/2026</b></div>
+                    <div><span>Provenance :</span><b>P2R F110</b></div>
+                    <div><span>Date de rédaction :</span><b>01/05/2026</b></div>
+                    <div><span>Couche :</span><b>Roulement</b></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-title">2/ Critères de conformité</div>
+            <div class="report-section-body">
+                <div class="report-info-grid">
+                    <div><span>Source des critères :</span><b>CCTP / fiche chantier</b></div>
+                    <div><span>Définition :</span><b>PMT moyenne ≥ 0,60 mm</b></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-title">3/ Résultats des essais</div>
+            <div class="report-section-body">
+                <div class="report-metrics">
+                    <div class="metric-box">Volume de matériau<span>25 000 mm³</span></div>
+                    <div class="metric-box">PMT moyenne<span>0,78 mm</span></div>
+                    <div class="metric-box">Nombre de points<span>12</span></div>
+                </div>
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>N°</th>
+                            <th>Profil</th>
+                            <th>Position</th>
+                            <th>D1 (mm)</th>
+                            <th>D2 (mm)</th>
+                            <th>D moyen (mm)</th>
+                            <th>PMT (mm)</th>
+                            <th>Conformité</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>P01</td><td>Axe voie</td><td>203</td><td>198</td><td>200,5</td><td>0,79</td><td>Conforme</td></tr>
+                        <tr><td>2</td><td>P01</td><td>Rive droite</td><td>211</td><td>205</td><td>208,0</td><td>0,74</td><td>Conforme</td></tr>
+                        <tr><td>3</td><td>P02</td><td>Axe voie</td><td>196</td><td>194</td><td>195,0</td><td>0,84</td><td>Conforme</td></tr>
+                        <tr><td>4</td><td>P02</td><td>Rive gauche</td><td>226</td><td>221</td><td>223,5</td><td>0,64</td><td>Conforme</td></tr>
+                        <tr><td>5</td><td>P03</td><td>Axe voie</td><td>187</td><td>183</td><td>185,0</td><td>0,93</td><td>Conforme</td></tr>
+                        <tr><td>6</td><td>P03</td><td>Rive droite</td><td>204</td><td>199</td><td>201,5</td><td>0,78</td><td>Conforme</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-title">4/ Conclusions</div>
+            <div class="conclusion-box">
+                <div class="conclusion-left">Contrôle<strong>Conforme</strong></div>
+                <div class="sign-grid">
+                    <div><b>Nom</b><span>F. MONTET</span></div>
+                    <div><b>Fonction</b><span>Technicien de laboratoire</span></div>
+                    <div><b>Visa</b><span></span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="report-section">
+            <div class="report-section-title">7/ Commentaires</div>
+            <div class="report-section-body" style="min-height: 48px; font-size: 11px; font-weight: 700;">Mesures réalisées sur revêtement sec. Aucun point écarté lors de la saisie.</div>
+        </section>
+
+        <div class="footer-code">DG-Q / RE ID du 28/06/06</div>
+    </div>
+</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

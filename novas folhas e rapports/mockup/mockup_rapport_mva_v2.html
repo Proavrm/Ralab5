@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Mockup Rapport MVA v2 - RaLab5</title>
+<style>
+    :root {
+        --blue: rgb(0,44,119);
+        --ink: #141922;
+        --paper: #ffffff;
+        --bg: #e7edf5;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Century Gothic", "Arial", sans-serif;
+    }
+
+    .mockup-shell {
+        padding: 28px 28px 64px;
+    }
+
+    .mockup-title {
+        margin: 0 0 4px;
+        color: var(--blue);
+        font-size: 23px;
+        font-weight: 700;
+    }
+
+    .mockup-note {
+        margin: 0 0 28px;
+        color: #46566d;
+        font-size: 13px;
+    }
+
+    .page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        padding: 4mm 8mm 8mm;
+        background: var(--paper);
+        box-shadow: 0 24px 75px rgba(20, 31, 51, 0.20);
+        font-size: 9px;
+    }
+
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    .bordered {
+        border: 1.6px solid var(--ink);
+    }
+
+    .header td {
+        border-right: 1.6px solid var(--ink);
+        height: 24mm;
+        vertical-align: middle;
+        text-align: center;
+    }
+
+    .header td:last-child {
+        border-right: 0;
+    }
+
+    .logo {
+        width: 38mm;
+        color: var(--blue);
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -1px;
+    }
+
+    .title {
+        line-height: 1.15;
+        font-weight: 700;
+    }
+
+    .title .main {
+        margin-top: 3px;
+        font-size: 12px;
+    }
+
+    .title .norm {
+        font-size: 11px;
+    }
+
+    .meta {
+        margin: 5px auto 0;
+        width: 63%;
+        table-layout: fixed;
+        font-size: 8px;
+    }
+
+    .meta td {
+        height: auto;
+        border: 0;
+        border-bottom: 1px solid var(--ink);
+        padding: 0 4px 2px;
+    }
+
+    .meta-labels {
+        margin: 1px auto 0;
+        width: 63%;
+        table-layout: fixed;
+        font-size: 5.5px;
+        color: #4b5563;
+    }
+
+    .meta-labels td {
+        height: auto;
+        border: 0;
+        padding: 0 4px;
+    }
+
+    .project {
+        width: 42mm;
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.2;
+    }
+
+    .lab-line {
+        display: grid;
+        grid-template-columns: 32mm 1fr;
+        gap: 8mm;
+        padding: 5mm 1mm 3mm;
+        font-size: 9px;
+    }
+
+    .section {
+        margin-top: 3.8mm;
+        border: 1.6px solid var(--ink);
+    }
+
+    .section-title {
+        padding: 3mm 3mm 1mm;
+        font-weight: 700;
+        text-decoration: underline;
+        font-size: 10px;
+    }
+
+    .general-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22mm;
+        padding: 2mm 9mm 5mm;
+    }
+
+    .field-row {
+        display: grid;
+        grid-template-columns: 38mm 1fr;
+        margin: 2.2mm 0;
+        font-weight: 700;
+    }
+
+    .criteria {
+        padding: 2mm 9mm 6mm;
+    }
+
+    .criteria .field-row {
+        grid-template-columns: 48mm 1fr;
+    }
+
+    .parameters {
+        display: flex;
+        justify-content: space-between;
+        padding: 5mm 8mm 0;
+    }
+
+    .param-box {
+        width: 78mm;
+        border: 1.4px solid var(--ink);
+        font-weight: 700;
+    }
+
+    .param-row {
+        display: grid;
+        grid-template-columns: 43mm 15mm 15mm;
+        min-height: 9mm;
+        align-items: center;
+        padding: 0 2mm;
+        border-bottom: 1px solid var(--ink);
+    }
+
+    .param-row:last-child {
+        border-bottom: 0;
+    }
+
+    .results-table {
+        width: calc(100% - 16mm);
+        margin: 6mm 8mm 7mm;
+        table-layout: fixed;
+        font-size: 8px;
+        font-weight: 700;
+    }
+
+    .results-table th,
+    .results-table td {
+        border: 1px solid var(--ink);
+        text-align: center;
+        padding: 2mm 1mm;
+        height: 8mm;
+    }
+
+    .results-table th {
+        height: 15mm;
+        line-height: 1.1;
+    }
+
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: 1fr 53mm;
+        border: 1.6px solid var(--ink);
+        margin-top: 3.8mm;
+        min-height: 44mm;
+    }
+
+    .conclusion-box {
+        border-right: 1.6px solid var(--ink);
+    }
+
+    .conclusion {
+        min-height: 22mm;
+        border-bottom: 1px dashed var(--ink);
+        text-align: center;
+        font-weight: 700;
+    }
+
+    .conclusion .section-title,
+    .comments .section-title {
+        text-align: left;
+    }
+
+    .signature {
+        display: grid;
+        grid-template-columns: 17mm 1fr;
+        font-weight: 700;
+    }
+
+    .signature > div {
+        min-height: 14.65mm;
+        border-bottom: 1px solid var(--ink);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 1mm;
+    }
+
+    .signature > div:nth-last-child(-n+2) {
+        border-bottom: 0;
+    }
+
+    .signature .label {
+        text-decoration: underline;
+        border-right: 1px solid var(--ink);
+    }
+
+    .footer-code {
+        margin-top: 20mm;
+        text-align: right;
+        font-size: 7px;
+        font-weight: 700;
+    }
+</style>
+</head>
+<body>
+<div class="mockup-shell">
+    <h1 class="mockup-title">RaLab5 · RapportMvaPage.jsx</h1>
+    <p class="mockup-note">Mockup v2 — rendu rapport imprimable, proche de la feuille MVA fournie.</p>
+
+    <main class="page">
+        <table class="header bordered">
+            <tr>
+                <td class="logo">NGE</td>
+                <td class="title">
+                    <div>COMPTE RENDU D'ESSAIS</div>
+                    <div class="main">MASSE VOLUMIQUE DES ENROBÉS</div>
+                    <div class="norm">(NF EN 12697-6-A1)</div>
+                    <table class="meta">
+                        <tr>
+                            <td>n°&nbsp;&nbsp;<strong>04</strong></td>
+                            <td><strong>RAL1EC</strong></td>
+                            <td><strong>18/07/2022</strong></td>
+                        </tr>
+                    </table>
+                    <table class="meta-labels">
+                        <tr>
+                            <td>Chrono</td>
+                            <td>N° d'affaire</td>
+                            <td>Date de rédaction</td>
+                        </tr>
+                    </table>
+                </td>
+                <td class="project">PPI - Réseau vélo<br>express</td>
+            </tr>
+        </table>
+
+        <div class="lab-line">
+            <strong>Laboratoire :</strong>
+            <span>Laboratoire Rhône-Alpes - 29-31 rue des tâches - ZI mi-plaine - 69800 SAINT PRIEST</span>
+        </div>
+
+        <section class="section">
+            <div class="section-title">1/&nbsp;&nbsp; RENSEIGNEMENTS GÉNÉRAUX</div>
+            <div class="general-grid">
+                <div>
+                    <div class="field-row"><span>Opérateur :</span><span>F. Montet</span></div>
+                    <div class="field-row"><span>Date de(s) prélèvement(s) :</span><span>13/07/2022</span></div>
+                    <div class="field-row"><span>Date de(s) essai(s) :</span><span>18/07/2022</span></div>
+                </div>
+                <div>
+                    <div class="field-row"><span>Nature du produit :</span><span>BBSG 0/10 Classe 3</span></div>
+                    <div class="field-row"><span>Provenance :</span><span>P2R F110</span></div>
+                    <div class="field-row"><span>Couche :</span><span>Roulement</span></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-title">2/&nbsp;&nbsp; CRITÈRES DE CONFORMITÉ</div>
+            <div class="criteria">
+                <div class="field-row"><span>Source des critères :</span><span>Marché / objectif chantier</span></div>
+                <div class="field-row"><span>Définition des critères / objectifs :</span><span>4 ≤ %vides ≤ 8%</span></div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-title">3/&nbsp;&nbsp; RÉSULTATS DES ESSAIS</div>
+            <div class="parameters">
+                <div class="param-box">
+                    <div class="param-row"><span>Température mesurée de l'eau :</span><span>21</span><span>°C</span></div>
+                    <div class="param-row"><span>Masse volumique de l'eau :</span><span>998,1</span><span>kg/m³</span></div>
+                </div>
+                <div class="param-box">
+                    <div class="param-row"><span>Masse volumique de la paraffine :</span><span>890</span><span>kg/m³</span></div>
+                    <div class="param-row"><span>MVR :</span><span>2447</span><span>kg/m³</span></div>
+                </div>
+            </div>
+
+            <table class="results-table">
+                <tr>
+                    <th>Référence de<br>l'éprouvette</th>
+                    <th>Masse sèche<br>(g)</th>
+                    <th>Masse sèche<br>paraffinée<br>(g)</th>
+                    <th>Masse dans l'eau<br>(g)</th>
+                    <th>Masse volumique de<br>l'éprouvette<br>(kg/m³)</th>
+                    <th>Compacité %</th>
+                    <th>% vides</th>
+                    <th>Hauteur de<br>l'éprouvette<br>(cm)</th>
+                </tr>
+                <tr><td>SC3</td><td>1338,6</td><td>1359,4</td><td>752,6</td><td>2289,8</td><td>93,6</td><td>6,4</td><td>5</td></tr>
+                <tr><td>SC5</td><td>1584,3</td><td>1607,7</td><td>879,1</td><td>2251,4</td><td>92,0</td><td>8,0</td><td>6,5</td></tr>
+                <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            </table>
+        </section>
+
+        <section class="bottom-grid">
+            <div class="conclusion-box">
+                <div class="conclusion">
+                    <div class="section-title">4/&nbsp;&nbsp; CONCLUSIONS</div>
+                    <div>Contrôle</div>
+                    <br>
+                    <div>Conforme</div>
+                </div>
+                <div class="comments">
+                    <div class="section-title">7/&nbsp;&nbsp; COMMENTAIRES</div>
+                </div>
+            </div>
+            <div class="signature">
+                <div class="label">Nom</div><div>F. MONTET</div>
+                <div class="label">Fonction</div><div>Technicien de laboratoire</div>
+                <div class="label">Visa</div><div></div>
+            </div>
+        </section>
+
+        <div class="footer-code">DG-Q / RE ID du 28/06/06</div>
+    </main>
+</div>
+</body>
+</html>

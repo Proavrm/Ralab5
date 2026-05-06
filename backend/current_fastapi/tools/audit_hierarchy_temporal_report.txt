@@ -1,0 +1,32 @@
+DB: C:\Users\marco\OneDrive\Área de Trabalho\Logiciels labo marco\RaLab5\backend\current_fastapi\data\ralab3.db
+Rules: demande_gap_days=120, campagne_gap_days=7
+
+=== A MUDAR / REIMPORTAR (PMT: demande ou campagne != regle actuelle) ===
+  (nenhum)
+
+=== A MUDAR / REIMPORTAR (SC series: demande ou campagne != regle actuelle) ===
+  SC series id=60 ref='SER-SC-401-20260427154245' | demande 401 (2022-SP-D0011) -> pred None (reimport criaria nova demande) | campagne 14 -> pred None | anchor=2026-04-27
+
+=== CANDIDATOS A APAGAR (demande sem campagnes/interventions/PMT/SC/prelevements/preparations) ===
+  demande id=4 ref='2025-SP-D0002' nature='ETU'
+  demande id=5 ref='2025-SP-D0003' nature='Note dimensionnement (Variante)'
+  demande id=7 ref='2025-SP-D0005' nature='Note dimensionnement (Variante)'
+  demande id=8 ref='2025-SP-D0006' nature='Note dimensionnement (Variante)'
+  demande id=9 ref='2025-SP-D0007' nature='Note dimensionnement (Variante)'
+  demande id=10 ref='2025-SP-D0008' nature='Note dimensionnement (Variante)'
+  demande id=12 ref='2025-SP-D0010' nature='Note dimensionnement (Variante)'
+  demande id=13 ref='2025-SP-D0011' nature='Note dimensionnement (Variante)'
+  demande id=14 ref='2025-SP-D0012' nature='Note dimensionnement (Variante)'
+  demande id=16 ref='2025-SP-D0014' nature='Note dimensionnement (Variante)'
+  demande id=17 ref='2025-SP-D0015' nature='Note dimensionnement (Variante)'
+  demande id=18 ref='2025-SP-D0016' nature='Note dimensionnement (Variante)'
+  demande id=20 ref='2026-SP-D0004' nature='Demande G3'
+  demande id=24 ref='2026-SP-D0015' nature='À qualifier'
+  demande id=25 ref='2026-SP-D0007' nature='À qualifier'
+  demande id=27 ref='2026-SP-D0009' nature='À qualifier'
+  demande id=28 ref='2026-SP-D0010' nature='À qualifier'
+
+=== CANDIDATOS A APAGAR / REVOIR (campagne sans interventions) ===
+  (nenhum)
+
+Nota: nao executar DELETE sem rever FKs (feuilles_terrain, essais, etc.).

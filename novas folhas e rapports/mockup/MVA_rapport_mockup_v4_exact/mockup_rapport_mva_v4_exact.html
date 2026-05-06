@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mockup Rapport MVA - copie exacte</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #e9e9e9;
+            font-family: Arial, sans-serif;
+        }
+
+        .viewer {
+            min-height: 100vh;
+            padding: 24px;
+            box-sizing: border-box;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+
+        .page {
+            width: 595.22pt;
+            height: 842pt;
+            background: white;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+        }
+
+        .page object {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        @media print {
+            html,
+            body {
+                background: white;
+            }
+
+            .viewer {
+                padding: 0;
+            }
+
+            .page {
+                box-shadow: none;
+                width: 210mm;
+                height: 297mm;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="viewer">
+        <section class="page" aria-label="Rapport MVA - copie exacte du PDF source">
+            <object type="image/svg+xml" data="mockup_rapport_mva_v4_exact.svg"></object>
+        </section>
+    </main>
+</body>
+</html>

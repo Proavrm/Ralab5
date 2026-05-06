@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mockups CFE - Feuille et rapport conforme</title>
+    <style>
+        :root {
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --ink: #0f172a;
+            --muted: #64748b;
+            --line: #d9e2ec;
+            --soft: #f8fafc;
+            --blue: #1d4ed8;
+            --green: #047857;
+            --red: #dc2626;
+            --black: #000000;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        button,
+        input,
+        textarea {
+            font: inherit;
+        }
+
+        .app {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 22px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            align-items: center;
+            padding: 20px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 28px;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+        }
+
+        .eyebrow {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: var(--soft);
+            color: #334155;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pill.blue {
+            color: var(--blue);
+            border-color: #bfdbfe;
+            background: #eff6ff;
+        }
+
+        .pill.green {
+            color: var(--green);
+            border-color: #bbf7d0;
+            background: #ecfdf5;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 30px;
+            letter-spacing: -0.04em;
+        }
+
+        .subtitle {
+            margin: 6px 0 0;
+            max-width: 850px;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 6px;
+            padding: 5px;
+            background: #e2e8f0;
+            border-radius: 18px;
+            white-space: nowrap;
+        }
+
+        .tab-button {
+            border: 0;
+            border-radius: 14px;
+            padding: 10px 16px;
+            background: transparent;
+            color: #475569;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .tab-button.active {
+            background: white;
+            color: var(--blue);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
+        }
+
+        .view {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        .grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .grid.two {
+            grid-template-columns: 1.2fr 0.8fr;
+        }
+
+        .grid.criteria {
+            grid-template-columns: 0.82fr 1.18fr;
+            margin-top: 16px;
+        }
+
+        .grid.bottom {
+            grid-template-columns: 1fr 0.48fr;
+            margin-top: 16px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 22px;
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.055);
+            overflow: hidden;
+        }
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 13px 16px;
+            border-bottom: 1px solid #eaf0f6;
+        }
+
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            font-size: 13px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: #334155;
+        }
+
+        .card-body {
+            padding: 16px;
+        }
+
+        .field-grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .field-grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .field-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .field.wide {
+            grid-column: span 2;
+        }
+
+        .label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 10px;
+            font-weight: 900;
+            color: var(--muted);
+            letter-spacing: 0.10em;
+            text-transform: uppercase;
+        }
+
+        .value {
+            min-height: 40px;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 13px;
+            background: white;
+            font-size: 14px;
+            line-height: 1.25;
+        }
+
+        .value.muted {
+            background: var(--soft);
+            color: #475569;
+        }
+
+        .empty {
+            color: #cbd5e1;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .metric {
+            padding: 16px;
+            background: var(--soft);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+        }
+
+        .metric-label {
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.10em;
+        }
+
+        .metric-value {
+            margin-top: 8px;
+            font-size: 32px;
+            font-weight: 900;
+            letter-spacing: -0.04em;
+        }
+
+        .metric-subtitle {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .check-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 14px;
+        }
+
+        .check-card {
+            display: flex;
+            gap: 8px;
+            align-items: flex-start;
+            padding: 12px;
+            border: 1px solid #bbf7d0;
+            background: #ecfdf5;
+            border-radius: 15px;
+            color: #065f46;
+        }
+
+        .check-title {
+            font-weight: 900;
+            font-size: 13px;
+        }
+
+        .check-detail {
+            margin-top: 2px;
+            font-size: 12px;
+        }
+
+        .chart-wrap {
+            margin-top: 16px;
+        }
+
+        .chart-box {
+            width: 100%;
+            background: white;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        svg {
+            display: block;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: white;
+        }
+
+        .modern-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .modern-table th,
+        .modern-table td {
+            border: 1px solid var(--line);
+            padding: 8px 9px;
+            white-space: nowrap;
+        }
+
+        .modern-table th {
+            background: var(--soft);
+            color: #475569;
+            font-weight: 900;
+        }
+
+        .strong-row {
+            background: var(--soft);
+            font-weight: 900;
+        }
+
+        .red {
+            color: var(--red);
+            font-weight: 900;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn {
+            border: 1px solid var(--line);
+            border-radius: 13px;
+            background: white;
+            padding: 10px 13px;
+            color: #334155;
+            font-size: 12px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+
+        .btn.dark {
+            border-color: #111827;
+            background: #111827;
+            color: white;
+        }
+
+        .btn.blue {
+            width: 100%;
+            border-color: var(--blue);
+            background: var(--blue);
+            color: white;
+            font-size: 14px;
+        }
+
+        .rapport-stage {
+            overflow-x: auto;
+            padding: 24px;
+            background: #cbd5e1;
+            border-radius: 28px;
+        }
+
+        .report-page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 4mm;
+            background: white;
+            color: var(--black);
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 9.2pt;
+            box-shadow: 0 24px 50px rgba(15, 23, 42, 0.26);
+        }
+
+        .report-header-grid {
+            display: grid;
+            grid-template-columns: 48mm 112mm 42mm;
+            height: 20mm;
+            border: 0.35mm solid var(--black);
+        }
+
+        .report-logo-cell,
+        .report-title-cell,
+        .report-site-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .report-logo-cell {
+            border-right: 0.35mm solid var(--black);
+        }
+
+        .report-title-cell {
+            border-right: 0.35mm solid var(--black);
+            flex-direction: column;
+            text-align: center;
+            line-height: 1.12;
+        }
+
+        .report-logo {
+            width: 32mm;
+            height: 9mm;
+            position: relative;
+            color: #1d4ed8;
+            font-size: 18pt;
+            font-weight: 900;
+            letter-spacing: -1.5pt;
+            transform: skew(-10deg);
+        }
+
+        .report-logo::after {
+            content: "";
+            position: absolute;
+            top: 0.7mm;
+            right: 0;
+            width: 7mm;
+            height: 4mm;
+            background: #facc15;
+            clip-path: polygon(0 0, 100% 0, 70% 100%, 0 100%);
+        }
+
+        .report-title-top {
+            font-size: 7.2pt;
+            font-weight: 900;
+        }
+
+        .report-title-main {
+            margin-top: 1.3mm;
+            font-size: 8.2pt;
+            font-weight: 900;
+        }
+
+        .report-title-norm {
+            font-size: 7.2pt;
+            font-weight: 900;
+        }
+
+        .report-header-meta {
+            display: grid;
+            grid-template-columns: 16mm 13mm 16mm 30mm 27mm;
+            align-items: center;
+            margin-top: 1.6mm;
+            font-size: 7.2pt;
+            font-weight: 700;
+        }
+
+        .report-header-meta span {
+            border-right: 0.25mm solid var(--black);
+            min-height: 4mm;
+        }
+
+        .report-header-meta span:last-child {
+            border-right: 0;
+        }
+
+        .report-header-labels {
+            display: grid;
+            grid-template-columns: 29mm 46mm 27mm;
+            margin-top: -0.2mm;
+            margin-left: 16mm;
+            font-size: 6pt;
+            color: #444;
+        }
+
+        .report-site-cell {
+            text-align: center;
+            font-weight: 900;
+            font-size: 10.5pt;
+            line-height: 1.15;
+        }
+
+        .report-lab-line {
+            height: 8.5mm;
+            display: grid;
+            grid-template-columns: 46mm 1fr;
+            align-items: center;
+            padding: 0 7mm;
+            font-size: 8.4pt;
+        }
+
+        .report-box {
+            border: 0.35mm solid var(--black);
+            margin-top: 1.25mm;
+        }
+
+        .report-section-title {
+            padding: 1.2mm 2.3mm 0.9mm;
+            font-size: 8.4pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            text-decoration: underline;
+        }
+
+        .report-general-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            column-gap: 15mm;
+            padding: 1mm 8mm 2.5mm;
+            font-size: 8.1pt;
+            line-height: 1.38;
+        }
+
+        .report-info-row {
+            display: grid;
+            grid-template-columns: 39mm 1fr;
+            min-height: 4.2mm;
+        }
+
+        .report-info-row strong {
+            font-weight: 500;
+        }
+
+        .report-criteria-content {
+            padding: 1.5mm 8mm 3mm;
+            font-size: 8.1pt;
+            line-height: 1.55;
+        }
+
+        .report-results-box {
+            height: 137mm;
+            border: 0.35mm solid var(--black);
+            margin-top: 1.25mm;
+        }
+
+        .report-chart-area {
+            width: 160mm;
+            height: 56mm;
+            margin: 7mm auto 4mm;
+        }
+
+        .report-result-table-area {
+            width: 190mm;
+            margin: 0 auto;
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            text-align: center;
+            color: #000;
+            font-size: 6.5pt;
+        }
+
+        .report-table th,
+        .report-table td {
+            border: 0.28mm solid #000;
+            padding: 0;
+            height: 6.4mm;
+            vertical-align: middle;
+            font-weight: 400;
+        }
+
+        .report-table thead th {
+            font-weight: 700;
+            height: 7mm;
+        }
+
+        .report-table .row-label {
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .report-table .bold {
+            font-weight: 900;
+        }
+
+        .report-table .red-cell {
+            color: #e11d48;
+            font-weight: 900;
+        }
+
+        .report-table .thick-left {
+            border-left-width: 0.55mm;
+        }
+
+        .report-table .thick-top td,
+        .report-table .thick-top th {
+            border-top-width: 0.55mm;
+        }
+
+        .report-table .small-head {
+            font-size: 6.1pt;
+            line-height: 1.1;
+        }
+
+        .report-table .blank-col {
+            width: 7mm;
+        }
+
+        .report-bottom-grid {
+            display: grid;
+            grid-template-columns: 136mm 54mm;
+            min-height: 46mm;
+            margin-top: 1.6mm;
+            border: 0.35mm solid #000;
+        }
+
+        .report-bottom-left {
+            border-right: 0.35mm solid #000;
+        }
+
+        .report-conclusion-title {
+            height: 9mm;
+            padding: 1.2mm 2.3mm 0.9mm;
+            font-size: 8.4pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            text-decoration: underline;
+        }
+
+        .report-control-zone {
+            height: 18mm;
+            border-top: 0.25mm dashed #000;
+            display: grid;
+            grid-template-columns: 53mm 1fr;
+            align-items: center;
+            padding-left: 56mm;
+            font-size: 9pt;
+        }
+
+        .report-control-zone strong {
+            font-weight: 900;
+        }
+
+        .report-comments-title {
+            height: 8mm;
+            border-top: 0.35mm solid #000;
+            padding: 1.2mm 2.3mm 0.9mm;
+            font-size: 8.4pt;
+            font-weight: 900;
+            text-transform: uppercase;
+            text-decoration: underline;
+        }
+
+        .report-comment-space {
+            height: 10mm;
+        }
+
+        .report-visa-grid {
+            display: grid;
+            grid-template-columns: 22mm 32mm;
+            grid-template-rows: 13mm 16mm 17mm;
+            height: 46mm;
+            font-size: 8pt;
+        }
+
+        .report-visa-grid > div {
+            border-bottom: 0.35mm solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 1mm;
+        }
+
+        .report-visa-grid > div:nth-child(odd) {
+            font-weight: 900;
+            text-decoration: underline;
+            border-right: 0.35mm solid #000;
+        }
+
+        .report-visa-grid > div:nth-last-child(-n+2) {
+            border-bottom: 0;
+        }
+
+        .report-footer-code {
+            text-align: right;
+            margin-top: 3mm;
+            font-size: 6.4pt;
+            color: #000;
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-top: 18px;
+            padding: 14px 16px;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: white;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+
+            .topbar,
+            .footer,
+            #feuille {
+                display: none !important;
+            }
+
+            .app {
+                padding: 0;
+                max-width: none;
+            }
+
+            .view {
+                display: block !important;
+                margin: 0;
+            }
+
+            .rapport-stage {
+                padding: 0;
+                background: white;
+                border-radius: 0;
+            }
+
+            .report-page {
+                box-shadow: none;
+                margin: 0;
+            }
+        }
+
+        @media (max-width: 980px) {
+            .topbar,
+            .grid.two,
+            .grid.criteria,
+            .grid.bottom,
+            .field-grid-4,
+            .metrics,
+            .check-row {
+                grid-template-columns: 1fr;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .field.wide {
+                grid-column: auto;
+            }
+
+            .field-grid-2,
+            .field-grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="app">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow">
+                    <span class="pill blue">RaLab5</span>
+                    <span class="pill">CFE</span>
+                    <span class="pill green">rapport recadré sur le PDF</span>
+                </div>
+                <h1>Feuille & Rapport CFE</h1>
+                <p class="subtitle">La feuille reste en style RaLab. Le rapport a été repris sur une page A4 portrait avec la structure du modèle fourni.</p>
+            </div>
+            <nav class="tabs" aria-label="Choix du mockup">
+                <button class="tab-button active" data-target="feuille">Feuille CFE</button>
+                <button class="tab-button" data-target="rapport">Rapport CFE</button>
+            </nav>
+        </header>
+
+        <section id="feuille" class="view active">
+            <div class="grid two">
+                <article class="card">
+                    <div class="card-head">
+                        <div class="card-title">▣ Identification du contrôle</div>
+                        <span class="pill blue">CFE 18 RA L1EC</span>
+                    </div>
+                    <div class="card-body field-grid-4">
+                        <div class="field"><span class="label">Type</span><div class="value">CFE</div></div>
+                        <div class="field"><span class="label">N°</span><div class="value">18</div></div>
+                        <div class="field"><span class="label">N° d'affaire</span><div class="value">RA L1EC</div></div>
+                        <div class="field"><span class="label">Date rédaction</span><div class="value">10/10/2025</div></div>
+                        <div class="field wide"><span class="label">Chantier / site</span><div class="value">VL3 - Albigny sur Saône</div></div>
+                        <div class="field wide"><span class="label">Laboratoire</span><div class="value">Région Rhône Alpes - Saint Priest</div></div>
+                        <div class="field"><span class="label">Opérateur</span><div class="value">F. Montet</div></div>
+                        <div class="field"><span class="label">Date essai</span><div class="value">10/10/2025</div></div>
+                        <div class="field"><span class="label">Date mise en œuvre</span><div class="value">Nuit 09-10/10/2025</div></div>
+                        <div class="field"><span class="label">Lieu fabrication</span><div class="value">P2R</div></div>
+                    </div>
+                </article>
+
+                <article class="card">
+                    <div class="card-head"><div class="card-title">◇ Produit / formule</div></div>
+                    <div class="card-body field-grid-2">
+                        <div class="field"><span class="label">Appellation européenne</span><div class="value">EB 10 ROUL 35/50</div></div>
+                        <div class="field"><span class="label">Appellation française</span><div class="value">BBSG 0/10 Cl3 15% AE</div></div>
+                        <div class="field"><span class="label">Destination</span><div class="value">Avenue de la gare</div></div>
+                        <div class="field"><span class="label">Code formule</span><div class="value">110</div></div>
+                        <div class="field"><span class="label">Couche</span><div class="value">Roulement</div></div>
+                        <div class="field"><span class="label">Méthode d'essai</span><div class="value">Extracteur automatique - NEBA</div></div>
+                    </div>
+                </article>
+            </div>
+
+            <div class="grid criteria">
+                <article class="card">
+                    <div class="card-head"><div class="card-title">⌖ Critères de conformité</div></div>
+                    <div class="card-body">
+                        <div class="field"><span class="label">Source des critères</span><div class="value">Formule 110 / fiche produit</div></div>
+                        <br />
+                        <div class="field"><span class="label">Définition critères / objectifs</span><div class="value">Fuseau granulométrique + teneur en liant + module de richesse</div></div>
+                        <br />
+                        <div class="field-grid-3">
+                            <div class="field"><span class="label">Liant théorique</span><div class="value muted">5,40 %</div></div>
+                            <div class="field"><span class="label">Seuil mini</span><div class="value muted">4,90 %</div></div>
+                            <div class="field"><span class="label">Seuil maxi</span><div class="value muted">5,90 %</div></div>
+                        </div>
+                        <br />
+                        <div class="field-grid-2">
+                            <div class="field"><span class="label">Module objectif</span><div class="value muted">3,42</div></div>
+                            <div class="field"><span class="label">MVR granulats</span><div class="value muted">2,650 Mg/m³</div></div>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="card">
+                    <div class="card-head">
+                        <div class="card-title">✦ Synthèse calculée</div>
+                        <span class="pill green">✓ Conforme</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="metrics">
+                            <div class="metric"><div class="metric-label">Teneur en liant moyenne</div><div class="metric-value">5,13 %</div><div class="metric-subtitle">écart à la formule : -0,27</div></div>
+                            <div class="metric"><div class="metric-label">Module richesse</div><div class="metric-value">3,19</div><div class="metric-subtitle">objectif : 3,42</div></div>
+                            <div class="metric"><div class="metric-label">Température</div><div class="metric-value">177 °C</div><div class="metric-subtitle">mesure unique</div></div>
+                        </div>
+                        <div class="check-row">
+                            <div class="check-card"><b>✓</b><div><div class="check-title">Granulométrie</div><div class="check-detail">Moyenne dans fuseau</div></div></div>
+                            <div class="check-card"><b>✓</b><div><div class="check-title">Teneur en liant</div><div class="check-detail">5,13 % / seuils 4,90 - 5,90</div></div></div>
+                            <div class="check-card"><b>✓</b><div><div class="check-title">Module richesse</div><div class="check-detail">3,19 / objectif 3,42</div></div></div>
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <article class="card chart-wrap">
+                <div class="card-head"><div class="card-title">⌁ Courbe granulométrique</div></div>
+                <div class="card-body"><div id="chart-feuille" class="chart-box"></div></div>
+            </article>
+
+            <article class="card chart-wrap">
+                <div class="card-head">
+                    <div class="card-title">▤ Résultats des essais</div>
+                    <div class="actions"><button class="btn">↥ Import Excel</button><button class="btn dark">Enregistrer</button></div>
+                </div>
+                <div class="card-body"><div id="table-feuille" class="table-wrap"></div></div>
+            </article>
+
+            <div class="grid bottom">
+                <article class="card">
+                    <div class="card-head"><div class="card-title">▧ Conclusions et commentaires</div></div>
+                    <div class="card-body field-grid-2">
+                        <div class="field"><span class="label">Conclusion</span><div class="value">Contrôle conforme</div></div>
+                        <div class="field"><span class="label">Statut</span><div class="value">Conforme</div></div>
+                        <div class="field wide"><span class="label">Commentaires</span><div class="value"><span class="empty">À renseigner</span></div></div>
+                    </div>
+                </article>
+                <article class="card">
+                    <div class="card-head"><div class="card-title">▣ Actions rapport</div></div>
+                    <div class="card-body">
+                        <button class="btn blue">Prévisualiser le rapport</button>
+                        <br /><br />
+                        <button class="btn" style="width: 100%;">Export PDF</button>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section id="rapport" class="view">
+            <div class="rapport-stage">
+                <div class="report-page">
+                    <div class="report-header-grid">
+                        <div class="report-logo-cell"><div class="report-logo">NGE</div></div>
+                        <div class="report-title-cell">
+                            <div class="report-title-top">COMPTE RENDU D'ESSAIS</div>
+                            <div class="report-title-main">CONTRÔLE DE FABRICATION DES ENROBES</div>
+                            <div class="report-title-norm">(NF EN 12697-1/ NF EN 12697-2)</div>
+                            <div class="report-header-meta">
+                                <span>CFE</span>
+                                <span>n°</span>
+                                <span>18</span>
+                                <span>RA L1EC</span>
+                                <span>10/10/2025</span>
+                            </div>
+                            <div class="report-header-labels">
+                                <span></span>
+                                <span>N° d'affaire</span>
+                                <span>Date de rédaction</span>
+                            </div>
+                        </div>
+                        <div class="report-site-cell">VL3 -<br />Albigny sur Saône</div>
+                    </div>
+
+                    <div class="report-lab-line"><strong>Laboratoire :</strong><span>Région Rhône Alpes - 29-31 rue des Tâches - ZI Mi-Plaine - 69800 SAINT PRIEST</span></div>
+
+                    <div class="report-box">
+                        <div class="report-section-title">1/ Renseignements généraux</div>
+                        <div class="report-general-content">
+                            <div>
+                                <div class="report-info-row"><strong>Opérateur :</strong><span>F. Montet</span></div>
+                                <div class="report-info-row"><strong>Date de l'essai :</strong><span>10/10/2025</span></div>
+                                <div class="report-info-row"><strong>Date de mise en œuvre :</strong><span>Nuit 09-10/10/2025</span></div>
+                                <div class="report-info-row"><strong>Appellation européenne :</strong><span>EB 10 ROUL 35/50</span></div>
+                                <div class="report-info-row"><strong>Appellation française :</strong><span>BBSG 0/10 Cl3 15% AE</span></div>
+                            </div>
+                            <div>
+                                <div class="report-info-row"><strong>Lieu de fabrication :</strong><span>P2R</span></div>
+                                <div class="report-info-row"><strong>Destination du produit :</strong><span>Avenue de la gare</span></div>
+                                <div class="report-info-row"><strong>Code formule :</strong><span>110</span></div>
+                                <div class="report-info-row"><strong>Couche de :</strong><span>Roulement</span></div>
+                                <div class="report-info-row"><strong>Méthode d'essai :</strong><span>Extracteur automatique - NEBA</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="report-box">
+                        <div class="report-section-title">2/ Critères de conformité</div>
+                        <div class="report-criteria-content">
+                            <div>Source des critères :</div>
+                            <div>Définition des critères / objectifs :</div>
+                        </div>
+                    </div>
+
+                    <div class="report-results-box">
+                        <div class="report-section-title">2/ Résultats des essais</div>
+                        <div id="chart-rapport" class="report-chart-area"></div>
+                        <div id="table-rapport" class="report-result-table-area"></div>
+                    </div>
+
+                    <div class="report-bottom-grid">
+                        <div class="report-bottom-left">
+                            <div class="report-conclusion-title">4/ Conclusions</div>
+                            <div class="report-control-zone"><strong>Contrôle :</strong><strong>Conforme</strong></div>
+                            <div class="report-comments-title">5/ Commentaires</div>
+                            <div class="report-comment-space"></div>
+                        </div>
+                        <div class="report-visa-grid">
+                            <div>Nom</div><div>F. MONTET</div>
+                            <div>Fonction</div><div>Technicien de laboratoire</div>
+                            <div>Visa</div><div></div>
+                        </div>
+                    </div>
+
+                    <div class="report-footer-code">DG-Q / RE CFE du 28/06/06</div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <div>Mockup visuel uniquement. Les valeurs sont préremplies pour montrer la logique d'écran.</div>
+            <div>✓ Conforme &nbsp;&nbsp; ✕ Non conforme si dépassement</div>
+        </footer>
+    </main>
+
+    <script>
+        const sieves = [0.063, 0.125, 0.25, 0.5, 1, 2, 4, 6.3, 8, 10, 12.5, 14, 16, 20];
+        const measure1 = [7.3, 9.3, 12.2, 15.9, 21.0, 29.7, 42.7, 61.5, 79.2, 95.5, 100, null, null, null];
+        const theoretical = [6.5, 8.0, 11.0, 16.0, 21.0, 30.0, 44.0, 60.0, 76.0, 95.0, 100, null, null, null];
+        const limitMin = [null, null, null, null, null, 24.0, null, 53.0, null, null, null, null, null, null];
+        const limitMax = [8.5, null, null, null, null, 36.0, null, 67.0, null, null, null, null, null, null];
+
+        function formatNumber(value, digits = 1) {
+            if (value === null || value === undefined || Number.isNaN(Number(value))) {
+                return "";
+            }
+            return Number(value).toFixed(digits).replace(".", ",");
+        }
+
+        function average(values) {
+            const validValues = values.filter((value) => value !== null && value !== undefined && !Number.isNaN(Number(value)));
+            if (!validValues.length) {
+                return null;
+            }
+            return validValues.reduce((sum, value) => sum + Number(value), 0) / validValues.length;
+        }
+
+        function runSelfTests() {
+            console.assert(sieves.length === measure1.length, "CFE HTML test: sieves and measure values must have same length.");
+            console.assert(sieves.length === theoretical.length, "CFE HTML test: sieves and theoretical values must have same length.");
+            console.assert(sieves.length === limitMin.length, "CFE HTML test: sieves and min limits must have same length.");
+            console.assert(sieves.length === limitMax.length, "CFE HTML test: sieves and max limits must have same length.");
+            console.assert(formatNumber(5.13, 2) === "5,13", "CFE HTML test: formatNumber must use comma.");
+            console.assert(formatNumber(null) === "", "CFE HTML test: null must render empty.");
+            console.assert(average([null, 1, 3]) === 2, "CFE HTML test: average must ignore null values.");
+            console.assert(average([null, undefined]) === null, "CFE HTML test: average must return null when no values exist.");
+            console.assert(sieves.every((sieve) => sieve > 0), "CFE HTML test: sieves must be positive for logarithmic scale.");
+        }
+
+        function renderChart(containerId, options = {}) {
+            const container = document.getElementById(containerId);
+            if (!container) {
+                return;
+            }
+
+            const width = options.width || 920;
+            const height = options.height || 280;
+            const padding = { left: 58, right: 26, top: 20, bottom: 42 };
+            const minX = Math.log10(0.01);
+            const maxX = Math.log10(100);
+
+            function xScale(value) {
+                const ratio = (Math.log10(value) - minX) / (maxX - minX);
+                return padding.left + ratio * (width - padding.left - padding.right);
+            }
+
+            function yScale(value) {
+                return padding.top + (1 - value / 100) * (height - padding.top - padding.bottom);
+            }
+
+            function path(values) {
+                return sieves
+                    .map((sieve, index) => ({ sieve, value: values[index] }))
+                    .filter((point) => point.value !== null && point.value !== undefined)
+                    .map((point, index) => `${index === 0 ? "M" : "L"}${xScale(point.sieve).toFixed(2)} ${yScale(point.value).toFixed(2)}`)
+                    .join(" ");
+            }
+
+            const gridXMajor = [0.01, 0.1, 1, 10, 100];
+            const gridXMinor = [0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 2, 3, 4, 5, 6, 7, 8, 9, 20, 30, 40, 50, 60, 70, 80, 90];
+            const gridY = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+            let svg = `<svg viewBox="0 0 ${width} ${height}" width="100%" height="100%" role="img" aria-label="Courbe granulométrique CFE">`;
+            svg += `<rect x="0" y="0" width="${width}" height="${height}" fill="white"></rect>`;
+
+            gridY.forEach((value) => {
+                svg += `<line x1="${padding.left}" x2="${width - padding.right}" y1="${yScale(value)}" y2="${yScale(value)}" stroke="#000" stroke-width="0.75"></line>`;
+                svg += `<text x="${padding.left - 10}" y="${yScale(value) + 3.5}" text-anchor="end" font-size="10" fill="#000">${value.toFixed(1).replace(".", ",")}</text>`;
+            });
+
+            gridXMinor.forEach((value) => {
+                svg += `<line y1="${padding.top}" y2="${height - padding.bottom}" x1="${xScale(value)}" x2="${xScale(value)}" stroke="#000" stroke-width="0.45"></line>`;
+            });
+
+            gridXMajor.forEach((value) => {
+                svg += `<line y1="${padding.top}" y2="${height - padding.bottom}" x1="${xScale(value)}" x2="${xScale(value)}" stroke="#000" stroke-width="0.9"></line>`;
+                svg += `<text x="${xScale(value)}" y="${height - padding.bottom + 16}" text-anchor="middle" font-size="10" fill="#000">${Number(value).toFixed(3).replace(".", ",")}</text>`;
+            });
+
+            svg += `<rect x="${padding.left}" y="${padding.top}" width="${width - padding.left - padding.right}" height="${height - padding.top - padding.bottom}" fill="none" stroke="#000" stroke-width="1.2"></rect>`;
+            svg += `<path d="${path(measure1)}" fill="none" stroke="#1d4ed8" stroke-width="2"></path>`;
+            svg += `<path d="${path(theoretical)}" fill="none" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="4 3"></path>`;
+
+            measure1.forEach((value, index) => {
+                if (value !== null) {
+                    svg += `<circle cx="${xScale(sieves[index])}" cy="${yScale(value)}" r="2.6" fill="#1d4ed8"></circle>`;
+                }
+            });
+
+            theoretical.forEach((value, index) => {
+                if (value !== null) {
+                    svg += `<rect x="${xScale(sieves[index]) - 2.4}" y="${yScale(value) - 2.4}" width="4.8" height="4.8" fill="#dc2626"></rect>`;
+                }
+            });
+
+            const thresholdMarks = [
+                { sieve: 0.063, value: 8.5, type: "max" },
+                { sieve: 2, value: 36.0, type: "max" },
+                { sieve: 6.3, value: 67.0, type: "max" },
+                { sieve: 0.063, value: 4.5, type: "min" },
+                { sieve: 2, value: 24.0, type: "min" },
+                { sieve: 6.3, value: 53.0, type: "min" }
+            ];
+
+            thresholdMarks.forEach((mark) => {
+                const x = xScale(mark.sieve);
+                const y = yScale(mark.value);
+                svg += `<line x1="${x - 5}" x2="${x + 5}" y1="${y}" y2="${y}" stroke="#000" stroke-width="1.6"></line>`;
+            });
+
+            svg += `<text x="${width / 2}" y="${height - 7}" text-anchor="middle" font-size="10" font-weight="700" fill="#000">Tamis (mm)</text>`;
+            svg += `<text x="18" y="${height / 2}" text-anchor="middle" font-size="10" font-weight="700" fill="#000" transform="rotate(-90 18 ${height / 2})">Passants (%)</text>`;
+
+            if (options.legend !== false) {
+                svg += `<g transform="translate(${padding.left + 25}, ${padding.top + 8})">`;
+                svg += `<rect width="120" height="48" fill="white" stroke="#000" stroke-width="1"></rect>`;
+                svg += `<line x1="10" x2="35" y1="12" y2="12" stroke="#1d4ed8" stroke-width="2"></line><circle cx="22.5" cy="12" r="2.5" fill="#1d4ed8"></circle><text x="43" y="15" font-size="9" fill="#000">courbe moyenne</text>`;
+                svg += `<line x1="10" x2="35" y1="25" y2="25" stroke="#dc2626" stroke-width="1.6" stroke-dasharray="4 3"></line><rect x="20" y="22.7" width="4.6" height="4.6" fill="#dc2626"></rect><text x="43" y="28" font-size="9" fill="#000">courbe théorique</text>`;
+                svg += `<line x1="10" x2="35" y1="38" y2="38" stroke="#000" stroke-width="1.4" stroke-dasharray="6 5"></line><text x="43" y="41" font-size="9" fill="#000">Seuil mini / maxi</text>`;
+                svg += `</g>`;
+            }
+
+            svg += `</svg>`;
+            container.innerHTML = svg;
+        }
+
+        function renderModernTable(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) {
+                return;
+            }
+
+            const rows = [
+                { label: "1", hour: "01:10", values: measure1, temperature: 177.0, binder: 5.13, module: 3.19 },
+                { label: "2", hour: "", values: Array(sieves.length).fill(null), temperature: null, binder: null, module: null },
+                { label: "3", hour: "", values: Array(sieves.length).fill(null), temperature: null, binder: null, module: null },
+                { label: "4", hour: "", values: Array(sieves.length).fill(null), temperature: null, binder: null, module: null }
+            ];
+            const summaries = [
+                { label: "Moyenne", values: measure1, temperature: 177.0, binder: 5.13, module: 3.20, className: "strong-row" },
+                { label: "Théorique", values: theoretical, temperature: null, binder: 5.40, module: 3.42, className: "red" },
+                { label: "Seuil maxi", values: limitMax, temperature: null, binder: 5.90, module: null, className: "" },
+                { label: "Seuil mini", values: limitMin, temperature: null, binder: 4.90, module: null, className: "" }
+            ];
+
+            let html = "<table class='modern-table'><thead><tr><th>N°</th><th>Heure</th>";
+            sieves.forEach((sieve) => {
+                html += `<th>${String(sieve).replace(".", ",")}</th>`;
+            });
+            html += "<th>Temp.</th><th>Liant</th><th>Module</th></tr></thead><tbody>";
+
+            rows.forEach((row) => {
+                html += `<tr><td><b>${row.label}</b></td><td>${row.hour}</td>`;
+                row.values.forEach((value) => {
+                    html += `<td>${formatNumber(value)}</td>`;
+                });
+                html += `<td>${formatNumber(row.temperature)}</td><td>${formatNumber(row.binder, 2)}</td><td>${formatNumber(row.module, 2)}</td></tr>`;
+            });
+
+            summaries.forEach((row) => {
+                html += `<tr class="${row.className === "strong-row" ? "strong-row" : ""}"><td colspan="2" style="text-align:left;"><b>${row.label}</b></td>`;
+                row.values.forEach((value) => {
+                    const redClass = row.className === "red" && value !== null ? "red" : "";
+                    html += `<td class="${redClass}">${formatNumber(value)}</td>`;
+                });
+                html += `<td>${formatNumber(row.temperature)}</td><td class="${row.className === "red" ? "red" : ""}">${formatNumber(row.binder, 2)}</td><td>${formatNumber(row.module, 2)}</td></tr>`;
+            });
+
+            html += "</tbody></table>";
+            container.innerHTML = html;
+        }
+
+        function renderReportTable(containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) {
+                return;
+            }
+
+            const rows = [
+                { label: "1", hour: "01:10", values: measure1, temperature: "177,0", binder: "5,13", module: "3,19" },
+                { label: "2", hour: "", values: Array(sieves.length).fill(null), temperature: "", binder: "", module: "" },
+                { label: "3", hour: "", values: Array(sieves.length).fill(null), temperature: "", binder: "", module: "" },
+                { label: "4", hour: "", values: Array(sieves.length).fill(null), temperature: "", binder: "", module: "" }
+            ];
+
+            const summaries = [
+                { label: "Moyenne", values: measure1, temperature: "177,0", binder: "5,13", module: "3,2", bold: true },
+                { label: "Théorique", values: theoretical, temperature: "", binder: "5,40", module: "3,42", red: true },
+                { label: "Seuil maxi", values: limitMax, temperature: "", binder: "5,9", module: "" },
+                { label: "Seuil mini", values: limitMin, temperature: "", binder: "4,9", module: "" }
+            ];
+
+            let html = `<table class="report-table"><thead>`;
+            html += `<tr>`;
+            html += `<th style="width:7.5mm;">N°</th>`;
+            html += `<th style="width:12mm;">Heure</th>`;
+            sieves.forEach((sieve) => {
+                html += `<th>${String(sieve).replace(".", ",")}</th>`;
+            });
+            html += `<th class="blank-col"></th><th class="blank-col"></th><th class="blank-col"></th>`;
+            html += `<th class="small-head thick-left" style="width:15mm;">température<br />mesurée</th>`;
+            html += `<th class="small-head" style="width:15mm;">teneur en<br />liant</th>`;
+            html += `<th class="small-head" style="width:15mm;">Module<br />richesse</th>`;
+            html += `</tr></thead><tbody>`;
+
+            rows.forEach((row) => {
+                html += `<tr><td class="row-label">${row.label}</td><td>${row.hour}</td>`;
+                row.values.forEach((value) => {
+                    html += `<td>${formatNumber(value)}</td>`;
+                });
+                html += `<td></td><td></td><td></td>`;
+                html += `<td class="thick-left">${row.temperature}</td><td>${row.binder}</td><td>${row.module}</td></tr>`;
+            });
+
+            summaries.forEach((row, index) => {
+                const rowClass = index === 0 ? "thick-top" : "";
+                html += `<tr class="${rowClass}"><td colspan="2" class="row-label">${row.label}</td>`;
+                row.values.forEach((value) => {
+                    html += `<td class="${row.red && value !== null ? "red-cell" : row.bold ? "bold" : ""}">${formatNumber(value)}</td>`;
+                });
+                html += `<td></td><td></td><td></td>`;
+                html += `<td class="thick-left ${row.bold ? "bold" : ""}">${row.temperature}</td>`;
+                html += `<td class="${row.red ? "red-cell" : row.bold ? "bold" : ""}">${row.binder}</td>`;
+                html += `<td class="${row.bold ? "bold" : ""}">${row.module}</td></tr>`;
+            });
+
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+
+        function setupTabs() {
+            document.querySelectorAll(".tab-button").forEach((button) => {
+                button.addEventListener("click", () => {
+                    document.querySelectorAll(".tab-button").forEach((item) => item.classList.remove("active"));
+                    document.querySelectorAll(".view").forEach((view) => view.classList.remove("active"));
+                    button.classList.add("active");
+                    document.getElementById(button.dataset.target).classList.add("active");
+                });
+            });
+        }
+
+        runSelfTests();
+        setupTabs();
+        renderChart("chart-feuille", { width: 920, height: 280 });
+        renderModernTable("table-feuille");
+        renderChart("chart-rapport", { width: 620, height: 215 });
+        renderReportTable("table-rapport");
+    </script>
+</body>
+</html>

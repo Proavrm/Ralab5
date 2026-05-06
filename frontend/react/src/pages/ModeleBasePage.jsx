@@ -7,6 +7,7 @@ import { essaisApi, feuillesTerrainApi, qualiteApi } from '@/services/api'
 import {
     computeDeSummary,
     deleteModelDefinitionDE,
+    deleteModelDefinitionDEById,
     getModelDefinitionDE,
     getRapportModelDefinitionDEById,
     listModelDefinitionsDE,
@@ -20,6 +21,14 @@ import PhotoCropModal from '@/components/ui/PhotoCropModal'
 import Input from '@/components/ui/Input'
 import { navigateWithReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
+import {
+    TERRAIN_CRITERIA_SOURCE_SELECT_OPTIONS,
+    TERRAIN_FABRICATION_SITE_SELECT_OPTIONS,
+    TERRAIN_FORMULA_SELECT_OPTIONS,
+    TERRAIN_OPERATOR_SELECT_OPTIONS,
+    TERRAIN_PRODUCT_SELECT_OPTIONS,
+    renderTerrainSelectOptionExtras,
+} from '@/lib/terrainEssaiSelectOptions'
 import { getFeuilleTypeConfig } from '@/pages/terrain/feuilleTypeRegistry'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -365,51 +374,6 @@ function renderDeView({
         onRemoveRow(index)
     }
 
-    const renderOptions = (items, currentValue) => {
-        const normalizedItems = items.map((item) => String(item.value || item.label || '').trim())
-        const current = String(currentValue || '').trim()
-        const shouldAddCurrent = current && !normalizedItems.includes(current)
-
-        return (
-            <>
-                {shouldAddCurrent ? <option value={current}>{current}</option> : null}
-                {items.map((item) => (
-                    <option key={item.value || item.label} value={item.value || item.label}>{item.label || item.value}</option>
-                ))}
-            </>
-        )
-    }
-
-    const operatorOptions = [
-        { value: 'MARCO', label: 'MARCO' },
-        { value: 'CLARA', label: 'CLARA' },
-        { value: 'TECHNICIEN_1', label: 'Technicien 1' },
-        { value: 'TECHNICIEN_2', label: 'Technicien 2' },
-    ]
-
-    const fabricationOptions = [
-        { value: 'CENTRALE_SP', label: 'Centrale Saint-Priest' },
-        { value: 'CENTRALE_PTC', label: 'Centrale Pont-du-Château' },
-    ]
-
-    const formulaOptions = [
-        { value: 'FORMULE_FTP', label: 'Formule issue FTP' },
-    ]
-
-    const productOptions = [
-        { value: 'PRODUIT_FTP', label: 'Produit contrôlé issu FTP' },
-    ]
-
-
-
-    const criteriaSourceOptions = [
-        { value: 'CCTP', label: 'CCTP' },
-        { value: 'FTP', label: 'FTP' },
-        { value: 'NORME', label: 'Norme' },
-        { value: 'CLIENT', label: 'Exigence client' },
-        { value: 'INTERNE', label: 'Objectif interne' },
-    ]
-
     return (
         <div className="flex flex-col gap-4">
             <Card title="Identification" description="Données de réalisation de l’essai ou de l’intervention.">
@@ -425,7 +389,7 @@ function renderDeView({
                     <Field label="Opérateur" tone="manual">
                         <Select value={meta.operateur || ''} onChange={(value) => handleMetaChange('operateur', value)} readOnly={isApproved}>
                             <option value="">Sélectionner un opérateur</option>
-                            {renderOptions(operatorOptions, meta.operateur)}
+                            {renderTerrainSelectOptionExtras(TERRAIN_OPERATOR_SELECT_OPTIONS, meta.operateur)}
                         </Select>
                     </Field>
                     <Field label="Conditions météo" tone="manual">
@@ -442,19 +406,19 @@ function renderDeView({
                     <Field label="Lieu de fabrication" tone="manual">
                         <Select value={meta.lieu_fabrication || ''} onChange={(value) => handleMetaChange('lieu_fabrication', value)} readOnly={isApproved}>
                             <option value="">Sélectionner une centrale</option>
-                            {renderOptions(fabricationOptions, meta.lieu_fabrication)}
+                            {renderTerrainSelectOptionExtras(TERRAIN_FABRICATION_SITE_SELECT_OPTIONS, meta.lieu_fabrication)}
                         </Select>
                     </Field>
                     <Field label="Numéro formule" tone="manual">
                         <Select value={meta.numero_formule || ''} onChange={(value) => handleMetaChange('numero_formule', value)} readOnly={isApproved}>
                             <option value="">Sélectionner une formule</option>
-                            {renderOptions(formulaOptions, meta.numero_formule)}
+                            {renderTerrainSelectOptionExtras(TERRAIN_FORMULA_SELECT_OPTIONS, meta.numero_formule)}
                         </Select>
                     </Field>
                     <Field label="Produit contrôlé" tone="manual">
                         <Select value={meta.produit_controle || ''} onChange={(value) => handleMetaChange('produit_controle', value)} readOnly={isApproved}>
                             <option value="">Sélectionner une FTP</option>
-                            {renderOptions(productOptions, meta.produit_controle)}
+                            {renderTerrainSelectOptionExtras(TERRAIN_PRODUCT_SELECT_OPTIONS, meta.produit_controle)}
                         </Select>
                     </Field>
                     <Field label="Couche" tone="manual">
@@ -480,7 +444,7 @@ function renderDeView({
                             <option value="">
                                 {equipmentLoading ? 'Chargement des équipements...' : 'Sélectionner un équipement'}
                             </option>
-                            {renderOptions(equipmentOptions, meta.gammadensimetre)}
+                            {renderTerrainSelectOptionExtras(equipmentOptions, meta.gammadensimetre)}
                         </Select>
 
                         {equipmentError ? (
@@ -518,7 +482,7 @@ function renderDeView({
                         <Field label="Source des critères :" tone="hierarchy">
                             <Select value={meta.criteria_source || ''} onChange={(value) => handleMetaChange('criteria_source', value)} readOnly={isApproved}>
                                 <option value="">Sélectionner une source</option>
-                                {renderOptions(criteriaSourceOptions, meta.criteria_source)}
+                                {renderTerrainSelectOptionExtras(TERRAIN_CRITERIA_SOURCE_SELECT_OPTIONS, meta.criteria_source)}
                             </Select>
                         </Field>
                     </div>
@@ -4157,6 +4121,28 @@ export default function ModeleBasePage() {
     }
 
     function clearDraft() {
+        if (code === 'DE' && selectedModelId) {
+            const deleted = deleteModelDefinitionDEById(selectedModelId)
+            if (deleted) {
+                const remaining = listModelDefinitionsDE()
+                const nextModel = remaining[0] || null
+                setSelectedModelId(String(nextModel?.id || ''))
+                setReference(String(nextModel?.reference || ''))
+                setValues(nextModel?.values && typeof nextModel.values === 'object' ? nextModel.values : {})
+                setDeDraft(toDeDraft(nextModel?.values && typeof nextModel.values === 'object' ? nextModel.values : {}))
+                setSource(nextModel?.source && typeof nextModel.source === 'object' ? nextModel.source : null)
+                setModelStatus(nextModel?.status === 'approved' ? 'approved' : 'draft')
+                refreshModelDefinitions(String(nextModel?.id || ''))
+                setResult({
+                    type: 'ok',
+                    msg: nextModel
+                        ? 'Modèle actuel supprimé. Les autres modèles DE sont conservés.'
+                        : 'Modèle actuel supprimé. Aucun autre modèle DE enregistré.',
+                })
+                return
+            }
+        }
+
         setReference('')
         setValues({})
         setDeDraft({ meta: {}, points_rows: [] })

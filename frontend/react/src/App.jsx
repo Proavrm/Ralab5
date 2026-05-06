@@ -110,6 +110,7 @@ export default function App() {
                 <Route path="work/de" element={<P><WorkDePage /></P>} />
                 <Route path="modeles/pmt" element={<P><ModelePMTPage /></P>} />
                 <Route path="work/pmt" element={<P><WorkPmtPage /></P>} />
+                <Route path="pmt-essais/:pmtId/runtime" element={<P><FeuillePmtRuntimePage /></P>} />
                 <Route path="feuilles-terrain/pmt/:uid/runtime" element={<P><FeuillePmtRuntimePage /></P>} />
                 <Route path="tools" element={<P><ToolsPage /></P>} />
                 <Route path="admin" element={<P><AdminPage /></P>} />

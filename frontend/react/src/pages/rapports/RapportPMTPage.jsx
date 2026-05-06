@@ -10,66 +10,13 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Button from "@/components/ui/Button";
 import { feuillesTerrainApi } from "@/services/api";
 import RapportPageShell from "@/components/rapports/RapportPageShell";
+import { getModelDefinitionPMT, getModelDefinitionPMTById, getWorkDocumentPMT } from "@/services/pmtModelWorkStore";
+import { computePmtFromDiameterAndVolume } from "@/lib/pmt/compute";
+import { hasPositionCode, normalizePositionCodes } from "@/lib/positionCodes";
 import "@/styles/rapport-nge.css";
 import "@/styles/rapport-de.css";
 
 const PMT_REPORT_MODELS_KEY = "ralab5_rapport_models_PMT";
-
-const DEFAULT_REPORT = {
-    header: {
-        reportNumber: "9",
-        chronoNumber: "",
-        affaireNumber: "RA L1EC",
-        editionDate: "10/10/2025",
-        siteTitle: "VL3 -\nAlbigny sur Saône",
-        laboratory: "Laboratoire Rhône Auvergne - 29-31 rue des tâches - ZI mi-plaine - 69800 SAINT PRIEST",
-    },
-    general: {
-        operator: "F. Montet",
-        testDate: "Nuit 09-10/10/2025",
-        layer: "Roulement",
-        implementationDate: "Nuit 09-10/10/2025",
-        implementationWorkshop: "Finisseur Volvo titan P7820C, Bomag bw161ad, bomag bw120ad",
-        controlledProduct: "BBSG 0/10 Classe 3",
-        formulaNumber: "110",
-        layerThickness: "5 cm",
-        manufacturingLocation: "P2R",
-        controlledSection: "Avenue de la gare",
-        weatherConditions: "Nuit",
-    },
-    criteria: {
-        source: "DG-Q / RE PMT du 28/06/06",
-        definition: "PMT ≥ 0.4",
-        minPmt: "0.4",
-    },
-    results: {
-        materialVolume: "25 000",
-        materialVolumeUnit: "mm³",
-        points: [
-            { essayNumber: "1", profileNumber: "", position: "", diameter: "220", textureDepth: "0,66", observations: "" },
-            { essayNumber: "2", profileNumber: "", position: "", diameter: "205", textureDepth: "0,76", observations: "" },
-            { essayNumber: "3", profileNumber: "", position: "", diameter: "200", textureDepth: "0,80", observations: "" },
-            { essayNumber: "4", profileNumber: "", position: "", diameter: "220", textureDepth: "0,66", observations: "" },
-            { essayNumber: "5", profileNumber: "", position: "", diameter: "230", textureDepth: "0,60", observations: "" },
-            { essayNumber: "6", profileNumber: "", position: "", diameter: "225", textureDepth: "0,63", observations: "" },
-            { essayNumber: "7", profileNumber: "", position: "", diameter: "210", textureDepth: "0,72", observations: "" },
-            { essayNumber: "8", profileNumber: "", position: "", diameter: "220", textureDepth: "0,66", observations: "" },
-        ],
-        testCount: "8",
-        averageTextureDepth: "0,69",
-        conformityRate: "100,00",
-    },
-    conclusion: {
-        controlLabel: "Contrôle",
-        conformityLabel: "Conforme",
-        name: "F. MONTET",
-        functionName: "Technicien de laboratoire",
-        comments: "",
-    },
-    footer: {
-        documentCode: "DG-Q / RE PMT du 28/06/06",
-    },
-};
 
 const EMPTY_RUNTIME_FALLBACK = {
     header: {
@@ -150,13 +97,6 @@ function formatFrenchNumber(value, maximumFractionDigits = 2) {
     });
 }
 
-function computePmtFromDiameter(diameterMm, volumeMm3) {
-    const diameter = parsePmtNumericValue(diameterMm);
-    const volume = parsePmtNumericValue(volumeMm3);
-    if (diameter == null || diameter <= 0 || volume == null || volume <= 0) return "";
-    return Number(((4 * volume) / (Math.PI * diameter * diameter)).toFixed(2));
-}
-
 function normalizePmtRows(rows, meta = {}) {
     if (!Array.isArray(rows)) return [];
     const volumeMm3 = firstValue(meta?.volume_materiau_mm3, meta?.volume_material_mm3, "");
@@ -169,12 +109,13 @@ function normalizePmtRows(rows, meta = {}) {
             source.diameter_mm,
             ""
         );
-        const computedTexture = computePmtFromDiameter(diameter, firstValue(source.volume_materiau_mm3, volumeMm3));
+        const computedNum = computePmtFromDiameterAndVolume(diameter, firstValue(source.volume_materiau_mm3, volumeMm3));
+        const computedTexture = computedNum == null ? "" : computedNum;
         return {
             ...source,
             essayNumber: firstValue(source.essayNumber, source.essai, source.point, String(index + 1)),
             profileNumber: firstValue(source.profileNumber, source.profil, source.profile, ""),
-            position: firstValue(source.position, ""),
+            position_codes: normalizePositionCodes(source.position_codes),
             diameter,
             textureDepth: firstValue(
                 source.textureDepth,
@@ -275,19 +216,6 @@ function dedupeRapportModels(models = []) {
     return Array.from(byKey.values());
 }
 
-function readLocalModelBasePMT() {
-    if (typeof window === "undefined" || !window.localStorage) return null;
-    try {
-        const raw = window.localStorage.getItem("ralab5_modele_base_PMT");
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object") return null;
-        return parsed;
-    } catch {
-        return null;
-    }
-}
-
 function unwrapSource(source) {
     if (!source || typeof source !== "object") return null;
     const values = source.values && typeof source.values === "object"
@@ -315,6 +243,10 @@ function isPmtReference(value) {
     return /^\d{4}-[A-Z]+-PMT\d+$/i.test(String(value || "").trim());
 }
 
+function isWorkPmtId(value) {
+    return /^work-pmt-/i.test(String(value || "").trim());
+}
+
 function useReportSourcePMT(essaiId, searchParams) {
     const [state, setState] = useState({ loading: false, error: "", source: null });
     const mode = String(searchParams.get("mode") || "").trim().toLowerCase();
@@ -325,12 +257,14 @@ function useReportSourcePMT(essaiId, searchParams) {
     const resolvedId = String(sourceId || essaiId || "").trim();
 
     useEffect(() => {
-        const localModelBase = readLocalModelBasePMT();
         const isWorkMode = mode === "work";
         const isModelMode = !isWorkMode;
 
         if (isModelMode) {
-            setState({ loading: false, error: "", source: localModelBase });
+            const sourceModel = sourceKind === "model_definition" && resolvedId
+                ? getModelDefinitionPMTById(resolvedId)
+                : getModelDefinitionPMT();
+            setState({ loading: false, error: "", source: sourceModel });
             return undefined;
         }
 
@@ -338,6 +272,18 @@ function useReportSourcePMT(essaiId, searchParams) {
         setState({ loading: true, error: "", source: null });
 
         const resolveRequest = async () => {
+            if (sourceKind === "work_doc" || isWorkPmtId(resolvedId)) {
+                const workDoc = getWorkDocumentPMT(resolvedId);
+                if (!workDoc?.runtime_values) {
+                    throw new Error("Document work PMT introuvable");
+                }
+                return {
+                    ...workDoc,
+                    reference: workDoc.id,
+                    values: workDoc.runtime_values,
+                };
+            }
+
             if (sourceFamily === "terrain" && sourceUid) {
                 return feuillesTerrainApi.get(sourceUid);
             }
@@ -404,7 +350,7 @@ function buildPmtReportFromSource(source, fallback) {
                     ? normalized.points
                     : [];
     const pointsRows = normalizePmtRows(rawRows, meta);
-    const computedSummary = summarizePmtRows(pointsRows, meta?.criteria_pmt_min ?? fallback.criteria?.minPmt);
+    const computedSummary = summarizePmtRows(pointsRows, meta?.criteria_pmt_min);
     const summary = normalized?.resume && typeof normalized.resume === "object" ? normalized.resume : {};
     const conformityLabel = firstValue(
         meta?.conformite === "conforme"
@@ -478,7 +424,7 @@ function buildPmtReportFromSource(source, fallback) {
     };
 }
 
-export default function RapportPMTPage({ report = DEFAULT_REPORT }) {
+export default function RapportPMTPage() {
     const { essaiId = "modele" } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -493,10 +439,10 @@ export default function RapportPMTPage({ report = DEFAULT_REPORT }) {
         campagneId: "",
     });
     const resolvedReport = useMemo(() => {
-        const fallback = isWorkMode ? EMPTY_RUNTIME_FALLBACK : (report || DEFAULT_REPORT);
-        const seed = isWorkMode ? (source || {}) : (source || report);
+        const fallback = EMPTY_RUNTIME_FALLBACK;
+        const seed = source && typeof source === "object" ? source : {};
         return buildPmtReportFromSource(seed, fallback);
-    }, [source, report, isWorkMode]);
+    }, [source]);
 
     const RESULT_ROWS_COUNT = 22;
     const sourceRows = Array.isArray(resolvedReport.results?.rows)
@@ -516,7 +462,7 @@ export default function RapportPMTPage({ report = DEFAULT_REPORT }) {
         return {
             essayNumber: "",
             profileNumber: "",
-            position: "",
+            position_codes: [],
             diameter: "",
             textureDepth: "",
             observations: "",
@@ -832,6 +778,8 @@ export default function RapportPMTPage({ report = DEFAULT_REPORT }) {
                                     <col className="rapport-col-essai" />
                                     <col className="rapport-col-profils" />
                                     <col className="rapport-col-position" />
+                                    <col className="rapport-col-position" />
+                                    <col className="rapport-col-position" />
                                     <col className="rapport-col-masse" />
                                     <col className="rapport-col-compacite" />
                                 </colgroup>
@@ -839,7 +787,9 @@ export default function RapportPMTPage({ report = DEFAULT_REPORT }) {
                                     <tr>
                                         <th>N°<br />Essai</th>
                                         <th>Profil</th>
-                                        <th>Position</th>
+                                        <th>G</th>
+                                        <th>A</th>
+                                        <th>D</th>
                                         <th>Diamètre moyen de la tache<br />(mm)</th>
                                         <th>Profondeurs de macrotexture<br />(mm)</th>
                                     </tr>
@@ -857,7 +807,9 @@ export default function RapportPMTPage({ report = DEFAULT_REPORT }) {
                                             >
                                                 <td>{row.isEmpty ? "" : valueOrEmpty(row.essayNumber)}</td>
                                                 <td>{row.isEmpty ? "" : valueOrEmpty(row.profileNumber)}</td>
-                                                <td>{row.isEmpty ? "" : valueOrEmpty(row.position)}</td>
+                                                <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "G") ? "X" : ""}</td>
+                                                <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "A") ? "X" : ""}</td>
+                                                <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "D") ? "X" : ""}</td>
                                                 <td>{row.isEmpty ? "" : valueOrEmpty(row.diameter)}</td>
                                                 <td className={pmtNonConforme ? "rapport-cell-nonconforme" : ""}>{row.isEmpty ? "" : valueOrEmpty(row.textureDepth)}</td>
                                             </tr>
@@ -866,11 +818,11 @@ export default function RapportPMTPage({ report = DEFAULT_REPORT }) {
                                     <tr className="rapport-average-row">
                                         <td>Nb d'essais :</td>
                                         <td>{valueOrEmpty(resolvedReport.results?.testCount)}</td>
-                                        <td colSpan="2">Profondeur de macrotexture générale :</td>
+                                        <td colSpan="4">Profondeur de macrotexture générale :</td>
                                         <td>{valueOrEmpty(resolvedReport.results?.averageTextureDepth)}</td>
                                     </tr>
                                     <tr className="rapport-conformity-row">
-                                        <td className="rapport-conformity-cell" colSpan="5">
+                                        <td className="rapport-conformity-cell" colSpan="7">
                                             <div className="rapport-conformity-content">
                                                 <span>Pourcentage de valeurs conformes :</span>
                                                 <strong>{valueOrEmpty(resolvedReport.results?.conformityRate)}</strong>

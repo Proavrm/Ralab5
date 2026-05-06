@@ -9,6 +9,15 @@ import {
   getWorkDocumentDE,
   updateWorkDocumentDE,
 } from '@/services/modelWorkLocalStore'
+import {
+  TERRAIN_CRITERIA_SOURCE_SELECT_OPTIONS,
+  TERRAIN_FABRICATION_SITE_SELECT_OPTIONS,
+  TERRAIN_FORMULA_SELECT_OPTIONS,
+  TERRAIN_OPERATOR_SELECT_OPTIONS,
+  TERRAIN_PRODUCT_SELECT_OPTIONS,
+  renderTerrainSelectOptionExtras,
+} from '@/lib/terrainEssaiSelectOptions'
+import { hasPositionCode, normalizePositionCodes, togglePositionCode } from '@/lib/positionCodes'
 
 // NOTE (2026-05-01):
 // Runtime page is DE-only for now. It is structured as an execution page (load/save/calc/print)
@@ -101,6 +110,24 @@ function NumericInput({ value, onChange, readOnly, className = '' }) {
       readOnly={readOnly}
       className={`min-w-[95px] text-right tabular-nums ${className}`}
     />
+  )
+}
+
+function PositionSelector({ value, onChange }) {
+  const codes = normalizePositionCodes(value)
+  return (
+    <div className="flex items-center gap-2">
+      {['G', 'A', 'D'].map((code) => (
+        <label key={code} className="inline-flex items-center gap-1 text-xs">
+          <input
+            type="checkbox"
+            checked={hasPositionCode(codes, code)}
+            onChange={() => onChange(togglePositionCode(codes, code))}
+          />
+          <span>{code}</span>
+        </label>
+      ))}
+    </div>
   )
 }
 
@@ -246,19 +273,6 @@ function renderDeRuntimeView({
   const pointsRows = Array.isArray(draft?.points_rows) ? draft.points_rows : []
   const summary = computeDeSummary(pointsRows)
   const computedConformite = computeDeConformiteValue(summary?.moyenne_vides_pct, meta?.criteria_void_min, meta?.criteria_void_max)
-  const renderOptions = (items, currentValue) => {
-    const normalizedItems = items.map((item) => String(item.value || item.label || '').trim())
-    const current = String(currentValue || '').trim()
-    const shouldAddCurrent = current && !normalizedItems.includes(current)
-    return (
-      <>
-        {shouldAddCurrent ? <option value={current}>{current}</option> : null}
-        {items.map((item) => (
-          <option key={item.value || item.label} value={item.value || item.label}>{item.label || item.value}</option>
-        ))}
-      </>
-    )
-  }
   const handleGammadensimetreChange = (value) => {
     const selected = equipmentOptions.find((option) => String(option.value) === String(value))
     onMetaChange('gammadensimetre', value)
@@ -266,26 +280,6 @@ function renderDeRuntimeView({
       onMetaChange('date_dernier_calibrage', selected.calibration_date || selected.last_metrology)
     }
   }
-  const operatorOptions = [
-    { value: 'MARCO', label: 'MARCO' },
-    { value: 'CLARA', label: 'CLARA' },
-    { value: 'TECHNICIEN_1', label: 'Technicien 1' },
-    { value: 'TECHNICIEN_2', label: 'Technicien 2' },
-  ]
-  const fabricationOptions = [
-    { value: 'CENTRALE_SP', label: 'Centrale Saint-Priest' },
-    { value: 'CENTRALE_PTC', label: 'Centrale Pont-du-Château' },
-  ]
-  const formulaOptions = [{ value: 'FORMULE_FTP', label: 'Formule issue FTP' }]
-  const productOptions = [{ value: 'PRODUIT_FTP', label: 'Produit contrôlé issu FTP' }]
-  const criteriaSourceOptions = [
-    { value: 'CCTP', label: 'CCTP' },
-    { value: 'FTP', label: 'FTP' },
-    { value: 'NORME', label: 'Norme' },
-    { value: 'CLIENT', label: 'Exigence client' },
-    { value: 'INTERNE', label: 'Objectif interne' },
-  ]
-
   return (
     <div className="flex flex-col gap-4">
       <Card title="Identification" description="Données de réalisation de l’essai ou de l’intervention.">
@@ -296,7 +290,7 @@ function renderDeRuntimeView({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Row label="Norme" value={data.norme || 'NF P 98-241-1'} tone="manual" />
           <Field label="Date essai" tone="manual"><Input type="date" value={toDateInputValue(meta.date_essai)} onChange={(event) => onMetaChange('date_essai', event.target.value)} /></Field>
-          <Field label="Opérateur" tone="manual"><Select value={meta.operateur || ''} onChange={(value) => onMetaChange('operateur', value)}><option value="">Sélectionner un opérateur</option>{renderOptions(operatorOptions, meta.operateur)}</Select></Field>
+          <Field label="Opérateur" tone="manual"><Select value={meta.operateur || ''} onChange={(value) => onMetaChange('operateur', value)}><option value="">Sélectionner un opérateur</option>{renderTerrainSelectOptionExtras(TERRAIN_OPERATOR_SELECT_OPTIONS, meta.operateur)}</Select></Field>
           <Field label="Conditions météo" tone="manual"><Input value={meta.conditions_meteo || ''} onChange={(event) => onMetaChange('conditions_meteo', event.target.value)} /></Field>
           <Field label="Section contrôlée" tone="hierarchy" full><Input value={meta.section_controlee || ''} onChange={(event) => onMetaChange('section_controlee', event.target.value)} /></Field>
         </div>
@@ -304,9 +298,9 @@ function renderDeRuntimeView({
 
       <Card title="Produit / chantier" description="Informations utiles pour relier l’essai au produit contrôlé et à la mise en œuvre.">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Field label="Lieu de fabrication" tone="manual"><Select value={meta.lieu_fabrication || ''} onChange={(value) => onMetaChange('lieu_fabrication', value)}><option value="">Sélectionner une centrale</option>{renderOptions(fabricationOptions, meta.lieu_fabrication)}</Select></Field>
-          <Field label="Numéro formule" tone="manual"><Select value={meta.numero_formule || ''} onChange={(value) => onMetaChange('numero_formule', value)}><option value="">Sélectionner une formule</option>{renderOptions(formulaOptions, meta.numero_formule)}</Select></Field>
-          <Field label="Produit contrôlé" tone="manual"><Select value={meta.produit_controle || ''} onChange={(value) => onMetaChange('produit_controle', value)}><option value="">Sélectionner une FTP</option>{renderOptions(productOptions, meta.produit_controle)}</Select></Field>
+          <Field label="Lieu de fabrication" tone="manual"><Select value={meta.lieu_fabrication || ''} onChange={(value) => onMetaChange('lieu_fabrication', value)}><option value="">Sélectionner une centrale</option>{renderTerrainSelectOptionExtras(TERRAIN_FABRICATION_SITE_SELECT_OPTIONS, meta.lieu_fabrication)}</Select></Field>
+          <Field label="Numéro formule" tone="manual"><Select value={meta.numero_formule || ''} onChange={(value) => onMetaChange('numero_formule', value)}><option value="">Sélectionner une formule</option>{renderTerrainSelectOptionExtras(TERRAIN_FORMULA_SELECT_OPTIONS, meta.numero_formule)}</Select></Field>
+          <Field label="Produit contrôlé" tone="manual"><Select value={meta.produit_controle || ''} onChange={(value) => onMetaChange('produit_controle', value)}><option value="">Sélectionner une FTP</option>{renderTerrainSelectOptionExtras(TERRAIN_PRODUCT_SELECT_OPTIONS, meta.produit_controle)}</Select></Field>
           <Field label="Couche" tone="manual"><Input value={meta.couche || ''} onChange={(event) => onMetaChange('couche', event.target.value)} /></Field>
           <Field label="Épaisseur couche (cm)" tone="manual"><Input value={meta.epaisseur_couche_cm || ''} onChange={(event) => onMetaChange('epaisseur_couche_cm', event.target.value)} /></Field>
           <Field label="Date mise en œuvre" tone="manual"><Input type="date" value={toDateInputValue(meta.date_mise_en_oeuvre)} onChange={(event) => onMetaChange('date_mise_en_oeuvre', event.target.value)} /></Field>
@@ -318,7 +312,7 @@ function renderDeRuntimeView({
           <Field label="Gammadensimètre" tone="manual">
             <Select value={meta.gammadensimetre || ''} onChange={handleGammadensimetreChange} readOnly={equipmentLoading}>
               <option value="">{equipmentLoading ? 'Chargement des équipements...' : 'Sélectionner un équipement'}</option>
-              {renderOptions(equipmentOptions, meta.gammadensimetre)}
+              {renderTerrainSelectOptionExtras(equipmentOptions, meta.gammadensimetre)}
             </Select>
             {equipmentError ? <div className="mt-1 text-[11px] text-red-600">{equipmentError}</div> : null}
           </Field>
@@ -331,7 +325,7 @@ function renderDeRuntimeView({
       <Card title="Critères / conclusion" description="Synthèse calculée, objectifs et conclusion du contrôle.">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
           <div className="md:col-span-3"><Field label="MVRE" tone="manual"><Input value={meta.mvre || ''} onChange={(event) => onMetaChange('mvre', event.target.value)} placeholder="MVA ou saisie directe" /></Field></div>
-          <div className="md:col-span-4"><Field label="Source des critères :" tone="hierarchy"><Select value={meta.criteria_source || ''} onChange={(value) => onMetaChange('criteria_source', value)}><option value="">Sélectionner une source</option>{renderOptions(criteriaSourceOptions, meta.criteria_source)}</Select></Field></div>
+          <div className="md:col-span-4"><Field label="Source des critères :" tone="hierarchy"><Select value={meta.criteria_source || ''} onChange={(value) => onMetaChange('criteria_source', value)}><option value="">Sélectionner une source</option>{renderTerrainSelectOptionExtras(TERRAIN_CRITERIA_SOURCE_SELECT_OPTIONS, meta.criteria_source)}</Select></Field></div>
           <div className="md:col-span-5"><Field label="Définition des critères / objectifs :" tone="manual"><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2"><Input value={meta.criteria_void_min || ''} onChange={(event) => onMetaChange('criteria_void_min', event.target.value)} className="text-right tabular-nums" placeholder="Minimum" /><span className="whitespace-nowrap text-xs font-semibold text-text-muted">≤ % de vide ≤</span><Input value={meta.criteria_void_max || ''} onChange={(event) => onMetaChange('criteria_void_max', event.target.value)} className="text-right tabular-nums" placeholder="Maximum" /></div></Field></div>
           <div className="md:col-span-12"><Field label="Conclusion" tone="manual" full><div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-[220px_minmax(0,1fr)]"><Select value={computedConformite} onChange={() => {}} readOnly><option value="conforme">✓ Conforme</option><option value="non_conforme">✕ Non conforme</option><option value="pour_info">ℹ Pour info</option></Select><Input value={meta.conclusion_courte || ''} onChange={(event) => onMetaChange('conclusion_courte', event.target.value)} placeholder="Complément éventuel" className="min-w-0 w-full" /></div></Field></div>
           <div className="md:col-span-12"><Field label="Commentaires" tone="manual" full><Textarea value={meta.commentaires || ''} onChange={(value) => onMetaChange('commentaires', value)} rows={3} /></Field></div>
@@ -351,7 +345,7 @@ function renderDeRuntimeView({
                 <tr>
                   <th className="border-b border-border px-2 py-2 text-left font-semibold text-text-muted">Point</th>
                   <th className="border-b border-border px-2 py-2 text-left font-semibold text-text-muted">Profil</th>
-                  <th className="border-b border-border px-2 py-2 text-left font-semibold text-text-muted">Position</th>
+                  <th className="border-b border-border px-2 py-2 text-center font-semibold text-text-muted">Position (G/A/D)</th>
                   <th className="border-b border-border px-2 py-2 text-right font-semibold text-text-muted">MV (g/cm³)</th>
                   <th className="border-b border-border px-2 py-2 text-right font-semibold text-text-muted">Compacité (%)</th>
                   <th className="border-b border-border px-2 py-2 text-right font-semibold text-text-muted">Vides (%)</th>
@@ -366,7 +360,7 @@ function renderDeRuntimeView({
                     <tr key={row?.id || row?.point || index} className="border-b border-border last:border-b-0 odd:bg-surface even:bg-bg/40">
                       <td className="px-2 py-1.5"><Input value={row?.point ?? ''} onChange={(event) => onRowChange(index, 'point', event.target.value)} className="min-w-[90px]" /></td>
                       <td className="px-2 py-1.5"><Input value={row?.profil ?? ''} onChange={(event) => onRowChange(index, 'profil', event.target.value)} className="min-w-[90px]" /></td>
-                      <td className="px-2 py-1.5"><Input value={row?.position ?? ''} onChange={(event) => onRowChange(index, 'position', event.target.value)} className="min-w-[120px]" /></td>
+                      <td className="px-2 py-1.5 min-w-[130px]"><PositionSelector value={row?.position_codes} onChange={(value) => onRowChange(index, 'position_codes', value)} /></td>
                       <td className="px-2 py-1.5"><NumericInput value={row?.masse_volumique} onChange={(event) => onRowChange(index, 'masse_volumique', event.target.value)} /></td>
                       <td className="px-2 py-1.5"><NumericInput value={row?.compacite_pct} onChange={(event) => onRowChange(index, 'compacite_pct', event.target.value)} /></td>
                       <td className="px-2 py-1.5"><NumericInput value={row?.vides_pct} onChange={(event) => onRowChange(index, 'vides_pct', event.target.value)} className={videsNonConforme ? 'border-[#e11d48] bg-[#fff1f2] text-[#9f1239] font-semibold' : ''} /></td>
@@ -428,7 +422,7 @@ export default function FeuilleDeRuntimePage() {
     return {
       meta: normalizeDeMetaAliases(values?.meta),
       points_rows: Array.isArray(values?.points_rows)
-        ? values.points_rows.map((row, index) => ({ ...row, id: row?.id ?? index + 1 }))
+        ? values.points_rows.map((row, index) => ({ ...row, id: row?.id ?? index + 1, position_codes: normalizePositionCodes(row?.position_codes) }))
         : [],
     }
   }
@@ -591,7 +585,7 @@ export default function FeuilleDeRuntimePage() {
     return <div className="py-10 text-center text-sm text-text-muted">Préparation du runtime DE...</div>
   }
 
-  function handleSaveRuntime() {
+  async function handleSaveRuntime() {
     const rows = Array.isArray(runtimeDraft.points_rows) ? runtimeDraft.points_rows : []
     const runtimeValues = {
       meta: runtimeDraft.meta || {},
@@ -601,6 +595,19 @@ export default function FeuilleDeRuntimePage() {
     const updated = updateWorkDocumentDE(runtimeDoc.id, { runtime_values: runtimeValues })
     if (!updated) {
       setResult({ type: 'err', msg: 'Impossible d’enregistrer la feuille runtime.' })
+      return
+    }
+    try {
+      if (uid) {
+        const nextPayload = {
+          ...(feuillePayload && typeof feuillePayload === 'object' ? feuillePayload : {}),
+          ...runtimeValues,
+        }
+        await feuillesTerrainApi.update(uid, { payload: nextPayload })
+        setFeuillePayload(nextPayload)
+      }
+    } catch (e) {
+      setResult({ type: 'err', msg: e?.message || 'Enregistré localement, mais échec de sauvegarde DB.' })
       return
     }
     setRuntimeDoc(updated)
@@ -637,7 +644,7 @@ export default function FeuilleDeRuntimePage() {
   function handleRowChange(index, key, value) {
     setRuntimeDraft((prev) => {
       const rows = Array.isArray(prev?.points_rows) ? [...prev.points_rows] : []
-      const nextRow = { ...(rows[index] || {}), [key]: value }
+      const nextRow = { ...(rows[index] || {}), [key]: key === 'position_codes' ? normalizePositionCodes(value) : value }
       rows[index] = applyDeComputedFields(nextRow, prev?.meta?.mvre, key)
       return { ...prev, points_rows: rows }
     })
@@ -648,7 +655,7 @@ export default function FeuilleDeRuntimePage() {
       ...prev,
       points_rows: [
         ...(Array.isArray(prev?.points_rows) ? prev.points_rows : []),
-        { id: Date.now(), point: '', profil: '', position: '', masse_volumique: '', compacite_pct: '', vides_pct: '', observations: '' },
+        { id: Date.now(), point: '', profil: '', position_codes: [], masse_volumique: '', compacite_pct: '', vides_pct: '', observations: '' },
       ],
     }))
   }

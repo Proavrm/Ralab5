@@ -27,6 +27,8 @@ from api.import_audit_post_import import router as audit_post_import_router
 from api.import_historique_labo import router as import_historique_labo_router
 from api.import_essais_de import router as import_essais_de_router
 from api.import_essais_sc import router as import_essais_sc_router
+from api.import_essais_pmt import router as import_essais_pmt_router
+from api.pmt_essais import router as pmt_essais_router
 from api.photos import router as photos_router
 from api.import_regularisation_affaires import router as regularisation_affaires_router
 from api.interventions import router as interventions_router
@@ -145,6 +147,8 @@ app.include_router(qualite_router, prefix="/api/qualite", tags=["Qualité"])
 app.include_router(import_historique_labo_router, prefix="/api/import-historique-labo", tags=["Import Historique Labo"])
 app.include_router(import_essais_de_router, prefix="/api/import-essais-de", tags=["Import Essais DE"])
 app.include_router(import_essais_sc_router)
+app.include_router(import_essais_pmt_router)
+app.include_router(pmt_essais_router, prefix="/api/pmt-essais")
 app.include_router(photos_router)
 app.include_router(audit_post_import_router, prefix="/api/audit-post-import", tags=["Audit Post-Import"])
 app.include_router(regularisation_affaires_router, prefix="/api/regularisation-affaires", tags=["Regularisation Affaires"])

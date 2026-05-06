@@ -65,6 +65,56 @@ def _normalize_affaire_nge(value: str) -> str:
     return re.sub(r"\W+", "", _clean(value)).upper()
 
 
+def _resolve_sc_affaire_context(
+    conn: sqlite3.Connection,
+    affaire_reference: str = "",
+    affaire_nge_hint: str = "",
+    affaire_rst_id: Optional[int] = None,
+) -> dict[str, Any]:
+    """
+    Resolve affaire for SC import/preview.
+    If affaire_rst_id is set, it wins (explicit context) so temporal matching always has an affaire row.
+    """
+    if affaire_rst_id is not None and int(affaire_rst_id) > 0:
+        row = conn.execute(
+            """
+            SELECT id, reference, affaire_nge, chantier, statut
+            FROM affaires_rst
+            WHERE id = ?
+            LIMIT 1
+            """,
+            (int(affaire_rst_id),),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=400, detail=f"Affaire introuvable: id={affaire_rst_id}")
+        return {
+            "by_reference": None,
+            "by_affaire_nge": None,
+            "selected": dict(row),
+            "match_mode": "affaire_rst_id",
+        }
+    return _base_resolve_affaire_context(conn, affaire_reference, affaire_nge_hint)
+
+
+def _enrich_hierarchy_references(conn: sqlite3.Connection, hierarchy: dict[str, Any]) -> None:
+    """Attach demande/campagne/intervention references from DB (ensure_hierarchy does not return them)."""
+    did = hierarchy.get("demande_id")
+    if did:
+        r = conn.execute("SELECT reference FROM demandes WHERE id = ? LIMIT 1", (int(did),)).fetchone()
+        if r:
+            hierarchy["demande_reference"] = _clean(r["reference"])
+    cid = hierarchy.get("campagne_id")
+    if cid:
+        r = conn.execute("SELECT reference FROM campagnes WHERE id = ? LIMIT 1", (int(cid),)).fetchone()
+        if r:
+            hierarchy["campagne_reference"] = _clean(r["reference"])
+    iid = hierarchy.get("intervention_id")
+    if iid:
+        r = conn.execute("SELECT reference FROM interventions WHERE id = ? LIMIT 1", (int(iid),)).fetchone()
+        if r:
+            hierarchy["intervention_reference"] = _clean(r["reference"])
+
+
 def _sheet_key(name: Any) -> str:
     return str(name or "").strip().upper()
 
@@ -295,6 +345,7 @@ def _preview_sc_workbook(
     file_path: Path,
     affaire_reference: str = "",
     affaire_nge_hint: str = "",
+    affaire_rst_id: Optional[int] = None,
 ) -> dict[str, Any]:
     """
     Preview an SC Excel file: detect sheets, extract headers, list matching demandes/campagnes/interventions.
@@ -348,17 +399,24 @@ def _preview_sc_workbook(
     db_path = get_db_path()
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
-        affaire_context = _base_resolve_affaire_context(conn, affaire_reference, inferred_affaire_nge)
+        affaire_context = _resolve_sc_affaire_context(
+            conn,
+            affaire_reference,
+            inferred_affaire_nge,
+            affaire_rst_id=affaire_rst_id,
+        )
         selected_affaire = affaire_context.get("selected") or {}
 
         # Rebuild hierarchy using resolved affaire context to mirror DE behavior.
         existing_hierarchy = {}
-        hierarchy_key = inferred_affaire_nge or _clean(selected_affaire.get("affaire_nge"))
-        if hierarchy_key:
+        hierarchy_key = inferred_affaire_nge or _normalize_affaire_nge(_clean(selected_affaire.get("affaire_nge")))
+        affaire_pk = int(selected_affaire["id"]) if selected_affaire.get("id") is not None else 0
+        cache_key = hierarchy_key or (f"id:{affaire_pk}" if affaire_pk else "")
+        if hierarchy_key or affaire_pk:
             demandes = _base_find_demandes_by_affaire(
                 conn,
                 hierarchy_key,
-                affaire_rst_id=selected_affaire.get("id"),
+                affaire_rst_id=affaire_pk,
             )
             campagnes_by_demande = {}
             interventions_by_campagne = {}
@@ -368,7 +426,7 @@ def _preview_sc_workbook(
                 for campagne in campagnes:
                     interventions = _base_find_interventions_by_campagne(conn, campagne["id"])
                     interventions_by_campagne[campagne["id"]] = interventions
-            existing_hierarchy[hierarchy_key] = {
+            existing_hierarchy[cache_key] = {
                 "demandes": demandes,
                 "campagnes_by_demande": campagnes_by_demande,
                 "interventions_by_campagne": interventions_by_campagne,
@@ -378,7 +436,7 @@ def _preview_sc_workbook(
         # - predicted_sc_reference: future feuille ref (...-SCxxxx)
         # - predicted_point_code: future point code (SCx) when sheet carries an SC number
         resolved_labo = "SP"
-        hierarchy_demandes = (existing_hierarchy.get(hierarchy_key or "", {}) or {}).get("demandes") or []
+        hierarchy_demandes = (existing_hierarchy.get(cache_key or "", {}) or {}).get("demandes") or []
         if hierarchy_demandes:
             resolved_labo = _extract_labo_from_demande_reference(hierarchy_demandes[0].get("reference"))
         else:
@@ -972,10 +1030,6 @@ def _extract_and_save_photo(
 # PHASE 3: MATERIALIZE - Create hierarchy in DB
 # ──────────────────────────────────────────────────────────────────────────────
 
-# ──────────────────────────────────────────────────────────────────────────────
-# PHASE 3: MATERIALIZE - Create hierarchy in DB
-# ──────────────────────────────────────────────────────────────────────────────
-
 def _materialize_sc_sheet(
     payload: dict[str, Any],
     file_path: Path,
@@ -1002,19 +1056,22 @@ def _materialize_sc_sheet(
         essais_cols = [row[1] for row in conn.execute("PRAGMA table_info(essais)").fetchall()]
         has_reference_col = "reference" in essais_cols
         
-        # Resolve affaire context
-        affaire_context = _base_resolve_affaire_context(
+        # Resolve affaire context (affaire_rst_id forces the affaire row — same idea as PMT explicit context)
+        affaire_context = _resolve_sc_affaire_context(
             conn,
             affaire_reference,
             affaire_nge_hint or _clean(payload.get("meta", {}).get("affaire_nge_raw")),
+            affaire_rst_id=affaire_rst_id,
         )
         if not affaire_context.get("selected"):
             raise HTTPException(status_code=400, detail="Aucune affaire trouvée pour l'import SC")
         selected_affaire = affaire_context.get("selected") or {}
-        affaire_nge_for_storage = _clean(selected_affaire.get("affaire_nge")) or _clean((first_payload.get("meta") or {}).get("affaire_nge_raw")) or "UNKNOWN"
-        selected_affaire = affaire_context.get("selected") or {}
-        affaire_nge_for_storage = _clean(selected_affaire.get("affaire_nge")) or _clean(payload.get("meta", {}).get("affaire_nge_raw")) or "UNKNOWN"
-        
+        affaire_nge_for_storage = (
+            _clean(selected_affaire.get("affaire_nge"))
+            or _clean((payload.get("meta") or {}).get("affaire_nge_raw"))
+            or "UNKNOWN"
+        )
+
         # Find or create hierarchy using unified base orchestrator
         anchor_date = _parse_iso_date(payload.get("meta", {}).get("date_sondage")) or datetime.now().date()
         hierarchy = ensure_hierarchy(
@@ -1027,8 +1084,9 @@ def _materialize_sc_sheet(
             campagne_id=campagne_id,
             intervention_id=intervention_id,
             labo_code="SP",
-            hierarchy_type_hint="Sondage carotté",
+            import_profile_label="Sondage carotté",
         )
+        _enrich_hierarchy_references(conn, hierarchy)
 
         # Activate terrain + interventions modules for this demande (idempotent)
         ensure_modules_enabled(
@@ -1247,6 +1305,7 @@ def _materialize_sc_payloads(
     affaire_nge_hint: str = "",
     demande_gap_days: int = 120,
     campagne_gap_days: int = 7,
+    affaire_rst_id: Optional[int] = None,
     demande_id: Optional[int] = None,
     campagne_id: Optional[int] = None,
     intervention_id: Optional[int] = None,
@@ -1265,16 +1324,24 @@ def _materialize_sc_payloads(
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
 
-        affaire_context = _base_resolve_affaire_context(
+        affaire_context = _resolve_sc_affaire_context(
             conn,
             affaire_reference,
             affaire_nge_hint or _clean((first_payload.get("meta") or {}).get("affaire_nge_raw")),
+            affaire_rst_id=affaire_rst_id,
         )
         if not affaire_context.get("selected"):
             raise HTTPException(status_code=400, detail="Aucune affaire trouvée pour l'import SC")
 
         # Workbook-level hierarchy: one demande/campagne/intervention anchor for all sheets.
-        anchor_date = _parse_iso_date((first_payload.get("meta") or {}).get("date_sondage")) or datetime.now().date()
+        # Anchor = earliest sheet date so 120-day matching favours joining an existing window that covers the lot.
+        sheet_dates: list[Any] = []
+        for p in payloads:
+            sheet_dates.append((p.get("meta") or {}).get("date_sondage"))
+        parsed_dates = [d for d in (_parse_iso_date(x) for x in sheet_dates) if d is not None]
+        anchor_date = min(parsed_dates) if parsed_dates else (
+            _parse_iso_date((first_payload.get("meta") or {}).get("date_sondage")) or datetime.now().date()
+        )
         hierarchy = ensure_hierarchy(
             conn,
             affaire_context,
@@ -1285,8 +1352,9 @@ def _materialize_sc_payloads(
             campagne_id=campagne_id,
             intervention_id=intervention_id,
             labo_code="SP",
-            hierarchy_type_hint="Sondage carotté",
+            import_profile_label="Sondage carotté",
         )
+        _enrich_hierarchy_references(conn, hierarchy)
 
         ensure_modules_enabled(
             conn,
@@ -1571,6 +1639,7 @@ async def preview_sc_import(
     file: UploadFile = File(...),
     affaire_reference: str = Form(""),
     affaire_nge: str = Form(""),
+    affaire_rst_id: Optional[int] = Form(None),
 ):
     """
     Preview SC Excel file: show sheets, headers, estimated structure.
@@ -1586,6 +1655,7 @@ async def preview_sc_import(
             temp_path,
             affaire_reference=affaire_reference,
             affaire_nge_hint=affaire_nge,
+            affaire_rst_id=affaire_rst_id,
         )
         if temp_path.exists():
             temp_path.unlink()
@@ -1601,6 +1671,7 @@ async def materialize_sc_import(
     sheet_name: Optional[str] = Form(None),
     affaire_reference: str = Form(""),
     affaire_nge: str = Form(""),
+    affaire_rst_id: Optional[int] = Form(None),
     demande_gap_days: int = Form(120),
     campagne_gap_days: int = Form(7),
     demande_id: Optional[int] = Form(None),
@@ -1643,6 +1714,7 @@ async def materialize_sc_import(
                 affaire_nge_hint=affaire_nge,
                 demande_gap_days=demande_gap_days,
                 campagne_gap_days=campagne_gap_days,
+                affaire_rst_id=affaire_rst_id,
                 demande_id=demande_id,
                 campagne_id=campagne_id,
                 intervention_id=intervention_id,
@@ -1656,6 +1728,7 @@ async def materialize_sc_import(
                 affaire_nge_hint=affaire_nge,
                 demande_gap_days=demande_gap_days,
                 campagne_gap_days=campagne_gap_days,
+                affaire_rst_id=affaire_rst_id,
                 demande_id=demande_id,
                 campagne_id=campagne_id,
                 intervention_id=intervention_id,

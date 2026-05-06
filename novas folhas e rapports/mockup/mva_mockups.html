@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RaLab5 MVA Mockups</title>
+<style>
+    :root {
+        --nge-blue: rgb(0, 44, 119);
+        --nge-blue-2: rgb(8, 65, 154);
+        --ink: #111827;
+        --muted: #667085;
+        --line: #d7deea;
+        --soft: #f4f7fb;
+        --panel: #ffffff;
+        --green: #087443;
+        --red: #b42318;
+        --amber: #b54708;
+    }
+
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        background: #dfe6ef;
+        color: var(--ink);
+        font-family: "Century Gothic", "Aptos", Arial, sans-serif;
+    }
+
+    .board {
+        width: 1680px;
+        margin: 0 auto;
+        padding: 34px;
+    }
+
+    .mockup-title {
+        margin: 0 0 20px;
+        color: #132238;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+    }
+
+    .mockup-title span {
+        color: var(--nge-blue);
+    }
+
+    .mockup-grid {
+        display: grid;
+        grid-template-columns: 1.06fr 0.94fr;
+        gap: 28px;
+        align-items: start;
+    }
+
+    .screen-shell {
+        overflow: hidden;
+        border: 1px solid rgba(15, 23, 42, 0.10);
+        border-radius: 30px;
+        background: linear-gradient(180deg, #f7f9fd 0%, #eef3f9 100%);
+        box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18);
+    }
+
+    .app-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 18px 22px;
+        background: #ffffff;
+        border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--nge-blue);
+        font-weight: 900;
+        letter-spacing: -0.04em;
+        font-size: 22px;
+    }
+
+    .brand-mark {
+        display: grid;
+        width: 44px;
+        height: 34px;
+        place-items: center;
+        border-radius: 10px;
+        background: var(--nge-blue);
+        color: white;
+        font-size: 14px;
+        letter-spacing: -0.08em;
+    }
+
+    .app-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #475467;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .app-nav span {
+        padding: 8px 11px;
+        border-radius: 999px;
+        background: #f2f4f7;
+    }
+
+    .app-nav .active {
+        background: #e9f0ff;
+        color: var(--nge-blue);
+    }
+
+    .feuille {
+        padding: 24px;
+    }
+
+    .page-head {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 18px;
+        align-items: start;
+        margin-bottom: 18px;
+    }
+
+    .eyebrow {
+        margin: 0 0 6px;
+        color: var(--nge-blue);
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+    }
+
+    .page-head h1 {
+        margin: 0;
+        color: #0b1b31;
+        font-size: 30px;
+        line-height: 1.08;
+        letter-spacing: -0.05em;
+    }
+
+    .page-head p {
+        max-width: 600px;
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+    }
+
+    .actions {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        width: 420px;
+    }
+
+    .status-pill {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: #ecfdf3;
+        color: var(--green);
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .btn {
+        border: 0;
+        border-radius: 12px;
+        padding: 10px 13px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 900;
+        box-shadow: 0 9px 22px rgba(15, 23, 42, 0.09);
+    }
+
+    .btn.ghost { background: #ffffff; color: #344054; }
+    .btn.blue { background: var(--nge-blue); color: #ffffff; }
+    .btn.dark { background: #101828; color: #ffffff; }
+
+    .summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 14px;
+        margin-bottom: 18px;
+    }
+
+    .summary-card {
+        min-height: 92px;
+        padding: 17px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: #ffffff;
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+    }
+
+    .summary-card small {
+        display: block;
+        margin-bottom: 9px;
+        color: #64748b;
+        font-size: 11px;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .summary-card strong {
+        display: inline-block;
+        color: #132238;
+        font-size: 26px;
+        letter-spacing: -0.04em;
+    }
+
+    .summary-card .unit {
+        color: #667085;
+        font-size: 12px;
+        font-weight: 800;
+        margin-left: 5px;
+    }
+
+    .summary-card.good {
+        border-color: #abefc6;
+        background: linear-gradient(180deg, #ffffff 0%, #f6fef9 100%);
+    }
+
+    .summary-card.good strong {
+        color: var(--green);
+    }
+
+    .work-grid {
+        display: grid;
+        grid-template-columns: 1fr 330px;
+        gap: 18px;
+    }
+
+    .card {
+        margin-bottom: 18px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: #ffffff;
+        box-shadow: 0 12px 36px rgba(15, 23, 42, 0.07);
+    }
+
+    .card h2 {
+        margin: 0 0 4px;
+        color: #101828;
+        font-size: 17px;
+        letter-spacing: -0.03em;
+    }
+
+    .card .sub {
+        margin: 0 0 15px;
+        color: #667085;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    .field {
+        display: grid;
+        gap: 6px;
+    }
+
+    .field span {
+        color: #475467;
+        font-size: 11px;
+        font-weight: 900;
+        text-transform: uppercase;
+    }
+
+    .field .input,
+    .field .textarea {
+        min-height: 40px;
+        padding: 10px 11px;
+        border: 1px solid #ccd6e4;
+        border-radius: 12px;
+        background: #fbfcfe;
+        color: #101828;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .field .textarea {
+        min-height: 72px;
+    }
+
+    .wide { grid-column: span 2; }
+    .full { grid-column: 1 / -1; }
+
+    .parameter-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+    }
+
+    .table-wrap {
+        overflow: hidden;
+        border: 1px solid #ccd6e4;
+        border-radius: 18px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .feuille-table th {
+        padding: 11px 9px;
+        background: #f1f5fb;
+        color: #344054;
+        font-size: 10px;
+        line-height: 1.22;
+        text-transform: uppercase;
+    }
+
+    .feuille-table td {
+        padding: 9px;
+        border-top: 1px solid #e2e8f0;
+        background: #ffffff;
+        color: #101828;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    .feuille-table td.input-cell {
+        background: #fbfcfe;
+        color: #344054;
+        box-shadow: inset 0 0 0 1px #e2e8f0;
+    }
+
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 78px;
+        padding: 5px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 900;
+    }
+
+    .chip.ok { background: #ecfdf3; color: var(--green); }
+    .chip.warn { background: #fff6ed; color: var(--amber); }
+
+    .side-card {
+        position: sticky;
+        top: 20px;
+    }
+
+    .calc-mini {
+        display: grid;
+        gap: 10px;
+    }
+
+    .calc-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 11px 0;
+        border-bottom: 1px solid #e5eaf2;
+        color: #475467;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .calc-row strong {
+        color: #101828;
+        font-size: 13px;
+    }
+
+    .formula {
+        margin-top: 14px;
+        padding: 14px;
+        border-radius: 16px;
+        background: #f7f9fc;
+        color: #344054;
+        font-size: 11px;
+        line-height: 1.5;
+        font-weight: 800;
+    }
+
+    .report-shell {
+        padding: 28px;
+        border-radius: 30px;
+        background: #eef3f9;
+        box-shadow: 0 28px 80px rgba(15, 23, 42, 0.18);
+    }
+
+    .report-toolbar {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .a4 {
+        position: relative;
+        width: 760px;
+        min-height: 1074px;
+        margin: 0 auto;
+        padding: 34px 32px 42px;
+        background: #ffffff;
+        color: #111827;
+        box-shadow: 0 18px 55px rgba(15, 23, 42, 0.20);
+        font-family: "Century Gothic", Arial, sans-serif;
+    }
+
+    .report-header {
+        display: grid;
+        grid-template-columns: 170px 1fr 190px;
+        min-height: 100px;
+        border: 2px solid #111827;
+    }
+
+    .report-logo,
+    .report-project {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 14px;
+        text-align: center;
+        font-weight: 900;
+    }
+
+    .report-logo {
+        border-right: 2px solid #111827;
+        color: var(--nge-blue);
+        font-size: 28px;
+        letter-spacing: -0.08em;
+    }
+
+    .report-title {
+        display: grid;
+        place-items: center;
+        padding: 8px;
+        text-align: center;
+    }
+
+    .report-title h1,
+    .report-title h2,
+    .report-title h3 {
+        margin: 0;
+        line-height: 1.12;
+    }
+
+    .report-title h1 { font-size: 13px; }
+    .report-title h2 { margin-top: 4px; font-size: 15px; }
+    .report-title h3 { font-size: 13px; }
+
+    .report-refline {
+        display: grid;
+        grid-template-columns: 22px 42px 76px 76px;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+        font-size: 12px;
+    }
+
+    .report-refline span,
+    .report-refline strong {
+        border-bottom: 1px solid #111827;
+        min-height: 18px;
+        text-align: center;
+    }
+
+    .report-refcaption {
+        display: grid;
+        grid-template-columns: 72px 84px 76px;
+        gap: 8px;
+        margin-top: 2px;
+        color: #4b5563;
+        font-size: 8px;
+    }
+
+    .report-project {
+        border-left: 2px solid #111827;
+        font-size: 15px;
+        line-height: 1.25;
+    }
+
+    .labline {
+        display: grid;
+        grid-template-columns: 120px 1fr;
+        gap: 8px;
+        padding: 12px 4px 10px;
+        font-size: 12px;
+    }
+
+    .report-section {
+        margin-top: 10px;
+        border: 1.5px solid #111827;
+        padding: 10px;
+    }
+
+    .report-section h4,
+    .report-bottom h4 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .report-section h4 span,
+    .report-bottom h4 span {
+        text-decoration: underline;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px 22px;
+        padding-left: 18px;
+        font-size: 11px;
+    }
+
+    .report-cell {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 8px;
+        min-height: 18px;
+    }
+
+    .report-cell span {
+        color: #344054;
+        font-weight: 800;
+    }
+
+    .report-cell strong {
+        font-weight: 800;
+    }
+
+    .criteria-grid {
+        display: grid;
+        gap: 4px;
+        padding: 6px 0 2px 18px;
+        font-size: 11px;
+    }
+
+    .criteria-grid .report-cell {
+        grid-template-columns: 190px 1fr;
+    }
+
+    .result-section {
+        min-height: 380px;
+    }
+
+    .params {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 58px;
+        margin: 20px 18px 24px;
+    }
+
+    .param-box {
+        border: 1.5px solid #111827;
+    }
+
+    .param-box div {
+        display: grid;
+        grid-template-columns: 1fr 48px 50px;
+        align-items: center;
+        min-height: 36px;
+        padding: 5px 8px;
+        border-bottom: 1px solid #111827;
+        font-size: 10px;
+        font-weight: 800;
+    }
+
+    .param-box div:last-child {
+        border-bottom: 0;
+    }
+
+    .param-box strong,
+    .param-box em {
+        text-align: center;
+        font-style: normal;
+    }
+
+    .report-table {
+        border: 1.5px solid #111827;
+    }
+
+    .report-table th {
+        height: 44px;
+        border-right: 1px solid #111827;
+        border-bottom: 1.5px solid #111827;
+        padding: 5px 3px;
+        font-size: 8px;
+        line-height: 1.16;
+    }
+
+    .report-table td {
+        height: 28px;
+        border-right: 1px solid #111827;
+        border-bottom: 1px solid #111827;
+        text-align: center;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .report-table th:last-child,
+    .report-table td:last-child {
+        border-right: 0;
+    }
+
+    .report-bottom {
+        display: grid;
+        grid-template-columns: 1fr 255px;
+        margin-top: 10px;
+        border: 1.5px solid #111827;
+        min-height: 130px;
+    }
+
+    .conclusion-box {
+        padding: 9px 10px 0;
+        border-right: 1.5px solid #111827;
+    }
+
+    .conclusion-values {
+        display: grid;
+        place-items: center;
+        gap: 10px;
+        min-height: 48px;
+        border-bottom: 1px dashed #111827;
+        font-size: 11px;
+        font-weight: 900;
+    }
+
+    .comments-empty {
+        min-height: 42px;
+        font-size: 10px;
+        color: #667085;
+    }
+
+    .signature {
+        display: grid;
+        grid-template-rows: 43px 43px 1fr;
+    }
+
+    .signature div {
+        display: grid;
+        grid-template-columns: 78px 1fr;
+        border-bottom: 1px solid #111827;
+    }
+
+    .signature div:last-child {
+        border-bottom: 0;
+    }
+
+    .signature span {
+        display: grid;
+        place-items: center;
+        border-right: 1px solid #111827;
+        font-size: 10px;
+        font-weight: 900;
+        text-decoration: underline;
+    }
+
+    .signature strong {
+        display: grid;
+        place-items: center;
+        padding: 6px;
+        font-size: 11px;
+        text-align: center;
+    }
+
+    .footer {
+        position: absolute;
+        right: 32px;
+        bottom: 20px;
+        color: #344054;
+        font-size: 9px;
+        font-weight: 700;
+    }
+
+    .single-capture {
+        width: 1680px;
+        padding: 34px;
+        margin: 0 auto;
+        background: #dfe6ef;
+    }
+
+    .single-feuille .screen-shell {
+        width: 1600px;
+    }
+
+    .single-report .report-shell {
+        width: 980px;
+        margin: 0 auto;
+    }
+</style>
+</head>
+<body>
+    <section class="board" id="duo">
+        <h1 class="mockup-title"><span>RaLab5</span> · mockups MVA</h1>
+        <div class="mockup-grid">
+            <div class="screen-shell">
+                <div class="app-topbar">
+                    <div class="brand"><span class="brand-mark">NGE</span> RaLab5</div>
+                    <div class="app-nav">
+                        <span>Demandes</span>
+                        <span>Essais</span>
+                        <span class="active">MVA</span>
+                        <span>Rapports</span>
+                    </div>
+                </div>
+                <div class="feuille">
+                    <div class="page-head">
+                        <div>
+                            <p class="eyebrow">Feuille d'essai</p>
+                            <h1>MVA · Masse volumique des enrobés</h1>
+                            <p>NF EN 12697-6-A1 · Saisie des éprouvettes, calcul MVA, compacité et vides.</p>
+                        </div>
+                        <div class="actions">
+                            <span class="status-pill">Sauvegardé</span>
+                            <button class="btn ghost">Recharger exemple</button>
+                            <button class="btn blue">Enregistrer</button>
+                            <button class="btn dark">Ouvrir rapport MVA</button>
+                        </div>
+                    </div>
+                    <div class="summary">
+                        <div class="summary-card good"><small>Conclusion</small><strong>Conforme</strong></div>
+                        <div class="summary-card"><small>Masse volumique moyenne</small><strong>2270,6</strong><span class="unit">kg/m³</span></div>
+                        <div class="summary-card"><small>Compacité moyenne</small><strong>92,8</strong><span class="unit">%</span></div>
+                        <div class="summary-card good"><small>Vides moyens</small><strong>7,2</strong><span class="unit">%</span></div>
+                    </div>
+                    <div class="work-grid">
+                        <div>
+                            <section class="card">
+                                <h2>1/ Renseignements généraux</h2>
+                                <p class="sub">Informations qui alimentent la feuille et le rapport.</p>
+                                <div class="form-grid">
+                                    <label class="field"><span>Chrono</span><div class="input">04</div></label>
+                                    <label class="field"><span>N° d'affaire</span><div class="input">RAL1EC</div></label>
+                                    <label class="field"><span>Date rédaction</span><div class="input">18/07/2022</div></label>
+                                    <label class="field"><span>Opérateur</span><div class="input">F. Montet</div></label>
+                                    <label class="field"><span>Date prélèvement</span><div class="input">13/07/2022</div></label>
+                                    <label class="field"><span>Date essai</span><div class="input">18/07/2022</div></label>
+                                    <label class="field wide"><span>Nature du produit</span><div class="input">BBSG 0/10 Classe 3</div></label>
+                                    <label class="field"><span>Couche</span><div class="input">Roulement</div></label>
+                                    <label class="field wide"><span>Provenance</span><div class="input">P2R F110</div></label>
+                                    <label class="field"><span>Titre rapport</span><div class="input">PPI - Réseau vélo express</div></label>
+                                </div>
+                            </section>
+                            <section class="card">
+                                <h2>2/ Critères de conformité</h2>
+                                <p class="sub">Critère automatique sur le pourcentage de vides.</p>
+                                <div class="form-grid">
+                                    <label class="field wide"><span>Source des critères</span><div class="input">Marché / objectif chantier</div></label>
+                                    <label class="field"><span>Min % vides</span><div class="input">4</div></label>
+                                    <label class="field"><span>Max % vides</span><div class="input">8</div></label>
+                                    <label class="field full"><span>Définition</span><div class="textarea">4 ≤ % vides ≤ 8 %</div></label>
+                                </div>
+                            </section>
+                            <section class="card">
+                                <h2>3/ Résultats des essais</h2>
+                                <p class="sub">Chaque ligne calcule la masse volumique apparente, la compacité et les vides.</p>
+                                <div class="table-wrap">
+                                    <table class="feuille-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Réf.</th>
+                                                <th>Masse sèche</th>
+                                                <th>Masse sèche paraffinée</th>
+                                                <th>Masse dans l'eau</th>
+                                                <th>MVA</th>
+                                                <th>Compacité</th>
+                                                <th>% vides</th>
+                                                <th>Hauteur</th>
+                                                <th>État</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="input-cell">SC3</td><td class="input-cell">1338,6</td><td class="input-cell">1359,4</td><td class="input-cell">752,6</td><td>2289,8</td><td>93,6</td><td>6,4</td><td class="input-cell">5</td><td><span class="chip ok">Conforme</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="input-cell">SC5</td><td class="input-cell">1584,3</td><td class="input-cell">1607,7</td><td class="input-cell">879,1</td><td>2251,4</td><td>92,0</td><td>8,0</td><td class="input-cell">6,5</td><td><span class="chip ok">Conforme</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="input-cell">SC6</td><td class="input-cell"></td><td class="input-cell"></td><td class="input-cell"></td><td></td><td></td><td></td><td class="input-cell"></td><td><span class="chip warn">À saisir</span></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
+                        <aside>
+                            <section class="card side-card">
+                                <h2>Paramètres de calcul</h2>
+                                <p class="sub">Valeurs communes à l'essai.</p>
+                                <div class="parameter-grid" style="grid-template-columns: 1fr;">
+                                    <label class="field"><span>Température eau</span><div class="input">21 °C</div></label>
+                                    <label class="field"><span>Masse volumique eau</span><div class="input">998,1 kg/m³</div></label>
+                                    <label class="field"><span>Masse volumique paraffine</span><div class="input">890 kg/m³</div></label>
+                                    <label class="field"><span>MVR</span><div class="input">2447 kg/m³</div></label>
+                                </div>
+                                <div class="formula">
+                                    MVA = masse sèche / volume apparent<br>
+                                    Compacité = MVA / MVR × 100<br>
+                                    % vides = 100 − compacité
+                                </div>
+                            </section>
+                            <section class="card">
+                                <h2>Conclusion</h2>
+                                <div class="calc-mini">
+                                    <div class="calc-row"><span>Type</span><strong>Contrôle</strong></div>
+                                    <div class="calc-row"><span>Statut</span><strong style="color:var(--green)">Conforme</strong></div>
+                                    <div class="calc-row"><span>Technicien</span><strong>F. MONTET</strong></div>
+                                </div>
+                            </section>
+                        </aside>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-shell">
+                <div class="report-toolbar">
+                    <button class="btn ghost">Retour feuille</button>
+                    <button class="btn blue">Imprimer / PDF</button>
+                </div>
+                <article class="a4">
+                    <header class="report-header">
+                        <div class="report-logo">NGE</div>
+                        <div class="report-title">
+                            <div>
+                                <h1>COMPTE RENDU D'ESSAIS</h1>
+                                <h2>MASSE VOLUMIQUE DES ENROBÉS</h2>
+                                <h3>(NF EN 12697-6-A1)</h3>
+                                <div class="report-refline"><span>n°</span><strong>04</strong><span>RAL1EC</span><strong>18/07/2022</strong></div>
+                                <div class="report-refcaption"><span>Chrono</span><span>N° d'affaire</span><span>Date de rédaction</span></div>
+                            </div>
+                        </div>
+                        <div class="report-project">PPI - Réseau vélo<br>express</div>
+                    </header>
+                    <section class="labline"><strong>Laboratoire :</strong><span>Laboratoire Rhône-Alpes - 29-31 rue des tâches - ZI mi-plaine - 69800 SAINT PRIEST</span></section>
+                    <section class="report-section">
+                        <h4>1/ <span>RENSEIGNEMENTS GÉNÉRAUX</span></h4>
+                        <div class="info-grid">
+                            <div class="report-cell"><span>Opérateur :</span><strong>F. Montet</strong></div>
+                            <div class="report-cell"><span>Nature du produit :</span><strong>BBSG 0/10 Classe 3</strong></div>
+                            <div class="report-cell"><span>Date de(s) prélèvement(s) :</span><strong>13/07/2022</strong></div>
+                            <div class="report-cell"><span>Provenance :</span><strong>P2R F110</strong></div>
+                            <div class="report-cell"><span>Date de(s) essai(s) :</span><strong>18/07/2022</strong></div>
+                            <div class="report-cell"><span>Couche :</span><strong>Roulement</strong></div>
+                        </div>
+                    </section>
+                    <section class="report-section">
+                        <h4>2/ <span>CRITÈRES DE CONFORMITÉ</span></h4>
+                        <div class="criteria-grid">
+                            <div class="report-cell"><span>Source des critères :</span><strong>Marché / objectif chantier</strong></div>
+                            <div class="report-cell"><span>Définition des critères / objectifs :</span><strong>4 ≤ %vides ≤ 8%</strong></div>
+                        </div>
+                    </section>
+                    <section class="report-section result-section">
+                        <h4>3/ <span>RÉSULTATS DES ESSAIS</span></h4>
+                        <div class="params">
+                            <div class="param-box"><div><span>Température mesurée de l'eau :</span><strong>21</strong><em>°C</em></div><div><span>Masse volumique de l'eau :</span><strong>998,1</strong><em>kg/m³</em></div></div>
+                            <div class="param-box"><div><span>Masse volumique de la paraffine :</span><strong>890</strong><em>kg/m³</em></div><div><span>MVR :</span><strong>2447</strong><em>kg/m³</em></div></div>
+                        </div>
+                        <table class="report-table">
+                            <thead><tr><th>Référence de l'éprouvette</th><th>Masse sèche<br>(g)</th><th>Masse sèche paraffinée<br>(g)</th><th>Masse dans l'eau<br>(g)</th><th>Masse volumique de l'éprouvette<br>(kg/m³)</th><th>Compacité %</th><th>% vides</th><th>Hauteur de l'éprouvette<br>(cm)</th></tr></thead>
+                            <tbody>
+                                <tr><td>SC3</td><td>1338,6</td><td>1359,4</td><td>752,6</td><td>2289,8</td><td>93,6</td><td>6,4</td><td>5</td></tr>
+                                <tr><td>SC5</td><td>1584,3</td><td>1607,7</td><td>879,1</td><td>2251,4</td><td>92,0</td><td>8,0</td><td>6,5</td></tr>
+                                <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                                <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                                <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                            </tbody>
+                        </table>
+                    </section>
+                    <section class="report-bottom">
+                        <div class="conclusion-box">
+                            <h4>4/ <span>CONCLUSIONS</span></h4>
+                            <div class="conclusion-values"><span>Contrôle</span><span>Conforme</span></div>
+                            <h4 style="margin-top:8px;">7/ <span>COMMENTAIRES</span></h4>
+                            <div class="comments-empty"></div>
+                        </div>
+                        <div class="signature">
+                            <div><span>Nom</span><strong>F. MONTET</strong></div>
+                            <div><span>Fonction</span><strong>Technicien de laboratoire</strong></div>
+                            <div><span>Visa</span><strong></strong></div>
+                        </div>
+                    </section>
+                    <footer class="footer">DG-Q / RE ID du 28/06/06</footer>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="single-capture single-feuille" id="feuille_only">
+        <h1 class="mockup-title"><span>RaLab5</span> · FeuilleMvaPage.jsx</h1>
+        <div class="screen-shell">
+            <div class="app-topbar">
+                <div class="brand"><span class="brand-mark">NGE</span> RaLab5</div>
+                <div class="app-nav"><span>Demandes</span><span>Essais</span><span class="active">MVA</span><span>Rapports</span></div>
+            </div>
+            <div class="feuille">
+                <div class="page-head">
+                    <div><p class="eyebrow">Feuille d'essai</p><h1>MVA · Masse volumique des enrobés</h1><p>NF EN 12697-6-A1 · Saisie des éprouvettes, calcul MVA, compacité et vides.</p></div>
+                    <div class="actions"><span class="status-pill">Sauvegardé</span><button class="btn ghost">Recharger exemple</button><button class="btn blue">Enregistrer</button><button class="btn dark">Ouvrir rapport MVA</button></div>
+                </div>
+                <div class="summary"><div class="summary-card good"><small>Conclusion</small><strong>Conforme</strong></div><div class="summary-card"><small>Masse volumique moyenne</small><strong>2270,6</strong><span class="unit">kg/m³</span></div><div class="summary-card"><small>Compacité moyenne</small><strong>92,8</strong><span class="unit">%</span></div><div class="summary-card good"><small>Vides moyens</small><strong>7,2</strong><span class="unit">%</span></div></div>
+                <div class="work-grid">
+                    <div>
+                        <section class="card"><h2>1/ Renseignements généraux</h2><p class="sub">Informations qui alimentent la feuille et le rapport.</p><div class="form-grid"><label class="field"><span>Chrono</span><div class="input">04</div></label><label class="field"><span>N° d'affaire</span><div class="input">RAL1EC</div></label><label class="field"><span>Date rédaction</span><div class="input">18/07/2022</div></label><label class="field"><span>Opérateur</span><div class="input">F. Montet</div></label><label class="field"><span>Date prélèvement</span><div class="input">13/07/2022</div></label><label class="field"><span>Date essai</span><div class="input">18/07/2022</div></label><label class="field wide"><span>Nature du produit</span><div class="input">BBSG 0/10 Classe 3</div></label><label class="field"><span>Couche</span><div class="input">Roulement</div></label><label class="field wide"><span>Provenance</span><div class="input">P2R F110</div></label><label class="field"><span>Titre rapport</span><div class="input">PPI - Réseau vélo express</div></label></div></section>
+                        <section class="card"><h2>2/ Critères de conformité</h2><p class="sub">Critère automatique sur le pourcentage de vides.</p><div class="form-grid"><label class="field wide"><span>Source des critères</span><div class="input">Marché / objectif chantier</div></label><label class="field"><span>Min % vides</span><div class="input">4</div></label><label class="field"><span>Max % vides</span><div class="input">8</div></label><label class="field full"><span>Définition</span><div class="textarea">4 ≤ % vides ≤ 8 %</div></label></div></section>
+                        <section class="card"><h2>3/ Résultats des essais</h2><p class="sub">Chaque ligne calcule la masse volumique apparente, la compacité et les vides.</p><div class="table-wrap"><table class="feuille-table"><thead><tr><th>Réf.</th><th>Masse sèche</th><th>Masse sèche paraffinée</th><th>Masse dans l'eau</th><th>MVA</th><th>Compacité</th><th>% vides</th><th>Hauteur</th><th>État</th></tr></thead><tbody><tr><td class="input-cell">SC3</td><td class="input-cell">1338,6</td><td class="input-cell">1359,4</td><td class="input-cell">752,6</td><td>2289,8</td><td>93,6</td><td>6,4</td><td class="input-cell">5</td><td><span class="chip ok">Conforme</span></td></tr><tr><td class="input-cell">SC5</td><td class="input-cell">1584,3</td><td class="input-cell">1607,7</td><td class="input-cell">879,1</td><td>2251,4</td><td>92,0</td><td>8,0</td><td class="input-cell">6,5</td><td><span class="chip ok">Conforme</span></td></tr><tr><td class="input-cell">SC6</td><td class="input-cell"></td><td class="input-cell"></td><td class="input-cell"></td><td></td><td></td><td></td><td class="input-cell"></td><td><span class="chip warn">À saisir</span></td></tr></tbody></table></div></section>
+                    </div>
+                    <aside><section class="card side-card"><h2>Paramètres de calcul</h2><p class="sub">Valeurs communes à l'essai.</p><div class="parameter-grid" style="grid-template-columns: 1fr;"><label class="field"><span>Température eau</span><div class="input">21 °C</div></label><label class="field"><span>Masse volumique eau</span><div class="input">998,1 kg/m³</div></label><label class="field"><span>Masse volumique paraffine</span><div class="input">890 kg/m³</div></label><label class="field"><span>MVR</span><div class="input">2447 kg/m³</div></label></div><div class="formula">MVA = masse sèche / volume apparent<br>Compacité = MVA / MVR × 100<br>% vides = 100 − compacité</div></section><section class="card"><h2>Conclusion</h2><div class="calc-mini"><div class="calc-row"><span>Type</span><strong>Contrôle</strong></div><div class="calc-row"><span>Statut</span><strong style="color:var(--green)">Conforme</strong></div><div class="calc-row"><span>Technicien</span><strong>F. MONTET</strong></div></div></section></aside>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="single-capture single-report" id="rapport_only">
+        <h1 class="mockup-title"><span>RaLab5</span> · RapportMvaPage.jsx</h1>
+        <div class="report-shell">
+            <div class="report-toolbar"><button class="btn ghost">Retour feuille</button><button class="btn blue">Imprimer / PDF</button></div>
+            <article class="a4">
+                <header class="report-header"><div class="report-logo">NGE</div><div class="report-title"><div><h1>COMPTE RENDU D'ESSAIS</h1><h2>MASSE VOLUMIQUE DES ENROBÉS</h2><h3>(NF EN 12697-6-A1)</h3><div class="report-refline"><span>n°</span><strong>04</strong><span>RAL1EC</span><strong>18/07/2022</strong></div><div class="report-refcaption"><span>Chrono</span><span>N° d'affaire</span><span>Date de rédaction</span></div></div></div><div class="report-project">PPI - Réseau vélo<br>express</div></header>
+                <section class="labline"><strong>Laboratoire :</strong><span>Laboratoire Rhône-Alpes - 29-31 rue des tâches - ZI mi-plaine - 69800 SAINT PRIEST</span></section>
+                <section class="report-section"><h4>1/ <span>RENSEIGNEMENTS GÉNÉRAUX</span></h4><div class="info-grid"><div class="report-cell"><span>Opérateur :</span><strong>F. Montet</strong></div><div class="report-cell"><span>Nature du produit :</span><strong>BBSG 0/10 Classe 3</strong></div><div class="report-cell"><span>Date de(s) prélèvement(s) :</span><strong>13/07/2022</strong></div><div class="report-cell"><span>Provenance :</span><strong>P2R F110</strong></div><div class="report-cell"><span>Date de(s) essai(s) :</span><strong>18/07/2022</strong></div><div class="report-cell"><span>Couche :</span><strong>Roulement</strong></div></div></section>
+                <section class="report-section"><h4>2/ <span>CRITÈRES DE CONFORMITÉ</span></h4><div class="criteria-grid"><div class="report-cell"><span>Source des critères :</span><strong>Marché / objectif chantier</strong></div><div class="report-cell"><span>Définition des critères / objectifs :</span><strong>4 ≤ %vides ≤ 8%</strong></div></div></section>
+                <section class="report-section result-section"><h4>3/ <span>RÉSULTATS DES ESSAIS</span></h4><div class="params"><div class="param-box"><div><span>Température mesurée de l'eau :</span><strong>21</strong><em>°C</em></div><div><span>Masse volumique de l'eau :</span><strong>998,1</strong><em>kg/m³</em></div></div><div class="param-box"><div><span>Masse volumique de la paraffine :</span><strong>890</strong><em>kg/m³</em></div><div><span>MVR :</span><strong>2447</strong><em>kg/m³</em></div></div></div><table class="report-table"><thead><tr><th>Référence de l'éprouvette</th><th>Masse sèche<br>(g)</th><th>Masse sèche paraffinée<br>(g)</th><th>Masse dans l'eau<br>(g)</th><th>Masse volumique de l'éprouvette<br>(kg/m³)</th><th>Compacité %</th><th>% vides</th><th>Hauteur de l'éprouvette<br>(cm)</th></tr></thead><tbody><tr><td>SC3</td><td>1338,6</td><td>1359,4</td><td>752,6</td><td>2289,8</td><td>93,6</td><td>6,4</td><td>5</td></tr><tr><td>SC5</td><td>1584,3</td><td>1607,7</td><td>879,1</td><td>2251,4</td><td>92,0</td><td>8,0</td><td>6,5</td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></tbody></table></section>
+                <section class="report-bottom"><div class="conclusion-box"><h4>4/ <span>CONCLUSIONS</span></h4><div class="conclusion-values"><span>Contrôle</span><span>Conforme</span></div><h4 style="margin-top:8px;">7/ <span>COMMENTAIRES</span></h4><div class="comments-empty"></div></div><div class="signature"><div><span>Nom</span><strong>F. MONTET</strong></div><div><span>Fonction</span><strong>Technicien de laboratoire</strong></div><div><span>Visa</span><strong></strong></div></div></section>
+                <footer class="footer">DG-Q / RE ID du 28/06/06</footer>
+            </article>
+        </div>
+    </section>
+</body>
+</html>
