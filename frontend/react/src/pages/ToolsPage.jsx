@@ -979,11 +979,11 @@ export default function ToolsPage() {
   const activeLastImport = isScImport ? scLastImport : (isPmtImport ? pmtLastImport : deLastImport)
 
   function buildModeleBasePath(code, sourceFamily, sourceUid) {
-    const params = new URLSearchParams()
-    if (sourceFamily) params.set('source_family', String(sourceFamily))
-    if (sourceUid != null) params.set('source_uid', String(sourceUid))
-    const qs = params.toString()
-    return `/modelos-base/${encodeURIComponent(String(code || '').toUpperCase())}${qs ? `?${qs}` : ''}`
+    const uid = sourceUid != null ? String(sourceUid) : ''
+    if (!uid) return '/tools'
+    if (sourceFamily === 'terrain') return `/feuilles-terrain/${encodeURIComponent(uid)}`
+    if (sourceFamily === 'essai') return `/essais/${encodeURIComponent(uid)}`
+    return '/tools'
   }
 
   const modeleBaseCopies = useMemo(() => {
@@ -1046,7 +1046,7 @@ export default function ToolsPage() {
         sourceReference: 'Base à créer',
         sourceDate: '',
         sourceStatus: 'PMT',
-        openPath: '/modeles/pmt',
+        openPath: '/tools',
       })
     }
 
@@ -1135,16 +1135,7 @@ export default function ToolsPage() {
             icon="📄"
             title="Modelos terrain + essai (testes)"
             desc="Atalho técnico interno para abrir rápido qualquer feuille terrain ou essai por número/referência e testar vazio ou preenchido."
-            headerRight={(
-              <>
-                <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/work/de')}>
-                  Work DE
-                </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/work/pmt')}>
-                  Work PMT
-                </Button>
-              </>
-            )}
+            headerRight={null}
           >
             <form
               className="flex flex-col gap-2 md:flex-row"

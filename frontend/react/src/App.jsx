@@ -48,10 +48,6 @@ const PlanImplantationCanvasPage = lazy(() => import('@/pages/PlanImplantationCa
 const NivellementPage = lazy(() => import('@/pages/NivellementPage'))
 const FeuilleTerrainPage = lazy(() => import('@/pages/FeuilleTerrainPage'))
 const FeuilleDeRuntimePage = lazy(() => import('@/pages/FeuilleDeRuntimePage'))
-const ModeleBasePage = lazy(() => import('@/pages/ModeleBasePage'))
-const WorkDePage = lazy(() => import('@/pages/WorkDePage'))
-const ModelePMTPage = lazy(() => import('@/pages/modeles/ModelePMTPage'))
-const WorkPmtPage = lazy(() => import('@/pages/work/WorkPmtPage'))
 const FeuillePmtRuntimePage = lazy(() => import('@/pages/runtime/FeuillePmtRuntimePage'))
 
 
@@ -106,10 +102,10 @@ export default function App() {
                 <Route path="nivellements/:uid" element={<P><NivellementPage /></P>} />
                 <Route path="feuilles-terrain/:uid" element={<P><FeuilleTerrainPage /></P>} />
                 <Route path="feuilles-terrain/de/:uid/runtime" element={<P><FeuilleDeRuntimePage /></P>} />
-                <Route path="modelos-base/:code" element={<P><ModeleBasePage /></P>} />
-                <Route path="work/de" element={<P><WorkDePage /></P>} />
-                <Route path="modeles/pmt" element={<P><ModelePMTPage /></P>} />
-                <Route path="work/pmt" element={<P><WorkPmtPage /></P>} />
+                <Route path="modelos-base/:code" element={<Navigate to="/tools" replace />} />
+                <Route path="work/de" element={<Navigate to="/tools" replace />} />
+                <Route path="modeles/pmt" element={<Navigate to="/tools" replace />} />
+                <Route path="work/pmt" element={<Navigate to="/tools" replace />} />
                 <Route path="pmt-essais/:pmtId/runtime" element={<P><FeuillePmtRuntimePage /></P>} />
                 <Route path="feuilles-terrain/pmt/:uid/runtime" element={<P><FeuillePmtRuntimePage /></P>} />
                 <Route path="tools" element={<P><ToolsPage /></P>} />
