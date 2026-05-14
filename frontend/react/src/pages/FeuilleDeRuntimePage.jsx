@@ -5,8 +5,12 @@ import Input from '@/components/ui/Input'
 import { feuillesTerrainApi, qualiteApi } from '@/services/api'
 import {
   computeDeSummary,
+  createWorkDocumentDE,
+  findWorkDocumentDEBySourceTerrainUid,
+  getModelDefinitionDE,
   getRuntimePublicationDE,
   getWorkDocumentDE,
+  listModelDefinitionsDE,
   updateWorkDocumentDE,
 } from '@/services/modelWorkLocalStore'
 import {
@@ -410,13 +414,20 @@ export default function FeuilleDeRuntimePage() {
   const [equipmentOptions, setEquipmentOptions] = useState([])
   const [equipmentLoading, setEquipmentLoading] = useState(false)
   const [equipmentError, setEquipmentError] = useState('')
+  const [deFeuilles, setDeFeuilles] = useState([])
+  const [selectedFeuilleUid, setSelectedFeuilleUid] = useState(String(uid || ''))
+  const [savedDraftSnapshot, setSavedDraftSnapshot] = useState('')
 
-  const returnTo = searchParams.get('return_to') || `/feuilles-terrain/${encodeURIComponent(String(uid))}`
+  const returnToRaw = String(searchParams.get('return_to') || '').trim()
+  const legacyLoopPath = `/feuilles-terrain/${encodeURIComponent(String(uid))}`
+  const returnTo = returnToRaw && returnToRaw !== legacyLoopPath ? returnToRaw : '/tools'
 
   const summary = useMemo(
     () => computeDeSummary(Array.isArray(runtimeDraft?.points_rows) ? runtimeDraft.points_rows : []),
     [runtimeDraft]
   )
+  const currentDraftSnapshot = useMemo(() => JSON.stringify(runtimeDraft || {}), [runtimeDraft])
+  const hasUnsavedChanges = Boolean(savedDraftSnapshot) && currentDraftSnapshot !== savedDraftSnapshot
 
   function toDraft(values = {}) {
     return {
@@ -481,9 +492,43 @@ export default function FeuilleDeRuntimePage() {
             ''
           ),
         })
-        const publication = getRuntimePublicationDE()
+        const terrainNum = Number(uid)
+        let publication = getRuntimePublicationDE()
         if (!publication?.work_document_id) {
-          throw new Error('Aucune publication runtime DE globale trouvée. Valide/associe d’abord dans Work DE.')
+          let workDoc = Number.isFinite(terrainNum)
+            ? findWorkDocumentDEBySourceTerrainUid(terrainNum)
+            : null
+          if (!workDoc) {
+            const model = getModelDefinitionDE()
+            const payloadDraft = toDraft(payload)
+            const initialRv = hasRuntimeContent(payloadDraft)
+              ? payloadDraft
+              : (model?.values ? toDraft(model.values) : { meta: {}, points_rows: [] })
+            workDoc = createWorkDocumentDE({
+              modelDefinitionId: model?.id || '',
+              modelVersion: model?.schema_version || 1,
+              runtimeValues: initialRv,
+              sourceTerrainUid: Number.isFinite(terrainNum) ? terrainNum : null,
+            })
+          }
+          const modelList = listModelDefinitionsDE()
+          const modelForSnapshot =
+            (workDoc?.model_definition_id
+              && modelList.find((m) => String(m?.id) === String(workDoc.model_definition_id)))
+            || getModelDefinitionDE()
+          const snapValues =
+            modelForSnapshot && typeof modelForSnapshot.values === 'object'
+              ? modelForSnapshot.values
+              : { meta: {}, points_rows: [] }
+          publication = {
+            work_document_id: String(workDoc.id),
+            model_definition_id: String(workDoc.model_definition_id || ''),
+            rapport_model_definition_id: String(workDoc.rapport_model_definition_id || ''),
+            model_snapshot: { values: snapValues },
+            rapport_snapshot: null,
+            published_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
         }
         setPublication(publication)
         setPublishedWorkDocId(String(publication.work_document_id))
@@ -500,6 +545,26 @@ export default function FeuilleDeRuntimePage() {
   }, [uid])
 
   useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const rows = await feuillesTerrainApi.list({ limit: 400 })
+        if (cancelled) return
+        const filtered = (Array.isArray(rows) ? rows : [])
+          .filter((row) => String(row?.code_feuille || '').trim().toUpperCase() === 'DE')
+          .map((row) => ({
+            uid: String(row?.uid || ''),
+            reference: String(row?.reference || `#${row?.uid || ''}`),
+          }))
+        setDeFeuilles(filtered)
+      } catch {
+        if (!cancelled) setDeFeuilles([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
     if (!publishedWorkDocId) return
     const doc = getWorkDocumentDE(publishedWorkDocId)
     if (!doc) {
@@ -511,7 +576,10 @@ export default function FeuilleDeRuntimePage() {
     const mergedDraft = buildDraftFromPublication(sourceValues, publication)
     const synced = updateWorkDocumentDE(doc.id, { runtime_values: mergedDraft }) || doc
     setRuntimeDoc(synced)
-    setRuntimeDraft(toDraft(synced.runtime_values || mergedDraft))
+    const hydratedDraft = toDraft(synced.runtime_values || mergedDraft)
+    setRuntimeDraft(hydratedDraft)
+    setSavedDraftSnapshot(JSON.stringify(hydratedDraft))
+    setSelectedFeuilleUid(String(uid || ''))
   }, [publishedWorkDocId, publication, feuillePayload])
 
   useEffect(() => {
@@ -612,6 +680,7 @@ export default function FeuilleDeRuntimePage() {
     }
     setRuntimeDoc(updated)
     setRuntimeDraft(toDraft(updated.runtime_values || {}))
+    setSavedDraftSnapshot(JSON.stringify(toDraft(updated.runtime_values || {})))
     setResult({ type: 'ok', msg: 'Feuille runtime enregistrée.' })
   }
 
@@ -701,6 +770,17 @@ export default function FeuilleDeRuntimePage() {
     navigate(`/campagnes/${encodeURIComponent(campaignId)}${query}`)
   }
 
+  function handleSwitchFeuille() {
+    const nextUid = String(selectedFeuilleUid || '').trim()
+    if (!nextUid || nextUid === String(uid || '')) return
+    if (hasUnsavedChanges) {
+      const proceed = window.confirm('Des changements ne sont pas enregistrés. Voulez-vous changer de feuille sans sauvegarder ?')
+      if (!proceed) return
+    }
+    const query = returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ''
+    navigate(`/feuilles-terrain/de/${encodeURIComponent(nextUid)}/runtime${query}`)
+  }
+
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-3">
       <div className="sticky top-0 z-10 flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border bg-surface px-6">
@@ -710,6 +790,23 @@ export default function FeuilleDeRuntimePage() {
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-semibold text-text">Feuille DE Runtime</div>
           <div className="truncate text-[11px] text-text-muted">{feuilleRef}</div>
+        </div>
+        <div className="flex min-w-[340px] items-center gap-2">
+          <select
+            value={selectedFeuilleUid}
+            onChange={(event) => setSelectedFeuilleUid(String(event.target.value || ''))}
+            className="w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-xs outline-none focus:border-accent"
+          >
+            <option value="">Sélectionner une référence DE…</option>
+            {deFeuilles.map((row) => (
+              <option key={row.uid} value={row.uid}>
+                {row.reference}
+              </option>
+            ))}
+          </select>
+          <Button variant="secondary" size="sm" onClick={handleSwitchFeuille} disabled={!selectedFeuilleUid || selectedFeuilleUid === String(uid || '')}>
+            Ouvrir
+          </Button>
         </div>
         <div className="flex flex-wrap gap-2">
           {renderDebugNavButton('Demande', '/demandes', feuilleLinks.demandeId)}

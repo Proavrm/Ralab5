@@ -1,12 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import { pmtEssaisApi } from '../../services/api'
 import {
-  deleteModelDefinitionPMT,
   listModelDefinitionsPMT,
-  listRapportModelDefinitionsPMT,
   upsertModelDefinitionPMT,
 } from '../../services/pmtModelWorkStore'
 import { createDefaultPmtDraft } from '../../lib/pmt/draft'
@@ -38,16 +36,6 @@ function createModelPayload(reference = '') {
     values: createDefaultPmtDraft(),
     updated_at: new Date().toISOString(),
   }
-}
-
-function statusLabel(status) {
-  return status === 'approved' ? 'Approuvé' : 'Brouillon'
-}
-
-function statusClass(status) {
-  return status === 'approved'
-    ? 'border-[#b7d69a] bg-[#f0f8e9] text-[#3b6d11]'
-    : 'border-[#f0c36d] bg-[#fff8e8] text-[#8a5c11]'
 }
 
 function Badge({ children, className = '' }) {
@@ -188,25 +176,25 @@ function FieldBox({ label, tone = 'manual', children, full = false }) {
 
 export default function ModelePMTPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [revision, setRevision] = useState(0)
   const [result, setResult] = useState(null)
   const [selectedModelId, setSelectedModelId] = useState('')
+  const [selectedEssaiRef, setSelectedEssaiRef] = useState('')
+  const [selectedEssaiId, setSelectedEssaiId] = useState('')
+  const [pmtEssaiOptions, setPmtEssaiOptions] = useState([])
+  const autoOpenDone = useRef(false)
   const [reference, setReference] = useState('')
   const [draft, setDraft] = useState(createDefaultPmtDraft())
   const [importRef, setImportRef] = useState('')
+  const [savedSnapshot, setSavedSnapshot] = useState('')
 
   const models = useMemo(() => listModelDefinitionsPMT(), [revision])
   const selectedModel = useMemo(
     () => models.find((row) => String(row.id) === String(selectedModelId)) || models[0] || null,
     [models, selectedModelId]
   )
-  const rapportStatus = useMemo(() => {
-    const reports = listRapportModelDefinitionsPMT()
-    if (!Array.isArray(reports) || reports.length === 0) return 'draft'
-    return reports.some((item) => String(item?.status || '').toLowerCase() === 'approved') ? 'approved' : 'draft'
-  }, [revision])
-  const modelStatus = String(selectedModel?.status || 'draft')
-  const isModelLocked = modelStatus === 'approved'
+  const isModelLocked = false
   const summary = useMemo(
     () => summarizePmtRows(draft?.points_rows || [], draft?.meta?.criteria_pmt_min),
     [draft]
@@ -215,6 +203,11 @@ export default function ModelePMTPage() {
     () => computePmtConformiteValue(summary, draft?.meta?.criteria_pmt_min),
     [summary, draft?.meta?.criteria_pmt_min]
   )
+  const currentSnapshot = useMemo(() => JSON.stringify({
+    reference: String(reference || ''),
+    draft: normalizePmtRuntimeValues(draft || {}),
+  }), [reference, draft])
+  const hasUnsavedChanges = Boolean(savedSnapshot) && currentSnapshot !== savedSnapshot
 
   useEffect(() => {
     if (models.length > 0) return
@@ -222,72 +215,130 @@ export default function ModelePMTPage() {
     setSelectedModelId(String(seeded.id))
     setReference(cleanModelReference(seeded.reference))
     setDraft(normalizePmtRuntimeValues(seeded.values || createDefaultPmtDraft()))
-    setResult({ type: 'ok', message: 'Modèle PMT initial créé.' })
+    setResult({ type: 'ok', message: 'Feuille PMT initiale créée.' })
     setRevision((v) => v + 1)
   }, [models.length])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const rows = await pmtEssaisApi.list({ limit: 400 })
+        if (cancelled) return
+        const mapped = (Array.isArray(rows) ? rows : [])
+          .map((row) => {
+            const essaiId = String(row?.id || '').trim()
+            const reference = String(row?.reference || '').trim()
+            return {
+              essaiId,
+              reference,
+            }
+          })
+          .filter((item) => item.essaiId && item.reference)
+        setPmtEssaiOptions(mapped)
+        if (!String(selectedEssaiRef || '').trim() && mapped.length > 0) {
+          setSelectedEssaiRef(String(mapped[0].reference))
+        }
+      } catch {
+        if (!cancelled) setPmtEssaiOptions([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!selectedModel) return
     setSelectedModelId(String(selectedModel.id))
     setReference(cleanModelReference(selectedModel.reference))
-    setDraft(normalizePmtRuntimeValues(selectedModel.values || createDefaultPmtDraft()))
+    const nextDraft = normalizePmtRuntimeValues(selectedModel.values || createDefaultPmtDraft())
+    const nextReference = cleanModelReference(selectedModel.reference)
+    setDraft(nextDraft)
+    setSelectedEssaiRef(String(nextReference || ''))
+    setSelectedEssaiId('')
+    setSavedSnapshot(JSON.stringify({ reference: String(nextReference || ''), draft: nextDraft }))
   }, [selectedModel?.id])
+
+  useEffect(() => {
+    if (autoOpenDone.current || !pmtEssaiOptions.length) return
+    const urlEssaiId = String(searchParams.get('essai_id') || '').trim()
+    if (!urlEssaiId) return
+    const match = pmtEssaiOptions.find((o) => String(o.essaiId) === urlEssaiId)
+    if (!match) return
+    autoOpenDone.current = true
+    setSelectedEssaiRef(match.reference)
+    ;(async () => {
+      try {
+        const data = await pmtEssaisApi.getByReference(match.reference)
+        const importedDraft = normalizePmtRuntimeValues(data?.runtime_values || {})
+        const nextMeta = {
+          ...(importedDraft?.meta || {}),
+          demande_id: data?.demande_id || importedDraft?.meta?.demande_id || '',
+          intervention_id: data?.intervention_id || importedDraft?.meta?.intervention_id || '',
+          campaign_id: data?.campaign_id || importedDraft?.meta?.campaign_id || '',
+        }
+        const hydratedDraft = normalizePmtRuntimeValues({ ...importedDraft, meta: nextMeta })
+        const loadedId = String(data?.id || '').trim()
+        const nextRef = cleanModelReference(match.reference)
+        setSelectedEssaiId(loadedId)
+        setReference(nextRef)
+        setDraft(hydratedDraft)
+        setSavedSnapshot(JSON.stringify({ reference: String(nextRef || ''), draft: hydratedDraft }))
+        setResult({ type: 'ok', message: `Essai PMT chargé: ${nextRef}` })
+      } catch (e) {
+        setResult({ type: 'err', message: e?.message || 'Ouverture essai PMT impossible.' })
+      }
+    })()
+  }, [pmtEssaiOptions, searchParams])
 
   function refresh(preferredModelId = '') {
     setRevision((v) => v + 1)
     if (preferredModelId) setSelectedModelId(String(preferredModelId))
   }
 
-  function handleCreateModel() {
-    const saved = upsertModelDefinitionPMT(createModelPayload())
-    setResult({ type: 'ok', message: `Modèle créé: ${saved.reference}` })
-    refresh(saved.id)
-  }
-
   function handleSaveModel() {
-    if (!selectedModel) return
-    const saved = upsertModelDefinitionPMT({
-      ...selectedModel,
-      reference,
-      values: normalizePmtRuntimeValues(draft),
-      updated_at: new Date().toISOString(),
-    })
-    setResult({ type: 'ok', message: `Modèle enregistré: ${saved.reference}` })
-    refresh(saved.id)
+    if (!selectedEssaiId) {
+      setResult({ type: 'err', message: 'Ouvrez un essai PMT depuis le sélecteur avant d’enregistrer.' })
+      return
+    }
+    const normalized = normalizePmtRuntimeValues(draft)
+    void (async () => {
+      try {
+        await pmtEssaisApi.putRuntimeValues(selectedEssaiId, { runtime_values: normalized })
+        setSavedSnapshot(JSON.stringify({ reference: String(cleanModelReference(reference) || ''), draft: normalized }))
+        setResult({ type: 'ok', message: `Feuille PMT enregistrée: ${reference || selectedEssaiRef}` })
+      } catch (e) {
+        setResult({ type: 'err', message: e?.message || 'Enregistrement PMT impossible.' })
+      }
+    })()
   }
 
-  function handleApproveModel(nextStatus = 'approved') {
-    if (!selectedModel) return
-    const saved = upsertModelDefinitionPMT({
-      ...selectedModel,
-      reference,
-      status: nextStatus,
-      values: normalizePmtRuntimeValues(draft),
-      updated_at: new Date().toISOString(),
-    })
-    setResult({ type: 'ok', message: `Statut modèle: ${statusLabel(saved.status)}` })
-    refresh(saved.id)
-  }
-
-  function handleResetModel() {
-    if (!selectedModel) return
-    const clean = createDefaultPmtDraft()
-    const saved = upsertModelDefinitionPMT({
-      ...selectedModel,
-      reference,
-      values: clean,
-      updated_at: new Date().toISOString(),
-    })
-    setDraft(clean)
-    setResult({ type: 'ok', message: 'Modèle PMT réinitialisé.' })
-    refresh(saved.id)
-  }
-
-  function handleDeleteModel() {
-    if (!selectedModel) return
-    const ok = deleteModelDefinitionPMT(selectedModel.id)
-    setResult({ type: ok ? 'ok' : 'err', message: ok ? 'Modèle supprimé.' : 'Suppression impossible.' })
-    if (ok) refresh('')
+  async function handleOpenModel() {
+    const ref = String(selectedEssaiRef || '').trim()
+    if (!ref) return
+    if (hasUnsavedChanges) {
+      const proceed = window.confirm('Des changements ne sont pas enregistrés. Voulez-vous changer de feuille sans sauvegarder ?')
+      if (!proceed) return
+    }
+    try {
+      const data = await pmtEssaisApi.getByReference(ref)
+      const importedDraft = normalizePmtRuntimeValues(data?.runtime_values || {})
+      const nextMeta = {
+        ...(importedDraft?.meta || {}),
+        demande_id: data?.demande_id || importedDraft?.meta?.demande_id || '',
+        intervention_id: data?.intervention_id || importedDraft?.meta?.intervention_id || '',
+        campaign_id: data?.campaign_id || importedDraft?.meta?.campaign_id || '',
+      }
+      const hydratedDraft = normalizePmtRuntimeValues({ ...importedDraft, meta: nextMeta })
+      const loadedId = String(data?.id || '').trim()
+      const nextRef = cleanModelReference(ref)
+      setSelectedEssaiId(loadedId)
+      setReference(nextRef)
+      setDraft(hydratedDraft)
+      setSavedSnapshot(JSON.stringify({ reference: String(nextRef || ''), draft: hydratedDraft }))
+      setResult({ type: 'ok', message: `Essai PMT chargé: ${nextRef || ref}` })
+    } catch (e) {
+      setResult({ type: 'err', message: e?.message || 'Ouverture essai PMT impossible.' })
+    }
   }
 
   async function handleImportReference() {
@@ -301,7 +352,14 @@ export default function ModelePMTPage() {
       if (!data?.runtime_values || typeof data.runtime_values !== 'object') {
         throw new Error('Réponse vide')
       }
-      setDraft(normalizePmtRuntimeValues(data.runtime_values))
+      const importedDraft = normalizePmtRuntimeValues(data.runtime_values)
+      const nextMeta = {
+        ...(importedDraft?.meta || {}),
+        demande_id: data?.demande_id || importedDraft?.meta?.demande_id || '',
+        intervention_id: data?.intervention_id || importedDraft?.meta?.intervention_id || '',
+        campaign_id: data?.campaign_id || importedDraft?.meta?.campaign_id || '',
+      }
+      setDraft(normalizePmtRuntimeValues({ ...importedDraft, meta: nextMeta }))
       setResult({ type: 'ok', message: `Données chargées depuis ${ref} (essai #${data.id}).` })
     } catch (e) {
       setResult({ type: 'err', message: e?.message || 'Import impossible (référence ou serveur).' })
@@ -372,142 +430,83 @@ export default function ModelePMTPage() {
   }
 
   function handleOpenRapport() {
-    if (!selectedModel) {
-      navigate('/rapports/pmt/modele')
-      return
-    }
-    // Persist current draft before opening report so back-navigation keeps edits.
-    const saved = upsertModelDefinitionPMT({
-      ...selectedModel,
-      reference,
-      values: normalizePmtRuntimeValues(draft),
-      updated_at: new Date().toISOString(),
-    })
     const params = new URLSearchParams()
-    params.set('source_kind', 'model_definition')
-    params.set('source_id', String(saved.id))
-    navigate(`/rapports/pmt/modele?${params.toString()}`)
+    params.set('mode', 'work')
+    if (selectedEssaiId) params.set('pmt_essai_id', String(selectedEssaiId))
+    params.set('source_ref', String(reference || selectedEssaiRef || ''))
+    if (draft?.meta?.demande_id) params.set('demande_id', String(draft.meta.demande_id))
+    if (draft?.meta?.intervention_id) params.set('intervention_id', String(draft.meta.intervention_id))
+    if (draft?.meta?.campaign_id || draft?.meta?.campagne_id) {
+      params.set('campaign_id', String(draft?.meta?.campaign_id || draft?.meta?.campagne_id))
+    }
+    navigate(`/rapports/pmt/view?${params.toString()}`)
+  }
+
+  function goBack() {
+    const returnTo = searchParams.get('return_to')
+    navigate(returnTo || '/tools')
+  }
+
+  function navTarget(path, id) {
+    const normalized = String(id || '').trim()
+    return normalized ? `${path}/${encodeURIComponent(normalized)}` : ''
+  }
+
+  function renderContextButton(label, path, id) {
+    const target = navTarget(path, id)
+    const hasId = Boolean(target)
+    return (
+      <Button
+        key={label}
+        variant="secondary"
+        size="sm"
+        disabled={!hasId}
+        onClick={() => hasId ? navigate(target) : null}
+      >
+        {label}
+      </Button>
+    )
   }
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-3">
-      <section className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">Modèle de base</div>
-            <h1 className="mt-1 text-2xl font-semibold text-text">Modèle de base — PMT</h1>
-            <p className="mt-2 max-w-3xl text-sm text-text-muted">
-              Cette page regroupe les données de référence nécessaires au paramétrage et au contrôle du formulaire d&apos;essai.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge className="border-border bg-bg text-text-muted">Famille : terrain</Badge>
-            <Badge className={statusClass(modelStatus)}>{statusLabel(modelStatus)}</Badge>
-            <Badge className={statusClass(rapportStatus)}>
-              Rapport {statusLabel(rapportStatus)}
-            </Badge>
-            {isModelLocked ? (
-              <Badge className="border-[#abc3e8] bg-[#eef5ff] text-[#315b97]">Lecture seule</Badge>
-            ) : null}
+      <div className="sticky top-0 z-10 flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border bg-surface px-6">
+        <Button variant="secondary" size="sm" onClick={goBack}>
+          ← Retour
+        </Button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[15px] font-semibold text-text">Feuille PMT de travail</div>
+          <div className="truncate text-[11px] text-text-muted">
+            {cleanModelReference(reference) || 'PMT'}
           </div>
         </div>
-      </section>
-
-      {isModelLocked ? (
-        <div className="rounded-xl border border-[#abc3e8] bg-[#f3f8ff] px-4 py-3 text-sm text-[#315b97]">
-          Modèle approuvé : l&apos;édition est verrouillée. Utilise « Repasser en brouillon » pour modifier la structure.
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_430px]">
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">En-tête du modèle</div>
-          <p className="mt-1 text-xs text-text-muted">Référence interne et statut de validation du modèle.</p>
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label className="flex flex-col gap-1 text-xs text-text-muted">
-                <span className="font-medium uppercase tracking-wide">Référence du modèle</span>
-                <input
-                  value={reference}
-                  onChange={(event) => setReference(event.target.value)}
-                  placeholder="Ex. : MODELE-PMT-001"
-                  readOnly={isModelLocked}
-                  className="rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent read-only:cursor-default read-only:opacity-80"
-                />
-              </label>
-            </div>
-            <div className="rounded-lg border border-border bg-bg p-3">
-              <div className="text-xs text-text-muted">
-                Statut du modèle PMT :{' '}
-                <span className={`font-semibold ${modelStatus === 'approved' ? 'text-[#3b6d11]' : 'text-[#8a5c11]'}`}>
-                  {statusLabel(modelStatus)}
-                </span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <Button variant="primary" size="sm" onClick={() => handleApproveModel('approved')} disabled={modelStatus === 'approved'}>Approuver le modèle</Button>
-                <Button variant="secondary" size="sm" onClick={() => handleApproveModel('draft')} disabled={modelStatus === 'draft'}>Repasser en brouillon</Button>
-              </div>
-              <div className="mt-2 rounded-lg border border-dashed border-border bg-surface px-2 py-2 text-xs text-text-muted">
-                Gestion du modèle PMT. Le rapport PMT est géré dans la page Rapport PMT.
-              </div>
-            </div>
-            <div className="md:col-span-2 grid grid-cols-[1fr_auto] gap-2">
-              <select
-                className="h-10 rounded border border-border bg-bg px-3 text-sm"
-                value={selectedModelId}
-                onChange={(event) => setSelectedModelId(event.target.value)}
-              >
-                {models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {cleanModelReference(model.reference) || model.id} · {statusLabel(model.status)}
-                  </option>
-                ))}
-              </select>
-              <Button variant="secondary" size="sm" onClick={handleCreateModel}>Nouveau modèle</Button>
-            </div>
-            <div className="md:col-span-2 text-[11px] text-text-muted">
-              {models.length} modèle(s) enregistré(s) pour PMT.
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">Import de valeurs de référence</div>
-          <p className="mt-1 text-[12px] text-text-muted">
-            Utilise une référence d’essai ou de feuille, par exemple 2022-SP-XX0001, pour charger des valeurs de test dans le modèle vierge.
-          </p>
-          <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-            <input
-              value={importRef}
-              onChange={(event) => setImportRef(event.target.value)}
-              placeholder="Ex. : 2022-SP-PMT0003"
-              readOnly={isModelLocked}
-              className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent read-only:cursor-default read-only:opacity-80"
-            />
-            <Button variant="primary" size="sm" onClick={handleImportReference}>Importer</Button>
-          </div>
-          <div className="mt-2 rounded border border-border bg-bg px-2 py-1 text-[11px] text-text-muted">
-            Source actuelle : terrain — {cleanModelReference(selectedModel?.reference) || '-'} (uid {selectedModel?.id || '-'})
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div>
-              <label className="flex flex-col gap-1 text-xs text-text-muted">
-                <span className="font-medium uppercase tracking-wide">Affaire NGE</span>
-                <Input value={String(draft?.meta?.reference_chantier || '')} onChange={(event) => handleMetaChange('reference_chantier', event.target.value)} readOnly />
-              </label>
-            </div>
-            <div>
-              <label className="flex flex-col gap-1 text-xs text-text-muted">
-                <span className="font-medium uppercase tracking-wide">Chrono</span>
-                <Input value={String(draft?.meta?.chrono || '')} onChange={(event) => handleMetaChange('chrono', event.target.value)} readOnly />
-              </label>
-            </div>
-          </div>
+        <div className="flex min-w-[420px] items-center gap-2">
+          <select
+            className="h-10 w-full rounded border border-border bg-bg px-3 text-sm"
+            value={selectedEssaiRef}
+            onChange={(event) => setSelectedEssaiRef(event.target.value)}
+          >
+            {pmtEssaiOptions.map((item) => (
+              <option key={`essai-${item.essaiId}`} value={item.reference}>
+                {item.reference}
+              </option>
+            ))}
+          </select>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleOpenModel}
+            disabled={!selectedEssaiRef}
+          >
+            Ouvrir
+          </Button>
+          {renderContextButton('Demande', '/demandes', draft?.meta?.demande_id)}
+          {renderContextButton('Intervention', '/interventions', draft?.meta?.intervention_id)}
+          {renderContextButton('Campagne', '/campagnes', draft?.meta?.campagne_id || draft?.meta?.campaign_id)}
         </div>
       </div>
 
-      <StructureCard title="Structure du modèle" description="Structure métier dédiée au contrôle PMT.">
-        <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
           <StructureCard title="Identification" description="Données de réalisation de l’essai ou de l’intervention.">
             <div className="mb-4 flex flex-wrap items-center gap-2 text-[10px] text-text-muted">
               <Badge className="border-[#b7e2c4] bg-[#f1fbf4] text-[#477d55]">Saisie manuelle / import</Badge>
@@ -711,14 +710,12 @@ export default function ModelePMTPage() {
               </div>
             )}
           </StructureCard>
-        </div>
-      </StructureCard>
+      </div>
 
       <div className="rounded-xl border border-border bg-surface p-3">
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" size="sm" onClick={handleSaveModel} disabled={isModelLocked}>Enregistrer le brouillon</Button>
-          <Button variant="secondary" size="sm" onClick={handleOpenRapport}>Ouvrir le rapport PMT</Button>
-          <Button variant="ghost" size="sm" onClick={handleResetModel}>Réinitialiser le modèle</Button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="primary" size="sm" onClick={handleSaveModel} disabled={isModelLocked}>Enregistrer</Button>
+          <Button variant="secondary" size="sm" onClick={handleOpenRapport}>Imprimer / Ouvrir rapport</Button>
         </div>
       </div>
 

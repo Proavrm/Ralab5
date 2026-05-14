@@ -1,16 +1,53 @@
 param(
-    [switch]$OpenBrowser
+    [switch]$OpenBrowser,
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$frontendDir = Join-Path $repoRoot 'frontend\react'
+$frontendDist = Join-Path $frontendDir 'dist\index.html'
 $serverLauncher = Join-Path $repoRoot 'launch_ralab5_server.cmd'
 $tunnelLauncher = Join-Path $repoRoot 'scripts\start_cloudflared_ralab5.ps1'
 $configCandidates = @(
     "$env:USERPROFILE\.cloudflared\config.yml",
     "$env:USERPROFILE\.cloudflared\cloudflared_ralab5.yml"
 )
+
+# Option 2 serves frontend/react/dist (not Vite). Without a rebuild here, an already
+# running server on 8000 would keep serving an outdated dist; JS assets use long-lived cache headers.
+if (-not $SkipBuild) {
+    $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if ($npmCommand) {
+        Push-Location $frontendDir
+        try {
+            if (-not (Test-Path 'node_modules')) {
+                Write-Host 'Installing frontend dependencies...'
+                & $npmCommand.Source install
+                if ($LASTEXITCODE -ne 0) {
+                    exit $LASTEXITCODE
+                }
+            }
+
+            Write-Host 'Building frontend for static hosting (Cloudflare / port 8000)...'
+            & $npmCommand.Source run build
+            if ($LASTEXITCODE -ne 0) {
+                exit $LASTEXITCODE
+            }
+        }
+        finally {
+            Pop-Location
+        }
+    }
+    elseif (-not (Test-Path $frontendDist)) {
+        Write-Error 'Frontend build is missing and npm is not available.'
+        exit 1
+    }
+    else {
+        Write-Warning 'npm not found; using existing frontend/react/dist without rebuild.'
+    }
+}
 
 function Start-BrowserWhenReady {
     param(
@@ -79,6 +116,9 @@ if (-not $serverRunning) {
 }
 else {
     Write-Host 'RaLab5 server already listening on port 8000.'
+    if (-not $SkipBuild) {
+        Write-Host 'If the app was already open, hard-refresh (Ctrl+F5) so the browser loads the new JS bundles.'
+    }
 }
 
 if (-not $cloudflaredRunning) {

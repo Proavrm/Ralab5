@@ -281,10 +281,19 @@ export const adminApi = {
 
 /** Essais PMT (source unique en base : pmt_essais / pmt_essais_points). */
 export const pmtEssaisApi = {
+  list: (params = {}) => api.get('/pmt-essais?' + new URLSearchParams(params)),
   get: (pmtId) => api.get(`/pmt-essais/${Number(pmtId)}`),
   getByReference: (reference) =>
     api.get(`/pmt-essais/by-reference?${new URLSearchParams({ reference: String(reference || '').trim() })}`),
   putRuntimeValues: (pmtId, body) => api.put(`/pmt-essais/${Number(pmtId)}/runtime-values`, body),
+}
+
+export const rapportsValidationApi = {
+  list: (params = {}) => api.get('/rapports/validation?' + new URLSearchParams(params)),
+  updateStatus: (reportId, body) =>
+    api.post(`/rapports/validation/${encodeURIComponent(String(reportId || ''))}/status`, body),
+  refreshPreview: (reportId) =>
+    api.post(`/rapports/validation/${encodeURIComponent(String(reportId || ''))}/preview`, {}),
 }
 
 export const feuillesTerrainApi = {

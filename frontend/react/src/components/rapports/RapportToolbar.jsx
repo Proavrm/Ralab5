@@ -1,64 +1,30 @@
-// RapportToolbar.jsx
-import React from "react";
+import { useNavigate } from "react-router-dom";
 
-function noop() {}
+export default function RapportToolbar({ reportReference = "" }) {
+    const navigate = useNavigate();
 
-export default function RapportToolbar({
-    onPrint = noop,
-    onExportPdf = noop,
-    onReview = noop,
-    onValidate = noop,
-    onPrepareMail = noop,
-    showPrint = true,
-    showExportPdf = true,
-    showReview = true,
-    showValidate = true,
-    showPrepareMail = true,
-    disablePrint = false,
-    disableExportPdf = false,
-    disableReview = false,
-    disableValidate = false,
-    disablePrepareMail = false,
-    loadingPrint = false,
-    loadingExportPdf = false,
-    loadingReview = false,
-    loadingValidate = false,
-    loadingPrepareMail = false,
-    labels = {},
-}) {
-    const printLabel = labels.print || "Imprimer";
-    const exportLabel = labels.exportPdf || "Exporter PDF";
-    const reviewLabel = labels.review || "Envoyer en relecture";
-    const validateLabel = labels.validate || "Valider";
-    const mailLabel = labels.prepareMail || "Préparer mail";
+    function handlePrint() {
+        window.print();
+    }
+
+    function handleValidate() {
+        const ref = String(reportReference || "").trim();
+        if (ref) {
+            navigate(`/rapports/validation?report=${encodeURIComponent(ref)}`);
+            return;
+        }
+        if (window.confirm("Aller à la page de validation sans rapport pré-sélectionné ?")) {
+            navigate("/rapports/validation");
+        }
+    }
 
     return (
         <div className="rapport-toolbar no-print">
-            {showPrint ? (
-                <button type="button" onClick={onPrint} disabled={disablePrint || loadingPrint}>
-                    {loadingPrint ? "Impression..." : printLabel}
-                </button>
-            ) : null}
-            {showExportPdf ? (
-                <button type="button" onClick={onExportPdf} disabled={disableExportPdf || loadingExportPdf}>
-                    {loadingExportPdf ? "Export..." : exportLabel}
-                </button>
-            ) : null}
-            {showReview ? (
-                <button type="button" onClick={onReview} disabled={disableReview || loadingReview}>
-                    {loadingReview ? "Relecture..." : reviewLabel}
-                </button>
-            ) : null}
-            {showValidate ? (
-                <button type="button" onClick={onValidate} disabled={disableValidate || loadingValidate}>
-                    {loadingValidate ? "Validation..." : validateLabel}
-                </button>
-            ) : null}
-            {showPrepareMail ? (
-                <button type="button" onClick={onPrepareMail} disabled={disablePrepareMail || loadingPrepareMail}>
-                    {loadingPrepareMail ? "Préparation..." : mailLabel}
-                </button>
-            ) : null}
+            <button type="button" onClick={handlePrint}>Imprimer</button>
+            <button type="button" disabled title="Bientôt disponible">Exporter PDF</button>
+            <button type="button" disabled title="Bientôt disponible">Envoyer en relecture</button>
+            <button type="button" onClick={handleValidate}>Valider</button>
+            <button type="button" disabled title="Bientôt disponible">Préparer mail</button>
         </div>
     );
 }

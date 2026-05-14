@@ -1,25 +1,29 @@
 // FILE: RapportPageShell.jsx
 // Common layout shell for all report pages.
 
-function RapportPageShell({ managementHeader, toolbar, children }) {
+function RapportPageShell({ managementHeader, toolbar, children, embedded = false }) {
     return (
         <div className="rapport-page-shell">
             <div className="rapport-page-shell-inner">
-                <div className="rapport-page-interface">
-                    {managementHeader}
-                </div>
+                {!embedded ? (
+                    <div className="rapport-page-interface">
+                        {managementHeader}
+                    </div>
+                ) : null}
 
                 <section className="rapport-work-block">
-                    <div className="rapport-work-block-header">
-                        <div>
-                            <div className="rapport-work-block-title">
-                                Édition du rapport
+                    {!embedded ? (
+                        <div className="rapport-work-block-header">
+                            <div>
+                                <div className="rapport-work-block-title">
+                                    Édition du rapport
+                                </div>
+                                <p className="rapport-work-block-description">
+                                    Prévisualisation, impression, validation et diffusion du rapport.
+                                </p>
                             </div>
-                            <p className="rapport-work-block-description">
-                                Prévisualisation, impression, validation et diffusion du rapport.
-                            </p>
                         </div>
-                    </div>
+                    ) : null}
 
                     {toolbar ? (
                         <div className="rapport-toolbar-frame">

@@ -388,6 +388,7 @@ export default function RapportDEPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const mode = String(searchParams.get("mode") || "").trim().toLowerCase();
+    const isEmbed = String(searchParams.get("embed") || "").trim() === "1";
     const isWorkMode = mode === "work";
     const returnTo = String(searchParams.get("return_to") || "").trim();
     const feuilleUidFromQuery = String(searchParams.get("feuille_uid") || "").trim();
@@ -550,13 +551,7 @@ export default function RapportDEPage() {
         };
     }, [source, searchParams]);
 
-    const printReport = () => {
-        window.print();
-    };
-
-    const pendingAction = () => {
-        // Future action hook: PDF export, review workflow, validation workflow or mail preparation.
-    };
+    const toolbarReference = resolvedReport.header?.chronoNumber || resolvedReport.header?.reportNumber || essaiId || "";
     const workflowActionsEnabled = false;
 
     const navButton = (label, path, id) => {
@@ -650,24 +645,9 @@ export default function RapportDEPage() {
     
     return (
         <RapportPageShell
+            embedded={isEmbed}
             managementHeader={managementHeader}
-            toolbar={(
-                <RapportToolbar
-                    onPrint={printReport}
-                    onExportPdf={pendingAction}
-                    onReview={pendingAction}
-                    onValidate={pendingAction}
-                    onPrepareMail={pendingAction}
-                    disableReview={!workflowActionsEnabled}
-                    disableValidate={!workflowActionsEnabled}
-                    disablePrepareMail={!workflowActionsEnabled}
-                    labels={{
-                        review: workflowActionsEnabled ? "Envoyer en relecture" : "Envoyer en relecture (bientôt)",
-                        validate: workflowActionsEnabled ? "Valider" : "Valider (bientôt)",
-                        prepareMail: workflowActionsEnabled ? "Préparer mail" : "Préparer mail (bientôt)",
-                    }}
-                />
-            )}
+            toolbar={<RapportToolbar reportReference={toolbarReference} />}
         >
             <div className="rapport-de-paper-stack">
                 {loading ? <div className="rapport-de-inline-alert">Chargement du rapport DE…</div> : null}

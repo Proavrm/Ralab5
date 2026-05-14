@@ -1,4 +1,4 @@
-import { Outlet, NavLink } from 'react-router-dom'
+import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { LogOut } from 'lucide-react'
 import { getUserHomeConfig } from '@/lib/userHome'
@@ -14,6 +14,8 @@ import {
 
 export default function AppLayout() {
     const { user, logout } = useAuth()
+    const location = useLocation()
+    const isEmbedReport = location.pathname.startsWith('/rapports/') && new URLSearchParams(location.search).get('embed') === '1'
     const home = getUserHomeConfig(user)
     const ownResponsibleLaboProfile = findResponsibleLaboProfileByUser(user)
     const ownTechnicianProfile = ownResponsibleLaboProfile ? null : findTechnicianProfileByUser(user)
@@ -70,6 +72,7 @@ export default function AppLayout() {
         {
             section: 'Administration',
             items: [
+                { to: '/rapports/validation', icon: '✅', label: 'Validation rapports', permission: 'view_tools' },
                 { to: '/tools', icon: '🔧', label: 'Outils', permission: 'view_tools' },
                 { to: '/admin', icon: '⚙️', label: 'Utilisateurs', permission: 'manage_users' },
             ]
@@ -88,6 +91,10 @@ export default function AppLayout() {
             items: group.items.filter((item) => !item.permission || hasPermission(user, item.permission)),
         }))
         .filter((group) => group.items.length > 0)
+
+    if (isEmbedReport) {
+        return <Outlet />
+    }
 
     return (
         <div className="app-shell flex h-screen overflow-hidden">

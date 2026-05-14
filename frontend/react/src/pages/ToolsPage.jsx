@@ -205,6 +205,8 @@ export default function ToolsPage() {
         openPath: `/feuilles-terrain/${item.uid}`,
       }
     }
+    const essaiCode = String(item.essai_code || '').trim().toUpperCase()
+    const openPath = essaiCode === 'PMT' ? '/modeles/pmt' : `/essais/${item.uid}`
     return {
       key: `essai-${item.uid}`,
       family: 'essai',
@@ -214,7 +216,7 @@ export default function ToolsPage() {
       secondary: item.statut || '',
       date: item.date_debut || item.date_fin || '',
       intervention_reference: item.intervention_reference || '',
-      openPath: `/essais/${item.uid}`,
+      openPath,
     }
   }
 
@@ -982,6 +984,7 @@ export default function ToolsPage() {
     const uid = sourceUid != null ? String(sourceUid) : ''
     if (!uid) return '/tools'
     if (sourceFamily === 'terrain') return `/feuilles-terrain/${encodeURIComponent(uid)}`
+    if (sourceFamily === 'essai' && String(code || '').trim().toUpperCase() === 'PMT') return '/modeles/pmt'
     if (sourceFamily === 'essai') return `/essais/${encodeURIComponent(uid)}`
     return '/tools'
   }
@@ -1046,7 +1049,7 @@ export default function ToolsPage() {
         sourceReference: 'Base à créer',
         sourceDate: '',
         sourceStatus: 'PMT',
-        openPath: '/tools',
+        openPath: '/modeles/pmt',
       })
     }
 
@@ -1090,6 +1093,7 @@ export default function ToolsPage() {
             <div className="flex gap-3">
               <Button onClick={() => navigate('/affaires-nge')}>📘 Références Affaires NGE</Button>
               <Button onClick={() => navigate('/etudes')}>📗 Références Études</Button>
+              <Button onClick={() => navigate('/rapports/validation')}>✅ Validation rapports</Button>
             </div>
             <p className="text-xs text-text-muted">
               Les mises à jour de références se font dans les pages dédiées, pas directement ici.

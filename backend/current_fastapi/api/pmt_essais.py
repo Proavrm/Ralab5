@@ -10,7 +10,7 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.database import get_db_path
@@ -181,6 +181,33 @@ def _row_to_json_dict(row: sqlite3.Row) -> dict[str, Any]:
             v = v.decode("utf-8", errors="replace")
         d[k] = v
     return d
+
+
+@router.get("")
+def list_pmt_essais(limit: int = Query(400, ge=1, le=1000)):
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, reference, statut, demande_id, campaign_id, intervention_id, updated_at, created_at
+            FROM pmt_essais
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+        return [
+            {
+                "id": int(row["id"]),
+                "reference": _clean(row["reference"]),
+                "statut": _clean(row["statut"]),
+                "demande_id": row["demande_id"],
+                "campaign_id": row["campaign_id"],
+                "intervention_id": row["intervention_id"],
+                "updated_at": row["updated_at"],
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
 
 
 @router.get("/by-reference")

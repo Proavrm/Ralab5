@@ -13,6 +13,7 @@ import InterventionsRequalificationWorkbench from '@/pages/InterventionsRequalif
 import RapportDEPage from "./pages/rapports/RapportDEPage";
 import RapportSCPage from "./pages/rapports/RapportSCPage";
 import RapportPMTPage from "./pages/rapports/RapportPMTPage";
+import RapportSOPage from "./pages/rapports/RapportSOPage";
 
 
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
@@ -48,7 +49,9 @@ const PlanImplantationCanvasPage = lazy(() => import('@/pages/PlanImplantationCa
 const NivellementPage = lazy(() => import('@/pages/NivellementPage'))
 const FeuilleTerrainPage = lazy(() => import('@/pages/FeuilleTerrainPage'))
 const FeuilleDeRuntimePage = lazy(() => import('@/pages/FeuilleDeRuntimePage'))
-const FeuillePmtRuntimePage = lazy(() => import('@/pages/runtime/FeuillePmtRuntimePage'))
+const ModelePMTPage = lazy(() => import('@/pages/modeles/ModelePMTPage'))
+const ModeleSCPage = lazy(() => import('@/pages/modeles/ModeleSCPage'))
+const ValiderRapportsPage = lazy(() => import('@/pages/modeles/valider_rapports_page'))
 
 
 function ProtectedRoute({ children }) {
@@ -104,11 +107,11 @@ export default function App() {
                 <Route path="feuilles-terrain/de/:uid/runtime" element={<P><FeuilleDeRuntimePage /></P>} />
                 <Route path="modelos-base/:code" element={<Navigate to="/tools" replace />} />
                 <Route path="work/de" element={<Navigate to="/tools" replace />} />
-                <Route path="modeles/pmt" element={<Navigate to="/tools" replace />} />
+                <Route path="modeles/pmt" element={<P><ModelePMTPage /></P>} />
+                <Route path="modeles/sc" element={<P><ModeleSCPage /></P>} />
                 <Route path="work/pmt" element={<Navigate to="/tools" replace />} />
-                <Route path="pmt-essais/:pmtId/runtime" element={<P><FeuillePmtRuntimePage /></P>} />
-                <Route path="feuilles-terrain/pmt/:uid/runtime" element={<P><FeuillePmtRuntimePage /></P>} />
                 <Route path="tools" element={<P><ToolsPage /></P>} />
+                <Route path="rapports/validation" element={<P><ValiderRapportsPage /></P>} />
                 <Route path="admin" element={<P><AdminPage /></P>} />
                 <Route path="preparations/:uid" element={<P><PreparationPage /></P>} />
                 <Route path="preparations-card/:uid" element={<P><PreparationPageCard /></P>} />
@@ -120,7 +123,10 @@ export default function App() {
                 <Route path="/rapports/de/:essaiId" element={<RapportDEPage />} />
                 <Route path="/rapports/pmt/view" element={<RapportPMTPage />} />
                 <Route path="/rapports/pmt/:essaiId" element={<RapportPMTPage />} />
+                <Route path="/rapports/sc/view" element={<RapportSCPage />} />
                 <Route path="/rapports/sc/:essaiId" element={<RapportSCPage />} />
+                <Route path="/rapports/so/view" element={<RapportSOPage />} />
+                <Route path="/rapports/so/:essaiId" element={<RapportSOPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

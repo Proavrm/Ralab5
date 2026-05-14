@@ -4,19 +4,15 @@ import RapportConclusionBlock from "../../components/rapports/RapportConclusionB
 import RapportFooter from "../../components/rapports/RapportFooter";
 import RapportHeader from "../../components/rapports/RapportHeader";
 import RapportToolbar from "../../components/rapports/RapportToolbar";
-import RapportManagementHeader from "@/components/rapports/RapportManagementHeader";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Button from "@/components/ui/Button";
-import { feuillesTerrainApi } from "@/services/api";
+import { feuillesTerrainApi, pmtEssaisApi } from "@/services/api";
 import RapportPageShell from "@/components/rapports/RapportPageShell";
-import { getModelDefinitionPMT, getModelDefinitionPMTById, getWorkDocumentPMT } from "@/services/pmtModelWorkStore";
 import { computePmtFromDiameterAndVolume } from "@/lib/pmt/compute";
 import { hasPositionCode, normalizePositionCodes } from "@/lib/positionCodes";
 import "@/styles/rapport-nge.css";
 import "@/styles/rapport-de.css";
-
-const PMT_REPORT_MODELS_KEY = "ralab5_rapport_models_PMT";
 
 const EMPTY_RUNTIME_FALLBACK = {
     header: {
@@ -154,75 +150,18 @@ function isPmtNonConforme(textureDepth, minPmt) {
     return value < min;
 }
 
-function listRapportModelDefinitionsPMT() {
-    if (typeof window === "undefined" || !window.localStorage) return [];
-    try {
-        const raw = window.localStorage.getItem(PMT_REPORT_MODELS_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
-}
-
-function upsertRapportModelDefinitionPMT(model) {
-    const now = new Date().toISOString();
-    const next = {
-        id: String(model?.id || `pmt-report-${Date.now()}`),
-        reference: String(model?.reference || "PMT-RAPPORT"),
-        status: model?.status === "approved" ? "approved" : "draft",
-        template: model?.template && typeof model.template === "object" ? model.template : {},
-        updated_at: now,
-    };
-    const rows = listRapportModelDefinitionsPMT();
-    const index = rows.findIndex((item) => String(item.id) === String(next.id));
-    const nextRows = index >= 0
-        ? rows.map((item, itemIndex) => itemIndex === index ? { ...item, ...next } : item)
-        : [...rows, next];
-
-    if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem(PMT_REPORT_MODELS_KEY, JSON.stringify(nextRows));
-    }
-
-    return next;
-}
-
-function dedupeRapportModels(models = []) {
-    const byKey = new Map();
-    for (const item of Array.isArray(models) ? models : []) {
-        if (!item || typeof item !== "object") continue;
-        const ref = String(item.reference || "").trim().toUpperCase();
-        const key = ref || String(item.id || "").trim();
-        if (!key) continue;
-        const prev = byKey.get(key);
-        if (!prev) {
-            byKey.set(key, item);
-            continue;
-        }
-        const prevApproved = String(prev.status || "").toLowerCase() === "approved";
-        const currApproved = String(item.status || "").toLowerCase() === "approved";
-        if (currApproved && !prevApproved) {
-            byKey.set(key, item);
-            continue;
-        }
-        if (currApproved === prevApproved) {
-            const prevUpdated = String(prev.updated_at || "");
-            const currUpdated = String(item.updated_at || "");
-            if (currUpdated.localeCompare(prevUpdated) > 0) {
-                byKey.set(key, item);
-            }
-        }
-    }
-    return Array.from(byKey.values());
-}
-
 function unwrapSource(source) {
     if (!source || typeof source !== "object") return null;
+    const runtimeValues = source.runtime_values && typeof source.runtime_values === "object"
+        ? source.runtime_values
+        : null;
     const values = source.values && typeof source.values === "object"
         ? source.values
-        : source.payload && typeof source.payload === "object"
-            ? source.payload
-            : null;
+        : runtimeValues && typeof runtimeValues === "object"
+            ? runtimeValues
+            : source.payload && typeof source.payload === "object"
+                ? source.payload
+                : null;
     if (!values) return source;
     return {
         ...source,
@@ -239,83 +178,31 @@ function isNumericId(value) {
     return /^\d+$/.test(String(value || "").trim());
 }
 
-function isPmtReference(value) {
-    return /^\d{4}-[A-Z]+-PMT\d+$/i.test(String(value || "").trim());
-}
-
-function isWorkPmtId(value) {
-    return /^work-pmt-/i.test(String(value || "").trim());
-}
-
 function useReportSourcePMT(essaiId, searchParams) {
     const [state, setState] = useState({ loading: false, error: "", source: null });
-    const mode = String(searchParams.get("mode") || "").trim().toLowerCase();
-    const sourceKind = String(searchParams.get("source_kind") || "").trim().toLowerCase();
-    const sourceId = String(searchParams.get("source_id") || "").trim();
-    const sourceFamily = String(searchParams.get("source_family") || "").trim().toLowerCase();
-    const sourceUid = String(searchParams.get("source_uid") || "").trim();
-    const resolvedId = String(sourceId || essaiId || "").trim();
+    const pmtEssaiId = String(searchParams.get("pmt_essai_id") || "").trim();
 
     useEffect(() => {
-        const isWorkMode = mode === "work";
-        const isModelMode = !isWorkMode;
-
-        if (isModelMode) {
-            const sourceModel = sourceKind === "model_definition" && resolvedId
-                ? getModelDefinitionPMTById(resolvedId)
-                : getModelDefinitionPMT();
-            setState({ loading: false, error: "", source: sourceModel });
+        if (!pmtEssaiId) {
+            setState({
+                loading: false,
+                error: "Aucun essai PMT sélectionné. Rapport ouvert vide.",
+                source: null,
+            });
             return undefined;
         }
-
+        if (!isNumericId(pmtEssaiId)) {
+            setState({
+                loading: false,
+                error: "Identifiant essai PMT invalide.",
+                source: null,
+            });
+            return undefined;
+        }
         let isCancelled = false;
         setState({ loading: true, error: "", source: null });
 
-        const resolveRequest = async () => {
-            if (sourceKind === "work_doc" || isWorkPmtId(resolvedId)) {
-                const workDoc = getWorkDocumentPMT(resolvedId);
-                if (!workDoc?.runtime_values) {
-                    throw new Error("Document work PMT introuvable");
-                }
-                return {
-                    ...workDoc,
-                    reference: workDoc.id,
-                    values: workDoc.runtime_values,
-                };
-            }
-
-            if (sourceFamily === "terrain" && sourceUid) {
-                return feuillesTerrainApi.get(sourceUid);
-            }
-
-            if ((sourceKind === "terrain" || sourceKind === "feuille_terrain") && resolvedId) {
-                return feuillesTerrainApi.get(resolvedId);
-            }
-
-            if (!sourceKind && isNumericId(resolvedId)) {
-                return feuillesTerrainApi.get(resolvedId);
-            }
-
-            if (!sourceKind && isPmtReference(resolvedId)) {
-                const matches = await feuillesTerrainApi.list({
-                    q: resolvedId,
-                    code_feuille: "PMT",
-                    limit: 10,
-                });
-                const normalizedRef = String(resolvedId).trim().toUpperCase();
-                const exact = Array.isArray(matches)
-                    ? matches.find((row) => String(row?.reference || "").trim().toUpperCase() === normalizedRef)
-                    : null;
-                if (!exact?.uid) {
-                    throw new Error("Feuille terrain PMT introuvable");
-                }
-                return feuillesTerrainApi.get(exact.uid);
-            }
-
-            throw new Error("Identifiant rapport PMT non supporté");
-        };
-
-        resolveRequest()
+        pmtEssaisApi.get(pmtEssaiId)
             .then((payload) => {
                 if (isCancelled) return;
                 setState({ loading: false, error: "", source: payload });
@@ -332,7 +219,7 @@ function useReportSourcePMT(essaiId, searchParams) {
         return () => {
             isCancelled = true;
         };
-    }, [essaiId, mode, sourceKind, sourceId, sourceFamily, sourceUid, resolvedId]);
+    }, [pmtEssaiId]);
 
     return state;
 }
@@ -369,9 +256,22 @@ function buildPmtReportFromSource(source, fallback) {
             ...fallback.header,
             reportNumber: firstValue(normalized?.reference, meta?.reference_rapport, fallback.header.reportNumber),
             chronoNumber: firstValue(meta?.chrono, meta?.numero_chrono, normalized?.chrono, fallback.header.chronoNumber),
-            affaireNumber: firstValue(meta?.affaire_nge_raw, meta?.affaire_nge, normalized?.affaire, fallback.header.affaireNumber),
+            affaireNumber: firstValue(
+                meta?.affaire_nge_raw,
+                meta?.affaire_nge,
+                meta?.reference_chantier,
+                normalized?.affaire,
+                fallback.header.affaireNumber
+            ),
             editionDate: firstValue(normalized?.date_redaction, meta?.date_redaction, fallback.header.editionDate),
-            siteTitle: firstValue(normalized?.chantier, normalized?.label, meta?.chantier, fallback.header.siteTitle),
+            siteTitle: firstValue(
+                normalized?.chantier,
+                normalized?.label,
+                meta?.chantier,
+                meta?.section_controlee,
+                meta?.emplacement,
+                fallback.header.siteTitle
+            ),
             laboratory: firstValue(meta?.laboratoire, fallback.header.laboratory),
         },
         general: {
@@ -380,11 +280,11 @@ function buildPmtReportFromSource(source, fallback) {
             testDate: firstValue(meta?.date_essai, normalized?.date_debut, fallback.general.testDate),
             layer: firstValue(meta?.couche, normalized?.couche, fallback.general.layer),
             implementationDate: firstValue(meta?.date_mise_en_oeuvre, fallback.general.implementationDate),
-            implementationWorkshop: firstValue(meta?.atelier_mise_en_oeuvre, fallback.general.implementationWorkshop),
-            controlledProduct: firstValue(meta?.produit_controle, fallback.general.controlledProduct),
-            formulaNumber: firstValue(meta?.numero_formule, fallback.general.formulaNumber),
+            implementationWorkshop: firstValue(meta?.atelier_mise_en_oeuvre, normalized?.atelier_mise_en_oeuvre, fallback.general.implementationWorkshop),
+            controlledProduct: firstValue(meta?.produit_controle, normalized?.produit_controle, fallback.general.controlledProduct),
+            formulaNumber: firstValue(meta?.numero_formule, normalized?.numero_formule, fallback.general.formulaNumber),
             layerThickness: firstValue(meta?.epaisseur_couche_cm, fallback.general.layerThickness),
-            manufacturingLocation: firstValue(meta?.lieu_fabrication, fallback.general.manufacturingLocation),
+            manufacturingLocation: firstValue(meta?.lieu_fabrication, normalized?.lieu_fabrication, fallback.general.manufacturingLocation),
             weatherConditions: firstValue(meta?.conditions_meteo, fallback.general.weatherConditions),
             controlledSection: firstValue(meta?.section_controlee, normalized?.section_controlee, fallback.general.controlledSection),
         },
@@ -399,7 +299,7 @@ function buildPmtReportFromSource(source, fallback) {
             points: pointsRows,
             rows: pointsRows,
             materialVolume: firstValue(meta?.volume_materiau_mm3, normalized?.results?.materialVolume, fallback.results.materialVolume),
-            materialVolumeUnit: firstValue(meta?.volume_materiau_unit, normalized?.results?.materialVolumeUnit, fallback.results.materialVolumeUnit),
+            materialVolumeUnit: firstValue(meta?.volume_materiau_unit, normalized?.results?.materialVolumeUnit, "mm³", fallback.results.materialVolumeUnit),
             testCount: firstValue(summary?.nombre_points_valides, summary?.nombre_points, computedSummary.count, fallback.results.testCount),
             averageTextureDepth: formatFrenchNumber(firstValue(summary?.profondeur_macrotexture_generale_mm, computedSummary.averageTextureDepth, fallback.results.averageTextureDepth), 2),
             conformityRate: formatFrenchNumber(firstValue(summary?.pourcentage_valeurs_conformes, computedSummary.conformityRate, fallback.results.conformityRate), 2),
@@ -428,8 +328,7 @@ export default function RapportPMTPage() {
     const { essaiId = "modele" } = useParams();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const mode = String(searchParams.get("mode") || "").trim().toLowerCase();
-    const isWorkMode = mode === "work";
+    const isEmbed = String(searchParams.get("embed") || "").trim() === "1";
     const returnTo = String(searchParams.get("return_to") || "").trim();
     const feuilleUidFromQuery = String(searchParams.get("feuille_uid") || "").trim();
     const { loading, error, source } = useReportSourcePMT(essaiId, searchParams);
@@ -450,88 +349,29 @@ export default function RapportPMTPage() {
         : Array.isArray(resolvedReport.results?.points)
             ? resolvedReport.results.points
             : [];
-
-    const rows = Array.from({ length: RESULT_ROWS_COUNT }, (_, index) => {
-        if (sourceRows[index]) {
-            return {
-                ...sourceRows[index],
-                isEmpty: false,
-            };
+    const pagedRows = useMemo(() => {
+        const rows = Array.isArray(sourceRows) ? sourceRows : [];
+        const chunks = [];
+        for (let i = 0; i < rows.length; i += RESULT_ROWS_COUNT) {
+            chunks.push(rows.slice(i, i + RESULT_ROWS_COUNT));
         }
-
-        return {
-            essayNumber: "",
-            profileNumber: "",
-            position_codes: [],
-            diameter: "",
-            textureDepth: "",
-            observations: "",
-            isEmpty: true,
-        };
-    });
-
-    const overflowRows = sourceRows.slice(RESULT_ROWS_COUNT);
-    const defaultReportReference = `PMT-RAPPORT-${new Date().toISOString().slice(0, 10)}`;
-
-    const [rapportModels, setRapportModels] = useState(() => {
-        const existing = dedupeRapportModels(listRapportModelDefinitionsPMT());
-        if (existing.length > 0) return existing;
-        const seeded = upsertRapportModelDefinitionPMT({
-            id: "pmt-report-default",
-            reference: defaultReportReference,
-            status: "draft",
-        });
-        return [seeded];
-    });
-
-    const [selectedRapportModelId, setSelectedRapportModelId] = useState(
-        () => String(dedupeRapportModels(listRapportModelDefinitionsPMT())[0]?.id || "pmt-report-default")
-    );
-
-    const selectedRapportModel = useMemo(() => (
-        rapportModels.find((item) => String(item.id) === String(selectedRapportModelId)) || rapportModels[0] || null
-    ), [rapportModels, selectedRapportModelId]);
-
-    const rapportStatus = selectedRapportModel?.status || "draft";
-
-    function refreshRapportModels(preferredId = "") {
-        const list = dedupeRapportModels(listRapportModelDefinitionsPMT());
-        if (!list.length) return;
-        setRapportModels(list);
-        const targetId = String(preferredId || selectedRapportModelId || list[0]?.id || "");
-        const exists = list.some((item) => String(item.id) === targetId);
-        setSelectedRapportModelId(exists ? targetId : String(list[0].id));
-    }
-
-    function updateSelectedRapportReference(value) {
-        if (!selectedRapportModel) return;
-        const persisted = upsertRapportModelDefinitionPMT({
-            ...selectedRapportModel,
-            reference: value,
-        });
-        refreshRapportModels(persisted.id);
-    }
-
-    function applyRapportStatus(nextStatus) {
-        if (!selectedRapportModel) return;
-        const persisted = upsertRapportModelDefinitionPMT({
-            ...selectedRapportModel,
-            status: nextStatus,
-        });
-        refreshRapportModels(persisted.id);
-    }
-
-    function createRapportModel() {
-        const nextIndex = rapportModels.length + 1;
-        const nextId = `pmt-report-${Date.now()}`;
-        const nextReport = upsertRapportModelDefinitionPMT({
-            id: nextId,
-            reference: `PMT-RAPPORT-${new Date().toISOString().slice(0, 10)}-${nextIndex}`,
-            status: "draft",
-        });
-
-        refreshRapportModels(nextReport.id);
-    }
+        if (chunks.length === 0) chunks.push([]);
+        return chunks.map((chunk) =>
+            Array.from({ length: RESULT_ROWS_COUNT }, (_, index) => {
+                if (chunk[index]) return { ...chunk[index], isEmpty: false };
+                return {
+                    essayNumber: "",
+                    profileNumber: "",
+                    position_codes: [],
+                    diameter: "",
+                    textureDepth: "",
+                    observations: "",
+                    isEmpty: true,
+                };
+            })
+        );
+    }, [sourceRows]);
+    const totalPages = pagedRows.length;
 
     useEffect(() => {
         let cancelled = false;
@@ -587,13 +427,7 @@ export default function RapportPMTPage() {
         };
     }, [source, searchParams]);
 
-    const printReport = () => {
-        window.print();
-    };
-
-    const pendingAction = () => {
-        // Future action hook: PDF export, review workflow, validation workflow or mail preparation.
-    };
+    const toolbarReference = resolvedReport.header?.chronoNumber || resolvedReport.header?.reportNumber || essaiId || "";
     const workflowActionsEnabled = false;
 
     const navButton = (label, path, id) => {
@@ -633,7 +467,11 @@ export default function RapportPMTPage() {
     const feuilleButton = () => {
         const feuilleUid = feuilleUidFromQuery || String(searchParams.get("source_uid") || "").trim();
         const hasId = Boolean(feuilleUid);
-        const target = hasId ? `/feuilles-terrain/pmt/${encodeURIComponent(feuilleUid)}/runtime${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ""}` : "";
+        const query = new URLSearchParams();
+        if (returnTo) query.set("return_to", returnTo);
+        const pmtEssaiId = String(searchParams.get("pmt_essai_id") || "").trim();
+        if (pmtEssaiId) query.set("pmt_essai_id", pmtEssaiId);
+        const target = hasId ? `/modeles/pmt?${query.toString()}` : "";
         return (
             <Button
                 variant="secondary"
@@ -650,7 +488,7 @@ export default function RapportPMTPage() {
 
     const workNavigationBar = (
         <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2">
-            <Button variant="secondary" size="sm" onClick={() => navigate(returnTo || "/tools")}>
+            <Button variant="secondary" size="sm" onClick={() => navigate(returnTo || "/modeles/pmt")}>
                 ← Retour
             </Button>
             {feuilleButton()}
@@ -660,196 +498,170 @@ export default function RapportPMTPage() {
         </div>
     );
 
-    const managementHeader = isWorkMode ? (
+    const managementHeader = (
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
             {workNavigationBar}
             <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">Work PMT</div>
             <h1 className="mt-1 text-2xl font-semibold text-text">Rapport runtime — PMT</h1>
             <p className="mt-2 text-sm text-text-muted">
-                Document de travail: {String(essaiId || "")}
+                Document de travail: {String(source?.reference || searchParams.get("source_ref") || essaiId || "")}
             </p>
         </div>
-    ) : (
-        <RapportManagementHeader
-            reportCode="PMT"
-            description="Référence et statut du rapport PMT, indépendants du modèle formulaire."
-            reports={rapportModels}
-            selectedReportId={selectedRapportModelId}
-            selectedReport={selectedRapportModel}
-            reference={selectedRapportModel?.reference || ""}
-            status={rapportStatus}
-            onSelectReport={setSelectedRapportModelId}
-            onCreateReport={createRapportModel}
-            onReferenceChange={updateSelectedRapportReference}
-            onStatusChange={applyRapportStatus}
-        />
     );
 
     return (
         <RapportPageShell
+            embedded={isEmbed}
             managementHeader={managementHeader}
-            toolbar={(
-                <RapportToolbar
-                    onPrint={printReport}
-                    onExportPdf={pendingAction}
-                    onReview={pendingAction}
-                    onValidate={pendingAction}
-                    onPrepareMail={pendingAction}
-                    disableReview={!workflowActionsEnabled}
-                    disableValidate={!workflowActionsEnabled}
-                    disablePrepareMail={!workflowActionsEnabled}
-                    labels={{
-                        review: workflowActionsEnabled ? "Envoyer en relecture" : "Envoyer en relecture (bientôt)",
-                        validate: workflowActionsEnabled ? "Valider" : "Valider (bientôt)",
-                        prepareMail: workflowActionsEnabled ? "Préparer mail" : "Préparer mail (bientôt)",
-                    }}
-                />
-            )}
+            toolbar={<RapportToolbar reportReference={toolbarReference} />}
         >
             <div className="rapport-de-paper-stack">
                 {loading ? <div className="rapport-de-inline-alert">Chargement du rapport PMT…</div> : null}
                 {error ? <div className="rapport-de-inline-alert rapport-de-inline-alert-warning">{error}</div> : null}
-                <main className="rapport-page rapport-page-a4 rapport-de-page rapport-pmt-page" id="rapport-pmt-printable">
-                    <div className="rapport-print-frame rapport-de-frame">
-                        <RapportHeader
-                            reportTypeLabel="PMT n°"
-                            reportNumber={resolvedReport.header?.reportNumber}
-                            chronoNumber={resolvedReport.header?.chronoNumber}
-                            affaireNumber={resolvedReport.header?.affaireNumber}
-                            editionDate={resolvedReport.header?.editionDate}
-                            siteTitle={resolvedReport.header?.siteTitle}
-                            laboratory={resolvedReport.header?.laboratory}
-                            subtitle="MESURE DE LA PROFONDEUR DE MACROTEXTURE DE LA SURFACE D'UN REVETEMENT"
-                            standardLabel="(NF EN 13036-1)"
-                        />
+                {pagedRows.map((rows, pageIndex) => {
+                    const isLastPage = pageIndex === totalPages - 1;
+                    return (
+                        <main className="rapport-page rapport-page-a4 rapport-de-page rapport-pmt-page" id={`rapport-pmt-printable-${pageIndex + 1}`} key={`pmt-page-${pageIndex + 1}`}>
+                            <div className="rapport-print-frame rapport-de-frame">
+                                <RapportHeader
+                                    reportTypeLabel="PMT n°"
+                                    reportNumber={resolvedReport.header?.reportNumber}
+                                    chronoNumber={resolvedReport.header?.chronoNumber}
+                                    affaireNumber={resolvedReport.header?.affaireNumber}
+                                    editionDate={resolvedReport.header?.editionDate}
+                                    siteTitle={resolvedReport.header?.siteTitle}
+                                    laboratory={resolvedReport.header?.laboratory}
+                                    subtitle="MESURE DE LA PROFONDEUR DE MACROTEXTURE DE LA SURFACE D'UN REVETEMENT"
+                                    standardLabel="(NF EN 13036-1)"
+                                />
+                                <div className="text-right text-[11px] text-text-muted">{`Page ${pageIndex + 1}/${totalPages}`}</div>
+                                <section className="rapport-section rapport-section-general">
+                                    <h2>1/ <span>RENSEIGNEMENTS GENERAUX</span></h2>
+                                    <div className="rapport-general-grid">
+                                        <div className="rapport-field-list">
+                                            <div><span>Opérateur :</span><strong>{valueOrEmpty(resolvedReport.general?.operator)}</strong></div>
+                                            <div><span>Date de l'essai :</span><strong>{valueOrEmpty(resolvedReport.general?.testDate)}</strong></div>
+                                            <div><span>Couche :</span><strong>{valueOrEmpty(resolvedReport.general?.layer)}</strong></div>
+                                            <div><span>Date de mise en œuvre :</span><strong>{valueOrEmpty(resolvedReport.general?.implementationDate)}</strong></div>
+                                        </div>
 
-                        <section className="rapport-section rapport-section-general">
-                            <h2>1/ <span>RENSEIGNEMENTS GENERAUX</span></h2>
-                            <div className="rapport-general-grid">
-                                <div className="rapport-field-list">
-                                    <div><span>Opérateur :</span><strong>{valueOrEmpty(resolvedReport.general?.operator)}</strong></div>
-                                    <div><span>Date de l'essai :</span><strong>{valueOrEmpty(resolvedReport.general?.testDate)}</strong></div>
-                                    <div><span>Couche :</span><strong>{valueOrEmpty(resolvedReport.general?.layer)}</strong></div>
-                                    <div><span>Date de mise en œuvre :</span><strong>{valueOrEmpty(resolvedReport.general?.implementationDate)}</strong></div>
-                                </div>
+                                        <div className="rapport-field-list">
+                                            <div><span>Produit contrôlé :</span><strong>{valueOrEmpty(resolvedReport.general?.controlledProduct)}</strong></div>
+                                            <div><span>N° formule :</span><strong>{valueOrEmpty(resolvedReport.general?.formulaNumber)}</strong></div>
+                                            <div><span>Epaisseur de la couche :</span><strong>{valueOrEmpty(resolvedReport.general?.layerThickness)}</strong></div>
+                                            <div><span>Lieu de fabrication :</span><strong>{valueOrEmpty(resolvedReport.general?.manufacturingLocation)}</strong></div>
+                                            <div><span>Section contrôlée :</span><strong>{valueOrEmpty(resolvedReport.general?.controlledSection)}</strong></div>
+                                            <div><span>Conditions météorologiques :</span><strong>{valueOrEmpty(resolvedReport.general?.weatherConditions)}</strong></div>
+                                        </div>
 
-                                <div className="rapport-field-list">
-                                    <div><span>Produit contrôlé :</span><strong>{valueOrEmpty(resolvedReport.general?.controlledProduct)}</strong></div>
-                                    <div><span>N° formule :</span><strong>{valueOrEmpty(resolvedReport.general?.formulaNumber)}</strong></div>
-                                    <div><span>Epaisseur de la couche :</span><strong>{valueOrEmpty(resolvedReport.general?.layerThickness)}</strong></div>
-                                    <div><span>Lieu de fabrication :</span><strong>{valueOrEmpty(resolvedReport.general?.manufacturingLocation)}</strong></div>
-                                    <div><span>Section contrôlée :</span><strong>{valueOrEmpty(resolvedReport.general?.controlledSection)}</strong></div>
-                                    <div><span>Conditions météorologiques :</span><strong>{valueOrEmpty(resolvedReport.general?.weatherConditions)}</strong></div>
-                                </div>
+                                        <div className="rapport-field-full">
+                                            <span>Atelier de mise en œuvre :</span>
+                                            <strong>{valueOrEmpty(resolvedReport.general?.implementationWorkshop)}</strong>
+                                        </div>
+                                    </div>
+                                </section>
 
-                                <div className="rapport-field-full">
-                                    <span>Atelier de mise en œuvre :</span>
-                                    <strong>{valueOrEmpty(resolvedReport.general?.implementationWorkshop)}</strong>
-                                </div>
-                            </div>
-                        </section>
+                                <section className="rapport-section rapport-section-criteria">
+                                    <h2>2/ <span>CRITERES DE CONFORMITE</span></h2>
+                                    <div className="rapport-criteria-grid">
+                                        <div>
+                                            <span>Source des critères :</span>
+                                            <strong>{valueOrEmpty(resolvedReport.criteria?.source)}</strong>
+                                        </div>
+                                        <div>
+                                            <span>Définition des critères / objectifs :</span>
+                                            <strong>{valueOrEmpty(resolvedReport.criteria?.definition)}</strong>
+                                        </div>
+                                    </div>
+                                </section>
 
-                        <section className="rapport-section rapport-section-criteria">
-                            <h2>2/ <span>CRITERES DE CONFORMITE</span></h2>
-                            <div className="rapport-criteria-grid">
-                                <div>
-                                    <span>Source des critères :</span>
-                                    <strong>{valueOrEmpty(resolvedReport.criteria?.source)}</strong>
-                                </div>
-                                <div>
-                                    <span>Définition des critères / objectifs :</span>
-                                    <strong>{valueOrEmpty(resolvedReport.criteria?.definition)}</strong>
-                                </div>
-                            </div>
-                        </section>
+                                <section className="rapport-section rapport-section-results">
+                                    <div className="rapport-section-title-row">
+                                        <h2>3/ <span>RESULTATS DES ESSAIS</span></h2>
+                                        <div>
+                                            <span>Volume de matériau utilisé :</span>
+                                            <strong>{valueOrEmpty(resolvedReport.results?.materialVolume)}</strong>
+                                            <span>{valueOrEmpty(resolvedReport.results?.materialVolumeUnit)}</span>
+                                        </div>
+                                    </div>
 
-                        <section className="rapport-section rapport-section-results">
-                            <div className="rapport-section-title-row">
-                                <h2>3/ <span>RESULTATS DES ESSAIS</span></h2>
-                                <div>
-                                    <span>Volume de matériau utilisé :</span>
-                                    <strong>{valueOrEmpty(resolvedReport.results?.materialVolume)}</strong>
-                                    <span>{valueOrEmpty(resolvedReport.results?.materialVolumeUnit)}</span>
-                                </div>
-                            </div>
-
-                            <table className="rapport-results-table">
-                                <colgroup>
-                                    <col className="rapport-col-essai" />
-                                    <col className="rapport-col-profils" />
-                                    <col className="rapport-col-position" />
-                                    <col className="rapport-col-position" />
-                                    <col className="rapport-col-position" />
-                                    <col className="rapport-col-masse" />
-                                    <col className="rapport-col-compacite" />
-                                </colgroup>
-                                <thead>
-                                    <tr>
-                                        <th>N°<br />Essai</th>
-                                        <th>Profil</th>
-                                        <th>G</th>
-                                        <th>A</th>
-                                        <th>D</th>
-                                        <th>Diamètre moyen de la tache<br />(mm)</th>
-                                        <th>Profondeurs de macrotexture<br />(mm)</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {rows.map((row, index) => {
-                                        const pmtNonConforme = !row.isEmpty && isPmtNonConforme(
-                                            row.textureDepth,
-                                            resolvedReport.criteria?.minPmt
-                                        );
-                                        return (
-                                            <tr
-                                                key={`pmt-result-row-${index}`}
-                                                className={row.isEmpty ? "rapport-empty-row" : ""}
-                                            >
-                                                <td>{row.isEmpty ? "" : valueOrEmpty(row.essayNumber)}</td>
-                                                <td>{row.isEmpty ? "" : valueOrEmpty(row.profileNumber)}</td>
-                                                <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "G") ? "X" : ""}</td>
-                                                <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "A") ? "X" : ""}</td>
-                                                <td>{row.isEmpty ? "" : hasPositionCode(row.position_codes, "D") ? "X" : ""}</td>
-                                                <td>{row.isEmpty ? "" : valueOrEmpty(row.diameter)}</td>
-                                                <td className={pmtNonConforme ? "rapport-cell-nonconforme" : ""}>{row.isEmpty ? "" : valueOrEmpty(row.textureDepth)}</td>
+                                    <table className="rapport-results-table">
+                                        <colgroup>
+                                            <col className="rapport-col-essai" />
+                                            <col className="rapport-col-profils" />
+                                            <col className="rapport-col-position" />
+                                            <col className="rapport-col-position" />
+                                            <col className="rapport-col-position" />
+                                            <col className="rapport-col-masse" />
+                                            <col className="rapport-col-compacite" />
+                                        </colgroup>
+                                        <thead>
+                                            <tr>
+                                                <th>N°<br />Essai</th>
+                                                <th>Profil</th>
+                                                <th>G</th>
+                                                <th>A</th>
+                                                <th>D</th>
+                                                <th>Diamètre moyen de la tache<br />(mm)</th>
+                                                <th>Profondeurs de macrotexture<br />(mm)</th>
                                             </tr>
-                                        );
-                                    })}
-                                    <tr className="rapport-average-row">
-                                        <td>Nb d'essais :</td>
-                                        <td>{valueOrEmpty(resolvedReport.results?.testCount)}</td>
-                                        <td colSpan="4">Profondeur de macrotexture générale :</td>
-                                        <td>{valueOrEmpty(resolvedReport.results?.averageTextureDepth)}</td>
-                                    </tr>
-                                    <tr className="rapport-conformity-row">
-                                        <td className="rapport-conformity-cell" colSpan="7">
-                                            <div className="rapport-conformity-content">
-                                                <span>Pourcentage de valeurs conformes :</span>
-                                                <strong>{valueOrEmpty(resolvedReport.results?.conformityRate)}</strong>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                        </thead>
+                                        <tbody>
+                                            {rows.map((row, index) => {
+                                                const pmtNonConforme = !row?.isEmpty && isPmtNonConforme(
+                                                    row.textureDepth,
+                                                    resolvedReport.criteria?.minPmt
+                                                );
+                                                return (
+                                                    <tr
+                                                        key={`pmt-result-row-${pageIndex}-${index}`}
+                                                        className={row?.isEmpty ? "rapport-empty-row" : ""}
+                                                    >
+                                                        <td>{row?.isEmpty ? "" : valueOrEmpty(row?.essayNumber)}</td>
+                                                        <td>{row?.isEmpty ? "" : valueOrEmpty(row?.profileNumber)}</td>
+                                                        <td>{row?.isEmpty ? "" : hasPositionCode(row?.position_codes, "G") ? "X" : ""}</td>
+                                                        <td>{row?.isEmpty ? "" : hasPositionCode(row?.position_codes, "A") ? "X" : ""}</td>
+                                                        <td>{row?.isEmpty ? "" : hasPositionCode(row?.position_codes, "D") ? "X" : ""}</td>
+                                                        <td>{row?.isEmpty ? "" : valueOrEmpty(row?.diameter)}</td>
+                                                        <td className={pmtNonConforme ? "rapport-cell-nonconforme" : ""}>{row?.isEmpty ? "" : valueOrEmpty(row?.textureDepth)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {isLastPage ? (
+                                                <>
+                                                    <tr className="rapport-average-row">
+                                                        <td>Nb d'essais :</td>
+                                                        <td>{valueOrEmpty(resolvedReport.results?.testCount)}</td>
+                                                        <td colSpan="4">Profondeur de macrotexture générale :</td>
+                                                        <td>{valueOrEmpty(resolvedReport.results?.averageTextureDepth)}</td>
+                                                    </tr>
+                                                    <tr className="rapport-conformity-row">
+                                                        <td className="rapport-conformity-cell" colSpan="7">
+                                                            <div className="rapport-conformity-content">
+                                                                <span>Pourcentage de valeurs conformes :</span>
+                                                                <strong>{valueOrEmpty(resolvedReport.results?.conformityRate)}</strong>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                </>
+                                            ) : null}
+                                        </tbody>
+                                    </table>
+                                </section>
 
-                            {overflowRows.length > 0 ? (
-                                <div className="rapport-overflow-note">
-                                    {overflowRows.length} point(s) complémentaire(s) en annexe.
-                                </div>
-                            ) : null}
-                        </section>
+                                <RapportConclusionBlock
+                                    controlLabel={resolvedReport.conclusion?.controlLabel}
+                                    conformityLabel={resolvedReport.conclusion?.conformityLabel}
+                                    name={resolvedReport.conclusion?.name}
+                                    functionName={resolvedReport.conclusion?.functionName}
+                                    comments={resolvedReport.conclusion?.comments}
+                                />
+                            </div>
 
-                        <RapportConclusionBlock
-                            controlLabel={resolvedReport.conclusion?.controlLabel}
-                            conformityLabel={resolvedReport.conclusion?.conformityLabel}
-                            name={resolvedReport.conclusion?.name}
-                            functionName={resolvedReport.conclusion?.functionName}
-                            comments={resolvedReport.conclusion?.comments}
-                        />
-                    </div>
-
-                    <RapportFooter documentCode={resolvedReport.footer?.documentCode} />
-                </main>
+                            <RapportFooter documentCode={resolvedReport.footer?.documentCode} />
+                        </main>
+                    );
+                })}
             </div>
         </RapportPageShell>
     );

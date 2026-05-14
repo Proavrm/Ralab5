@@ -45,6 +45,7 @@ from api.affaires_manual_correction_simple import router as affaires_manual_corr
 from api.reference_sources import router as reference_sources_router
 from api.reference_affaires import router as reference_affaires_router
 from api.reference_etudes import router as reference_etudes_router
+from api.rapports_validation import router as rapports_validation_router
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STORAGE_DIR = PROJECT_ROOT / "storage"
@@ -156,6 +157,7 @@ app.include_router(affaires_manual_correction_simple_router,prefix="/api/affaire
 app.include_router(reference_sources_router,prefix="/api/reference-sources",tags=["Reference Sources"],)
 app.include_router(reference_affaires_router,prefix="/api/reference-affaires",tags=["Reference Affaires"],)
 app.include_router(reference_etudes_router,prefix="/api/reference-etudes",tags=["Reference Etudes"],)
+app.include_router(rapports_validation_router, prefix="/api/rapports/validation", tags=["Rapports Validation"])
 
 # ── Static files: storage folder (plans, images, etc.) ──────────────────────
 if STORAGE_DIR.exists():

@@ -17,7 +17,6 @@ import RapportHeader from '@/components/rapports/RapportHeader'
 import RapportFooter from '@/components/rapports/RapportFooter'
 import RapportToolbar from '@/components/rapports/RapportToolbar'
 import RapportConclusionBlock from '@/components/rapports/RapportConclusionBlock'
-import RapportManagementHeader from '@/components/rapports/RapportManagementHeader'
 import RapportPageShell from "@/components/rapports/RapportPageShell";
 import '@/styles/rapport-nge.css'
 import '@/styles/rapport-sc.css'
@@ -333,8 +332,17 @@ function useReportSource(essaiId, searchParams) {
 
     useEffect(() => {
         const localModelBase = readLocalModelBaseSC()
+        const terrainPair = sourceFamily === 'terrain' && String(sourceUid || '').trim()
+        const essaiPair = sourceFamily === 'essai' && String(sourceUid || '').trim()
+        const pathEssaiId = String(essaiId || '').trim()
+        const pathEssaiResolved = pathEssaiId && !['modele', 'view', 'new'].includes(pathEssaiId)
 
-        if (!essaiId || essaiId === 'modele' || mode === 'demo' || modeleBase === 'SC') {
+        if (mode === 'demo' || modeleBase === 'SC') {
+            setState({ loading: false, error: '', source: localModelBase })
+            return undefined
+        }
+
+        if (!terrainPair && !essaiPair && !pathEssaiResolved) {
             setState({ loading: false, error: '', source: localModelBase })
             return undefined
         }
@@ -342,9 +350,9 @@ function useReportSource(essaiId, searchParams) {
         let isCancelled = false
         setState({ loading: true, error: '', source: localModelBase })
 
-        const request = sourceFamily === 'terrain' && sourceUid
+        const request = terrainPair
             ? feuillesTerrainApi.get(sourceUid)
-            : sourceFamily === 'essai' && sourceUid
+            : essaiPair
                 ? essaisApi.get(sourceUid)
                 : essaisApi.get(essaiId)
 
@@ -454,28 +462,25 @@ function ScResultsTable({ report }) {
 
             <table className="rapport-sc-results-table">
                 <colgroup>
-                    <col className="rapport-sc-col-coupe" />
-                    <col className="rapport-sc-col-description" />
                     <col className="rapport-sc-col-photo" />
+                    <col className="rapport-sc-col-description" />
                     <col className="rapport-sc-col-lab" />
                     <col className="rapport-sc-col-lab" />
                     <col className="rapport-sc-col-lab-wide" />
                 </colgroup>
                 <thead>
                     <tr>
-                        <th colSpan="2">Identification visuelle</th>
-                        <th rowSpan="3">Photo</th>
+                        <th rowSpan="3">Photo carotte</th>
+                        <th>Identification visuelle</th>
                         <th colSpan="3">Essais de laboratoire</th>
                     </tr>
                     <tr>
-                        <th>Coupe</th>
                         <th>Description</th>
                         <th>d</th>
                         <th>% vide</th>
                         <th>Compacité</th>
                     </tr>
                     <tr>
-                        <th>graphique</th>
                         <th>(nature, couleur, D, état…)</th>
                         <th>%</th>
                         <th></th>
@@ -485,11 +490,10 @@ function ScResultsTable({ report }) {
                 <tbody>
                     {rows.map((row, index) => (
                         <tr key={row.id}>
-                            <td className="rapport-sc-graphic-td"><ScGraphicCell row={row} minDepth={minDepth} maxDepth={maxDepth} /></td>
-                            <td className="rapport-sc-description-td">{valueOrEmpty(row.description)}</td>
                             {index === 0 ? (
                                 <td className="rapport-sc-photo-td" rowSpan={Math.max(rows.length, 1)}><ScPhotoBlock report={report} /></td>
                             ) : null}
+                            <td className="rapport-sc-description-td">{valueOrEmpty(row.description)}</td>
                             <td>{formatFrenchNumber(row.density, 1)}</td>
                             <td>{formatFrenchNumber(row.voids, 1)}</td>
                             <td>{formatFrenchNumber(row.compacity, 1)}</td>
@@ -519,95 +523,18 @@ function MaterialLegend({ items }) {
 function RapportSCPage() {
     const { essaiId = 'modele' } = useParams()
     const [searchParams] = useSearchParams()
+    const isEmbed = String(searchParams.get("embed") || "").trim() === "1"
     const { loading, error, source } = useReportSource(essaiId, searchParams)
 
     const report = useMemo(() => buildReportFromSource(source || DEMO_REPORT, essaiId, searchParams), [source, essaiId, searchParams])
     const identification = report.identification
-    const defaultReportReference = `SC-RAPPORT-${new Date().toISOString().slice(0, 10)}`
-const [rapportModels, setRapportModels] = useState(() => [
-    {
-        id: 'sc-report-default',
-        reference: defaultReportReference,
-        status: 'draft',
-    },
-])
-const [selectedRapportModelId, setSelectedRapportModelId] = useState('sc-report-default')
-
-const selectedRapportModel = useMemo(() => (
-    rapportModels.find((item) => String(item.id) === String(selectedRapportModelId)) || rapportModels[0] || null
-), [rapportModels, selectedRapportModelId])
-
-const rapportStatus = selectedRapportModel?.status || 'draft'
-
-function updateSelectedRapportReference(value) {
-    if (!selectedRapportModel) return
-
-    setRapportModels((previous) => previous.map((item) => (
-        String(item.id) === String(selectedRapportModel.id)
-            ? { ...item, reference: value }
-            : item
-    )))
-}
-
-function applyRapportStatus(nextStatus) {
-    if (!selectedRapportModel) return
-
-    setRapportModels((previous) => previous.map((item) => (
-        String(item.id) === String(selectedRapportModel.id)
-            ? { ...item, status: nextStatus }
-            : item
-    )))
-}
-
-function createRapportModel() {
-    const nextIndex = rapportModels.length + 1
-    const nextId = `sc-report-${Date.now()}`
-    const nextReport = {
-        id: nextId,
-        reference: `SC-RAPPORT-${new Date().toISOString().slice(0, 10)}-${nextIndex}`,
-        status: 'draft',
-    }
-
-    setRapportModels((previous) => [...previous, nextReport])
-    setSelectedRapportModelId(nextId)
-}
-
-    const printReport = () => {
-        window.print();
-    };
-
-    const pendingAction = () => {
-        // Future action hook: PDF export, review workflow, validation workflow or mail preparation.
-    };
+    const toolbarReference = identification?.chrono || identification?.scNumber || essaiId || ""
 
 
     return (
         <RapportPageShell
-            managementHeader={(
-                <RapportManagementHeader
-                    reportCode="SC"
-                    title="Rapport SC"
-                    description="Référence et statut du rapport SC, indépendants du modèle formulaire."
-                    reports={rapportModels}
-                    selectedReportId={selectedRapportModelId}
-                    selectedReport={selectedRapportModel}
-                    reference={selectedRapportModel?.reference || ''}
-                    status={rapportStatus}
-                    onSelectReport={setSelectedRapportModelId}
-                    onCreateReport={createRapportModel}
-                    onReferenceChange={updateSelectedRapportReference}
-                    onStatusChange={applyRapportStatus}
-                />
-            )}
-            toolbar={(
-                <RapportToolbar
-                    onPrint={printReport}
-                    onExportPdf={pendingAction}
-                    onReview={pendingAction}
-                    onValidate={pendingAction}
-                    onPrepareMail={pendingAction}
-                />
-            )}
+            embedded={isEmbed}
+            toolbar={<RapportToolbar reportReference={toolbarReference} />}
         >
             <div className="rapport-sc-paper-stack">
                 {loading ? <div className="rapport-sc-inline-alert">Chargement du rapport SC…</div> : null}

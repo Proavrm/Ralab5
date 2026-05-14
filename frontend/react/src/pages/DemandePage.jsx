@@ -346,6 +346,10 @@ function openRelatedObject(navigate, item, detailReturnTo) {
     return
   }
   if (item.kind === 'essai') {
+    if (item.pmt_essai_id) {
+      navigate(buildPathWithReturnTo(`/modeles/pmt?essai_id=${item.pmt_essai_id}`, detailReturnTo))
+      return
+    }
     navigate(buildPathWithReturnTo(`/essais/${item.uid}`, detailReturnTo))
   }
 }
@@ -701,12 +705,11 @@ function CampaignAccordion({
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-surface px-3 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Supports PI / NI de la campagne</div>
-            <div className="text-[11px] text-text-muted">{campaignSupportCount} objet{campaignSupportCount > 1 ? 's' : ''}</div>
-          </div>
-          {campaignSupportGroups.length > 0 ? (
+        {campaignSupportCount > 0 ? (
+          <details className="rounded-lg border border-border/60 bg-surface/50 px-3 py-2">
+            <summary className="cursor-pointer select-none text-[10px] font-medium uppercase tracking-[.06em] text-text-muted/70">
+              PI / NI <span className="ml-1 font-normal normal-case text-text-muted/50">({campaignSupportCount})</span>
+            </summary>
             <div className="mt-2 flex flex-col gap-3">
               {campaignSupportGroups.map((group) => (
                 <div key={group.intervention_uid || group.intervention_reference} className="flex flex-col gap-2">
@@ -726,10 +729,8 @@ function CampaignAccordion({
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="mt-2 text-[12px] text-text-muted">Aucun plan d’implantation / nivellement visible pour cette campagne.</div>
-          )}
-        </div>
+          </details>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           {!isVirtual ? (
@@ -1407,12 +1408,12 @@ export default function DemandePage() {
           </details>
         </div>
 
-        <Card
-          title="Synthèse PI / NI (demande)"
-          action={<span className="text-[11px] text-text-muted">{demandeSupportCount} objet{demandeSupportCount > 1 ? 's' : ''}</span>}
-        >
-          {demandeSupportCampaignGroups.length > 0 ? (
-            <div className="flex flex-col gap-4">
+        {demandeSupportCount > 0 ? (
+          <details className="bg-surface border border-border/60 rounded-[10px] px-5 py-3">
+            <summary className="cursor-pointer select-none text-[10px] font-medium uppercase tracking-[.06em] text-text-muted/70">
+              PI / NI (demande) <span className="ml-1 font-normal normal-case text-text-muted/50">({demandeSupportCount})</span>
+            </summary>
+            <div className="mt-3 flex flex-col gap-4">
               {demandeSupportCampaignGroups.map((entry) => (
                 <div key={entry.campaign?.uid || entry.campaign?.reference} className="rounded-lg border border-border bg-bg px-3 py-3">
                   <div className="text-[12px] font-semibold text-accent">{entry.campaign?.reference || entry.campaign?.label || 'Campagne'}</div>
@@ -1438,10 +1439,8 @@ export default function DemandePage() {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="text-[13px] text-text-muted">Aucun PI / NI visible pour cette demande.</div>
-          )}
-        </Card>
+          </details>
+        ) : null}
 
         {/* Campagnes */}
         {(visibility.campagnes !== false || campaignsForDisplay.length > 0) && (

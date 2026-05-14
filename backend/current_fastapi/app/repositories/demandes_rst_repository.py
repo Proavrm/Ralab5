@@ -296,6 +296,32 @@ class DemandesRstRepository:
                     (uid,),
                 ).fetchall()
 
+            pmt_essais = []
+            if self._table_exists(conn, 'pmt_essais'):
+                pmt_essais = conn.execute(
+                    """
+                    SELECT
+                        id,
+                        reference,
+                        intervention_id,
+                        campaign_id AS campagne_id,
+                        code_essai,
+                        norme,
+                        date_essai,
+                        operateur,
+                        statut,
+                        section_controlee,
+                        observations,
+                        conclusion_finale,
+                        pmt_moyenne_mm,
+                        pourcentage_valeurs_conformes
+                    FROM pmt_essais
+                    WHERE demande_id = ?
+                    ORDER BY id ASC
+                    """,
+                    (uid,),
+                ).fetchall()
+
         def _rows(rows):
             result = []
             for row in rows:
@@ -313,6 +339,7 @@ class DemandesRstRepository:
         plans_implantation_data = _rows(plans_implantation)
         nivellements_data = _rows(nivellements)
         feuilles_terrain_data = _rows(feuilles_terrain)
+        pmt_essais_data = _rows(pmt_essais)
 
 
         echantillons_by_uid = {item['uid']: item for item in echantillons_data}
@@ -377,6 +404,13 @@ class DemandesRstRepository:
             if not intervention_id:
                 continue
             feuilles_by_intervention.setdefault(int(intervention_id), []).append(item)
+
+        pmt_by_intervention: dict[int, list[dict]] = {}
+        for item in pmt_essais_data:
+            intervention_id = item.get('intervention_id')
+            if not intervention_id:
+                continue
+            pmt_by_intervention.setdefault(int(intervention_id), []).append(item)
 
         terrain_source_essai_ids_by_intervention: dict[int, set[int]] = {}
         for intervention_id, items in feuilles_by_intervention.items():
@@ -471,6 +505,29 @@ class DemandesRstRepository:
                     'result_label': item.get('resultat_label') or '',
                     'result_value': result_value,
                     'children': [],
+                })
+
+            for item in pmt_by_intervention.get(intervention_id, []):
+                pmt_avg = item.get('pmt_moyenne_mm')
+                pmt_conf = item.get('pourcentage_valeurs_conformes')
+                result_parts = []
+                if pmt_avg is not None:
+                    result_parts.append(f"Moy. {pmt_avg} mm")
+                if pmt_conf is not None:
+                    result_parts.append(f"{pmt_conf}% conf.")
+                related_objects.append({
+                    'kind': 'essai',
+                    'category': 'terrain',
+                    'uid': item['uid'],
+                    'reference': item.get('reference') or '',
+                    'title': _pick_text(item.get('code_essai'), 'PMT'),
+                    'subtitle': _pick_text(item.get('norme'), item.get('section_controlee'), item.get('observations')),
+                    'date': item.get('date_essai') or '',
+                    'statut': item.get('statut') or '',
+                    'result_label': item.get('conclusion_finale') or '',
+                    'result_value': ' · '.join(result_parts),
+                    'children': [],
+                    'pmt_essai_id': item['uid'],
                 })
 
             for item in prelevements_by_intervention.get(intervention_id, []):

@@ -657,6 +657,21 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
                                 <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>Enregistrer</Button>
                             </>
                         )}
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                                const ref = encodeURIComponent(String(data?.reference || point?.point_code || point?.uid || 'view'))
+                                const params = new URLSearchParams()
+                                params.set('embed', '1')
+                                params.set('source_family', 'terrain')
+                                if (data?.uid) params.set('source_uid', String(data.uid))
+                                if (point?.uid || point?.point_code) params.set('point', String(point.uid || point.point_code))
+                                navigate(`/rapports/so/${ref}?${params.toString()}`)
+                            }}
+                        >
+                            Imprimer / Ouvrir rapport
+                        </Button>
                     </div>
                 )}
             />
@@ -1126,6 +1141,7 @@ export default function FeuilleTerrainPage() {
 
     const feuilleType = useMemo(() => getFeuilleTypeConfig(data?.code_feuille), [data?.code_feuille])
     const isSondageSheet = Boolean(feuilleType.flags?.usesPointDetailView)
+    const isStratigraphicCarotte = feuilleType.renderer === 'stratigraphic-carotte'
     const points = useMemo(() => Array.isArray(data?.points) ? data.points : [], [data?.points])
     const selectedPoint = useMemo(
         () => points.find((item) => String(item.uid) === String(pointParam)) || null,
@@ -1166,12 +1182,27 @@ export default function FeuilleTerrainPage() {
         setPointForm((current) => ({ ...current, [key]: value }))
     }
 
+    function buildScModelRoute(pointUid = '', edit = false) {
+        const params = new URLSearchParams()
+        params.set('source_family', 'terrain')
+        params.set('source_uid', String(uid))
+        if (String(pointUid || '').trim()) params.set('point', String(pointUid))
+        if (edit) params.set('edit', '1')
+        const returnTo = String(searchParams.get('return_to') || '').trim()
+        if (returnTo) params.set('return_to', returnTo)
+        return `/modeles/sc?${params.toString()}`
+    }
+
     const createPointMutation = useMutation({
         mutationFn: (payload) => feuillesTerrainApi.createPoint(uid, payload),
         onSuccess: (saved) => {
             queryClient.setQueryData(['feuille-terrain', uid], saved)
             const nextPoint = Array.isArray(saved?.points) ? saved.points[saved.points.length - 1] : null
             if (nextPoint?.uid) {
+                if (isStratigraphicCarotte) {
+                    navigate(buildScModelRoute(nextPoint.uid, true))
+                    return
+                }
                 navigate(`/feuilles-terrain/${uid}?point=${nextPoint.uid}&edit=1`)
             }
         },
@@ -1182,6 +1213,10 @@ export default function FeuilleTerrainPage() {
         onSuccess: (saved) => {
             queryClient.setQueryData(['feuille-terrain', uid], saved)
             setPointEditing(false)
+            if (isStratigraphicCarotte) {
+                navigate(buildScModelRoute(selectedPoint.uid))
+                return
+            }
             navigate(`/feuilles-terrain/${uid}?point=${selectedPoint.uid}`)
         },
     })
@@ -1316,6 +1351,10 @@ export default function FeuilleTerrainPage() {
     }
 
     function openPoint(pointUid, edit = false) {
+        if (isStratigraphicCarotte) {
+            navigate(buildScModelRoute(pointUid, edit))
+            return
+        }
         navigate(`/feuilles-terrain/${uid}?point=${pointUid}${edit ? '&edit=1' : ''}`)
     }
 
@@ -1341,7 +1380,8 @@ export default function FeuilleTerrainPage() {
     }
 
     if (feuilleType.renderer === 'technical-de') {
-        const returnTo = buildLocationTarget({ pathname: `/feuilles-terrain/${uid}` })
+        const explicitReturnTo = String(searchParams.get('return_to') || '').trim()
+        const returnTo = explicitReturnTo || '/tools'
         return (
             <Navigate
                 replace
@@ -1352,15 +1392,28 @@ export default function FeuilleTerrainPage() {
 
     if (feuilleType.renderer === 'technical-pmt') {
         const returnTo = buildLocationTarget({ pathname: `/feuilles-terrain/${uid}` })
+        const params = new URLSearchParams()
+        params.set('return_to', returnTo)
+        const sourceEssaiId = String(data?.source_essai_id || '').trim()
+        if (sourceEssaiId) params.set('pmt_essai_id', sourceEssaiId)
         return (
             <Navigate
                 replace
-                to={`/feuilles-terrain/pmt/${encodeURIComponent(String(uid))}/runtime?return_to=${encodeURIComponent(returnTo)}`}
+                to={`/modeles/pmt?${params.toString()}`}
             />
         )
     }
 
-    if (isSondageSheet && selectedPoint) {
+    if (isStratigraphicCarotte) {
+        return (
+            <Navigate
+                replace
+                to={buildScModelRoute(pointParam, searchParams.get('edit') === '1')}
+            />
+        )
+    }
+
+    if (isSondageSheet && !isStratigraphicCarotte && selectedPoint) {
         return (
             <PointDetailView
                 data={data}
