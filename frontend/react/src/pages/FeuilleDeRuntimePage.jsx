@@ -782,16 +782,20 @@ export default function FeuilleDeRuntimePage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-3">
-      <div className="sticky top-0 z-10 flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border bg-surface px-6">
+    <div className="flex flex-col h-full -m-6">
+      <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0">
+        <span className="text-[15px] font-semibold flex-1">Feuille DE Runtime</span>
         <Button variant="secondary" size="sm" onClick={goBack}>
           ← Retour
         </Button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold text-text">Feuille DE Runtime</div>
-          <div className="truncate text-[11px] text-text-muted">{feuilleRef}</div>
-        </div>
-        <div className="flex min-w-[340px] items-center gap-2">
+        <Button variant="primary" size="sm" onClick={handleSaveRuntime}>Enregistrer</Button>
+        <Button variant="secondary" size="sm" onClick={openReport}>Imprimer / Ouvrir rapport</Button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 px-6 py-2.5 bg-surface border-b border-border shrink-0">
+        <span className="text-xs text-text-muted">{feuilleRef}</span>
+
+        <div className="flex min-w-[340px] items-center gap-2 ml-auto">
           <select
             value={selectedFeuilleUid}
             onChange={(event) => setSelectedFeuilleUid(String(event.target.value || ''))}
@@ -808,6 +812,7 @@ export default function FeuilleDeRuntimePage() {
             Ouvrir
           </Button>
         </div>
+
         <div className="flex flex-wrap gap-2">
           {renderDebugNavButton('Demande', '/demandes', feuilleLinks.demandeId)}
           {renderDebugNavButton('Intervention', '/interventions', feuilleLinks.interventionId)}
@@ -828,30 +833,27 @@ export default function FeuilleDeRuntimePage() {
         </div>
       </div>
 
-      {renderDeRuntimeView({
-        data: { norme: publication?.model_snapshot?.norme || 'NF P 98-241-1' },
-        draft: runtimeDraft,
-        equipmentOptions,
-        equipmentLoading,
-        equipmentError,
-        onMetaChange: handleMetaChange,
-        onRowChange: handleRowChange,
-        onAddRow: handleAddRow,
-        onRemoveRow: handleRemoveRow,
-      })}
+      <div className="flex-1 overflow-y-auto bg-surface px-6 py-4">
+        <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+          {renderDeRuntimeView({
+            data: { norme: publication?.model_snapshot?.norme || 'NF P 98-241-1' },
+            draft: runtimeDraft,
+            equipmentOptions,
+            equipmentLoading,
+            equipmentError,
+            onMetaChange: handleMetaChange,
+            onRowChange: handleRowChange,
+            onAddRow: handleAddRow,
+            onRemoveRow: handleRemoveRow,
+          })}
 
-      <div className="rounded-xl border border-border bg-surface p-3">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="primary" size="sm" onClick={handleSaveRuntime}>Enregistrer</Button>
-          <Button variant="secondary" size="sm" onClick={openReport}>Imprimer / Ouvrir rapport</Button>
+          {result ? (
+            <div className={`rounded-lg border px-3 py-2 text-xs ${result.type === 'ok' ? 'border-[#b6d98b] bg-[#eaf3de] text-[#3b6d11]' : 'border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d]'}`}>
+              {result.msg}
+            </div>
+          ) : null}
         </div>
       </div>
-
-      {result ? (
-        <div className={`rounded-lg border px-3 py-2 text-xs ${result.type === 'ok' ? 'border-[#b6d98b] bg-[#eaf3de] text-[#3b6d11]' : 'border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d]'}`}>
-          {result.msg}
-        </div>
-      ) : null}
     </div>
   )
 }

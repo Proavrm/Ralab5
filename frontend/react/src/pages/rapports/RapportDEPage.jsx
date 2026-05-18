@@ -5,8 +5,7 @@ import RapportHeader from "../../components/rapports/RapportHeader";
 import RapportToolbar from "../../components/rapports/RapportToolbar";
 import RapportManagementHeader from "@/components/rapports/RapportManagementHeader";
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import Button from "@/components/ui/Button";
+import { useParams, useSearchParams } from "react-router-dom";
 import { feuillesTerrainApi } from "@/services/api";
 import RapportPageShell from "@/components/rapports/RapportPageShell";
 import {
@@ -385,19 +384,11 @@ function buildRows(points, minRows = 18) {
 
 export default function RapportDEPage() {
     const { essaiId = "modele" } = useParams();
-    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const mode = String(searchParams.get("mode") || "").trim().toLowerCase();
     const isEmbed = String(searchParams.get("embed") || "").trim() === "1";
     const isWorkMode = mode === "work";
-    const returnTo = String(searchParams.get("return_to") || "").trim();
-    const feuilleUidFromQuery = String(searchParams.get("feuille_uid") || "").trim();
     const { loading, error, source } = useReportSourceDE(essaiId, searchParams);
-    const [navLinks, setNavLinks] = useState({
-        demandeId: "",
-        interventionId: "",
-        campagneId: "",
-    });
     const resolvedReport = useMemo(() => {
         const fallback = EMPTY_RUNTIME_FALLBACK;
         const seed = source && typeof source === "object" ? source : {};
@@ -497,137 +488,9 @@ export default function RapportDEPage() {
         refreshRapportModels(nextReport.id);
     }
 
-    useEffect(() => {
-        let cancelled = false;
-        const normalized = source && typeof source === "object" ? source : {};
-        const meta = normalized?.meta && typeof normalized.meta === "object" ? normalized.meta : {};
-        const payload = normalized?.payload && typeof normalized.payload === "object" ? normalized.payload : {};
-
-        const directDemande = String(
-            searchParams.get("demande_id") || normalized?.demande_id || meta?.demande_id || payload?.demande_id || ""
-        ).trim();
-        const directIntervention = String(
-            searchParams.get("intervention_id") || normalized?.intervention_id || meta?.intervention_id || payload?.intervention_id || ""
-        ).trim();
-        const directCampagne = String(
-            searchParams.get("campagne_id") || searchParams.get("campaign_id") || normalized?.campagne_id || normalized?.campaign_id || meta?.campagne_id || meta?.campaign_id || payload?.campagne_id || payload?.campaign_id || ""
-        ).trim();
-
-        if (directDemande || directIntervention || directCampagne) {
-            setNavLinks({
-                demandeId: directDemande,
-                interventionId: directIntervention,
-                campagneId: directCampagne,
-            });
-            return undefined;
-        }
-
-        const terrainUid = String(
-            normalized?.source_terrain_uid || searchParams.get("source_uid") || ""
-        ).trim();
-        const sourceFamily = String(searchParams.get("source_family") || "").trim().toLowerCase();
-        if (!terrainUid || (sourceFamily && sourceFamily !== "terrain")) {
-            setNavLinks({ demandeId: "", interventionId: "", campagneId: "" });
-            return undefined;
-        }
-
-        feuillesTerrainApi.get(terrainUid)
-            .then((row) => {
-                if (cancelled) return;
-                const p = row?.payload && typeof row.payload === "object" ? row.payload : {};
-                setNavLinks({
-                    demandeId: String(row?.demande_id || p?.demande_id || "").trim(),
-                    interventionId: String(row?.intervention_id || p?.intervention_id || "").trim(),
-                    campagneId: String(row?.campagne_id || row?.campaign_id || p?.campagne_id || p?.campaign_id || "").trim(),
-                });
-            })
-            .catch(() => {
-                if (cancelled) return;
-                setNavLinks({ demandeId: "", interventionId: "", campagneId: "" });
-            });
-
-        return () => {
-            cancelled = true;
-        };
-    }, [source, searchParams]);
-
     const toolbarReference = resolvedReport.header?.chronoNumber || resolvedReport.header?.reportNumber || essaiId || "";
     const workflowActionsEnabled = false;
-
-    const navButton = (label, path, id) => {
-        const hasId = Boolean(String(id || "").trim());
-        return (
-            <Button
-                key={label}
-                variant="secondary"
-                size="sm"
-                disabled={!hasId}
-                onClick={() => hasId ? navigate(`${path}/${encodeURIComponent(String(id).trim())}`) : null}
-                className={!hasId ? "border-amber-300 bg-amber-50 text-amber-800" : ""}
-                title={hasId ? `${label} ${id}` : `${label} indisponible (debug: ID manquant)`}
-            >
-                {label}
-            </Button>
-        );
-    };
-
-    const campaignButton = () => {
-        const hasId = Boolean(String(navLinks.campagneId || "").trim());
-        const target = hasId ? `/campagnes/${encodeURIComponent(String(navLinks.campagneId).trim())}${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ""}` : "";
-        return (
-            <Button
-                variant="secondary"
-                size="sm"
-                disabled={!hasId}
-                onClick={() => hasId ? navigate(target) : null}
-                className={!hasId ? "border-amber-300 bg-amber-50 text-amber-800" : ""}
-                title={hasId ? `Campagne ${navLinks.campagneId}` : "Campagne indisponible (debug: ID manquant)"}
-            >
-                Campagne
-            </Button>
-        );
-    };
-
-    const feuilleButton = () => {
-        const feuilleUid = feuilleUidFromQuery || String(searchParams.get("source_uid") || "").trim();
-        const hasId = Boolean(feuilleUid);
-        const target = hasId ? `/feuilles-terrain/de/${encodeURIComponent(feuilleUid)}/runtime${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ""}` : "";
-        return (
-            <Button
-                variant="secondary"
-                size="sm"
-                disabled={!hasId}
-                onClick={() => hasId ? navigate(target) : null}
-                className={!hasId ? "border-amber-300 bg-amber-50 text-amber-800" : ""}
-                title={hasId ? `Feuille DE ${feuilleUid}` : "Feuille indisponible (debug: feuille_uid manquant)"}
-            >
-                Feuille
-            </Button>
-        );
-    };
-
-    const workNavigationBar = (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-bg px-3 py-2">
-            <Button variant="secondary" size="sm" onClick={() => navigate(returnTo || "/tools")}>
-                ← Retour
-            </Button>
-            {feuilleButton()}
-            {navButton("Demande", "/demandes", navLinks.demandeId)}
-            {navButton("Intervention", "/interventions", navLinks.interventionId)}
-            {campaignButton()}
-        </div>
-    );
-
-    const managementHeader = isWorkMode ? (
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            {workNavigationBar}
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">Work DE</div>
-            <h1 className="mt-1 text-2xl font-semibold text-text">Rapport runtime — DE</h1>
-            <p className="mt-2 text-sm text-text-muted">
-                Document de travail: {String(essaiId || "")}
-            </p>
-        </div>
-    ) : (
+    const managementHeader = isWorkMode ? null : (
         <RapportManagementHeader
             reportCode="DE"
             description="Référence et statut du rapport DE, indépendants du modèle formulaire."
