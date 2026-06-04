@@ -45,6 +45,9 @@ export default function EtudesPage() {
   const [search, setSearch] = useState('')
   const [debounced, setDebounced] = useState('')
   const [selected, setSelected] = useState(null)
+  const [uploadFile, setUploadFile] = useState(null)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [uploadMessage, setUploadMessage] = useState('')
   const [sortCol, setSortCol] = useState('numero_etude')
   const [sortAsc, setSortAsc] = useState(true)
   const timer = useRef(null)
@@ -141,6 +144,32 @@ export default function EtudesPage() {
     navigate('/demandes?create=1')
   }
 
+  async function uploadEtudes(mode) {
+    if (!uploadFile) {
+      setUploadMessage('Choisir un fichier .xlsx avant de lancer la mise à jour.')
+      return
+    }
+
+    setUploadBusy(true)
+    setUploadMessage('')
+    try {
+      const form = new FormData()
+      form.append('file', uploadFile)
+      const endpoint = mode === 'preview' ? '/reference-etudes/preview-upload' : '/reference-etudes/update-upload'
+      const result = await api.postForm(endpoint, form)
+      const rowCount = result?.preview_row_count ?? result?.after_count ?? 0
+      const fileName = result?.uploaded_file_name || uploadFile.name
+      setUploadMessage(`${mode === 'preview' ? 'Preview' : 'Mise à jour'} OK (${rowCount} lignes) depuis ${fileName}.`)
+      if (mode === 'update') {
+        await refetch()
+      }
+    } catch (error) {
+      setUploadMessage(`Erreur: ${error.message}`)
+    } finally {
+      setUploadBusy(false)
+    }
+  }
+
   const { getColProps } = useResizableColumns([90, 200, 100, 100, 70, 140, 100])
 
   function Th({ col, label, colIdx }) {
@@ -167,8 +196,25 @@ export default function EtudesPage() {
         <input value={search} onChange={e => onSearch(e.target.value)}
           placeholder="Rechercher N° étude, nom affaire, ville, filiale…"
           className="flex-1 max-w-[400px] px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent" />
+        <label className="px-2 py-1.5 border border-border rounded text-xs bg-bg cursor-pointer hover:border-accent">
+          📎 Choisir Excel
+          <input
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+          />
+        </label>
+        <Button size="sm" variant="secondary" onClick={() => uploadEtudes('preview')} disabled={uploadBusy || !uploadFile}>👀 Preview Excel</Button>
+        <Button size="sm" variant="warn" onClick={() => uploadEtudes('update')} disabled={uploadBusy || !uploadFile}>⬆️ Mettre à jour DB</Button>
         <span className="text-xs text-text-muted ml-auto">{rows.length} ligne{rows.length !== 1 ? 's' : ''}</span>
       </div>
+
+      {uploadMessage && (
+        <div className="px-6 py-2 border-b border-border bg-surface text-xs text-text-muted">
+          {uploadMessage}
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto bg-surface min-w-0">

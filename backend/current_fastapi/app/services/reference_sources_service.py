@@ -263,6 +263,10 @@ class ReferenceSourcesService:
                 code_agence = self._text(row.get("Code Agence"))
                 libelle = self._text(row.get("Libellé")) or self._text(row.get("Libellé "))
                 titulaire = self._text(row.get("Titulaire"))
+
+                if self._is_summary_row(n_affaire, libelle):
+                    continue
+
                 if not n_affaire or not code_agence or not libelle:
                     continue
                 composite_id = f"{sheet_name}-{int(original_index) + 1}"
@@ -331,8 +335,13 @@ class ReferenceSourcesService:
         rows: list[dict[str, Any]] = []
         for _, row in data.iterrows():
             n_affaire = self._text(row.get("N° Affaire"))
+            nom_affaire = self._text(row.get("Nom affaire"))
             if not n_affaire:
                 continue
+
+            if self._is_summary_row(n_affaire, nom_affaire):
+                continue
+
             rows.append(
                 {
                     "id": None,
@@ -341,7 +350,7 @@ class ReferenceSourcesService:
                     "filiale": self._text(row.get("Filiale")),
                     "orga1": self._text(row.get("Orga 1")),
                     "orga2": self._text(row.get("Orga 2")),
-                    "nomAffaire": self._text(row.get("Nom affaire")),
+                    "nomAffaire": nom_affaire,
                     "pays": self._text(row.get("Pays")),
                     "dept": self._text(row.get("Dépt")),
                     "ville": self._text(row.get("Ville")),
@@ -622,3 +631,33 @@ class ReferenceSourcesService:
         if not value:
             return []
         return [part for part in value.split(",") if part]
+
+    @staticmethod
+    def _normalize_marker(value: str) -> str:
+        return (
+            value.strip()
+            .lower()
+            .replace(" ", "")
+            .replace("°", "")
+            .replace(".", "")
+            .replace("_", "")
+            .replace("-", "")
+        )
+
+    @classmethod
+    def _is_summary_row(cls, *values: str) -> bool:
+        markers = {
+            "total",
+            "totaux",
+            "totalgeneral",
+            "affaire",
+            "affaires",
+            "naffaire",
+        }
+        for raw in values:
+            norm = cls._normalize_marker(raw or "")
+            if not norm:
+                continue
+            if norm in markers or norm.startswith("total"):
+                return True
+        return False

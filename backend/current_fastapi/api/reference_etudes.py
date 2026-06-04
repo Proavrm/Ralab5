@@ -1,8 +1,9 @@
 # File: reference_etudes.py
 from __future__ import annotations
 import sqlite3
+from datetime import datetime
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.services.reference_sources_service import ReferenceSourcesService
 
 router = APIRouter()
@@ -10,6 +11,24 @@ service = ReferenceSourcesService()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 ETUDES_DB_PATH = PROJECT_ROOT / "backend" / "current_fastapi" / "data" / "etudes.db"
+ETUDES_REFERENCE_DIR = PROJECT_ROOT / "storage" / "references" / "etudes"
+
+
+def _save_uploaded_etudes_file(uploaded_file: UploadFile) -> Path:
+    filename = (uploaded_file.filename or "").strip()
+    if not filename.lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Le fichier Études doit être au format .xlsx")
+
+    ETUDES_REFERENCE_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    target_path = ETUDES_REFERENCE_DIR / f"DEPA_Tableau de bord_upload_{timestamp}.xlsx"
+    payload = uploaded_file.file.read()
+
+    if not payload:
+        raise HTTPException(status_code=400, detail="Fichier vide")
+
+    target_path.write_bytes(payload)
+    return target_path
 
 
 @router.get('/status')
@@ -37,6 +56,34 @@ def apply_reference_etudes_update() -> dict:
         return service.apply_update('etudes')
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post('/preview-upload')
+def preview_reference_etudes_upload(file: UploadFile = File(...)) -> dict:
+    try:
+        saved = _save_uploaded_etudes_file(file)
+        preview = service.preview_update('etudes')
+        preview['uploaded_file_path'] = str(saved)
+        preview['uploaded_file_name'] = saved.name
+        return preview
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post('/update-upload')
+def apply_reference_etudes_upload(file: UploadFile = File(...)) -> dict:
+    try:
+        saved = _save_uploaded_etudes_file(file)
+        result = service.apply_update('etudes')
+        result['uploaded_file_path'] = str(saved)
+        result['uploaded_file_name'] = saved.name
+        return result
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
