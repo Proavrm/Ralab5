@@ -133,6 +133,11 @@ const EMPTY = {
   besoins_essais_externes: '',
   besoins_equipements_specifiques: '',
   besoins_ressources_humaines: '',
+  workflow_status: 'Brouillon',
+  workflow_decision: 'À décider',
+  workflow_decision_comment: '',
+  workflow_decided_by: '',
+  workflow_decided_at: '',
   synthese: '',
   notes: '',
 }
@@ -278,6 +283,143 @@ function RoleAssignmentRow({ item, onChange, onRemove, roleCodes, statusOptions 
   )
 }
 
+function ParticipantRow({ item, onChange, onRemove, roleOptions }) {
+  function set(k, v) { onChange({ ...item, [k]: v }) }
+  return (
+    <tr className="border-b border-border">
+      <td className="px-2 py-1.5">
+        <select value={item.participant_role ?? ''} onChange={e => set('participant_role', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Rôle —</option>
+          {(roleOptions || []).map((roleCode) => <option key={roleCode} value={roleCode}>{roleCode}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5"><input value={item.full_name ?? ''} onChange={e => set('full_name', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.organisation ?? ''} onChange={e => set('organisation', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.email ?? ''} onChange={e => set('email', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.phone ?? ''} onChange={e => set('phone', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.comment ?? ''} onChange={e => set('comment', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
+    </tr>
+  )
+}
+
+function PerimeterRow({ item, onChange, onRemove, statusOptions }) {
+  function set(k, v) { onChange({ ...item, [k]: v }) }
+  return (
+    <tr className="border-b border-border">
+      <td className="px-2 py-1.5"><input value={item.scope_category ?? ''} onChange={e => set('scope_category', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.scope_label ?? ''} onChange={e => set('scope_label', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5">
+        <select value={item.request_status ?? 'Demandé'} onChange={e => set('request_status', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          {(statusOptions || ['Demandé', 'Accepté', 'Exclu']).map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
+    </tr>
+  )
+}
+
+function ResponsibilityRow({ item, onChange, onRemove, workstreamOptions, roleCodes }) {
+  function set(k, v) { onChange({ ...item, [k]: v }) }
+  return (
+    <tr className="border-b border-border">
+      <td className="px-2 py-1.5">
+        <select value={item.workstream_code ?? ''} onChange={e => set('workstream_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Flux —</option>
+          {(workstreamOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5">
+        <select value={item.accountable_role_code ?? ''} onChange={e => set('accountable_role_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Accountable —</option>
+          {(roleCodes || []).map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5">
+        <select value={item.responsible_role_code ?? ''} onChange={e => set('responsible_role_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Responsible —</option>
+          {(roleCodes || []).map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5"><input value={item.consulted_roles ?? ''} onChange={e => set('consulted_roles', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.informed_roles ?? ''} onChange={e => set('informed_roles', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
+    </tr>
+  )
+}
+
+function StartupRow({ item, onChange, onRemove, itemCodeOptions, roleCodes, statusOptions }) {
+  function set(k, v) { onChange({ ...item, [k]: v }) }
+  return (
+    <tr className="border-b border-border">
+      <td className="px-2 py-1.5">
+        <select value={item.item_code ?? ''} onChange={e => set('item_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Élément —</option>
+          {(itemCodeOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5">
+        <select value={item.owner_role_code ?? ''} onChange={e => set('owner_role_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Rôle —</option>
+          {(roleCodes || []).map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5"><input value={item.owner_name ?? ''} onChange={e => set('owner_name', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5">
+        <select value={item.status ?? 'À confirmer'} onChange={e => set('status', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          {(statusOptions || ['À confirmer', 'Confirmé', 'Refusé', 'Non applicable']).map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5"><input type="date" value={item.due_date ?? ''} onChange={e => set('due_date', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
+    </tr>
+  )
+}
+
+function StructuredNeedRow({ item, onChange, onRemove, needCodeOptions, statusOptions }) {
+  function set(k, v) { onChange({ ...item, [k]: v }) }
+  return (
+    <tr className="border-b border-border">
+      <td className="px-2 py-1.5">
+        <select value={item.need_code ?? ''} onChange={e => set('need_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Besoin —</option>
+          {(needCodeOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5"><input value={item.need_label ?? ''} onChange={e => set('need_label', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5">
+        <select value={item.request_status ?? 'Non évalué'} onChange={e => set('request_status', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          {(statusOptions || ['Non évalué', 'Requis', 'Optionnel', 'Hors périmètre']).map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5"><input value={item.quantity ?? ''} onChange={e => set('quantity', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
+    </tr>
+  )
+}
+
+function DemandePreparationRow({ item, onChange, onRemove, moduleCodeOptions }) {
+  function set(k, v) { onChange({ ...item, [k]: v }) }
+  return (
+    <tr className="border-b border-border">
+      <td className="px-2 py-1.5">
+        <select value={item.module_code ?? ''} onChange={e => set('module_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
+          <option value="">— Module —</option>
+          {(moduleCodeOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={!!item.is_required} onChange={e => set('is_required', e.target.checked)} className="w-4 h-4 accent-accent" /></td>
+      <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={!!item.is_ready} onChange={e => set('is_ready', e.target.checked)} className="w-4 h-4 accent-accent" /></td>
+      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
+      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
+    </tr>
+  )
+}
+
 export default function PassationPage() {
   const { uid } = useParams()
   const navigate = useNavigate()
@@ -291,6 +433,12 @@ export default function PassationPage() {
   const [documents, setDocuments] = useState([])
   const [actions, setActions] = useState([])
   const [roleAssignments, setRoleAssignments] = useState([])
+  const [participants, setParticipants] = useState([])
+  const [perimeterItems, setPerimeterItems] = useState([])
+  const [responsibilityItems, setResponsibilityItems] = useState([])
+  const [startupItems, setStartupItems] = useState([])
+  const [structuredNeeds, setStructuredNeeds] = useState([])
+  const [demandePreparationItems, setDemandePreparationItems] = useState([])
   const [isEditing, setIsEditing] = useState(isNew)
   const [saveInfo, setSaveInfo] = useState('')
 
@@ -351,11 +499,28 @@ export default function PassationPage() {
   // Init form
   useEffect(() => {
     if (!isNew && passation) {
-      const { documents: docs, actions: acts, role_assignments: roles, ...rest } = passation
+      const {
+        documents: docs,
+        actions: acts,
+        role_assignments: roles,
+        participants: part,
+        perimeter_items: perimeter,
+        responsibility_items: responsibility,
+        startup_items: startup,
+        structured_needs: needs,
+        demande_preparation_items: prepItems,
+        ...rest
+      } = passation
       setForm({ ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') })
       setDocuments(docs || [])
       setActions(acts || [])
       setRoleAssignments(roles || [])
+      setParticipants(part || [])
+      setPerimeterItems(perimeter || [])
+      setResponsibilityItems(responsibility || [])
+      setStartupItems(startup || [])
+      setStructuredNeeds(needs || [])
+      setDemandePreparationItems(prepItems || [])
     }
   }, [passation, isNew])
 
@@ -421,9 +586,16 @@ export default function PassationPage() {
     mutation.mutate({
       ...form,
       affaire_rst_id: parseInt(form.affaire_rst_id),
+      workflow_decided_at: form.workflow_decided_at || null,
       documents: documents.filter(d => d.document_type || d.comment || d.is_received),
       actions: actions.filter(a => a.action_label || a.responsable),
       role_assignments: roleAssignments.filter((r) => r.role_code || r.assignee),
+      participants: participants.filter((p) => p.participant_role || p.full_name),
+      perimeter_items: perimeterItems.filter((p) => p.scope_label || p.scope_category),
+      responsibility_items: responsibilityItems.filter((r) => r.workstream_code || r.accountable_role_code || r.responsible_role_code),
+      startup_items: startupItems.filter((s) => s.item_code || s.owner_role_code || s.owner_name),
+      structured_needs: structuredNeeds.filter((n) => n.need_code || n.need_label),
+      demande_preparation_items: demandePreparationItems.filter((d) => d.module_code),
     })
   }
 
@@ -436,11 +608,28 @@ export default function PassationPage() {
   function handleCancelEdit() {
     if (isNew) return
     if (passation) {
-      const { documents: docs, actions: acts, role_assignments: roles, ...rest } = passation
+      const {
+        documents: docs,
+        actions: acts,
+        role_assignments: roles,
+        participants: part,
+        perimeter_items: perimeter,
+        responsibility_items: responsibility,
+        startup_items: startup,
+        structured_needs: needs,
+        demande_preparation_items: prepItems,
+        ...rest
+      } = passation
       setForm({ ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') })
       setDocuments(docs || [])
       setActions(acts || [])
       setRoleAssignments(roles || [])
+      setParticipants(part || [])
+      setPerimeterItems(perimeter || [])
+      setResponsibilityItems(responsibility || [])
+      setStartupItems(startup || [])
+      setStructuredNeeds(needs || [])
+      setDemandePreparationItems(prepItems || [])
     }
     setSaveInfo('')
     setIsEditing(false)
@@ -463,6 +652,44 @@ export default function PassationPage() {
   }
   function updateRoleAssignment(i, item) { setRoleAssignments((items) => items.map((x, j) => (j === i ? item : x))) }
   function removeRoleAssignment(i) { setRoleAssignments((items) => items.filter((_, j) => j !== i)) }
+
+  function addParticipant() {
+    setParticipants((items) => [...items, { participant_role: '', full_name: '', organisation: '', email: '', phone: '', comment: '' }])
+  }
+  function updateParticipant(i, item) { setParticipants((items) => items.map((x, j) => (j === i ? item : x))) }
+  function removeParticipant(i) { setParticipants((items) => items.filter((_, j) => j !== i)) }
+
+  function addPerimeterItem() {
+    setPerimeterItems((items) => [...items, { scope_category: '', scope_label: '', request_status: 'Demandé', notes: '' }])
+  }
+  function updatePerimeterItem(i, item) { setPerimeterItems((items) => items.map((x, j) => (j === i ? item : x))) }
+  function removePerimeterItem(i) { setPerimeterItems((items) => items.filter((_, j) => j !== i)) }
+
+  function addResponsibilityItem() {
+    setResponsibilityItems((items) => [...items, {
+      workstream_code: '', accountable_role_code: '', responsible_role_code: '', consulted_roles: '', informed_roles: '', notes: ''
+    }])
+  }
+  function updateResponsibilityItem(i, item) { setResponsibilityItems((items) => items.map((x, j) => (j === i ? item : x))) }
+  function removeResponsibilityItem(i) { setResponsibilityItems((items) => items.filter((_, j) => j !== i)) }
+
+  function addStartupItem() {
+    setStartupItems((items) => [...items, { item_code: '', owner_role_code: '', owner_name: '', status: 'À confirmer', due_date: '', notes: '' }])
+  }
+  function updateStartupItem(i, item) { setStartupItems((items) => items.map((x, j) => (j === i ? item : x))) }
+  function removeStartupItem(i) { setStartupItems((items) => items.filter((_, j) => j !== i)) }
+
+  function addStructuredNeed() {
+    setStructuredNeeds((items) => [...items, { need_code: '', need_label: '', request_status: 'Non évalué', quantity: '', notes: '' }])
+  }
+  function updateStructuredNeed(i, item) { setStructuredNeeds((items) => items.map((x, j) => (j === i ? item : x))) }
+  function removeStructuredNeed(i) { setStructuredNeeds((items) => items.filter((_, j) => j !== i)) }
+
+  function addDemandePreparationItem() {
+    setDemandePreparationItems((items) => [...items, { module_code: '', is_required: false, is_ready: false, notes: '' }])
+  }
+  function updateDemandePreparationItem(i, item) { setDemandePreparationItems((items) => items.map((x, j) => (j === i ? item : x))) }
+  function removeDemandePreparationItem(i) { setDemandePreparationItems((items) => items.filter((_, j) => j !== i)) }
 
   const etudeRowsByNumero = useMemo(() => {
     const map = new Map()
@@ -575,6 +802,15 @@ export default function PassationPage() {
 
   const roleCodes = filters.role_code_options || []
   const roleAssignmentStatusOptions = filters.role_assignment_status_options || ['À confirmer', 'Confirmé', 'Refusé', 'Non applicable']
+  const participantRoleOptions = filters.participant_role_options || []
+  const perimeterStatusOptions = filters.perimeter_status_options || ['Demandé', 'Accepté', 'Exclu']
+  const workstreamCodeOptions = filters.workstream_code_options || []
+  const startupItemCodeOptions = filters.startup_item_code_options || []
+  const structuredNeedCodeOptions = filters.structured_need_code_options || []
+  const structuredNeedStatusOptions = filters.structured_need_status_options || ['Non évalué', 'Requis', 'Optionnel', 'Hors périmètre']
+  const demandeModuleCodeOptions = filters.demande_module_code_options || []
+  const workflowStatusOptions = filters.workflow_status_options || ['Brouillon', 'En revue', 'Prête', 'Bloquée', 'Annulée']
+  const workflowDecisionOptions = filters.workflow_decision_options || ['À décider', 'Valider', 'Revoir', 'Annuler']
   const roleRows = useMemo(
     () => roleAssignments.filter((item) => String(item?.role_code || '').trim()),
     [roleAssignments]
@@ -1119,7 +1355,205 @@ export default function PassationPage() {
           {canEdit ? <Button size="sm" onClick={addRoleAssignment}>+ Ajouter rôle</Button> : null}
         </SectionCard>
 
-        <SectionCard title="F - Actions à lancer" subtitle="Plan d'actions opérationnel" >
+        <SectionCard title="F - Participants structurés" subtitle="Acteurs clés de la passation" >
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs mb-3">
+              <thead>
+                <tr className="border-b border-border">
+                  {['Rôle', 'Nom', 'Organisation', 'Email', 'Téléphone', 'Commentaire', ''].map(h => (
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {canEdit ? (
+                  participants.map((item, i) => (
+                    <ParticipantRow key={i} item={item} onChange={(nextItem) => updateParticipant(i, nextItem)} onRemove={() => removeParticipant(i)} roleOptions={participantRoleOptions} />
+                  ))
+                ) : (
+                  participants.filter((item) => String(item?.participant_role || item?.full_name || '').trim()).map((item, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{item.participant_role || '—'}</td>
+                      <td className="px-2 py-1.5">{item.full_name || '—'}</td>
+                      <td className="px-2 py-1.5">{item.organisation || '—'}</td>
+                      <td className="px-2 py-1.5">{item.email || '—'}</td>
+                      <td className="px-2 py-1.5">{item.phone || '—'}</td>
+                      <td className="px-2 py-1.5">{item.comment || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit ? <Button size="sm" onClick={addParticipant}>+ Ajouter participant</Button> : null}
+        </SectionCard>
+
+        <SectionCard title="G - Périmètre demandé / accepté / exclu" subtitle="Cadre contractuel et limites d'exécution" >
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs mb-3">
+              <thead>
+                <tr className="border-b border-border">
+                  {['Catégorie', 'Élément', 'Statut', 'Notes', ''].map(h => (
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {canEdit ? (
+                  perimeterItems.map((item, i) => (
+                    <PerimeterRow key={i} item={item} onChange={(nextItem) => updatePerimeterItem(i, nextItem)} onRemove={() => removePerimeterItem(i)} statusOptions={perimeterStatusOptions} />
+                  ))
+                ) : (
+                  perimeterItems.filter((item) => String(item?.scope_label || item?.scope_category || '').trim()).map((item, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{item.scope_category || '—'}</td>
+                      <td className="px-2 py-1.5">{item.scope_label || '—'}</td>
+                      <td className="px-2 py-1.5">{item.request_status || '—'}</td>
+                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit ? <Button size="sm" onClick={addPerimeterItem}>+ Ajouter élément</Button> : null}
+        </SectionCard>
+
+        <SectionCard title="H - Matrice des responsabilités" subtitle="RACI opérationnelle par flux" >
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs mb-3">
+              <thead>
+                <tr className="border-b border-border">
+                  {['Flux', 'Accountable', 'Responsible', 'Consulted', 'Informed', 'Notes', ''].map(h => (
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {canEdit ? (
+                  responsibilityItems.map((item, i) => (
+                    <ResponsibilityRow key={i} item={item} onChange={(nextItem) => updateResponsibilityItem(i, nextItem)} onRemove={() => removeResponsibilityItem(i)} workstreamOptions={workstreamCodeOptions} roleCodes={roleCodes} />
+                  ))
+                ) : (
+                  responsibilityItems.filter((item) => String(item?.workstream_code || item?.accountable_role_code || item?.responsible_role_code || '').trim()).map((item, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{item.workstream_code || '—'}</td>
+                      <td className="px-2 py-1.5">{item.accountable_role_code || '—'}</td>
+                      <td className="px-2 py-1.5">{item.responsible_role_code || '—'}</td>
+                      <td className="px-2 py-1.5">{item.consulted_roles || '—'}</td>
+                      <td className="px-2 py-1.5">{item.informed_roles || '—'}</td>
+                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit ? <Button size="sm" onClick={addResponsibilityItem}>+ Ajouter ligne RACI</Button> : null}
+        </SectionCard>
+
+        <SectionCard title="I - Préparation de démarrage" subtitle="CCTP, plan de contrôle, visite initiale et modules de demande" >
+          <div className="overflow-x-auto">
+            <div className="text-[11px] font-black uppercase tracking-[.09em] text-[#69758a] mb-2">Éléments de démarrage</div>
+            <table className="w-full border-collapse text-xs mb-3">
+              <thead>
+                <tr className="border-b border-border">
+                  {['Élément', 'Rôle propriétaire', 'Nom propriétaire', 'Statut', 'Échéance', 'Notes', ''].map(h => (
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {canEdit ? (
+                  startupItems.map((item, i) => (
+                    <StartupRow key={i} item={item} onChange={(nextItem) => updateStartupItem(i, nextItem)} onRemove={() => removeStartupItem(i)} itemCodeOptions={startupItemCodeOptions} roleCodes={roleCodes} statusOptions={roleAssignmentStatusOptions} />
+                  ))
+                ) : (
+                  startupItems.filter((item) => String(item?.item_code || item?.owner_name || '').trim()).map((item, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{item.item_code || '—'}</td>
+                      <td className="px-2 py-1.5">{item.owner_role_code || '—'}</td>
+                      <td className="px-2 py-1.5">{item.owner_name || '—'}</td>
+                      <td className="px-2 py-1.5">{item.status || '—'}</td>
+                      <td className="px-2 py-1.5">{item.due_date ? formatDate(item.due_date) : '—'}</td>
+                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit ? <Button size="sm" onClick={addStartupItem}>+ Ajouter élément de démarrage</Button> : null}
+
+          <div className="overflow-x-auto mt-4">
+            <div className="text-[11px] font-black uppercase tracking-[.09em] text-[#69758a] mb-2">Besoins structurés</div>
+            <table className="w-full border-collapse text-xs mb-3">
+              <thead>
+                <tr className="border-b border-border">
+                  {['Besoin', 'Libellé', 'Statut', 'Quantité', 'Notes', ''].map(h => (
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {canEdit ? (
+                  structuredNeeds.map((item, i) => (
+                    <StructuredNeedRow key={i} item={item} onChange={(nextItem) => updateStructuredNeed(i, nextItem)} onRemove={() => removeStructuredNeed(i)} needCodeOptions={structuredNeedCodeOptions} statusOptions={structuredNeedStatusOptions} />
+                  ))
+                ) : (
+                  structuredNeeds.filter((item) => String(item?.need_code || item?.need_label || '').trim()).map((item, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{item.need_code || '—'}</td>
+                      <td className="px-2 py-1.5">{item.need_label || '—'}</td>
+                      <td className="px-2 py-1.5">{item.request_status || '—'}</td>
+                      <td className="px-2 py-1.5">{item.quantity || '—'}</td>
+                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit ? <Button size="sm" onClick={addStructuredNeed}>+ Ajouter besoin structuré</Button> : null}
+
+          <div className="overflow-x-auto mt-4">
+            <div className="text-[11px] font-black uppercase tracking-[.09em] text-[#69758a] mb-2">Préparation des demandes</div>
+            <table className="w-full border-collapse text-xs mb-3">
+              <thead>
+                <tr className="border-b border-border">
+                  {['Module', 'Requis', 'Prêt', 'Notes', ''].map(h => (
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {canEdit ? (
+                  demandePreparationItems.map((item, i) => (
+                    <DemandePreparationRow key={i} item={item} onChange={(nextItem) => updateDemandePreparationItem(i, nextItem)} onRemove={() => removeDemandePreparationItem(i)} moduleCodeOptions={demandeModuleCodeOptions} />
+                  ))
+                ) : (
+                  demandePreparationItems.filter((item) => String(item?.module_code || '').trim()).map((item, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{item.module_code || '—'}</td>
+                      <td className="px-2 py-1.5 text-center">{item.is_required ? 'Oui' : 'Non'}</td>
+                      <td className="px-2 py-1.5 text-center">{item.is_ready ? 'Oui' : 'Non'}</td>
+                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit ? <Button size="sm" onClick={addDemandePreparationItem}>+ Ajouter module demande</Button> : null}
+        </SectionCard>
+
+        <SectionCard title="J - Actions à lancer" subtitle="Plan d'actions opérationnel" >
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs mb-3">
               <thead>
@@ -1156,9 +1590,30 @@ export default function PassationPage() {
           {canEdit ? <Button size="sm" onClick={addAction}>+ Ajouter action</Button> : null}
         </SectionCard>
 
-        <SectionCard title="G - Synthèse & notes" subtitle="Conclusion et éléments complémentaires" >
+        <SectionCard title="K - Workflow, synthèse & notes" subtitle="Décision de workflow et conclusion" >
           {canEdit ? (
             <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FG label="Statut workflow">
+                  <Select value={form.workflow_status || ''} onChange={e => set('workflow_status', e.target.value)}>
+                    {workflowStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                  </Select>
+                </FG>
+                <FG label="Décision">
+                  <Select value={form.workflow_decision || ''} onChange={e => set('workflow_decision', e.target.value)}>
+                    {workflowDecisionOptions.map((decision) => <option key={decision} value={decision}>{decision}</option>)}
+                  </Select>
+                </FG>
+                <FG label="Décidé par">
+                  <Input value={form.workflow_decided_by || ''} onChange={e => set('workflow_decided_by', e.target.value)} />
+                </FG>
+                <FG label="Date décision">
+                  <Input type="date" value={form.workflow_decided_at || ''} onChange={e => set('workflow_decided_at', e.target.value)} />
+                </FG>
+              </div>
+              <FG label="Commentaire décision">
+                <TA value={form.workflow_decision_comment} onChange={v => set('workflow_decision_comment', v)} rows={3} />
+              </FG>
               <FG label="Synthèse">
                 <TA value={form.synthese} onChange={v => set('synthese', v)} rows={4} />
               </FG>
@@ -1168,6 +1623,16 @@ export default function PassationPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <FieldCard label="Statut workflow" value={form.workflow_status} />
+                <FieldCard label="Décision" value={form.workflow_decision} />
+                <FieldCard label="Décidé par" value={form.workflow_decided_by} />
+                <FieldCard label="Date décision" value={formatDate(form.workflow_decided_at)} />
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Commentaire décision</div>
+                <ReadText value={form.workflow_decision_comment} />
+              </div>
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Synthèse</div>
                 <ReadText value={form.synthese} />
