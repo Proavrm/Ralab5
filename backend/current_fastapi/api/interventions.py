@@ -31,6 +31,23 @@ ALERTES = ["Aucun", "Faible", "Moyen", "Élevé", "Critique"]
 DEFAULT_NATURE_REELLE = "Intervention"
 
 
+def _normalized_status(value: str | None) -> str:
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("é", "e")
+        .replace("è", "e")
+        .replace("ê", "e")
+        .replace("à", "a")
+    )
+
+
+def _requires_technicien(status_value: str | None) -> bool:
+    normalized = _normalized_status(status_value)
+    return normalized in {"en cours", "realisee"}
+
+
 class InterventionCreate(BaseModel):
     demande_id: int
     campaign_id: Optional[int] = Field(None)
@@ -744,6 +761,11 @@ def get_intervention_linked_chain(uid: int):
 @router.post("", status_code=201)
 def create_intervention(body: InterventionCreate):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if _requires_technicien(body.statut) and not str(body.technicien or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Impossible de passer l'intervention à ce statut sans technicien assigné.",
+        )
     with _conn() as conn:
         _require_interventions_enabled(conn, body.demande_id)
         requested_campaign_id = body.campagne_id or body.campaign_id
@@ -796,10 +818,27 @@ def update_intervention(uid: int, body: InterventionUpdate):
     requested_campaign_id = fields.pop("campagne_id", None) or fields.pop("campaign_id", None)
     fields["updated_at"] = now
     with _conn() as conn:
-        demande_id = _demande_id_for_intervention(conn, uid)
-        if demande_id is None:
+        current = conn.execute(
+            "SELECT demande_id, statut, technicien FROM interventions WHERE id = ?",
+            (uid,),
+        ).fetchone()
+        if current is None:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
+        demande_id = int(current["demande_id"])
         _require_interventions_enabled(conn, demande_id)
+
+        next_status = fields.get("statut", current["statut"])
+        next_technicien = fields.get("technicien", current["technicien"])
+        status_changed = "statut" in fields and str(next_status or "") != str(current["statut"] or "")
+        technicien_changed = "technicien" in fields
+
+        if _requires_technicien(next_status) and (status_changed or technicien_changed):
+            if not str(next_technicien or "").strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Impossible de passer l'intervention à ce statut sans technicien assigné.",
+                )
+
         if requested_campaign_id is not None:
             fields["campagne_id"] = _resolve_campaign_id(conn, requested_campaign_id, demande_id)
         clause = ", ".join(f"{key} = ?" for key in fields)

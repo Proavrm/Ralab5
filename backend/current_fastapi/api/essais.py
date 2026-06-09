@@ -47,6 +47,23 @@ INTERVENTION_ESSAI_LABELS = {
 }
 
 
+def _normalized_status(value: str | None) -> str:
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("é", "e")
+        .replace("è", "e")
+        .replace("ê", "e")
+        .replace("à", "a")
+    )
+
+
+def _requires_operateur(status_value: str | None) -> bool:
+    normalized = _normalized_status(status_value)
+    return normalized in {"en cours", "termine"}
+
+
 class EchantillonCreate(BaseModel):
     demande_id: int
     prelevement_id: Optional[int] = Field(None)
@@ -1501,6 +1518,11 @@ def get_essai(uid: int):
 @router.post("", status_code=201)
 def create_essai(body: EssaiCreate):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if _requires_operateur(body.statut) and not str(body.operateur or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Impossible de passer l'essai à ce statut sans opérateur assigné.",
+        )
     with _conn() as conn:
         parent_kind, parent_id, demande_id = _resolve_essai_parent(conn, body.echantillon_id, body.intervention_id)
         _require_essai_module_for_parent(
@@ -1565,7 +1587,10 @@ def update_essai(uid: int, body: EssaiUpdate):
             fields[key] = fields[key].isoformat()
     fields["updated_at"] = now
     with _conn() as conn:
-        current = conn.execute("SELECT essai_code, type_essai, resultats, echantillon_id, intervention_id FROM essais WHERE id = ?", (uid,)).fetchone()
+        current = conn.execute(
+            "SELECT essai_code, type_essai, resultats, echantillon_id, intervention_id, operateur, statut FROM essais WHERE id = ?",
+            (uid,),
+        ).fetchone()
         if not current:
             raise HTTPException(404, f"Essai #{uid} introuvable")
         essai_code = fields.get("essai_code", current["essai_code"])
@@ -1582,6 +1607,18 @@ def update_essai(uid: int, body: EssaiUpdate):
         fields["resultat_principal"] = rp
         fields["resultat_unite"] = ru
         fields["resultat_label"] = rl
+
+        next_status = fields.get("statut", current["statut"])
+        next_operateur = fields.get("operateur", current["operateur"])
+        status_changed = "statut" in fields and str(next_status or "") != str(current["statut"] or "")
+        operateur_changed = "operateur" in fields
+
+        if _requires_operateur(next_status) and (status_changed or operateur_changed):
+            if not str(next_operateur or "").strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Impossible de passer l'essai à ce statut sans opérateur assigné.",
+                )
 
         clause = ", ".join(f"{key} = ?" for key in fields)
         demande_id = _demande_id_for_essai(conn, uid)

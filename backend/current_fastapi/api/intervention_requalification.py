@@ -19,6 +19,23 @@ router = APIRouter()
 DB_PATH = get_db_path()
 
 
+def _normalized_status(value: str | None) -> str:
+    return (
+        str(value or "")
+        .strip()
+        .lower()
+        .replace("é", "e")
+        .replace("è", "e")
+        .replace("ê", "e")
+        .replace("à", "a")
+    )
+
+
+def _requires_receptionnaire(status_value: str | None) -> bool:
+    normalized = _normalized_status(status_value)
+    return normalized in {"en cours", "pret labo", "cloture", "cloturee"}
+
+
 class RawInterventionPatch(BaseModel):
     nature_reelle: Optional[str] = None
     prelevement_id: Optional[int] = None
@@ -313,6 +330,25 @@ def update_prelevement(uid: int, payload: UpdatePrelevementPayload) -> dict:
     fields["updated_at"] = _now_sql()
     clause = ", ".join(f"{key} = ?" for key in fields)
     with _conn() as conn:
+        current = conn.execute(
+            "SELECT statut, receptionnaire FROM prelevements WHERE id = ?",
+            (uid,),
+        ).fetchone()
+        if not current:
+            raise HTTPException(404, "Prélèvement introuvable")
+
+        next_status = fields.get("statut", current["statut"])
+        next_receptionnaire = fields.get("receptionnaire", current["receptionnaire"])
+        status_changed = "statut" in fields and str(next_status or "") != str(current["statut"] or "")
+        receptionnaire_changed = "receptionnaire" in fields
+
+        if _requires_receptionnaire(next_status) and (status_changed or receptionnaire_changed):
+            if not str(next_receptionnaire or "").strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Impossible de passer le prélèvement à ce statut sans réceptionnaire assigné.",
+                )
+
         cur = conn.execute(f"UPDATE prelevements SET {clause} WHERE id = ?", list(fields.values()) + [uid])
         if not cur.rowcount:
             raise HTTPException(404, "Prélèvement introuvable")
