@@ -148,11 +148,11 @@ const PHASE_EXAMPLES = [
 ]
 
 const ROLE_LABELS = {
-  INTERVENTION_PLANNER: 'Planeador de intervenções',
-  TECHNICIAN_ASSIGNER: 'Atribuidor de técnico',
-  FIELD_COORDINATOR: 'Coordenador de terreno',
-  LAB_COORDINATOR: 'Coordenador de laboratório',
-  EXTERNAL_TESTS_OWNER: 'Responsável por ensaios externos',
+  INTERVENTION_PLANNER: 'Planificateur des interventions',
+  TECHNICIAN_ASSIGNER: 'Affectateur technicien',
+  FIELD_COORDINATOR: 'Coordinateur terrain',
+  LAB_COORDINATOR: 'Coordinateur laboratoire',
+  EXTERNAL_TESTS_OWNER: 'Responsable essais externes',
 }
 
 function formatRoleLabel(roleCode) {
