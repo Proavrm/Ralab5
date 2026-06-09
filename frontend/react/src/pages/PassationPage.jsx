@@ -78,6 +78,15 @@ function cleanText(value) {
   return text || ''
 }
 
+function normalizeWorkflowText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace('é', 'e')
+    .replace('è', 'e')
+    .replace('ê', 'e')
+}
+
 function buildAffaireSyncPatch(form, affaire) {
   if (!affaire) return null
   const patch = {}
@@ -492,6 +501,80 @@ export default function PassationPage() {
     phase: form.phase_operation || '—',
   }
 
+  const actionRows = useMemo(
+    () => actions.filter((a) => String(a?.action_label || '').trim()),
+    [actions]
+  )
+
+  const openActionRows = useMemo(
+    () => actionRows.filter((a) => {
+      const status = normalizeWorkflowText(a?.statut)
+      return status !== 'fait' && status !== 'annule'
+    }),
+    [actionRows]
+  )
+
+  const overdueActions = useMemo(() => {
+    const todayIso = today()
+    return openActionRows.filter((a) => {
+      const due = String(a?.echeance || '').trim()
+      return due && due < todayIso
+    })
+  }, [openActionRows])
+
+  const documentsRows = useMemo(
+    () => documents.filter((d) => String(d?.document_type || '').trim()),
+    [documents]
+  )
+
+  const documentsReceived = useMemo(
+    () => documentsRows.filter((d) => Boolean(d?.is_received)),
+    [documentsRows]
+  )
+
+  const readinessBlocks = useMemo(() => {
+    const blocks = []
+    if (!form.affaire_rst_id) blocks.push('Affaire liée non sélectionnée')
+    if (!cleanText(form.responsable)) blocks.push('Responsable / pilote non renseigné')
+    if (!cleanText(form.synthese)) blocks.push('Synthèse de cadrage non renseignée')
+
+    const actionWithoutOwner = openActionRows.find((a) => !cleanText(a?.responsable))
+    if (actionWithoutOwner) {
+      blocks.push(`Action ouverte sans responsable: ${cleanText(actionWithoutOwner.action_label) || 'Action sans titre'}`)
+    }
+
+    const needsTerrain = Boolean(cleanText(form.besoins_terrain))
+    const needsLab = Boolean(cleanText(form.besoins_laboratoire))
+    if ((needsTerrain || needsLab) && openActionRows.length === 0) {
+      blocks.push('Besoins RST identifiés sans actions ouvertes de préparation')
+    }
+
+    if (documentsRows.length > 0 && documentsReceived.length === 0) {
+      blocks.push('Aucun document marqué comme reçu')
+    }
+
+    return blocks
+  }, [
+    form.affaire_rst_id,
+    form.responsable,
+    form.synthese,
+    form.besoins_terrain,
+    form.besoins_laboratoire,
+    openActionRows,
+    documentsRows.length,
+    documentsReceived.length,
+  ])
+
+  const readyToProcess = readinessBlocks.length === 0
+
+  function openDemandesPreparation() {
+    const params = new URLSearchParams()
+    if (uid) params.set('passation_uid', String(uid))
+    params.set('create', '1')
+    if (linkedAffaire?.uid) params.set('affaire_id', String(linkedAffaire.uid))
+    navigate(`/demandes?${params.toString()}`)
+  }
+
   if (!isNew && isLoading) {
     return (
       <FichePageShell>
@@ -637,6 +720,40 @@ export default function PassationPage() {
             <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
           </div>
         )}
+
+        <SectionCard
+          title="Pilotage opérationnel"
+          subtitle="Lecture rapide des blocages et raccourcis pour préparer l'exécution"
+          actions={(
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={openDemandesPreparation}>Préparer les demandes</Button>
+              {linkedAffaire ? <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${linkedAffaire.uid}`)}>Voir les demandes</Button> : null}
+              {linkedAffaire ? <Button size="sm" onClick={() => navigate('/interventions')}>Voir les interventions</Button> : null}
+            </div>
+          )}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <MetricCard label="Readiness" value={readyToProcess ? 'OK' : 'Bloquée'} detail={readyToProcess ? 'Passation exploitable' : `${readinessBlocks.length} blocage(s)`} />
+            <MetricCard label="Actions ouvertes" value={openActionRows.length} detail={`${overdueActions.length} en retard`} />
+            <MetricCard label="Documents reçus" value={`${documentsReceived.length}/${documentsRows.length}`} detail="Suivi documentaire" />
+            <MetricCard label="Synthèse" value={cleanText(form.synthese) ? 'Renseignée' : 'À faire'} detail="Décision métier" />
+          </div>
+
+          {readinessBlocks.length > 0 ? (
+            <div className="mt-4 rounded-xl border border-[#f0a0a0] bg-[#fcebeb] p-3">
+              <div className="text-[12px] font-black uppercase tracking-[.08em] text-[#8c2626]">Blocages opérationnels</div>
+              <ul className="mt-2 text-[13px] text-[#8c2626] list-disc pl-5 space-y-1">
+                {readinessBlocks.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-[#b8e3c7] bg-[#eaf8ef] p-3 text-[13px] text-[#1b6f43]">
+              Aucun blocage détecté pour le cadrage actuel.
+            </div>
+          )}
+        </SectionCard>
 
       {mutation.error && (
         <div className="px-4 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded text-xs text-danger">
