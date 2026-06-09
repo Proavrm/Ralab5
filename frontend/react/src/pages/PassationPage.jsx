@@ -147,6 +147,21 @@ const PHASE_EXAMPLES = [
   'Clôture',
 ]
 
+const ROLE_LABELS = {
+  INTERVENTION_PLANNER: 'Planeador de intervenções',
+  TECHNICIAN_ASSIGNER: 'Atribuidor de técnico',
+  FIELD_COORDINATOR: 'Coordenador de terreno',
+  LAB_COORDINATOR: 'Coordenador de laboratório',
+  EXTERNAL_TESTS_OWNER: 'Responsável por ensaios externos',
+}
+
+function formatRoleLabel(roleCode) {
+  const code = String(roleCode || '').trim()
+  if (!code) return '—'
+  const label = ROLE_LABELS[code]
+  return label ? `${label} (${code})` : code
+}
+
 function DocRow({ doc, onChange, onRemove }) {
   function set(k, v) { onChange({ ...doc, [k]: v }) }
   return (
@@ -228,7 +243,7 @@ function RoleAssignmentRow({ item, onChange, onRemove, roleCodes, statusOptions 
           className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
         >
           <option value="">— Rôle —</option>
-          {(roleCodes || []).map((roleCode) => <option key={roleCode} value={roleCode}>{roleCode}</option>)}
+          {(roleCodes || []).map((roleCode) => <option key={roleCode} value={roleCode}>{formatRoleLabel(roleCode)}</option>)}
         </select>
       </td>
       <td className="px-2 py-1.5">
@@ -632,7 +647,7 @@ export default function PassationPage() {
 
     requiredRoleCodes.forEach((roleCode) => {
       if (!confirmedRoleCodes.has(roleCode)) {
-        blocks.push(`Rôle requis non confirmé: ${roleCode}`)
+        blocks.push(`Rôle requis non confirmé: ${formatRoleLabel(roleCode)}`)
       }
     })
 
@@ -1090,7 +1105,7 @@ export default function PassationPage() {
                 ) : (
                   roleRows.map((item, i) => (
                     <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{item.role_code || '—'}</td>
+                      <td className="px-2 py-1.5">{formatRoleLabel(item.role_code)}</td>
                       <td className="px-2 py-1.5">{item.assignee || '—'}</td>
                       <td className="px-2 py-1.5">{item.assignment_status || '—'}</td>
                       <td className="px-2 py-1.5">{item.comment || '—'}</td>
