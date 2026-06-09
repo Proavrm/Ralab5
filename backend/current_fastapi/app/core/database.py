@@ -81,10 +81,22 @@ CREATE TABLE IF NOT EXISTS passation_actions (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS passation_role_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    role_code TEXT NOT NULL DEFAULT '',
+    assignee TEXT NOT NULL DEFAULT '',
+    assignment_status TEXT NOT NULL DEFAULT 'À confirmer',
+    comment TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_passations_affaire ON passations(affaire_rst_id);
 CREATE INDEX IF NOT EXISTS idx_passations_date ON passations(date_passation);
 CREATE INDEX IF NOT EXISTS idx_passation_documents_passation ON passation_documents(passation_id);
 CREATE INDEX IF NOT EXISTS idx_passation_actions_passation ON passation_actions(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_role_assignments_passation ON passation_role_assignments(passation_id);
 """
 
 DEMANDE_CONFIGURATION_DDL = """

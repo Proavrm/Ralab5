@@ -39,6 +39,23 @@ PHASE_OPERATION_OPTIONS = [
 
 ACTION_PRIORITY_OPTIONS = ["Basse", "Normale", "Haute", "Critique"]
 ACTION_STATUS_OPTIONS = ["À lancer", "En cours", "Bloquée", "Terminée"]
+ROLE_ASSIGNMENT_STATUS_OPTIONS = ["À confirmer", "Confirmé", "Refusé", "Non applicable"]
+
+PASSATION_ROLE_CODES = [
+    "DEMANDEUR_INITIAL",
+    "RCE_CHANTIER",
+    "REFERENT_RST",
+    "CONTROL_PLAN_AUTHOR",
+    "CONTROL_PLAN_VALIDATOR",
+    "INITIAL_VISIT_OWNER",
+    "INITIAL_VISIT_RST_PARTICIPANT",
+    "INTERVENTION_PLANNER",
+    "TECHNICIAN_ASSIGNER",
+    "LAB_COORDINATOR",
+    "FIELD_COORDINATOR",
+    "EXTERNAL_TESTS_OWNER",
+    "RESULTS_COORDINATOR",
+]
 
 DEFAULT_DOCUMENT_TYPES = [
     "CCTP",
@@ -79,6 +96,17 @@ class PassationActionRecord:
     updated_at: str = ""
 
 @dataclass(slots=True)
+class PassationRoleAssignmentRecord:
+    uid: int
+    passation_id: int
+    role_code: str
+    assignee: str
+    assignment_status: str
+    comment: str
+    created_at: str = ""
+    updated_at: str = ""
+
+@dataclass(slots=True)
 class PassationRecord:
     uid: int
     reference: str
@@ -114,6 +142,7 @@ class PassationRecord:
     updated_at: str = ""
     documents: list[PassationDocumentRecord] = field(default_factory=list)
     actions: list[PassationActionRecord] = field(default_factory=list)
+    role_assignments: list[PassationRoleAssignmentRecord] = field(default_factory=list)
 
 class PassationDocumentSchema(BaseModel):
     uid: int | None = None
@@ -131,6 +160,13 @@ class PassationActionSchema(BaseModel):
     priorite: str = Field("Normale")
     statut: str = Field("À lancer")
     commentaire: str = Field("")
+
+class PassationRoleAssignmentSchema(BaseModel):
+    uid: int | None = None
+    role_code: str = Field("")
+    assignee: str = Field("")
+    assignment_status: str = Field("À confirmer")
+    comment: str = Field("")
 
 class PassationCreateSchema(BaseModel):
     affaire_rst_id: int = Field(...)
@@ -160,6 +196,7 @@ class PassationCreateSchema(BaseModel):
     notes: str = Field("")
     documents: list[PassationDocumentSchema] = Field(default_factory=list)
     actions: list[PassationActionSchema] = Field(default_factory=list)
+    role_assignments: list[PassationRoleAssignmentSchema] = Field(default_factory=list)
 
 class PassationUpdateSchema(BaseModel):
     affaire_rst_id: Optional[int] = None
@@ -189,6 +226,7 @@ class PassationUpdateSchema(BaseModel):
     notes: Optional[str] = None
     documents: Optional[list[PassationDocumentSchema]] = None
     actions: Optional[list[PassationActionSchema]] = None
+    role_assignments: Optional[list[PassationRoleAssignmentSchema]] = None
 
 class PassationResponseSchema(BaseModel):
     uid: int
@@ -225,5 +263,6 @@ class PassationResponseSchema(BaseModel):
     updated_at: str = ""
     documents: list[PassationDocumentSchema] = Field(default_factory=list)
     actions: list[PassationActionSchema] = Field(default_factory=list)
+    role_assignments: list[PassationRoleAssignmentSchema] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}

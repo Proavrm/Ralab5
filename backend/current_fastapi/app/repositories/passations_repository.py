@@ -14,6 +14,8 @@ from app.models.passation import (
     PassationActionSchema,
     PassationDocumentRecord,
     PassationDocumentSchema,
+    PassationRoleAssignmentRecord,
+    PassationRoleAssignmentSchema,
     PassationRecord,
     PassationResponseSchema,
 )
@@ -87,6 +89,7 @@ class PassationsRepository:
             record = self._row(row)
             record.documents = self._list_documents(conn, uid)
             record.actions = self._list_actions(conn, uid)
+            record.role_assignments = self._list_role_assignments(conn, uid)
             return record
 
     def filters(self) -> dict:
@@ -172,11 +175,12 @@ class PassationsRepository:
             uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
             self._replace_documents(conn, uid, body.documents)
             self._replace_actions(conn, uid, body.actions)
+            self._replace_role_assignments(conn, uid, body.role_assignments)
             conn.commit()
         return self.get_by_uid(int(uid))
 
     def update(self, uid: int, body) -> PassationRecord:
-        fields = {k: v for k, v in body.model_dump().items() if v is not None and k not in {"documents", "actions"}}
+        fields = {k: v for k, v in body.model_dump().items() if v is not None and k not in {"documents", "actions", "role_assignments"}}
         if fields:
             fields = {k: self._prepare_value(k, v) for k, v in fields.items()}
             fields["updated_at"] = self._now()
@@ -187,13 +191,17 @@ class PassationsRepository:
                     self._replace_documents(conn, uid, body.documents)
                 if body.actions is not None:
                     self._replace_actions(conn, uid, body.actions)
+                if body.role_assignments is not None:
+                    self._replace_role_assignments(conn, uid, body.role_assignments)
                 conn.commit()
-        elif body.documents is not None or body.actions is not None:
+        elif body.documents is not None or body.actions is not None or body.role_assignments is not None:
             with self._connect() as conn:
                 if body.documents is not None:
                     self._replace_documents(conn, uid, body.documents)
                 if body.actions is not None:
                     self._replace_actions(conn, uid, body.actions)
+                if body.role_assignments is not None:
+                    self._replace_role_assignments(conn, uid, body.role_assignments)
                 conn.execute("UPDATE passations SET updated_at = ? WHERE id = ?", (self._now(), uid))
                 conn.commit()
         return self.get_by_uid(uid)
@@ -240,6 +248,7 @@ class PassationsRepository:
             updated_at=record.updated_at,
             documents=[self._document_schema(item) for item in record.documents],
             actions=[self._action_schema(item) for item in record.actions],
+            role_assignments=[self._role_assignment_schema(item) for item in record.role_assignments],
         )
 
     def _list_documents(self, conn, passation_id: int) -> list[PassationDocumentRecord]:
@@ -300,6 +309,35 @@ class PassationsRepository:
                     (payload.get("priorite") or "Normale").strip(),
                     (payload.get("statut") or "À lancer").strip(),
                     (payload.get("commentaire") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+
+    def _list_role_assignments(self, conn, passation_id: int) -> list[PassationRoleAssignmentRecord]:
+        rows = conn.execute(
+            "SELECT * FROM passation_role_assignments WHERE passation_id = ? ORDER BY id",
+            (passation_id,),
+        ).fetchall()
+        return [self._role_assignment_row(row) for row in rows]
+
+    def _replace_role_assignments(self, conn, passation_id: int, items) -> None:
+        conn.execute("DELETE FROM passation_role_assignments WHERE passation_id = ?", (passation_id,))
+        now = self._now()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            conn.execute(
+                """
+                INSERT INTO passation_role_assignments (
+                    passation_id, role_code, assignee, assignment_status, comment, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    passation_id,
+                    (payload.get("role_code") or "").strip(),
+                    (payload.get("assignee") or "").strip(),
+                    (payload.get("assignment_status") or "À confirmer").strip(),
+                    (payload.get("comment") or "").strip(),
                     now,
                     now,
                 ),
@@ -369,6 +407,18 @@ class PassationsRepository:
             updated_at=row["updated_at"] or "",
         )
 
+    def _role_assignment_row(self, row) -> PassationRoleAssignmentRecord:
+        return PassationRoleAssignmentRecord(
+            uid=int(row["id"]),
+            passation_id=int(row["passation_id"]),
+            role_code=row["role_code"] or "",
+            assignee=row["assignee"] or "",
+            assignment_status=row["assignment_status"] or "À confirmer",
+            comment=row["comment"] or "",
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+        )
+
     @staticmethod
     def _document_schema(record: PassationDocumentRecord) -> PassationDocumentSchema:
         return PassationDocumentSchema(
@@ -390,6 +440,16 @@ class PassationsRepository:
             priorite=record.priorite,
             statut=record.statut,
             commentaire=record.commentaire,
+        )
+
+    @staticmethod
+    def _role_assignment_schema(record: PassationRoleAssignmentRecord) -> PassationRoleAssignmentSchema:
+        return PassationRoleAssignmentSchema(
+            uid=record.uid,
+            role_code=record.role_code,
+            assignee=record.assignee,
+            assignment_status=record.assignment_status,
+            comment=record.comment,
         )
 
     @staticmethod

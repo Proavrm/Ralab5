@@ -217,6 +217,52 @@ function ActionRow({ action, onChange, onRemove, priorites, statuts }) {
   )
 }
 
+function RoleAssignmentRow({ item, onChange, onRemove, roleCodes, statusOptions }) {
+  function set(k, v) { onChange({ ...item, [k]: v }) }
+  return (
+    <tr className="border-b border-border">
+      <td className="px-2 py-1.5">
+        <select
+          value={item.role_code ?? ''}
+          onChange={e => set('role_code', e.target.value)}
+          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+        >
+          <option value="">— Rôle —</option>
+          {(roleCodes || []).map((roleCode) => <option key={roleCode} value={roleCode}>{roleCode}</option>)}
+        </select>
+      </td>
+      <td className="px-2 py-1.5">
+        <input
+          value={item.assignee ?? ''}
+          onChange={e => set('assignee', e.target.value)}
+          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <select
+          value={item.assignment_status ?? 'À confirmer'}
+          onChange={e => set('assignment_status', e.target.value)}
+          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+        >
+          {(statusOptions || ['À confirmer', 'Confirmé', 'Refusé', 'Non applicable']).map((status) => (
+            <option key={status} value={status}>{status}</option>
+          ))}
+        </select>
+      </td>
+      <td className="px-2 py-1.5">
+        <input
+          value={item.comment ?? ''}
+          onChange={e => set('comment', e.target.value)}
+          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button>
+      </td>
+    </tr>
+  )
+}
+
 export default function PassationPage() {
   const { uid } = useParams()
   const navigate = useNavigate()
@@ -229,6 +275,7 @@ export default function PassationPage() {
   const [form, setForm] = useState(EMPTY)
   const [documents, setDocuments] = useState([])
   const [actions, setActions] = useState([])
+  const [roleAssignments, setRoleAssignments] = useState([])
   const [isEditing, setIsEditing] = useState(isNew)
   const [saveInfo, setSaveInfo] = useState('')
 
@@ -289,10 +336,11 @@ export default function PassationPage() {
   // Init form
   useEffect(() => {
     if (!isNew && passation) {
-      const { documents: docs, actions: acts, ...rest } = passation
+      const { documents: docs, actions: acts, role_assignments: roles, ...rest } = passation
       setForm({ ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') })
       setDocuments(docs || [])
       setActions(acts || [])
+      setRoleAssignments(roles || [])
     }
   }, [passation, isNew])
 
@@ -360,6 +408,7 @@ export default function PassationPage() {
       affaire_rst_id: parseInt(form.affaire_rst_id),
       documents: documents.filter(d => d.document_type || d.comment || d.is_received),
       actions: actions.filter(a => a.action_label || a.responsable),
+      role_assignments: roleAssignments.filter((r) => r.role_code || r.assignee),
     })
   }
 
@@ -372,10 +421,11 @@ export default function PassationPage() {
   function handleCancelEdit() {
     if (isNew) return
     if (passation) {
-      const { documents: docs, actions: acts, ...rest } = passation
+      const { documents: docs, actions: acts, role_assignments: roles, ...rest } = passation
       setForm({ ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') })
       setDocuments(docs || [])
       setActions(acts || [])
+      setRoleAssignments(roles || [])
     }
     setSaveInfo('')
     setIsEditing(false)
@@ -392,6 +442,12 @@ export default function PassationPage() {
   }
   function updateAction(i, act) { setActions(a => a.map((x, j) => j === i ? act : x)) }
   function removeAction(i) { setActions(a => a.filter((_, j) => j !== i)) }
+
+  function addRoleAssignment() {
+    setRoleAssignments((items) => [...items, { role_code: '', assignee: '', assignment_status: 'À confirmer', comment: '' }])
+  }
+  function updateRoleAssignment(i, item) { setRoleAssignments((items) => items.map((x, j) => (j === i ? item : x))) }
+  function removeRoleAssignment(i) { setRoleAssignments((items) => items.filter((_, j) => j !== i)) }
 
   const etudeRowsByNumero = useMemo(() => {
     const map = new Map()
@@ -497,9 +553,34 @@ export default function PassationPage() {
   const metrics = {
     docs: documents.filter(d => d.document_type).length,
     actions: actions.filter(a => a.action_label).length,
+    roles: roleAssignments.filter((r) => r.role_code).length,
     source: form.source || '—',
     phase: form.phase_operation || '—',
   }
+
+  const roleCodes = filters.role_code_options || []
+  const roleAssignmentStatusOptions = filters.role_assignment_status_options || ['À confirmer', 'Confirmé', 'Refusé', 'Non applicable']
+  const roleRows = useMemo(
+    () => roleAssignments.filter((item) => String(item?.role_code || '').trim()),
+    [roleAssignments]
+  )
+  const requiredRoleCodes = useMemo(() => {
+    const required = []
+    if (cleanText(form.besoins_terrain)) {
+      required.push('INTERVENTION_PLANNER', 'TECHNICIAN_ASSIGNER', 'FIELD_COORDINATOR')
+    }
+    if (cleanText(form.besoins_laboratoire)) {
+      required.push('LAB_COORDINATOR')
+    }
+    if (cleanText(form.besoins_essais_externes)) {
+      required.push('EXTERNAL_TESTS_OWNER')
+    }
+    return [...new Set(required)]
+  }, [form.besoins_terrain, form.besoins_laboratoire, form.besoins_essais_externes])
+  const confirmedRoleCodes = useMemo(
+    () => new Set(roleRows.filter((item) => normalizeWorkflowText(item.assignment_status) === 'confirme').map((item) => item.role_code)),
+    [roleRows]
+  )
 
   const actionRows = useMemo(
     () => actions.filter((a) => String(a?.action_label || '').trim()),
@@ -549,6 +630,12 @@ export default function PassationPage() {
       blocks.push('Besoins RST identifiés sans actions ouvertes de préparation')
     }
 
+    requiredRoleCodes.forEach((roleCode) => {
+      if (!confirmedRoleCodes.has(roleCode)) {
+        blocks.push(`Rôle requis non confirmé: ${roleCode}`)
+      }
+    })
+
     if (documentsRows.length > 0 && documentsReceived.length === 0) {
       blocks.push('Aucun document marqué comme reçu')
     }
@@ -563,6 +650,8 @@ export default function PassationPage() {
     openActionRows,
     documentsRows.length,
     documentsReceived.length,
+    requiredRoleCodes,
+    confirmedRoleCodes,
   ])
 
   const readyToProcess = readinessBlocks.length === 0
@@ -708,6 +797,7 @@ export default function PassationPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
               <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
               <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
+              <MetricCard label="Rôles" value={metrics.roles} detail="Organisation" />
               <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
               <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
             </div>
@@ -716,6 +806,7 @@ export default function PassationPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
             <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
+            <MetricCard label="Rôles" value={metrics.roles} detail="Organisation" />
             <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
             <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
           </div>
@@ -735,6 +826,7 @@ export default function PassationPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <MetricCard label="Readiness" value={readyToProcess ? 'OK' : 'Bloquée'} detail={readyToProcess ? 'Passation exploitable' : `${readinessBlocks.length} blocage(s)`} />
             <MetricCard label="Actions ouvertes" value={openActionRows.length} detail={`${overdueActions.length} en retard`} />
+            <MetricCard label="Rôles confirmés" value={`${requiredRoleCodes.filter((code) => confirmedRoleCodes.has(code)).length}/${requiredRoleCodes.length || 0}`} detail="Rôles requis" />
             <MetricCard label="Documents reçus" value={`${documentsReceived.length}/${documentsRows.length}`} detail="Suivi documentaire" />
             <MetricCard label="Synthèse" value={cleanText(form.synthese) ? 'Renseignée' : 'À faire'} detail="Décision métier" />
           </div>
@@ -971,6 +1063,45 @@ export default function PassationPage() {
               <FieldCard label="Besoins ressources humaines" value={form.besoins_ressources_humaines} className="sm:col-span-2" />
             </div>
           )}
+        </SectionCard>
+
+        <SectionCard title="E bis - Organisation & rôles" subtitle="Responsabilités à confirmer pour démarrage" >
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs mb-3">
+              <thead>
+                <tr className="border-b border-border">
+                  {['Rôle', 'Personne / contact', 'Statut', 'Commentaire', ''].map(h => (
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {canEdit ? (
+                  roleAssignments.map((item, i) => (
+                    <RoleAssignmentRow
+                      key={i}
+                      item={item}
+                      onChange={(nextItem) => updateRoleAssignment(i, nextItem)}
+                      onRemove={() => removeRoleAssignment(i)}
+                      roleCodes={roleCodes}
+                      statusOptions={roleAssignmentStatusOptions}
+                    />
+                  ))
+                ) : (
+                  roleRows.map((item, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{item.role_code || '—'}</td>
+                      <td className="px-2 py-1.5">{item.assignee || '—'}</td>
+                      <td className="px-2 py-1.5">{item.assignment_status || '—'}</td>
+                      <td className="px-2 py-1.5">{item.comment || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit ? <Button size="sm" onClick={addRoleAssignment}>+ Ajouter rôle</Button> : null}
         </SectionCard>
 
         <SectionCard title="F - Actions à lancer" subtitle="Plan d'actions opérationnel" >

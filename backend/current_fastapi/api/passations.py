@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.models.passation import (
     ACTION_PRIORITY_OPTIONS,
+    ROLE_ASSIGNMENT_STATUS_OPTIONS,
+    PASSATION_ROLE_CODES,
     ACTION_STATUS_OPTIONS,
     DEFAULT_DOCUMENT_TYPES,
     OPERATION_TYPES,
@@ -60,6 +62,8 @@ def filters():
             "document_type_options": DEFAULT_DOCUMENT_TYPES,
             "action_priority_options": ACTION_PRIORITY_OPTIONS,
             "action_status_options": ACTION_STATUS_OPTIONS,
+            "role_code_options": PASSATION_ROLE_CODES,
+            "role_assignment_status_options": ROLE_ASSIGNMENT_STATUS_OPTIONS,
         }
     )
     return payload
