@@ -1,40 +1,40 @@
 /**
  * FILE: RapportSCPage.jsx
  * EXPECTED PROJECT PATH: frontend/react/src/pages/rapports/RapportSCPage.jsx
- * INTEGRATION NOTE: Path is based on the existing reports organisation used for DE.
- * If your real reports folder is different, replace the equivalent report page there.
- */
-
-/**
- * RapportSCPage.jsx
+ *
  * A4 report rendering page for SC core sample borehole logs.
+ * The layout is intentionally self-contained because the SC report must reproduce
+ * the historical Excel/PDF frame with fixed printable dimensions.
  */
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { essaisApi, feuillesTerrainApi } from '@/services/api'
-import RapportHeader from '@/components/rapports/RapportHeader'
-import RapportFooter from '@/components/rapports/RapportFooter'
+import RapportPageShell from '@/components/rapports/RapportPageShell'
 import RapportToolbar from '@/components/rapports/RapportToolbar'
-import RapportConclusionBlock from '@/components/rapports/RapportConclusionBlock'
-import RapportPageShell from "@/components/rapports/RapportPageShell";
+import RapportHeader from '@/components/rapports/RapportHeader'
+import { useReportAutoPrint } from '@/lib/reportAutoPrint'
 import '@/styles/rapport-nge.css'
 import '@/styles/rapport-sc.css'
 
+const LABORATOIRE_RA = 'Région Rhône Alpes - 29-31 rue des Tâches - ZI Mi-Plaine - 69800 SAINT PRIEST'
+const LOGO_SRC = '/assets/logos/nge-logo.png'
+const DEFAULT_DOCUMENT_CODE = 'DG-Q / FS SO du 06/04/2011'
 
-const LABORATOIRE_RA = 'Région Rhône Auvergne - 29-31 rue des Tâches - ZI Mi-Plaine - 69800 SAINT PRIEST'
 const DEFAULT_SIGNATURE = {
     name: 'Sylvain LHOPITAL',
     function: 'Chef de Section Laboratoire',
     visa: '',
 }
 
+const SC_PRIMARY_SCALE_CM = 50
+
 const DEMO_REPORT = {
     identification: {
         scNumber: '1',
         chrono: 'RA L1EC',
-        affaire: '2026-RA-0000',
-        dateRedaction: '2026-04-29',
+        affaire: '',
+        dateRedaction: '2022-08-01',
         chantier: 'Lyon - Avenue de Grande Bretagne',
         site: 'Avenue de Grande Bretagne',
         typeOuvrage: 'Avenue de Grande Bretagne',
@@ -43,27 +43,31 @@ const DEMO_REPORT = {
         sondeur: 'Sylvain LHOPITAL',
         procedeSondage: 'Carotteuse sur remorque',
         diametreCouronne: '102 mm',
-        dateSondage: '2026-04-29',
+        dateSondage: '2022-08-01',
         profil: '',
+        photoReference: '',
         arretSondage: '25,5 cm',
+        arretSondageCm: 25.5,
     },
     laboratoire: LABORATOIRE_RA,
-    photoUrl: '',
-    materialLegend: ['Enrobé Type 0/4 mm', 'Enrobé Type 0/6 mm', 'Enrobé Type 0/10 mm', 'Enrobé Type 0/14 mm'],
+    coupes: [],
+    comments: '',
+    signature: DEFAULT_SIGNATURE,
+    documentCode: DEFAULT_DOCUMENT_CODE,
     rows: [
         {
             id: 'row-1',
             zTopCm: 0,
-            zBottomCm: 7.5,
+            zBottomCm: 6,
             graphicKind: 'drainant',
-            description: 'Enrobés\nType drainant\n\nLimite de percolation',
+            description: 'Enrobés\nType drainant\nLimite de percolation',
             density: '',
             voids: '',
             compacity: '',
         },
         {
             id: 'row-2',
-            zTopCm: 7.5,
+            zTopCm: 6,
             zBottomCm: 15,
             graphicKind: 'enrobe014',
             description: 'Enrobés\nType 0/14',
@@ -81,19 +85,7 @@ const DEMO_REPORT = {
             voids: '',
             compacity: '',
         },
-        {
-            id: 'row-4',
-            zTopCm: 25.5,
-            zBottomCm: 50,
-            graphicKind: 'arret',
-            description: 'Arrêt de sondage',
-            density: '',
-            voids: '',
-            compacity: '',
-        },
     ],
-    comments: '',
-    signature: DEFAULT_SIGNATURE,
 }
 
 function valueOrEmpty(value) {
@@ -112,7 +104,7 @@ function firstValue(...values) {
 
 function parseNumber(value) {
     if (value === null || value === undefined || value === '') return null
-    const parsed = Number(String(value).replace(',', '.'))
+    const parsed = Number(String(value).replace(',', '.').replace(/cm/gi, '').trim())
     return Number.isFinite(parsed) ? parsed : null
 }
 
@@ -135,11 +127,82 @@ function formatDate(value) {
     return text
 }
 
+function metersToCentimeters(value) {
+    const numeric = parseNumber(value)
+    if (numeric === null) return null
+    return Number((numeric * 100).toFixed(1))
+}
+
+/** Profondeurs SC: z_haut/z_bas en mètres; champs *_cm ou zTopCm déjà en cm. */
 function normalizeDepthToCm(value) {
     const numeric = parseNumber(value)
     if (numeric === null) return null
-    if (Math.abs(numeric) <= 10) return Number((numeric * 100).toFixed(1))
+    if (Math.abs(numeric) <= 3 && !Number.isInteger(numeric)) {
+        return metersToCentimeters(numeric)
+    }
     return Number(numeric.toFixed(1))
+}
+
+function formatDepthLabel(value) {
+    const numeric = parseNumber(value)
+    if (numeric === null) return ''
+    return `${formatFrenchNumber(numeric, 1)} cm`
+}
+
+function formatRulerDepth(depth) {
+    const numeric = parseNumber(depth)
+    if (numeric === null) return ''
+    return numeric.toLocaleString('fr-FR', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+    })
+}
+
+function formatScReportNumber(scNumber) {
+    const text = valueOrEmpty(scNumber).trim()
+    if (!text) return ''
+    if (/^SC/i.test(text)) return text
+    return `SC${text}`
+}
+
+function extractCmFromText(value) {
+    const text = valueOrEmpty(value)
+    const match = text.match(/(-?\d+(?:[,.]\d+)?)\s*cm/i)
+    if (!match) return null
+    return parseNumber(match[1])
+}
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value))
+}
+
+function percentFromDepth(value, maxDepth) {
+    const numeric = parseNumber(value)
+    if (numeric === null) return 0
+    return clamp((numeric / Math.max(maxDepth, 1)) * 100, 0, 100)
+}
+
+function splitSiteLines(identification) {
+    const chantier = valueOrEmpty(identification?.chantier).trim()
+    const site = valueOrEmpty(identification?.site).trim()
+    const base = chantier || site
+
+    if (!base) return []
+
+    if (base.includes(' - ')) {
+        const [city, ...rest] = base.split(' - ')
+        const location = rest.join(' - ')
+        if (location.toLowerCase().includes('grande bretagne')) {
+            return [city, 'Avenue de Grande', 'Bretagne']
+        }
+        return [city, location].filter(Boolean)
+    }
+
+    if (base.toLowerCase().includes('avenue de grande bretagne')) {
+        return ['Lyon', 'Avenue de Grande', 'Bretagne']
+    }
+
+    return base.split(/\n+/).map((line) => line.trim()).filter(Boolean).slice(0, 3)
 }
 
 function readLocalModelBaseSC() {
@@ -196,23 +259,105 @@ function resolvePoint(source, searchParams) {
     return points[0]
 }
 
-function resolveCoupe(source, point) {
-    const directCoupe = source?.coupe || source?.data?.coupe || source?.activeCoupe || source?.carotte_coupe || null
-    if (directCoupe) return directCoupe
+function resolvePhotoGalleryItems(galleryPayload) {
+    if (!galleryPayload) return []
+    if (Array.isArray(galleryPayload)) return galleryPayload
+    if (Array.isArray(galleryPayload.photos)) return galleryPayload.photos
+    if (Array.isArray(galleryPayload.items)) return galleryPayload.items
+    if (galleryPayload.data && typeof galleryPayload.data === 'object') {
+        return resolvePhotoGalleryItems(galleryPayload.data)
+    }
+    return []
+}
 
-    const sourceCoupes = Array.isArray(source?.carotte_coupes) ? source.carotte_coupes : []
-    if (sourceCoupes.length) return sourceCoupes[0]
+function resolveEssaiIdForPhotos(point, routeEssaiId, searchParams) {
+    const fromPoint = parseNumber(point?.source_essai_id)
+    if (fromPoint !== null) return fromPoint
 
-    const pointCoupes = Array.isArray(point?.carotte_coupes) ? point.carotte_coupes : []
-    if (pointCoupes.length) return pointCoupes[0]
+    const sourceFamily = String(searchParams?.get?.('source_family') || '').trim().toLowerCase()
+    const sourceUid = String(searchParams?.get?.('source_uid') || '').trim()
+    if (sourceFamily === 'essai' && sourceUid) {
+        const fromSource = parseNumber(sourceUid)
+        if (fromSource !== null) return fromSource
+    }
+
+    const route = String(routeEssaiId || '').trim()
+    if (route && !['modele', 'view', 'new', 'demo'].includes(route.toLowerCase())) {
+        const fromRoute = parseNumber(route)
+        if (fromRoute !== null) return fromRoute
+    }
 
     return null
 }
 
+function normalizePhotoUrl(url) {
+    const text = String(url || '').trim()
+    if (!text) return ''
+    if (/^https?:\/\//i.test(text)) return text
+    if (text.startsWith('/api/')) return text
+    if (text.startsWith('/')) return text.startsWith('/api') ? text : `/api${text}`
+    return `/api/${text.replace(/^\/+/, '')}`
+}
+
+function getPrimaryGalleryPhoto(photoGallery) {
+    if (!Array.isArray(photoGallery) || !photoGallery.length) return null
+    return photoGallery.find((item) => item?.is_primary) || photoGallery[0]
+}
+
+function findGalleryPhoto(photoGallery, storedName) {
+    const key = String(storedName || '').trim()
+    if (!key || !Array.isArray(photoGallery)) return null
+    return photoGallery.find((item) => (
+        String(item?.stored_name || '') === key
+        || String(item?.filename || '') === key
+        || String(item?.original_name || '') === key
+    )) || null
+}
+
+function buildLegacyScPhotoUrl(photoContext = {}) {
+    const { meta = {}, identification = {}, point = {} } = photoContext
+    const affaire = String(firstValue(
+        meta.affaire_nge_raw,
+        meta.affaire_nge,
+        meta.affaire_rst,
+        identification.affaire,
+        point.affaire,
+    ) || '').trim()
+    const photoNumber = String(firstValue(
+        point.photo_number,
+        meta.photo_number,
+        identification.photoReference,
+        identification.scNumber,
+    ) || '').trim().replace(/^SC/i, '')
+    if (!affaire || !photoNumber) return ''
+    return `/api/photos/sc/${encodeURIComponent(affaire)}/${encodeURIComponent(photoNumber)}`
+}
+
+function listCarotteCoupes(point) {
+    if (!Array.isArray(point?.carotte_coupes)) return []
+    return point.carotte_coupes.filter((item) => item && typeof item === 'object')
+}
+
 function normalizeLayer(layer = {}, index = 0) {
-    const zTopCm = normalizeDepthToCm(firstValue(layer.z_haut_cm, layer.depth_start_cm, layer.z_top_cm, layer.z_haut, layer.depth_start_m))
-    const zBottomCm = normalizeDepthToCm(firstValue(layer.z_bas_cm, layer.depth_end_cm, layer.z_bottom_cm, layer.z_bas, layer.depth_end_m))
+    const zHautM = parseNumber(layer.z_haut)
+    const zBasM = parseNumber(layer.z_bas)
+    let zTopCm = null
+    let zBottomCm = null
+
+    if (zHautM !== null && zBasM !== null && zBasM >= zHautM && zBasM <= 5) {
+        zTopCm = metersToCentimeters(zHautM)
+        zBottomCm = metersToCentimeters(zBasM)
+    }
+
+    if (zTopCm === null) {
+        zTopCm = normalizeDepthToCm(firstValue(layer.zTopCm, layer.z_haut_cm, layer.depth_start_cm, layer.z_top_cm, layer.depth_start_m))
+    }
+    if (zBottomCm === null) {
+        zBottomCm = normalizeDepthToCm(firstValue(layer.zBottomCm, layer.z_bas_cm, layer.depth_end_cm, layer.z_bottom_cm, layer.depth_end_m))
+    }
+
     const description = firstValue(
+        layer.description_libre,
         layer.description,
         layer.description_visuelle,
         layer.identification_visuelle,
@@ -226,7 +371,7 @@ function normalizeLayer(layer = {}, index = 0) {
         id: String(firstValue(layer.uid, layer.id, `row-${index + 1}`)),
         zTopCm: zTopCm ?? '',
         zBottomCm: zBottomCm ?? '',
-        graphicKind: String(firstValue(layer.graphicKind, layer.type_enrobe, layer.coupe_graphique, 'standard')).toLowerCase(),
+        graphicKind: inferGraphicKind(description, layer),
         description,
         density: firstValue(layer.d, layer.density, layer.masse_volumique, layer.masseVolumique),
         voids: firstValue(layer.vide, layer.voids, layer.pourcentage_vide, layer.pourcentageVides),
@@ -234,22 +379,11 @@ function normalizeLayer(layer = {}, index = 0) {
     }
 }
 
-function normalizeRowsFromSource(source, searchParams) {
-    const normalizedSource = unwrapReportSource(source) || {}
-    const point = resolvePoint(normalizedSource, searchParams)
-    const coupe = resolveCoupe(normalizedSource, point)
-    const rawRows = firstValue(
-        normalizedSource.rows,
-        normalizedSource.couches,
-        normalizedSource.layers,
-        coupe?.couches,
-        point?.couches,
-        point?.carotte_couches,
-    )
+function normalizeRowsFromLayers(rawRows, fallbackRows = []) {
+    const layers = Array.isArray(rawRows) && rawRows.length ? rawRows : (Array.isArray(fallbackRows) ? fallbackRows : [])
+    if (!layers.length) return []
 
-    if (!Array.isArray(rawRows) || rawRows.length === 0) return DEMO_REPORT.rows
-
-    return rawRows
+    return layers
         .map((row, index) => normalizeLayer(row, index))
         .sort((left, right) => {
             const leftDepth = parseNumber(left.zTopCm) ?? 0
@@ -258,38 +392,124 @@ function normalizeRowsFromSource(source, searchParams) {
         })
 }
 
-function buildPhotoUrl(essaiId, source, point, coupe) {
-    const directPhoto = firstValue(
-        source?.photoUrl,
-        source?.photo_url,
-        source?.photo?.url,
-        source?.selectedPhoto?.url,
-        source?.activeCoupe?.photo_url,
-        source?.activeCoupe?.photoUrl,
-        coupe?.photo_url,
-        coupe?.photoUrl,
-        point?.photo_url,
-        point?.photoUrl,
-    )
-    if (directPhoto) return directPhoto
-    if (essaiId && essaiId !== 'modele' && essaiId !== 'new') return `/api/photos/essai/${encodeURIComponent(essaiId)}`
+function resolveCoupePhotoUrl(coupe, point, photoGallery, coupeIndex = 0, photoContext = {}) {
+    const coupesCount = listCarotteCoupes(point).length
+    const isPrimaryCoupe = coupeIndex === 0 || coupesCount <= 1
+
+    const storedName = String(coupe?.photo_stored_name || '').trim()
+    if (storedName) {
+        const matched = findGalleryPhoto(photoGallery, storedName)
+        if (matched?.url) return normalizePhotoUrl(matched.url)
+    }
+
+    const directPhoto = String(firstValue(coupe?.photo_url, coupe?.photoUrl) || '').trim()
+    if (directPhoto) return normalizePhotoUrl(directPhoto)
+
+    if (isPrimaryCoupe) {
+        const pointStoredName = String(point?.photo_stored_name || '').trim()
+        if (pointStoredName) {
+            const matchedPointPhoto = findGalleryPhoto(photoGallery, pointStoredName)
+            if (matchedPointPhoto?.url) return normalizePhotoUrl(matchedPointPhoto.url)
+        }
+
+        const pointPhoto = String(firstValue(point?.photo_url, point?.photoUrl) || '').trim()
+        if (pointPhoto) return normalizePhotoUrl(pointPhoto)
+
+        const primaryGalleryPhoto = getPrimaryGalleryPhoto(photoGallery)
+        if (primaryGalleryPhoto?.url) return normalizePhotoUrl(primaryGalleryPhoto.url)
+
+        const legacyPhoto = buildLegacyScPhotoUrl({ ...photoContext, point })
+        if (legacyPhoto) return legacyPhoto
+    }
+
     return ''
 }
 
-function buildReportFromSource(source, essaiId, searchParams) {
+function normalizeCoupeReport(coupe, index, point, pointCouches, photoGallery, photoContext) {
+    const coupeLayers = Array.isArray(coupe?.couches) && coupe.couches.length ? coupe.couches : []
+    const fallbackLayers = index === 0 ? pointCouches : []
+    const rows = normalizeRowsFromLayers(coupeLayers, fallbackLayers)
+    const depthEndCm = parseNumber(normalizeDepthToCm(firstValue(coupe?.depth_end_cm, coupe?.depth_end_m)))
+    const depthStartCm = parseNumber(normalizeDepthToCm(firstValue(coupe?.depth_start_cm, coupe?.depth_start_m)))
+    const maxRowDepth = rows.reduce((maximum, row) => Math.max(maximum, parseNumber(row.zBottomCm) ?? 0), 0)
+
+    return {
+        id: String(firstValue(coupe?.id, coupe?.uid, `coupe-${index + 1}`)),
+        title: String(firstValue(coupe?.title, `Coupe ${index + 1}`)),
+        notes: String(coupe?.notes || ''),
+        depthStartCm,
+        depthEndCm: depthEndCm ?? (maxRowDepth || null),
+        photoUrl: resolveCoupePhotoUrl(coupe, point, photoGallery, index, photoContext),
+        rows,
+    }
+}
+
+function buildCoupesFromPoint(point, photoGallery, photoContext = {}) {
+    const pointCouches = Array.isArray(point?.couches) ? point.couches : []
+    const rawCoupes = listCarotteCoupes(point)
+
+    if (!rawCoupes.length) {
+        const rows = normalizeRowsFromLayers(pointCouches, DEMO_REPORT.rows)
+        return [{
+            id: 'coupe-1',
+            title: 'Coupe 1',
+            notes: '',
+            depthStartCm: null,
+            depthEndCm: rows.reduce((maximum, row) => Math.max(maximum, parseNumber(row.zBottomCm) ?? 0), 0) || null,
+            photoUrl: resolveCoupePhotoUrl(point, point, photoGallery, 0, photoContext),
+            rows: rows.length ? rows : DEMO_REPORT.rows,
+        }]
+    }
+
+    return rawCoupes.map((coupe, index) => normalizeCoupeReport(coupe, index, point, pointCouches, photoGallery, photoContext))
+}
+
+function buildReportFromSource(source, essaiId, searchParams, photoGallery = []) {
     const normalizedSource = unwrapReportSource(source) || {}
     const meta = normalizedSource?.meta || normalizedSource?.metadata || normalizedSource?.data?.meta || normalizedSource?.point?.meta || {}
     const point = resolvePoint(normalizedSource, searchParams) || {}
-    const coupe = resolveCoupe(normalizedSource, point) || {}
+    const identificationDraft = {
+        scNumber: firstValue(normalizedSource?.scNumber, normalizedSource?.sc_number, meta.photo_number, meta.sc_number, point.point_code, point.reference, point.numero, essaiId, DEMO_REPORT.identification.scNumber),
+        affaire: firstValue(normalizedSource?.affaire, normalizedSource?.affaire_rst, normalizedSource?.affaire_nge, meta.affaire_rst, meta.affaire_nge_raw, meta.affaire_nge, DEMO_REPORT.identification.affaire),
+        photoReference: firstValue(meta.photo_reference, normalizedSource?.photo_reference, point.photo_reference, point.photo_number, ''),
+    }
+    const photoContext = { meta, identification: identificationDraft, point }
+    const coupes = buildCoupesFromPoint(point, photoGallery, photoContext)
+    const primaryCoupe = coupes[0] || {
+        id: 'coupe-1',
+        title: 'Coupe 1',
+        notes: '',
+        depthStartCm: null,
+        depthEndCm: null,
+        photoUrl: '',
+        rows: DEMO_REPORT.rows,
+    }
+    const supplementaryCoupes = coupes.slice(1)
+    const primaryCoupeDepthEnd = parseNumber(primaryCoupe.depthEndCm)
+        ?? primaryCoupe.rows.reduce((maximum, row) => Math.max(maximum, parseNumber(row.zBottomCm) ?? 0), 0)
     const chantier = firstValue(
         normalizedSource?.chantier,
         normalizedSource?.label,
-        normalizedSource?.site,
         meta.chantier,
-        meta.site,
         point.chantier,
-        point.site,
         DEMO_REPORT.identification.chantier,
+    )
+    const arretText = firstValue(
+        meta.arret_sondage,
+        normalizedSource?.arret_sondage,
+        point.arret_sondage,
+        point.profondeur_finale_cm ? `${point.profondeur_finale_cm} cm` : '',
+        primaryCoupeDepthEnd ? `${primaryCoupeDepthEnd} cm` : '',
+        DEMO_REPORT.identification.arretSondage,
+    )
+    const arretCm = firstValue(
+        meta.arret_sondage_cm,
+        normalizedSource?.arret_sondage_cm,
+        point.profondeur_finale_cm,
+        point.profondeur_finale_m != null ? normalizeDepthToCm(point.profondeur_finale_m) : '',
+        primaryCoupeDepthEnd,
+        extractCmFromText(arretText),
+        DEMO_REPORT.identification.arretSondageCm,
     )
 
     return {
@@ -297,9 +517,9 @@ function buildReportFromSource(source, essaiId, searchParams) {
             scNumber: firstValue(normalizedSource?.scNumber, normalizedSource?.sc_number, meta.photo_number, meta.sc_number, point.point_code, point.reference, point.numero, essaiId, DEMO_REPORT.identification.scNumber),
             chrono: firstValue(normalizedSource?.chrono, normalizedSource?.reference, meta.chrono, meta.chrono_raw, point.chrono, DEMO_REPORT.identification.chrono),
             affaire: firstValue(normalizedSource?.affaire, normalizedSource?.affaire_rst, normalizedSource?.affaire_nge, meta.affaire_rst, meta.affaire_nge_raw, meta.affaire_nge, DEMO_REPORT.identification.affaire),
-            dateRedaction: firstValue(normalizedSource?.dateRedaction, normalizedSource?.date_redaction, meta.date_redaction, new Date().toISOString().slice(0, 10)),
+            dateRedaction: firstValue(normalizedSource?.dateRedaction, normalizedSource?.date_redaction, meta.date_redaction, DEMO_REPORT.identification.dateRedaction),
             chantier,
-            site: firstValue(normalizedSource?.site, meta.site, point.site, chantier),
+            site: firstValue(normalizedSource?.site, meta.site, point.site, DEMO_REPORT.identification.site),
             typeOuvrage: firstValue(meta.type_ouvrage, point.type_ouvrage, normalizedSource?.type_ouvrage, DEMO_REPORT.identification.typeOuvrage),
             partieOuvrage: firstValue(meta.partie_ouvrage, point.partie_ouvrage, normalizedSource?.partie_ouvrage, DEMO_REPORT.identification.partieOuvrage),
             documentReference: firstValue(meta.document_reference, meta.documentReference, normalizedSource?.documentReference, normalizedSource?.document_reference, ''),
@@ -308,19 +528,54 @@ function buildReportFromSource(source, essaiId, searchParams) {
             diametreCouronne: firstValue(meta.diametre, meta.diametre_couronne, normalizedSource?.diametre, point.diametre, DEMO_REPORT.identification.diametreCouronne),
             dateSondage: firstValue(point.date_sondage, meta.date_sondage, normalizedSource?.date_sondage, DEMO_REPORT.identification.dateSondage),
             profil: firstValue(point.profil, meta.profil, meta.profil_numero, normalizedSource?.profil, ''),
-            arretSondage: firstValue(meta.arret_sondage, normalizedSource?.arret_sondage, point.arret_sondage, point.profondeur_finale_cm ? `${point.profondeur_finale_cm} cm` : '', coupe.depth_end_cm ? `${coupe.depth_end_cm} cm` : DEMO_REPORT.identification.arretSondage),
+            photoReference: firstValue(meta.photo_reference, normalizedSource?.photo_reference, point.photo_reference, point.photo_number, ''),
+            arretSondage: formatDepthLabel(arretCm) || arretText,
+            arretSondageCm: parseNumber(arretCm) ?? DEMO_REPORT.identification.arretSondageCm,
         },
         laboratoire: firstValue(normalizedSource?.laboratoire, meta.laboratoire, LABORATOIRE_RA),
-        photoUrl: buildPhotoUrl(essaiId, normalizedSource, point, coupe),
-        materialLegend: Array.isArray(normalizedSource?.materialLegend) ? normalizedSource.materialLegend : DEMO_REPORT.materialLegend,
-        rows: normalizeRowsFromSource(normalizedSource, searchParams),
+        coupes,
+        primaryCoupe,
+        supplementaryCoupes,
+        rows: primaryCoupe.rows,
         comments: firstValue(normalizedSource?.comments, normalizedSource?.commentaires, meta.commentaires, point.commentaires, point.notes, ''),
         signature: {
             name: firstValue(normalizedSource?.signature?.name, normalizedSource?.signataire_nom, meta.signataire_nom, DEFAULT_SIGNATURE.name),
             function: firstValue(normalizedSource?.signature?.function, normalizedSource?.signataire_fonction, meta.signataire_fonction, DEFAULT_SIGNATURE.function),
             visa: firstValue(normalizedSource?.signature?.visa, normalizedSource?.visa, meta.visa, DEFAULT_SIGNATURE.visa),
         },
+        documentCode: firstValue(normalizedSource?.documentCode, normalizedSource?.document_code, meta.document_code, DEFAULT_DOCUMENT_CODE),
     }
+}
+
+function usePhotoGallery(point, routeEssaiId, searchParams) {
+    const [items, setItems] = useState([])
+    const resolvedEssaiId = useMemo(
+        () => resolveEssaiIdForPhotos(point, routeEssaiId, searchParams),
+        [point, routeEssaiId, searchParams],
+    )
+
+    useEffect(() => {
+        if (resolvedEssaiId === null) {
+            setItems([])
+            return undefined
+        }
+
+        let isCancelled = false
+        feuillesTerrainApi.listEssaiPhotos(resolvedEssaiId)
+            .then((payload) => {
+                if (isCancelled) return
+                setItems(resolvePhotoGalleryItems(payload))
+            })
+            .catch(() => {
+                if (!isCancelled) setItems([])
+            })
+
+        return () => {
+            isCancelled = true
+        }
+    }, [resolvedEssaiId])
+
+    return items
 }
 
 function useReportSource(essaiId, searchParams) {
@@ -378,7 +633,309 @@ function useReportSource(essaiId, searchParams) {
     return state
 }
 
-function InfoLine({ label, value }) {
+
+function resolveCoupeMaxLayerDepth(rows, depthEndCm) {
+    const fromRows = (rows || []).reduce((maximum, row) => Math.max(maximum, parseNumber(row.zBottomCm) ?? 0), 0)
+    const fromCoupe = parseNumber(depthEndCm) ?? 0
+    return Math.max(fromRows, fromCoupe, 0)
+}
+
+/** Page 1: echelle fixe 0–50 cm comme le modele NGE (sauf si sondage > 50 cm). */
+function computePrimaryMaxDepth(rows, depthEndCm) {
+    const maxLayerDepth = resolveCoupeMaxLayerDepth(rows, depthEndCm)
+    if (maxLayerDepth > SC_PRIMARY_SCALE_CM) {
+        return Math.ceil(maxLayerDepth / 5) * 5
+    }
+    return SC_PRIMARY_SCALE_CM
+}
+
+/** Hauteur utile du corps de tableau (hors en-tetes), en mm. */
+const SC_RESULTS_BODY_MM = 136
+const SC_TABLE_TOTAL_MM = 154
+const SC_TABLE_HEAD_MM = 12.5
+const SC_TABLE_HEAD_PCT = (SC_TABLE_HEAD_MM / SC_TABLE_TOTAL_MM) * 100
+
+function tableBodyPercentFromDepth(depthCm, maxDepth) {
+    const depth = parseNumber(depthCm)
+    const scale = parseNumber(maxDepth) ?? 1
+    if (depth === null || scale <= 0) return SC_TABLE_HEAD_PCT
+    const bodyPct = percentFromDepth(depth, scale)
+    return SC_TABLE_HEAD_PCT + (bodyPct * (100 - SC_TABLE_HEAD_PCT)) / 100
+}
+
+function collectInternalBoundaryDepths(rows, maxDepth, excludeDepthCm = null) {
+    const exclude = parseNumber(excludeDepthCm)
+    return (rows || [])
+        .map((row) => parseNumber(row.zBottomCm))
+        .filter((depth) => depth !== null && depth > 0 && depth < maxDepth)
+        .filter((depth) => exclude === null || Math.abs(depth - exclude) > 0.05)
+        .filter((depth, index, array) => array.indexOf(depth) === index)
+        .sort((left, right) => left - right)
+}
+
+function inferGraphicKind(description, layer = {}) {
+    const explicit = String(firstValue(layer.graphicKind, layer.type_enrobe, layer.coupe_graphique) || '')
+        .replace(/[^a-z0-9_-]/gi, '')
+        .toLowerCase()
+    if (explicit && explicit !== 'standard') return explicit
+
+    const text = String(description || '').toLowerCase()
+    if (text.includes('drainant') || text.includes('percolation')) return 'drainant'
+    if (text.includes('0/14') || text.includes('0-14') || text.includes('0 14')) return 'enrobe014'
+    if (text.includes('0/10') || text.includes('0-10')) return 'enrobe010'
+    if (text.includes('0/20') || text.includes('0-20')) return 'enrobe020'
+    if (text.includes('béton') || text.includes('beton')) return 'beton'
+    if (text.includes('grave')) return 'grave'
+    return 'standard'
+}
+
+/** Pages coupes suivantes: echelle adaptee a la profondeur de la coupe (arrondi 5 cm, min. 5 cm). */
+function computeCoupeMaxDepth(rows, depthEndCm) {
+    const maxLayerDepth = resolveCoupeMaxLayerDepth(rows, depthEndCm)
+    if (maxLayerDepth <= 0) return 5
+    return Math.max(5, Math.ceil(maxLayerDepth / 5) * 5)
+}
+
+const SC_PRINT_STYLES = `
+.rapport-sc-page .rapport-document-footer {
+    display: none;
+}
+
+.rapport-sc-page-indicator {
+    flex-shrink: 0;
+    margin: 0;
+    text-align: right;
+    font-size: 7px;
+    font-weight: 700;
+}
+
+.rapport-sc-comments-final {
+    display: grid;
+    grid-template-columns: 1fr 67mm;
+    gap: 0;
+    width: 100%;
+    margin-top: 0;
+    border: 0.25mm solid #000;
+    box-sizing: border-box;
+}
+
+.rapport-sc-comments-box {
+    border: 0;
+    padding: 2mm 4mm;
+    min-height: 28mm;
+    box-sizing: border-box;
+}
+
+.rapport-sc-comments-box h2 {
+    margin: 0 0 2mm;
+    font-size: 8.5px;
+    font-weight: 700;
+}
+
+.rapport-sc-comments-box h2 span {
+    text-decoration: underline;
+}
+
+.rapport-sc-signature-grid {
+    display: grid;
+    grid-template-columns: 17mm 1fr;
+    box-sizing: border-box;
+    border: 0;
+    font-size: 7.5px;
+}
+
+.rapport-sc-signature-grid > span,
+.rapport-sc-signature-grid > strong {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 9mm;
+    padding: 1mm;
+    box-sizing: border-box;
+    border-right: 0.25mm solid #000;
+    border-bottom: 0.25mm solid #000;
+    text-align: center;
+}
+
+.rapport-sc-signature-grid > span:nth-child(2n),
+.rapport-sc-signature-grid > strong:nth-child(2n) {
+    border-right: none;
+}
+
+.rapport-sc-signature-grid > span:nth-last-child(-n + 2),
+.rapport-sc-signature-grid > strong:nth-last-child(-n + 2) {
+    border-bottom: none;
+}
+
+.rapport-sc-signature-grid span {
+    font-weight: 700;
+    text-decoration: underline;
+}
+
+.rapport-sc-signature-visa {
+    font-size: 6.2px;
+    line-height: 1.1;
+    word-break: break-word;
+}
+
+.rapport-sc-results-table-wrap {
+    position: relative;
+    min-width: 0;
+    height: var(--sc-table-total-mm, 154mm);
+}
+
+.rapport-sc-stack-cell {
+    position: relative;
+    height: 136mm;
+}
+
+.rapport-sc-description-stack,
+.rapport-sc-lab-stack {
+    position: relative;
+    width: 100%;
+    height: 136mm;
+}
+
+.rapport-sc-description-layer {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5mm 1.8mm;
+    text-align: center;
+    font-weight: 700;
+    white-space: pre-line;
+    font-size: 7px;
+    line-height: 1.15;
+}
+
+.rapport-sc-lab-value {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 6.8px;
+}
+
+.rapport-sc-arret-overlay {
+    position: absolute;
+    top: 12.5mm;
+    right: 0;
+    left: 0;
+    height: 136mm;
+    pointer-events: none;
+    z-index: 4;
+}
+
+.rapport-sc-arret-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 0.3mm solid #000;
+}
+
+.rapport-sc-arret-line span {
+    position: absolute;
+    top: 0.8mm;
+    right: 4mm;
+    background: #fff;
+    padding: 0 1mm;
+    font-size: 7px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.rapport-sc-internal-borders-overlay {
+    position: absolute;
+    top: 12.5mm;
+    right: 0;
+    left: 0;
+    height: 136mm;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.rapport-sc-internal-border {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 0.25mm solid #000;
+}
+
+.rapport-sc-results-table thead tr:first-child th {
+    height: 5mm;
+}
+
+.rapport-sc-results-table thead tr:last-child th {
+    height: 7.5mm;
+}
+
+.rapport-sc-supplementary-notes {
+    margin: 0 0 1mm;
+    font-size: 7px;
+    white-space: pre-line;
+}
+
+@media print {
+    .rapport-sc-paper-stack .rapport-sc-page {
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .rapport-sc-paper-stack .rapport-sc-page:not(:last-child) {
+        page-break-after: always;
+    }
+
+    .rapport-sc-page-continued {
+        page-break-before: always;
+    }
+}
+`
+
+function buildDepthMarkers(maxDepth) {
+    const markers = [0]
+    const limit = Math.max(parseNumber(maxDepth) ?? 0, 5)
+
+    for (let depth = 5; depth <= limit; depth += 5) {
+        markers.push(depth)
+    }
+
+    return markers
+}
+
+function buildDepthScaleTicks(maxDepth, majorOnly = true) {
+    const limit = Math.max(parseNumber(maxDepth) ?? 0, 5)
+    const major = buildDepthMarkers(limit)
+
+    if (majorOnly) {
+        return { major, minor: [], half: [], limit }
+    }
+
+    const minor = []
+    const half = []
+
+    for (let depth = 1; depth < limit; depth += 1) {
+        if (depth % 5 !== 0) minor.push(depth)
+    }
+
+    for (let depth = 2.5; depth < limit; depth += 5) {
+        half.push(depth)
+    }
+
+    return { major, minor, half, limit }
+}
+
+function depthToSvgY(depthCm, maxDepth) {
+    const depth = parseNumber(depthCm) ?? 0
+    const scale = Math.max(parseNumber(maxDepth) ?? 1, 1)
+    return clamp((depth / scale) * SC_RESULTS_BODY_MM, 0, SC_RESULTS_BODY_MM)
+}
+
+function ScInfoLine({ label, value }) {
     return (
         <div className="rapport-sc-info-line">
             <span>{label}</span>
@@ -387,214 +944,530 @@ function InfoLine({ label, value }) {
     )
 }
 
-function SectionTitle({ number, title }) {
+function ScSectionTitle({ number, title, inBlock = false }) {
     return (
-        <div className="rapport-section-title rapport-sc-section-title">
+        <div className={`rapport-sc-section-title${inBlock ? ' rapport-sc-section-title-in-block' : ''}`}>
             <span>{number} -</span>
             <strong>{title}</strong>
         </div>
     )
 }
 
-function ScGraphicCell({ row, minDepth, maxDepth }) {
-    const top = parseNumber(row.zTopCm)
-    const bottom = parseNumber(row.zBottomCm)
-    const range = Math.max(maxDepth - minDepth, 1)
-    const topPct = top === null ? 0 : Math.max(0, Math.min(100, ((top - minDepth) / range) * 100))
-    const heightPct = top === null || bottom === null ? 12 : Math.max(4, Math.min(100 - topPct, ((bottom - top) / range) * 100))
-    const kind = row.graphicKind || 'standard'
-
+function ScGraphicLayers({ rows, maxDepth }) {
     return (
-        <div className="rapport-sc-graphic-cell">
-            <div
-                className={`rapport-sc-graphic-layer rapport-sc-graphic-${kind}`}
-                style={{ top: `${topPct}%`, height: `${heightPct}%` }}
-            />
-        </div>
+        <>
+            {rows.map((row) => {
+                const top = percentFromDepth(row.zTopCm, maxDepth)
+                const bottom = percentFromDepth(row.zBottomCm, maxDepth)
+                const height = Math.max(bottom - top, 0.4)
+                const kind = String(row.graphicKind || 'standard').replace(/[^a-z0-9_-]/gi, '').toLowerCase() || 'standard'
+
+                return (
+                    <div
+                        key={row.id}
+                        className={`rapport-sc-graphic-layer rapport-sc-graphic-${kind}`}
+                        style={{ top: `${top}%`, height: `${height}%` }}
+                    />
+                )
+            })}
+        </>
     )
 }
 
-function ScPhotoBlock({ report }) {
-    const [photoError, setPhotoError] = useState(false)
-
-    if (!report.photoUrl || photoError) {
-        return (
-            <div className="rapport-sc-photo-placeholder">
-                <span>Photo</span>
+function ScDepthScale({ maxDepth }) {
+    return (
+        <div className="rapport-sc-depth-scale">
+            <div className="rapport-sc-depth-title">
+                Profondeur
+                <br />
+                (cm)
             </div>
-        )
-    }
-
-    return (
-        <div className="rapport-sc-photo-box">
-            <img src={report.photoUrl} alt="Carotte" onError={() => setPhotoError(true)} />
+            <ScDepthScaleBody maxDepth={maxDepth} />
         </div>
     )
 }
 
-function ScResultsTable({ report }) {
-    const rows = report.rows || []
-    const depths = rows.flatMap((row) => [parseNumber(row.zTopCm), parseNumber(row.zBottomCm)]).filter((value) => value !== null)
-    const minDepth = depths.length ? Math.min(...depths) : 0
-    const maxDepth = depths.length ? Math.max(...depths) : 50
-    const markerStep = maxDepth <= 30 ? 5 : 10
-    const markers = []
-
-    for (let marker = 0; marker <= Math.ceil(maxDepth / markerStep) * markerStep; marker += markerStep) {
-        markers.push(marker)
-    }
+function ScDepthScaleBody({ maxDepth }) {
+    const { major, minor, half, limit } = buildDepthScaleTicks(maxDepth)
+    const bodyMm = SC_RESULTS_BODY_MM
+    const axisX = 20
+    const svgWidth = 26
 
     return (
-        <div className="rapport-sc-results-grid">
-            <div className="rapport-sc-depth-scale">
-                <div className="rapport-sc-depth-title">Profondeur<br />(cm)</div>
-                <div className="rapport-sc-depth-body">
-                    {markers.map((marker) => {
-                        const top = ((marker - minDepth) / Math.max(maxDepth - minDepth, 1)) * 100
-                        return (
-                            <div key={marker} className="rapport-sc-depth-marker" style={{ top: `${Math.max(0, Math.min(100, top))}%` }}>
-                                <span>{formatFrenchNumber(marker, 0)}</span>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-
-            <table className="rapport-sc-results-table">
-                <colgroup>
-                    <col className="rapport-sc-col-photo" />
-                    <col className="rapport-sc-col-description" />
-                    <col className="rapport-sc-col-lab" />
-                    <col className="rapport-sc-col-lab" />
-                    <col className="rapport-sc-col-lab-wide" />
-                </colgroup>
-                <thead>
-                    <tr>
-                        <th rowSpan="3">Photo carotte</th>
-                        <th>Identification visuelle</th>
-                        <th colSpan="3">Essais de laboratoire</th>
-                    </tr>
-                    <tr>
-                        <th>Description</th>
-                        <th>d</th>
-                        <th>% vide</th>
-                        <th>Compacité</th>
-                    </tr>
-                    <tr>
-                        <th>(nature, couleur, D, état…)</th>
-                        <th>%</th>
-                        <th></th>
-                        <th>%</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map((row, index) => (
-                        <tr key={row.id}>
-                            {index === 0 ? (
-                                <td className="rapport-sc-photo-td" rowSpan={Math.max(rows.length, 1)}><ScPhotoBlock report={report} /></td>
-                            ) : null}
-                            <td className="rapport-sc-description-td">{valueOrEmpty(row.description)}</td>
-                            <td>{formatFrenchNumber(row.density, 1)}</td>
-                            <td>{formatFrenchNumber(row.voids, 1)}</td>
-                            <td>{formatFrenchNumber(row.compacity, 1)}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+        <div className="rapport-sc-depth-body">
+            <svg
+                className="rapport-sc-depth-svg"
+                viewBox={`0 0 ${svgWidth} ${bodyMm}`}
+                preserveAspectRatio="none"
+                aria-hidden="true"
+            >
+                <rect className="rapport-sc-depth-bg" x="0" y="0" width={svgWidth} height={bodyMm} />
+                <line className="rapport-sc-depth-spine" x1={axisX} y1={0} x2={axisX} y2={bodyMm} />
+                <line className="rapport-sc-depth-cap" x1={axisX - 2.2} y1={0} x2={axisX + 2.2} y2={0} />
+                <line className="rapport-sc-depth-cap" x1={axisX - 2.2} y1={bodyMm} x2={axisX + 2.2} y2={bodyMm} />
+                {minor.map((depth) => {
+                    const y = depthToSvgY(depth, limit)
+                    return (
+                        <line
+                            key={`minor-${depth}`}
+                            className="rapport-sc-depth-svg-tick rapport-sc-depth-svg-tick-minor"
+                            x1={17.2}
+                            y1={y}
+                            x2={axisX}
+                            y2={y}
+                        />
+                    )
+                })}
+                {half.map((depth) => {
+                    const y = depthToSvgY(depth, limit)
+                    return (
+                        <line
+                            key={`half-${depth}`}
+                            className="rapport-sc-depth-svg-tick rapport-sc-depth-svg-tick-half"
+                            x1={14.2}
+                            y1={y}
+                            x2={axisX}
+                            y2={y}
+                        />
+                    )
+                })}
+                {major.map((depth) => {
+                    const y = depthToSvgY(depth, limit)
+                    return (
+                        <g key={`major-${depth}`}>
+                            <line
+                                className="rapport-sc-depth-svg-tick rapport-sc-depth-svg-tick-major"
+                                x1={10.2}
+                                y1={y}
+                                x2={axisX}
+                                y2={y}
+                            />
+                            <text
+                                className="rapport-sc-depth-svg-label"
+                                x={9.4}
+                                y={y}
+                                textAnchor="end"
+                                dominantBaseline="middle"
+                            >
+                                {formatRulerDepth(depth)}
+                            </text>
+                        </g>
+                    )
+                })}
+            </svg>
         </div>
     )
 }
 
-function MaterialLegend({ items }) {
-    if (!Array.isArray(items) || items.length === 0) return null
+function ScInternalBordersOverlay({ rows, maxDepth, arretCm }) {
+    const boundaries = collectInternalBoundaryDepths(rows, maxDepth, arretCm)
 
     return (
-        <div className="rapport-sc-material-legend">
-            {items.map((item) => (
-                <div key={item} className="rapport-sc-material-item">
-                    <span className="rapport-sc-material-swatch" />
-                    <span>{item}</span>
-                </div>
+        <div className="rapport-sc-internal-borders-overlay" aria-hidden="true">
+            {boundaries.map((depth) => (
+                <div
+                    key={`internal-border-${depth}`}
+                    className="rapport-sc-internal-border"
+                    style={{ top: `${percentFromDepth(depth, maxDepth)}%` }}
+                />
             ))}
         </div>
     )
 }
 
-function RapportSCPage() {
-    const { essaiId = 'modele' } = useParams()
-    const [searchParams] = useSearchParams()
-    const isEmbed = String(searchParams.get("embed") || "").trim() === "1"
-    const { loading, error, source } = useReportSource(essaiId, searchParams)
+function computePhotoHeightMm(photoEndCm, maxDepth, fillColumn = false) {
+    if (fillColumn) return SC_RESULTS_BODY_MM
+    const end = parseNumber(photoEndCm)
+    const scale = parseNumber(maxDepth) ?? SC_RESULTS_BODY_MM
+    if (end === null || scale <= 0) return SC_RESULTS_BODY_MM
+    const ratio = clamp(end / scale, 0.12, 1)
+    return Number((ratio * SC_RESULTS_BODY_MM).toFixed(2))
+}
 
-    const report = useMemo(() => buildReportFromSource(source || DEMO_REPORT, essaiId, searchParams), [source, essaiId, searchParams])
-    const identification = report.identification
-    const toolbarReference = identification?.chrono || identification?.scNumber || essaiId || ""
+function ScPhotoCell({ src, label, photoHeightMm }) {
+    const [hasError, setHasError] = useState(false)
+    const showImage = Boolean(src) && !hasError
+    const heightMm = Math.max(photoHeightMm || SC_RESULTS_BODY_MM, 8)
 
+    useEffect(() => {
+        setHasError(false)
+    }, [src])
 
     return (
-        <RapportPageShell
-            embedded={isEmbed}
-            toolbar={<RapportToolbar reportReference={toolbarReference} />}
-        >
-            <div className="rapport-sc-paper-stack">
-                {loading ? <div className="rapport-sc-inline-alert">Chargement du rapport SC…</div> : null}
-                {error ? <div className="rapport-sc-inline-alert rapport-sc-inline-alert-warning">{error}</div> : null}
+        <div className="rapport-sc-photo-stack">
+            {showImage ? (
+                <div className="rapport-sc-photo-box" style={{ height: `${heightMm}mm` }}>
+                    <img src={src} alt={label} onError={() => setHasError(true)} />
+                </div>
+            ) : (
+                <div className="rapport-sc-photo-placeholder" style={{ height: `${heightMm}mm` }}>
+                    {label}
+                </div>
+            )}
+        </div>
+    )
+}
 
-                <main className="rapport-page rapport-page-a4 rapport-sc-page" id="rapport-sc-printable">
-                    <div className="rapport-print-frame rapport-sc-frame">
+function ScResultsGrid({ primaryCoupe, maxDepth, arretSondageCm, fillPhotoColumn = false }) {
+    const rows = primaryCoupe?.rows || []
+    const primaryDepthEnd = parseNumber(primaryCoupe?.depthEndCm)
+        ?? rows.reduce((maximum, row) => Math.max(maximum, parseNumber(row.zBottomCm) ?? 0), 0)
+    const photoEndCm = parseNumber(arretSondageCm) ?? primaryDepthEnd ?? maxDepth
+    const photoHeightMm = computePhotoHeightMm(photoEndCm, maxDepth, fillPhotoColumn)
+    const photoLabel = valueOrEmpty(primaryCoupe?.title) || 'Photo'
+    const arretCm = parseNumber(arretSondageCm)
+    const arretTop = arretCm !== null && arretCm > 0 && arretCm <= maxDepth
+        ? percentFromDepth(arretCm, maxDepth)
+        : null
+
+    const renderLabStack = (field) => (
+        <div className="rapport-sc-lab-stack">
+            {rows.map((row) => {
+                const value = formatFrenchNumber(row[field], 1)
+                if (!String(value || '').trim()) return null
+
+                const top = percentFromDepth(row.zTopCm, maxDepth)
+                const bottom = percentFromDepth(row.zBottomCm, maxDepth)
+                const height = Math.max(bottom - top, 2.5)
+
+                return (
+                    <div
+                        key={`${row.id}-${field}`}
+                        className="rapport-sc-lab-value"
+                        style={{ top: `${top}%`, height: `${height}%` }}
+                    >
+                        {value}
+                    </div>
+                )
+            })}
+        </div>
+    )
+
+    return (
+        <div className="rapport-sc-results-quadro">
+            <div className="rapport-sc-results-body">
+                <ScDepthScale maxDepth={maxDepth} />
+
+                <div className="rapport-sc-results-table-area">
+                    <div className="rapport-sc-results-table-wrap">
+                    <table className="rapport-sc-results-table rapport-sc-results-table--stack">
+                        <colgroup>
+                            <col className="rapport-sc-col-coupe" />
+                            <col className="rapport-sc-col-description" />
+                            <col className="rapport-sc-col-photo" />
+                            <col className="rapport-sc-col-lab" />
+                            <col className="rapport-sc-col-lab" />
+                            <col className="rapport-sc-col-lab-wide" />
+                        </colgroup>
+                        <thead>
+                            <tr>
+                                <th colSpan={2}>Identification visuelle</th>
+                                <th rowSpan={2}>Photo</th>
+                                <th colSpan={3}>Essais de laboratoire</th>
+                            </tr>
+                            <tr>
+                                <th>
+                                    Coupe
+                                    <br />
+                                    graphique
+                                </th>
+                                <th>
+                                    Description
+                                    <br />
+                                    (nature, couleur, D, état...)
+                                </th>
+                                <th>d</th>
+                                <th>
+                                    %
+                                    <br />
+                                    vide
+                                </th>
+                                <th>
+                                    Compacité
+                                    <br />
+                                    %
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td className="rapport-sc-graphic-td rapport-sc-stack-cell">
+                                    <div className="rapport-sc-graphic-cell">
+                                        <ScGraphicLayers rows={rows} maxDepth={maxDepth} />
+                                    </div>
+                                </td>
+                                <td className="rapport-sc-description-td rapport-sc-stack-cell">
+                                    <div className="rapport-sc-description-stack">
+                                        {rows.map((row) => {
+                                            const top = percentFromDepth(row.zTopCm, maxDepth)
+                                            const bottom = percentFromDepth(row.zBottomCm, maxDepth)
+                                            const height = Math.max(bottom - top, 2.5)
+
+                                            return (
+                                                <div
+                                                    key={row.id}
+                                                    className="rapport-sc-description-layer"
+                                                    style={{ top: `${top}%`, height: `${height}%` }}
+                                                >
+                                                    {row.description}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </td>
+                                <td className="rapport-sc-photo-td rapport-sc-stack-cell">
+                                    <ScPhotoCell
+                                        src={primaryCoupe?.photoUrl}
+                                        label={photoLabel}
+                                        photoHeightMm={photoHeightMm}
+                                    />
+                                </td>
+                                <td className="rapport-sc-stack-cell">{renderLabStack('density')}</td>
+                                <td className="rapport-sc-stack-cell">{renderLabStack('voids')}</td>
+                                <td className="rapport-sc-stack-cell">{renderLabStack('compacity')}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <ScInternalBordersOverlay rows={rows} maxDepth={maxDepth} arretCm={arretCm} />
+
+                    {arretTop !== null ? (
+                        <div className="rapport-sc-arret-overlay">
+                            <div className="rapport-sc-arret-line" style={{ top: `${arretTop}%` }}>
+                                <span>Arrêt de sondage</span>
+                            </div>
+                        </div>
+                    ) : null}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function ScResultsSection({
+    title,
+    primaryCoupe,
+    maxDepth,
+    arretSondageCm,
+    notes = '',
+    fillPhotoColumn = false,
+}) {
+    return (
+        <section className="rapport-sc-results-block rapport-sc-characteristics-block rapport-sc-results-section">
+            <ScSectionTitle number="2" title={title} inBlock />
+            {notes ? <div className="rapport-sc-supplementary-notes">{notes}</div> : null}
+            <ScResultsGrid
+                primaryCoupe={primaryCoupe}
+                maxDepth={maxDepth}
+                arretSondageCm={arretSondageCm}
+                fillPhotoColumn={fillPhotoColumn}
+            />
+        </section>
+    )
+}
+
+function ScInfoLineSpacer() {
+    return (
+        <div className="rapport-sc-info-line rapport-sc-info-line-spacer" aria-hidden="true">
+            <span>&nbsp;</span>
+            <strong>&nbsp;</strong>
+        </div>
+    )
+}
+
+function ScCharacteristicsSection({ identification }) {
+    return (
+        <section className="rapport-sc-characteristics-block">
+            <ScSectionTitle number="1" title="Caractéristiques" inBlock />
+            <div className="rapport-sc-characteristics-grid">
+                <div className="rapport-sc-characteristics-col">
+                    <ScInfoLine label="Procédé de sondage :" value={identification.procedeSondage} />
+                    <ScInfoLine label="Diamètre de couronne :" value={identification.diametreCouronne} />
+                    <ScInfoLine label="Date de sondage :" value={formatDate(identification.dateSondage)} />
+                    <ScInfoLineSpacer />
+                    <ScInfoLine label="Arrêt de sondage :" value={identification.arretSondage} />
+                </div>
+                <div className="rapport-sc-characteristics-col">
+                    <ScInfoLine label="Photo :" value={identification.photoReference} />
+                    <ScInfoLineSpacer />
+                    <ScInfoLine label="Profil n° :" value={identification.profil} />
+                </div>
+            </div>
+        </section>
+    )
+}
+
+function ScDocumentCode({ code }) {
+    if (!code) return null
+    return <aside className="rapport-sc-document-code">{code}</aside>
+}
+
+function ScCommentsFooter({ report }) {
+    const signature = report.signature || DEFAULT_SIGNATURE
+
+    return (
+        <section className="rapport-sc-comments-final">
+            <div className="rapport-sc-comments-box">
+                <h2>
+                    3/ <span>COMMENTAIRES</span>
+                </h2>
+                <div>{valueOrEmpty(report.comments)}</div>
+            </div>
+            <div className="rapport-sc-signature-grid">
+                <span>Nom</span>
+                <strong>{signature.name}</strong>
+                <span>Fonction</span>
+                <strong>{signature.function}</strong>
+                <span>Visa</span>
+                <strong className="rapport-sc-signature-visa">{signature.visa || report.documentCode || ''}</strong>
+            </div>
+        </section>
+    )
+}
+
+function ScPrintPage({
+    pageId,
+    pageLabel,
+    report,
+    identification,
+    documentCode,
+    continued = false,
+    children,
+}) {
+    const siteTitle = splitSiteLines(identification).join('\n') || identification.chantier || identification.site
+
+    return (
+        <main
+            id={pageId}
+            className={`rapport-page rapport-page-a4 rapport-sc-page${continued ? ' rapport-sc-page-continued' : ''}`}
+        >
+            <div className="rapport-sc-sheet">
+                <div className="rapport-print-frame rapport-sc-frame">
                     <RapportHeader
-                        logoSrc="/assets/logos/nge-logo.png"
-                        title="COMPTE RENDU D'ESSAIS"
-                        subtitle="COUPE DE SONDAGE CAROTTE"
-                        essaiCode="SC"
-                        reportCode="SC"
+                        logoSrc={LOGO_SRC}
+                        reportTypeLabel="SC n°"
                         reportNumber={identification.scNumber}
-                        chrono={identification.chrono}
-                        affaire={identification.affaire}
-                        dateRedaction={formatDate(identification.dateRedaction)}
-                        chantier={identification.chantier}
-                        site={identification.site}
-                        laboratoire={report.laboratoire}
+                        affaireNumber={identification.affaire || identification.chrono}
+                        editionDate={formatDate(identification.dateRedaction)}
+                        siteTitle={siteTitle}
+                        mainTitle="COMPTE RENDU D'ESSAIS"
+                        subtitle="COUPE DE SONDAGE CAROTTE"
+                        laboratory={report.laboratoire}
                     />
 
                     <section className="rapport-sc-content">
                         <div className="rapport-sc-project-row">
                             <div className="rapport-sc-project-main">
-                                <InfoLine label="Type et nom de l'ouvrage :" value={identification.typeOuvrage} />
-                                <InfoLine label="Partie de l'ouvrage :" value={identification.partieOuvrage} />
+                                <ScInfoLine label="Type et nom de l'ouvrage :" value={identification.typeOuvrage} />
+                                <ScInfoLine label="Partie de l'ouvrage :" value={identification.partieOuvrage} />
                             </div>
                             <div className="rapport-sc-project-side">
-                                <InfoLine label="Document de référence :" value={identification.documentReference} />
-                                <InfoLine label="Sondeur :" value={identification.sondeur} />
+                                <ScInfoLine label="Document de référence :" value={identification.documentReference} />
+                                <ScInfoLine label="Sondeur :" value={identification.sondeur} />
                             </div>
                         </div>
 
-                        <SectionTitle number="1" title="Caractéristiques" />
+                        {pageLabel ? <div className="rapport-sc-page-indicator">{pageLabel}</div> : null}
 
-                        <div className="rapport-sc-characteristics-grid">
-                            <InfoLine label="Procédé de sondage :" value={identification.procedeSondage} />
-                            <InfoLine label="Photo :" value={identification.scNumber ? `SC n° ${identification.scNumber}` : ''} />
-                            <InfoLine label="Diamètre de couronne :" value={identification.diametreCouronne} />
-                            <InfoLine label="Profil n° :" value={identification.profil} />
-                            <InfoLine label="Date de sondage :" value={formatDate(identification.dateSondage)} />
-                            <InfoLine label="Arrêt de sondage :" value={identification.arretSondage} />
+                        <div className="rapport-sc-main-body">{children}</div>
+
+                        <div className="rapport-sc-page-footer-zone">
+                            <ScCommentsFooter report={report} />
                         </div>
-
-                        <SectionTitle number="2" title="Résultats du sondage et des identifications" />
-                        <MaterialLegend items={report.materialLegend} />
-                        <ScResultsTable report={report} />
                     </section>
 
-                    <RapportConclusionBlock
-                        conclusionTitle="3/ COMMENTAIRES"
-                        showConformity={false}
-                        comments={report.comments}
-                        signature={report.signature}
-                    />
+                    <ScDocumentCode code={documentCode} />
+                </div>
+            </div>
+        </main>
+    )
+}
 
-                    <RapportFooter documentCode="CODE WBS / CODE DOCUMENT À DÉFINIR" />
-                    </div>
-                </main>
+
+function RapportSCPage() {
+    const { essaiId = 'modele' } = useParams()
+    const [searchParams] = useSearchParams()
+    const isEmbed = String(searchParams.get('embed') || '').trim() === '1'
+    const hideToolbar = String(searchParams.get('hide_toolbar') || '').trim() === '1'
+    const { loading, error, source } = useReportSource(essaiId, searchParams)
+    useReportAutoPrint(searchParams, !loading && !error)
+
+    const point = useMemo(() => {
+        const normalizedSource = unwrapReportSource(source) || {}
+        return resolvePoint(normalizedSource, searchParams) || {}
+    }, [source, searchParams])
+    const photoGallery = usePhotoGallery(point, essaiId, searchParams)
+
+    const report = useMemo(
+        () => buildReportFromSource(source || DEMO_REPORT, essaiId, searchParams, photoGallery),
+        [source, essaiId, searchParams, photoGallery],
+    )
+    const identification = report.identification
+    const toolbarReference = identification?.chrono || identification?.scNumber || essaiId || ''
+    const supplementaryCoupes = Array.isArray(report.supplementaryCoupes) ? report.supplementaryCoupes : []
+    const totalPages = 1 + supplementaryCoupes.length
+    const primaryCoupe = report.primaryCoupe
+    const primaryMaxDepth = computePrimaryMaxDepth(primaryCoupe?.rows, identification?.arretSondageCm)
+    const primaryArretCm = parseNumber(identification?.arretSondageCm)
+        ?? parseNumber(primaryCoupe?.depthEndCm)
+        ?? primaryMaxDepth
+
+    return (
+        <RapportPageShell
+            embedded={isEmbed}
+            hideToolbar={hideToolbar}
+            toolbar={<RapportToolbar reportReference={toolbarReference} />}
+        >
+            <style>{SC_PRINT_STYLES}</style>
+            <div className="rapport-sc-paper-stack">
+                {loading ? <div className="rapport-sc-inline-alert">Chargement du rapport SC...</div> : null}
+                {error ? <div className="rapport-sc-inline-alert rapport-sc-inline-alert-warning">{error}</div> : null}
+
+                <ScPrintPage
+                    pageId="rapport-sc-printable-1"
+                    pageLabel={`Page 1/${totalPages}`}
+                    report={report}
+                    identification={identification}
+                    documentCode={report.documentCode}
+                >
+                    <ScCharacteristicsSection identification={identification} />
+                    <ScResultsSection
+                        title="Résultats du sondage et des identifications"
+                        primaryCoupe={primaryCoupe}
+                        maxDepth={primaryMaxDepth}
+                        arretSondageCm={primaryArretCm}
+                    />
+                </ScPrintPage>
+
+                {supplementaryCoupes.map((coupe, index) => {
+                    const pageNumber = index + 2
+                    const coupeMaxDepth = computeCoupeMaxDepth(coupe.rows, coupe.depthEndCm)
+                    const coupeArretCm = parseNumber(coupe.depthEndCm) ?? coupeMaxDepth
+                    const resultsTitle = `Résultats du sondage et des identifications — ${valueOrEmpty(coupe.title) || `Coupe ${pageNumber}`}`
+
+                    return (
+                        <ScPrintPage
+                            key={coupe.id || `coupe-page-${pageNumber}`}
+                            pageId={`rapport-sc-printable-${pageNumber}`}
+                            pageLabel={`Page ${pageNumber}/${totalPages}`}
+                            report={report}
+                            identification={identification}
+                            documentCode={report.documentCode}
+                            continued
+                        >
+                            <ScCharacteristicsSection identification={identification} />
+                            <ScResultsSection
+                                title={resultsTitle}
+                                primaryCoupe={coupe}
+                                maxDepth={coupeMaxDepth}
+                                arretSondageCm={coupeArretCm}
+                                notes={coupe.notes}
+                                fillPhotoColumn
+                            />
+                        </ScPrintPage>
+                    )
+                })}
             </div>
         </RapportPageShell>
     )

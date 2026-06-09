@@ -1,7 +1,7 @@
 // FILE: RapportPageShell.jsx
 // Common layout shell for all report pages.
 
-function RapportPageShell({ managementHeader, toolbar, children, embedded = false }) {
+function RapportPageShell({ managementHeader, toolbar, children, embedded = false, hideToolbar = false }) {
     return (
         <div className="rapport-page-shell">
             <div className="rapport-page-shell-inner">
@@ -25,7 +25,7 @@ function RapportPageShell({ managementHeader, toolbar, children, embedded = fals
                         </div>
                     ) : null}
 
-                    {toolbar ? (
+                    {toolbar && !hideToolbar ? (
                         <div className="rapport-toolbar-frame">
                             {toolbar}
                         </div>

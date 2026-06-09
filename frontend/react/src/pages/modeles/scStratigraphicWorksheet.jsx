@@ -59,19 +59,24 @@ function ScCard({ title, children, right }) {
 // À terme: barre partagée type WorkPageToolbar avec d’autres feuilles de travail (ex. PMT).
 function ScSheetToolbar({ backLabel, onBack, title, subtitle, actions }) {
     return (
-        <div className="flex items-center gap-2 px-6 bg-surface border-b border-border min-h-[58px] shrink-0 sticky top-0 z-10 flex-wrap">
-            <button
-                type="button"
-                onClick={onBack}
-                className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors"
-            >
-                {backLabel}
-            </button>
-            <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-semibold text-text">{title}</div>
-                {subtitle ? <div className="truncate text-[11px] text-text-muted">{subtitle}</div> : null}
+        <div
+            className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+            style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+        >
+            <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+            <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+                <button
+                    onClick={onBack}
+                    className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+                >
+                    {backLabel}
+                </button>
+                <div className="flex-1 min-w-[220px]">
+                    <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">{subtitle || 'Sondage SC'}</div>
+                    <div className="text-[15px] font-black">{title}</div>
+                </div>
+                {actions}
             </div>
-            {actions}
         </div>
     )
 }
@@ -302,6 +307,12 @@ function scBuildPointForm(point = null) {
         profil: point?.profil || '',
         date_point: point?.date_point || '',
         operateur: point?.operateur || '',
+        sondeur: point?.sondeur || '',
+        procede: point?.procede || '',
+        diametre: point?.diametre || '',
+        type_ouvrage: point?.type_ouvrage || '',
+        partie_ouvrage: point?.partie_ouvrage || '',
+        document_reference: point?.document_reference || '',
         profondeur_finale_m: point?.profondeur_finale_m ?? point?.profondeur_bas ?? '',
         carotte_total_height_cm: point?.carotte_total_height_m == null ? '' : scMetersToCentimeters(point?.carotte_total_height_m),
         tenue_fouilles: point?.tenue_fouilles || '',
@@ -349,6 +360,12 @@ function scToPointPayload(form) {
         profil: form.profil || '',
         date_point: form.date_point || '',
         operateur: form.operateur || '',
+        sondeur: form.sondeur || '',
+        procede: form.procede || '',
+        diametre: form.diametre || '',
+        type_ouvrage: form.type_ouvrage || '',
+        partie_ouvrage: form.partie_ouvrage || '',
+        document_reference: form.document_reference || '',
         profondeur_finale_m: scParseNumber(form.profondeur_finale_m),
         carotte_total_height_m: scCentimetersToMeters(form.carotte_total_height_cm),
         tenue_fouilles: form.tenue_fouilles || '',
@@ -1248,11 +1265,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         setPointField('profondeur_finale_m', meters)
     }
 
-    useEffect(() => {
-        if (!isSCFeuille) return
-        if (carotteCoupes.length) return
-        setPointField('carotte_coupes', [scBuildDefaultScCoupe({ pointForm, selectedPhoto, couches, title: 'Coupe 1' })])
-    }, [isSCFeuille, carotteCoupes.length, pointForm, selectedPhoto, couches])
+    const hasPointData = Boolean(point?.uid)
 
     useEffect(() => {
         if (!isSCFeuille || !carotteCoupes.length) return
@@ -1298,8 +1311,11 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 
     const activeCoupePhoto = useMemo(() => {
         if (!activeCoupe?.photo_stored_name) return selectedPhoto
-        return photoItems.find((item) => item?.stored_name === activeCoupe.photo_stored_name) || selectedPhoto
-    }, [activeCoupe?.photo_stored_name, photoItems, selectedPhoto])
+        const matched = photoItems.find((item) => item?.stored_name === activeCoupe.photo_stored_name)
+        if (matched) return matched
+        if (carotteCoupes.length <= 1) return selectedPhoto
+        return null
+    }, [activeCoupe?.photo_stored_name, photoItems, selectedPhoto, carotteCoupes.length])
     const activeCoupeCouches = useMemo(() => {
         if (!isSCFeuille) return couches
         if (Array.isArray(activeCoupe?.couches) && activeCoupe.couches.length) return scCloneCoupeLayers(activeCoupe.couches)
@@ -1316,7 +1332,14 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         0.1,
     )
     const activeScDepthMax = Math.max(Number(activeCoupeTotalHeight || 0), baseScDepthMax, 0.1)
-    const scBodyHeight = Math.max(260, Math.min(920, activeScDepthMax * 1800))
+    const scLayerDepthMax = isSCFeuille
+        ? Math.max(
+            ...activeCoupeCouches.map((couche) => Number(couche?.z_bas ?? 0)).filter((v) => Number.isFinite(v)),
+            Number(activeCoupeTotalHeight || 0) || 0.001,
+            0.001,
+        )
+        : activeScDepthMax
+    const scBodyHeight = Math.max(400, Math.min(1400, scLayerDepthMax * 3200))
     const scRowHeightsByUid = useMemo(() => {
         const entries = new Map()
         if (!isSCFeuille || !Array.isArray(activeCoupeCouches)) return entries
@@ -1324,37 +1347,46 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
             const zHaut = Number(couche?.z_haut)
             const zBas = Number(couche?.z_bas)
             const thickness = (Number.isFinite(zHaut) && Number.isFinite(zBas)) ? Math.max(0, zBas - zHaut) : 0
-            const rawHeight = (thickness / activeScDepthMax) * scBodyHeight
-            const height = thickness > 0 ? Math.max(14, rawHeight) : 20
+            const rawHeight = (thickness / scLayerDepthMax) * scBodyHeight
+            const height = thickness > 0 ? Math.max(28, rawHeight) : 28
             entries.set(couche?.uid, height)
         }
         return entries
-    }, [isSCFeuille, activeCoupeCouches, activeScDepthMax, scBodyHeight])
+    }, [isSCFeuille, activeCoupeCouches, scLayerDepthMax, scBodyHeight])
+    const scBorderPx = 1
     const scRowBoundaries = useMemo(() => {
         if (!isSCFeuille || !Array.isArray(activeCoupeCouches)) return []
         let cumulative = 0
-        return activeCoupeCouches.map((couche) => {
+        return activeCoupeCouches.map((couche, index) => {
             const rowHeight = Number(scRowHeightsByUid.get(couche?.uid) ?? 20)
             cumulative += rowHeight
             return {
                 uid: couche?.uid,
-                y: cumulative,
+                y: cumulative + (index + 1) * scBorderPx,
                 depthM: Number(couche?.z_bas ?? 0),
                 depthCm: Number(couche?.z_bas ?? 0) * 100,
             }
         })
     }, [isSCFeuille, activeCoupeCouches, scRowHeightsByUid])
+    const scActualTotalHeight = useMemo(() => {
+        if (!isSCFeuille || !scRowHeightsByUid.size) return scBodyHeight
+        let total = 0
+        for (const h of scRowHeightsByUid.values()) total += h
+        const borderTotal = scRowHeightsByUid.size * scBorderPx
+        return Math.max(scBodyHeight, total + borderTotal)
+    }, [isSCFeuille, scRowHeightsByUid, scBodyHeight])
     const scPhotoColumnWidth = useMemo(() => {
         if (!isSCFeuille) return 128
         const ratio = (embeddedPhotoNaturalSize.width > 0 && embeddedPhotoNaturalSize.height > 0)
             ? (embeddedPhotoNaturalSize.width / embeddedPhotoNaturalSize.height)
             : 0.28
-        return Math.max(88, Math.min(220, scBodyHeight * ratio))
-    }, [isSCFeuille, embeddedPhotoNaturalSize.width, embeddedPhotoNaturalSize.height, scBodyHeight])
+        const refHeight = scActualTotalHeight || scBodyHeight
+        return Math.max(100, Math.min(320, refHeight * ratio))
+    }, [isSCFeuille, embeddedPhotoNaturalSize.width, embeddedPhotoNaturalSize.height, scActualTotalHeight, scBodyHeight])
     const activeCoupeEndM = Math.max(activeCoupeStartM, scCentimetersToMeters(activeCoupe?.depth_end_cm || activeCoupeBoundsCm.depth_end_cm) ?? activeCoupeTotalHeight ?? activeScDepthMax)
     const displayedCouches = isSCFeuille ? activeCoupeCouches : couches
     const activeScRowHeightsByUid = scRowHeightsByUid
-    const activeScRenderHeight = scBodyHeight
+    const activeScRenderHeight = scActualTotalHeight
     const activeScRowBoundaries = useMemo(() => {
         if (!isSCFeuille) return []
         let previousDepth = activeCoupeStartM
@@ -1373,7 +1405,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         : ''
     const activeCoupePhotoUrl = activeCoupePhoto?.url
         ? `${activeCoupePhoto.url}?v=${photoVersion}`
-        : (activeCoupe?.photo_url || point?.photo_url || photoUrl || '')
+        : (activeCoupe?.photo_url || (carotteCoupes.length <= 1 ? (point?.photo_url || photoUrl || '') : ''))
 
     useEffect(() => {
         setPhotoError(false)
@@ -1691,11 +1723,10 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
     })
 
     return (
-        <div className="flex flex-col h-full -m-6 overflow-y-auto">
-            {/*
-                Barre supérieure du point SC (liste des sondages, titre, actions passées par ModeleSCPage).
-                Enregistrer / rapport / supprimer: barre sticky juste en dessous.
-            */}
+        <div
+            className="flex flex-col h-full -m-6 overflow-y-auto"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
+        >
             <ScSheetToolbar
                 backLabel="← Coupe"
                 onBack={onBackToCoupe}
@@ -1704,56 +1735,81 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                 actions={(
                     <div className="flex flex-wrap items-center gap-2">
                         {sheetToolbarActions}
+                        <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>
+                            {updatePointPending ? 'Enregistrement…' : 'Enregistrer'}
+                        </Button>
+                        <button
+                            onClick={() => { if (window.confirm('Supprimer ce sondage et toutes ses couches / prélèvements ?')) handleDeletePoint(point.uid) }}
+                            className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
+                        >
+                            Supprimer
+                        </button>
                     </div>
                 )}
             />
-            <div className="sticky top-[58px] z-10 border-b border-border bg-surface px-6 py-3">
-                <div className="mx-auto flex w-full max-w-[1900px] items-center justify-end gap-2">
-                    <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>
-                        {updatePointPending ? 'Enregistrement…' : 'Enregistrer'}
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                            const ref = encodeURIComponent(String(data?.reference || point?.point_code || point?.uid || 'modele'))
-                            const params = new URLSearchParams()
-                            params.set('embed', '1')
-                            params.set('source_family', 'terrain')
-                            if (data?.uid) params.set('source_uid', String(data.uid))
-                            if (point?.uid || point?.point_code) params.set('point', String(point.uid || point.point_code))
-                            navigate(`/rapports/sc/${ref}?${params.toString()}`)
-                        }}
-                    >
-                        Imprimer / Ouvrir rapport
-                    </Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDeletePoint(point.uid)}>Supprimer</Button>
-                </div>
-            </div>
-                {/*
-                    Corps de la coupe SC : carotte, photo, couches, prélèvements, annotations.
-                */}
-            <div className="p-6 max-w-[1900px] mx-auto w-full flex flex-col gap-5">
+
+            <div className="w-full max-w-[1900px] mx-auto px-7 py-7 flex flex-col gap-5">
                 {deleteErrorMessage ? (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {deleteErrorMessage}
-                    </div>
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{deleteErrorMessage}</div>
                 ) : null}
 
-                <div className="rounded-lg border border-[#d8e6e1] bg-[#f6fbf9] px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Sondage</p>
-                    <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-text">{point.point_code || point.reference || `Point ${point.uid}`}</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-muted">
-                        {scBuildPointSummary(point) || data.label || 'Fiche de description geotechnique'}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
-                        {data.reference ? <span className="rounded-full border border-border bg-bg px-3 py-1">Coupe {data.reference}</span> : null}
-                        {point.point_type ? <span className="rounded-full border border-border bg-bg px-3 py-1">{point.point_type}</span> : null}
-                        {pointFinalDepthBadge ? <span className="rounded-full border border-border bg-bg px-3 py-1">Prof. finale {pointFinalDepthBadge}</span> : null}
-                        {point.tenue_fouilles ? <span className="rounded-full border border-border bg-bg px-3 py-1">{point.tenue_fouilles}</span> : null}
-                        {(point.venue_eau || point.niveau_nappe) ? <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">∇ {point.niveau_nappe || 'nappe'}</span> : null}
+                {/* Hero */}
+                <section
+                    className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+                    style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+                >
+                    <div
+                        className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+                        style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+                    >
+                        <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
+                        <div>
+                            <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                                <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
+                                RaLab 5 · {isSCFeuille ? 'Sondage Carotte' : 'Sondage'}
+                            </div>
+                            <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{point.point_code || point.reference || `Point ${point.uid}`}</h1>
+                            <p className="mt-3 text-[14px] leading-relaxed text-white/70 max-w-2xl">
+                                {scBuildPointSummary(point) || data.label || 'Fiche de description géotechnique'}
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-start gap-2">
+                            {data.reference ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">Coupe {data.reference}</span>
+                            ) : null}
+                            {point.point_type ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">{point.point_type}</span>
+                            ) : null}
+                            {pointFinalDepthBadge ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">Prof. {pointFinalDepthBadge}</span>
+                            ) : null}
+                            {(point.venue_eau || point.niveau_nappe) ? (
+                                <span className="rounded-full border border-[rgba(96,165,250,0.4)] bg-[rgba(96,165,250,0.15)] px-3 py-1.5 text-[11px] font-bold">∇ {point.niveau_nappe || 'nappe'}</span>
+                            ) : null}
+                        </div>
                     </div>
-                </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Couches</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{couches.length}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Prélèvements</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{linkedPointPrelevements.length}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">{isSCFeuille ? 'Épaisseur' : 'Profondeur'}</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{pointFinalDepthBadge || '—'}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">{isSCFeuille ? 'Coupes' : 'Photos'}</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{isSCFeuille ? carotteCoupes.length : photoItems.length}</div>
+                        </div>
+                    </div>
+                </section>
 
                 <ScCard title="Modifier le sondage">
                     <div className="grid gap-3 md:grid-cols-3">
@@ -1763,17 +1819,33 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                         <ScField label="Profil / PK"><Input value={pointForm.profil} onChange={(event) => setPointField('profil', event.target.value)} /></ScField>
                         <ScField label="Date"><Input type="date" value={pointForm.date_point} onChange={(event) => setPointField('date_point', event.target.value)} /></ScField>
                         <ScField label="Opérateur"><Input value={pointForm.operateur} onChange={(event) => setPointField('operateur', event.target.value)} /></ScField>
+                        {isSCFeuille && (
+                            <>
+                                <ScField label="Sondeur"><Input value={pointForm.sondeur} onChange={(event) => setPointField('sondeur', event.target.value)} /></ScField>
+                                <ScField label="Procédé de sondage"><Input value={pointForm.procede} onChange={(event) => setPointField('procede', event.target.value)} /></ScField>
+                                <ScField label="Diamètre de couronne"><Input value={pointForm.diametre} onChange={(event) => setPointField('diametre', event.target.value)} /></ScField>
+                                <ScField label="Type et nom de l'ouvrage"><Input value={pointForm.type_ouvrage} onChange={(event) => setPointField('type_ouvrage', event.target.value)} /></ScField>
+                                <ScField label="Partie de l'ouvrage"><Input value={pointForm.partie_ouvrage} onChange={(event) => setPointField('partie_ouvrage', event.target.value)} /></ScField>
+                                <ScField label="Document de référence"><Input value={pointForm.document_reference} onChange={(event) => setPointField('document_reference', event.target.value)} /></ScField>
+                            </>
+                        )}
                         <ScField label={isSCFeuille ? 'Profondeur finale (cm)' : 'Profondeur finale (m)'}><Input value={pointFinalDepthInputValue} onChange={(event) => handlePointFinalDepthInputChange(event.target.value)} /></ScField>
-                        <ScField label="Hauteur totale carotte (cm)"><Input value={pointForm.carotte_total_height_cm} onChange={(event) => setPointField('carotte_total_height_cm', event.target.value)} /></ScField>
-                        <ScField label="Venue d'eau">
-                            <ScSelect value={pointForm.venue_eau} onChange={(event) => setPointField('venue_eau', event.target.value)}>
-                                <option value="">—</option>
-                                <option value="Oui">Oui</option>
-                                <option value="Non">Non</option>
-                            </ScSelect>
-                        </ScField>
-                        <ScField label="Tenue des fouilles"><Input value={pointForm.tenue_fouilles} onChange={(event) => setPointField('tenue_fouilles', event.target.value)} /></ScField>
-                        <ScField label="Niveau nappe"><Input value={pointForm.niveau_nappe} onChange={(event) => setPointField('niveau_nappe', event.target.value)} /></ScField>
+                        {isSCFeuille && (
+                            <ScField label="Hauteur totale carotte (cm)"><Input value={pointForm.carotte_total_height_cm} onChange={(event) => setPointField('carotte_total_height_cm', event.target.value)} /></ScField>
+                        )}
+                        {!isSCFeuille && (
+                            <>
+                                <ScField label="Venue d'eau">
+                                    <ScSelect value={pointForm.venue_eau} onChange={(event) => setPointField('venue_eau', event.target.value)}>
+                                        <option value="">—</option>
+                                        <option value="Oui">Oui</option>
+                                        <option value="Non">Non</option>
+                                    </ScSelect>
+                                </ScField>
+                                <ScField label="Tenue des fouilles"><Input value={pointForm.tenue_fouilles} onChange={(event) => setPointField('tenue_fouilles', event.target.value)} /></ScField>
+                                <ScField label="Niveau nappe"><Input value={pointForm.niveau_nappe} onChange={(event) => setPointField('niveau_nappe', event.target.value)} /></ScField>
+                            </>
+                        )}
                         <ScField label="Arrêt de sondage"><Input value={pointForm.arret_sondage} onChange={(event) => setPointField('arret_sondage', event.target.value)} /></ScField>
                         <ScField label="Ouvrage"><Input value={pointForm.ouvrage} onChange={(event) => setPointField('ouvrage', event.target.value)} /></ScField>
                         <ScField label="Notes" full><ScTextarea value={pointForm.notes} onChange={(value) => setPointField('notes', value)} /></ScField>
@@ -2145,7 +2217,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                             <img
                                                                                 src={activeCoupePhotoUrl}
                                                                                 alt="Carotte"
-                                                                                className="h-full w-full object-contain"
+                                                                                className="h-full w-full object-cover"
                                                                                 draggable={false}
                                                                                 onLoad={(event) => {
                                                                                     const image = event.currentTarget
@@ -2694,4 +2766,4 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 }
 
 
-export { ScPointDetailView, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload }
+export { ScPointDetailView, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload, scBuildDefaultScCoupe }

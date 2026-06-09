@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import EssaiCorrectionBanner from '@/components/essais/EssaiCorrectionBanner'
+import { getFeuilleValidationInfo } from '@/lib/essaiValidation'
 import { feuillesTerrainApi, qualiteApi } from '@/services/api'
 import {
   computeDeSummary,
@@ -428,6 +430,10 @@ export default function FeuilleDeRuntimePage() {
   )
   const currentDraftSnapshot = useMemo(() => JSON.stringify(runtimeDraft || {}), [runtimeDraft])
   const hasUnsavedChanges = Boolean(savedDraftSnapshot) && currentDraftSnapshot !== savedDraftSnapshot
+  const validationInfo = useMemo(
+    () => getFeuilleValidationInfo({ payload: feuillePayload }),
+    [feuillePayload],
+  )
 
   function toDraft(values = {}) {
     return {
@@ -835,6 +841,7 @@ export default function FeuilleDeRuntimePage() {
 
       <div className="flex-1 overflow-y-auto bg-surface px-6 py-4">
         <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+          <EssaiCorrectionBanner validation={validationInfo} essaiLabel="essai DE" />
           {renderDeRuntimeView({
             data: { norme: publication?.model_snapshot?.norme || 'NF P 98-241-1' },
             draft: runtimeDraft,

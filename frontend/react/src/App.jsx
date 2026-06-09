@@ -25,6 +25,7 @@ const AffairePage = lazy(() => import('@/pages/AffairePage'))
 const DemandesPage = lazy(() => import('@/pages/DemandesPage'))
 const DemandePage = lazy(() => import('@/pages/DemandePage'))
 const CampaignPage = lazy(() => import('@/pages/CampaignPage'))
+const CampagnesPage = lazy(() => import('@/pages/CampagnesPage'))
 const PassationsPage = lazy(() => import('@/pages/PassationsPage'))
 const PassationPage = lazy(() => import('@/pages/PassationPage'))
 const DstPage = lazy(() => import('@/pages/DstPage'))
@@ -34,7 +35,10 @@ const EtudesPage = lazy(() => import('@/pages/EtudesPage'))
 const PlanningPage = lazy(() => import('@/pages/PlanningPage'))
 const LaboWorkbenchPage = lazy(() => import('@/pages/LaboPage'))
 const QualitePage = lazy(() => import('@/pages/QualitePage'))
+const QsseAnalysisPage = lazy(() => import('@/pages/QsseAnalysisPage'))
+const QsseDocumentPreviewPage = lazy(() => import('@/pages/QsseDocumentPreviewPage'))
 const InterventionPage = lazy(() => import('@/pages/InterventionPage'))
+const InterventionsPage = lazy(() => import('@/pages/InterventionsPage'))
 const EssaiPage = lazy(() => import('@/pages/EssaiPage'))
 const PrelevementsPage = lazy(() => import('@/pages/PrelevementsPage'))
 const PrelevementPage = lazy(() => import('@/pages/PrelevementPage'))
@@ -82,6 +86,7 @@ export default function App() {
                 <Route path="affaires/:uid" element={<P><AffairePage /></P>} />
                 <Route path="demandes" element={<P><DemandesPage /></P>} />
                 <Route path="demandes/:uid" element={<P><DemandePage /></P>} />
+                <Route path="campagnes" element={<P><CampagnesPage /></P>} />
                 <Route path="campagnes/:uid" element={<P><CampaignPage /></P>} />
                 <Route path="passations" element={<P><PassationsPage /></P>} />
                 <Route path="passations/:uid" element={<P><PassationPage /></P>} />
@@ -96,6 +101,9 @@ export default function App() {
                 <Route path="prelevements/etiquettes" element={<P><PrelevementLabelsPage /></P>} />
                 <Route path="prelevements/:uid" element={<P><PrelevementPage /></P>} />
                 <Route path="qualite" element={<P><QualitePage /></P>} />
+                <Route path="qualite/qsse/analyse" element={<P><QsseAnalysisPage /></P>} />
+                <Route path="qualite/qsse/documents/view" element={<P><QsseDocumentPreviewPage /></P>} />
+                <Route path="interventions" element={<P><InterventionsPage /></P>} />
                 <Route path="interventions/:uid" element={<P><InterventionPage /></P>} />
                 <Route path="essais/:uid" element={<P><EssaiPage /></P>} />
                 <Route path="echantillons/:uid" element={<P><EchantillonPage /></P>} />

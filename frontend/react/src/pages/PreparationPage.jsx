@@ -10,7 +10,16 @@ import { api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { applyInterventionTypeToPath, buildInterventionTypeOptions } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
-import { ArrowLeft, ClipboardList, RefreshCw, Save, Wrench } from 'lucide-react'
+import { buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import {
+  DemandeHero,
+  FicheMain,
+  FichePageShell,
+  FicheTopbar,
+  MetricCard,
+  SectionCard,
+} from '@/components/layout/FicheLayout'
+import { ClipboardList, RefreshCw, Save, Wrench } from 'lucide-react'
 
 const FINALITY_OPTIONS = [
   'Identification / classification',
@@ -71,15 +80,11 @@ const DEFAULT_FORM = {
   remarques: '',
 }
 
-function Section({ title, children, right }) {
+function Section({ title, children, right, technical }) {
   return (
-    <section className="bg-surface border border-border rounded-xl p-4 flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[12px] font-bold uppercase tracking-[.06em] text-text-muted">{title}</div>
-        {right}
-      </div>
+    <SectionCard title={title} actions={right} technical={technical}>
       {children}
-    </section>
+    </SectionCard>
   )
 }
 
@@ -168,6 +173,7 @@ export default function PreparationPage() {
 
   const demandeUid = useMemo(() => String(uid || searchParams.get('uid') || ''), [uid, searchParams])
   const demandeReferenceFromQuery = useMemo(() => searchParams.get('ref') || searchParams.get('reference') || '', [searchParams])
+  const returnTo = resolveReturnTo(searchParams.get('return_to'), `/demandes/${demandeUid}`)
   const [form, setForm] = useState(DEFAULT_FORM)
   const typeOptions = useMemo(() => buildInterventionTypeOptions(form.type_intervention_prevu), [form.type_intervention_prevu])
   const [interventionModalOpen, setInterventionModalOpen] = useState(false)
@@ -193,6 +199,23 @@ export default function PreparationPage() {
   const demandeReference = nav?.demande?.reference || nav?.reference || demandeReferenceFromQuery || ''
   const demandeAffaire = nav?.demande?.affaire_reference || nav?.demande?.affaire_ref || nav?.affaire_reference || nav?.affaire_ref || ''
   const demandeChantier = nav?.demande?.chantier || nav?.chantier || nav?.demande?.site || nav?.site || ''
+
+  const demandeForHero = useMemo(() => {
+    const d = nav?.demande || {}
+    return {
+      reference: demandeReference,
+      nature: d.nature,
+      type_mission: d.type_mission,
+      affaire_ref: demandeAffaire,
+      chantier: demandeChantier,
+      client: d.client || nav?.client,
+      site: d.site,
+      statut: d.statut,
+      priorite: d.priorite || form.priorite,
+      labo_code: d.labo_code,
+      date_echeance: d.date_echeance,
+    }
+  }, [nav, demandeReference, demandeAffaire, demandeChantier, form.priorite])
 
   useEffect(() => {
     setForm({
@@ -331,33 +354,52 @@ export default function PreparationPage() {
   const isLoading = navLoading || catalogLoading
 
   return (
-    <div className="flex flex-col h-full -m-6 overflow-y-auto">
-      <div className="flex items-center gap-2 px-6 bg-surface border-b border-border h-[58px] shrink-0 sticky top-0 z-10 flex-wrap">
-        <button
-          onClick={() => navigate(-1)}
-          className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors"
-        >
-          <ArrowLeft size={14} className="inline mr-1" />
-          Retour
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigate(returnTo)}
+        eyebrow="Préparation"
+        title={demandeReference ? `Demande ${demandeReference}` : `Demande ${demandeUid}`}
+      >
+        <button type="button" onClick={() => navigate(buildPathWithReturnTo(`/demandes/${demandeUid}`, returnTo))} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+          Demande
         </button>
-        <span className="text-[15px] font-semibold flex-1">Preparation de la demande {demandeReference || demandeUid}</span>
+        <button type="button" onClick={() => navigate(buildPathWithReturnTo(`/campagnes?demande_id=${demandeUid}`, returnTo))} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+          Campagnes
+        </button>
+        <button type="button" onClick={() => navigate(buildPathWithReturnTo(`/interventions?demande_id=${demandeUid}`, returnTo))} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+          Interventions
+        </button>
         <Button size="sm" variant="secondary" onClick={() => qc.invalidateQueries({ queryKey: ['demande-nav', demandeUid] })} disabled={isLoading}>
           <RefreshCw size={13} />
-          <span className="ml-1">Rafraichir</span>
+          <span className="ml-1">Rafraîchir</span>
         </Button>
         <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending || isLoading}>
           <Save size={13} />
-          <span className="ml-1">{saveMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}</span>
+          <span className="ml-1">{saveMutation.isPending ? 'Enregistrement…' : 'Enregistrer'}</span>
         </Button>
         <Button size="sm" onClick={handleCreateIntervention} disabled={isLoading}>
           <Wrench size={13} />
-          <span className="ml-1">Creer une intervention</span>
+          <span className="ml-1">Créer une intervention</span>
         </Button>
-      </div>
+      </FicheTopbar>
 
-      <div className="flex-1 overflow-auto p-6 bg-bg">
+      <FicheMain>
+        {!isLoading && demandeForHero.reference ? (
+          <DemandeHero demande={demandeForHero} badgeLabel="RaLab 5 · Préparation" />
+        ) : null}
+
+        {!isLoading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <MetricCard label="Familles" value={selectedFamilies.length} detail="Sélectionnées pour la demande" />
+            <MetricCard label="Modules" value={derivedTechnicalModuleCodes.length} detail="Dérivés automatiquement" />
+            <MetricCard label="Phase" value={form.phase_operation || '—'} detail="Cadrage opérationnel" />
+            <MetricCard label="Priorité" value={form.priorite || '—'} detail="Niveau de préparation" />
+          </div>
+        ) : null}
+
         {isLoading ? (
-          <div className="bg-surface border border-border rounded-xl p-6 text-sm text-text-muted text-center">Chargement...</div>
+          <div className="rounded-[18px] border border-[#dbe1ea] bg-white p-10 text-center text-[#69758a] text-[13px]">Chargement…</div>
         ) : (
           <div className="grid grid-cols-[minmax(0,1.55fr)_360px] gap-4">
             <div className="flex flex-col gap-4 min-w-0">
@@ -511,22 +553,22 @@ export default function PreparationPage() {
                 <InfoLine label="Priorite" value={form.priorite} />
               </Section>
 
-              <Section title="Modules derives">
+              <Section title="Modules dérivés" technical>
                 <div className="flex flex-wrap gap-2">
                   {derivedTechnicalModuleLabels.length > 0 ? derivedTechnicalModuleLabels.map((label) => (
                     <Badge key={label} active>{label}</Badge>
                   )) : (
                     <div className="text-[13px] text-text-muted leading-6">
-                      Aucun module technique derive pour l instant.
+                      Aucun module technique dérivé pour l’instant.
                     </div>
                   )}
                 </div>
-                <div className="text-[12px] text-text-muted leading-6">
-                  Les modules techniques restent alimentes automatiquement a partir des familles prevues pour ne pas casser le reste du workflow.
+                <div className="text-[12px] text-text-muted leading-6 mt-2">
+                  Les modules techniques restent alimentés automatiquement à partir des familles prévues pour ne pas casser le reste du workflow.
                 </div>
               </Section>
 
-              <Section title="Suite logique">
+              <Section title="Suite logique" technical>
                 <div className="text-[13px] leading-6 text-text-muted">
                   La preparation decide ce que la demande va produire. Les campagnes servent ensuite a cadrer chaque branche concrete, puis les interventions decrivent l execution reelle.
                 </div>
@@ -539,7 +581,7 @@ export default function PreparationPage() {
             </div>
           </div>
         )}
-      </div>
+      </FicheMain>
 
       <InterventionTypeModal
         open={interventionModalOpen}
@@ -547,6 +589,6 @@ export default function PreparationPage() {
         onSelect={handleSelectInterventionType}
         subtitle={demandeReference ? `Demande: ${demandeReference}` : ''}
       />
-    </div>
+    </FichePageShell>
   )
 }

@@ -327,6 +327,7 @@ function RapportSOPage() {
     const { essaiId = 'view' } = useParams()
     const [searchParams] = useSearchParams()
     const isEmbed = String(searchParams.get('embed') || '').trim() === '1'
+    const hideToolbar = String(searchParams.get('hide_toolbar') || '').trim() === '1'
     const { loading, error, source } = useReportSource(essaiId, searchParams)
 
     const report = useMemo(() => buildReportFromSource(source, searchParams), [source, searchParams])
@@ -336,6 +337,7 @@ function RapportSOPage() {
     return (
         <RapportPageShell
             embedded={isEmbed}
+            hideToolbar={hideToolbar}
             toolbar={<RapportToolbar reportReference={toolbarReference} />}
         >
             <div className="rapport-so-paper-stack">

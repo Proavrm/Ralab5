@@ -14,6 +14,7 @@ import {
     upsertRapportModelDefinitionDE,
 } from "@/services/modelWorkLocalStore";
 import { hasPositionCode, normalizePositionCodes } from "@/lib/positionCodes";
+import { useReportAutoPrint } from "@/lib/reportAutoPrint";
 import "@/styles/rapport-nge.css";
 import "@/styles/rapport-de.css";
 
@@ -387,8 +388,10 @@ export default function RapportDEPage() {
     const [searchParams] = useSearchParams();
     const mode = String(searchParams.get("mode") || "").trim().toLowerCase();
     const isEmbed = String(searchParams.get("embed") || "").trim() === "1";
+    const hideToolbar = String(searchParams.get("hide_toolbar") || "").trim() === "1";
     const isWorkMode = mode === "work";
     const { loading, error, source } = useReportSourceDE(essaiId, searchParams);
+    useReportAutoPrint(searchParams, !loading && !error);
     const resolvedReport = useMemo(() => {
         const fallback = EMPTY_RUNTIME_FALLBACK;
         const seed = source && typeof source === "object" ? source : {};
@@ -509,6 +512,7 @@ export default function RapportDEPage() {
     return (
         <RapportPageShell
             embedded={isEmbed}
+            hideToolbar={hideToolbar}
             managementHeader={managementHeader}
             toolbar={<RapportToolbar reportReference={toolbarReference} />}
         >

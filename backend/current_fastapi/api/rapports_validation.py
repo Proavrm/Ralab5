@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, ConfigDict
 
 from app.core.database import get_db_path
+from app.services.dossier_emails_service import collect_dossier_emails
 
 router = APIRouter(tags=["Rapports validation"])
 DB_PATH = get_db_path()
@@ -44,6 +46,221 @@ def _status_from_payload(payload: dict[str, Any]) -> str:
         or payload.get("report_status")
         or "Brouillon"
     )
+
+
+def _validation_history_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    raw = payload.get("validation_history")
+    if not isinstance(raw, list):
+        return []
+
+    items: list[dict[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        items.append(
+            {
+                "id": _clean(item.get("id")) or f"hist-{index}",
+                "user": _clean(item.get("user") or item.get("utilisateur") or item.get("created_by")),
+                "action": _clean(item.get("action") or item.get("label") or item.get("event_type")),
+                "time": _clean(item.get("time") or item.get("created_at") or item.get("date")),
+                "comment": _clean(item.get("comment")),
+            }
+        )
+    return items
+
+
+def _append_validation_history(payload: dict[str, Any], body: "UpdateStatusBody", next_status: str) -> None:
+    history = payload.get("validation_history")
+    if not isinstance(history, list):
+        history = []
+
+    entry: dict[str, Any] = {
+        "id": f"hist-{int(datetime.now(timezone.utc).timestamp() * 1000)}",
+        "user": _clean(body.user),
+        "action": _clean(body.action) or next_status,
+        "status": next_status,
+        "comment": _clean(body.comment),
+        "time": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M"),
+    }
+    if body.correction_reasons:
+        entry["correction_reasons"] = list(body.correction_reasons)
+
+    history.insert(0, entry)
+    payload["validation_history"] = history[:30]
+
+
+def _persist_feuille_validation(conn: sqlite3.Connection, feuille_id: int, body: "UpdateStatusBody", next_status: str) -> bool:
+    row = conn.execute(
+        "SELECT resultats_json FROM feuilles_terrain WHERE id = ?",
+        (feuille_id,),
+    ).fetchone()
+    if not row:
+        return False
+
+    payload = _parse_json_dict(row["resultats_json"])
+    payload["rapport_status"] = next_status
+    payload["validation_status"] = next_status
+    payload["report_status"] = next_status
+
+    comment = _clean(body.comment)
+    if comment:
+        payload["validation_comment"] = comment
+
+    if body.correction_reasons:
+        payload["correction_reasons"] = list(body.correction_reasons)
+        payload["last_correction_at"] = datetime.now(timezone.utc).isoformat()
+
+    _append_validation_history(payload, body, next_status)
+
+    conn.execute(
+        """
+        UPDATE feuilles_terrain
+        SET resultats_json = ?, updated_at = datetime('now')
+        WHERE id = ?
+        """,
+        (json.dumps(payload, ensure_ascii=False), feuille_id),
+    )
+    return True
+
+
+def _persist_pmt_validation(conn: sqlite3.Connection, pmt_id: int, body: "UpdateStatusBody", next_status: str) -> bool:
+    row = conn.execute(
+        "SELECT resultats_json FROM pmt_essais WHERE id = ?",
+        (pmt_id,),
+    ).fetchone()
+    if not row:
+        return False
+
+    payload = _parse_json_dict(row["resultats_json"])
+    payload["rapport_status"] = next_status
+    payload["validation_status"] = next_status
+    payload["report_status"] = next_status
+
+    comment = _clean(body.comment)
+    if comment:
+        payload["validation_comment"] = comment
+
+    if body.correction_reasons:
+        payload["correction_reasons"] = list(body.correction_reasons)
+        payload["last_correction_at"] = datetime.now(timezone.utc).isoformat()
+
+    _append_validation_history(payload, body, next_status)
+
+    conn.execute(
+        """
+        UPDATE pmt_essais
+        SET statut = ?, resultats_json = ?, updated_at = datetime('now')
+        WHERE id = ?
+        """,
+        (next_status, json.dumps(payload, ensure_ascii=False), pmt_id),
+    )
+    return True
+
+
+def _validation_fields_from_payload(payload: dict[str, Any], fallback_status: str = "") -> dict[str, Any]:
+    status = _status_from_payload(payload) if payload else _clean(fallback_status)
+    if not status:
+        status = _clean(fallback_status) or "Brouillon"
+    correction_reasons = payload.get("correction_reasons")
+    return {
+        "status": status,
+        "validation_comment": _clean(payload.get("validation_comment")),
+        "correction_reasons": list(correction_reasons)
+        if isinstance(correction_reasons, list)
+        else [],
+        "history": _validation_history_from_payload(payload),
+    }
+
+
+def _find_sc_point(payload: dict[str, Any], point_uid: str, reference: str) -> dict[str, Any] | None:
+    points = payload.get("points")
+    if not isinstance(points, list):
+        return None
+
+    clean_uid = _clean(point_uid)
+    if clean_uid:
+        for point in points:
+            if not isinstance(point, dict):
+                continue
+            if _clean(point.get("uid") or point.get("id")) == clean_uid:
+                return point
+
+    text = _clean(reference).upper()
+    match = re.search(r"SC(\d+)$", text)
+    wanted_code = f"SC{int(match.group(1))}" if match else ""
+    if wanted_code:
+        for point in points:
+            if not isinstance(point, dict):
+                continue
+            point_code = _clean(point.get("point_code")).upper()
+            if point_code == wanted_code:
+                return point
+
+    for point in points:
+        if isinstance(point, dict):
+            return point
+    return None
+
+
+def _carotte_coupes_count(point_payload: dict[str, Any]) -> int:
+    coupes = point_payload.get("carotte_coupes")
+    if isinstance(coupes, list) and coupes:
+        return max(1, len(coupes))
+    return 0
+
+
+def _sc_report_pages(
+    conn: sqlite3.Connection,
+    feuille_id: str,
+    payload: dict[str, Any],
+    point_uid: str,
+    reference: str,
+) -> int:
+    explicit = payload.get("pages")
+    if explicit is not None:
+        try:
+            pages = int(explicit)
+            if pages >= 1:
+                return pages
+        except (TypeError, ValueError):
+            pass
+
+    point = _find_sc_point(payload, point_uid, reference)
+    if point:
+        count = _carotte_coupes_count(point)
+        if count:
+            return count
+
+    clean_point_uid = _clean(point_uid)
+    if clean_point_uid.isdigit():
+        row = conn.execute(
+            "SELECT payload_json FROM points_terrain WHERE id = ?",
+            (int(clean_point_uid),),
+        ).fetchone()
+        if row:
+            count = _carotte_coupes_count(_parse_json_dict(row["payload_json"]))
+            if count:
+                return count
+
+    clean_feuille_id = _clean(feuille_id)
+    if clean_feuille_id.isdigit():
+        row = conn.execute(
+            """
+            SELECT pt.payload_json
+            FROM points_terrain pt
+            INNER JOIN feuilles_terrain ft ON ft.serie_id = pt.serie_id
+            WHERE ft.id = ?
+            ORDER BY COALESCE(pt.ordre, 0), pt.id
+            LIMIT 1
+            """,
+            (int(clean_feuille_id),),
+        ).fetchone()
+        if row:
+            count = _carotte_coupes_count(_parse_json_dict(row["payload_json"]))
+            if count:
+                return count
+
+    return 1
 
 
 def _point_uid_from_reference(reference: str, payload: dict[str, Any], fallback_uid: str) -> str:
@@ -159,7 +376,9 @@ def list_validation_reports(
                     "status": _status_from_payload(payload),
                     "author": _clean(payload.get("author") or payload.get("redacteur")),
                     "date": _clean(payload.get("date_rapport") or row["updated_at"] or row["created_at"]),
-                    "pages": int(payload.get("pages") or 1),
+                    "pages": _sc_report_pages(conn, uid, payload, sc_point_uid, ref)
+                    if code == "SC"
+                    else max(1, int(payload.get("pages") or 1)),
                     "warnings": int(payload.get("warnings") or 0),
                     "blockers": int(payload.get("blockers") or 0),
                     "source": _clean(payload.get("criteria_source") or payload.get("source_criteres")),
@@ -171,7 +390,11 @@ def list_validation_reports(
                     "source_id": ref,
                     "essai_reference": ref,
                     "point_uid": sc_point_uid,
-                    "history": [],
+                    "validation_comment": _clean(payload.get("validation_comment")),
+                    "correction_reasons": list(payload.get("correction_reasons") or [])
+                    if isinstance(payload.get("correction_reasons"), list)
+                    else [],
+                    "history": _validation_history_from_payload(payload),
                 }
             )
 
@@ -182,6 +405,7 @@ def list_validation_reports(
                     p.id,
                     p.reference,
                     p.statut,
+                    p.resultats_json,
                     p.demande_id,
                     p.intervention_id,
                     p.created_at,
@@ -207,6 +431,7 @@ def list_validation_reports(
                     p.id,
                     p.reference,
                     p.statut,
+                    p.resultats_json,
                     p.demande_id,
                     p.intervention_id,
                     p.created_at,
@@ -228,13 +453,15 @@ def list_validation_reports(
         for row in pmt_rows:
             ref = _clean(row["reference"])
             pmt_id = int(row["id"])
+            pmt_payload = _parse_json_dict(row["resultats_json"])
+            pmt_validation = _validation_fields_from_payload(pmt_payload, _clean(row["statut"]))
             items.append(
                 {
                     "id": ref or f"PMT-{pmt_id}",
                     "uid": f"PMT:{pmt_id}",
                     "type": "PMT",
                     "title": "Rapport PMT",
-                    "status": _clean(row["statut"]) or "Brouillon",
+                    "status": pmt_validation["status"],
                     "author": "",
                     "date": _clean(row["updated_at"] or row["created_at"]),
                     "pages": 1,
@@ -248,7 +475,9 @@ def list_validation_reports(
                     "pmt_essai_id": str(pmt_id),
                     "source_id": str(pmt_id),
                     "essai_reference": ref,
-                    "history": [],
+                    "validation_comment": pmt_validation["validation_comment"],
+                    "correction_reasons": pmt_validation["correction_reasons"],
+                    "history": pmt_validation["history"],
                 }
             )
 
@@ -276,31 +505,47 @@ class UpdateStatusBody(BaseModel):
     action: str | None = None
     status: str | None = None
     comment: str | None = None
+    user: str | None = None
+    correction_reasons: list[str] | None = None
 
 
 @router.post("/{report_id}/status")
 def update_report_status(report_id: str, body: UpdateStatusBody):
     raw_id = _clean(report_id)
     next_status = _clean(body.status) or "Brouillon"
-    # PMT: canonical status persistence on pmt_essais.
-    if raw_id.upper().startswith("PMT:"):
-        maybe_id = _clean(raw_id.split(":", 1)[1])
-        if maybe_id.isdigit():
-            with _conn() as conn:
-                conn.execute(
-                    "UPDATE pmt_essais SET statut = ?, updated_at = datetime('now') WHERE id = ?",
-                    (next_status, int(maybe_id)),
-                )
-                conn.commit()
+    persisted = False
+
+    with _conn() as conn:
+        upper_id = raw_id.upper()
+        if upper_id.startswith("PMT:"):
+            maybe_id = _clean(raw_id.split(":", 1)[1])
+            if maybe_id.isdigit():
+                persisted = _persist_pmt_validation(conn, int(maybe_id), body, next_status)
+        elif upper_id.startswith("SC:") or upper_id.startswith("DE:"):
+            feuille_id = _clean(raw_id.split(":", 1)[1])
+            if feuille_id.isdigit():
+                persisted = _persist_feuille_validation(conn, int(feuille_id), body, next_status)
+
+        if persisted:
+            conn.commit()
+
     return {
         "ok": True,
+        "persisted": persisted,
         "report_id": raw_id,
         "status": next_status,
         "action": _clean(body.action),
+        "message": "Décision enregistrée." if persisted else "Décision mémorisée côté interface uniquement.",
     }
 
 
 @router.post("/{report_id}/preview")
 def refresh_report_preview(report_id: str):
     return {"ok": True, "report_id": _clean(report_id)}
+
+
+@router.get("/{report_id}/dossier-emails")
+def get_report_dossier_emails(report_id: str):
+    with _conn() as conn:
+        return collect_dossier_emails(conn, report_id)
 

@@ -11,6 +11,10 @@ Endpoints :
   DELETE /api/affaires/{uid}
 """
 from __future__ import annotations
+from functools import lru_cache
+from pathlib import Path
+import re
+import sqlite3
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from app.models.affaire_rst import (
@@ -31,6 +35,27 @@ _repo     = AffairesRstRepository()
 _dem_repo = DemandesRstRepository()
 _dossiers = AffaireDossierService()
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = PROJECT_ROOT / "data"
+NGE_REF_DB_PATH = DATA_DIR / "affaires.db"
+ETUDES_REF_DB_PATH = DATA_DIR / "etudes.db"
+
+FULL_AFFAIRE_CODE_SQL = """
+COALESCE(
+    NULLIF(TRIM(REPLACE(gsa, '*', '')), ''),
+    NULLIF(TRIM(REPLACE(ehtp, '*', '')), ''),
+    NULLIF(TRIM(REPLACE(nge_routes, '*', '')), ''),
+    NULLIF(TRIM(REPLACE(nge_gc, '*', '')), ''),
+    NULLIF(TRIM(REPLACE(lyaudet, '*', '')), ''),
+    NULLIF(TRIM(REPLACE("nge_e.s.", '*', '')), ''),
+    NULLIF(TRIM(REPLACE(nge_transitions, '*', '')), ''),
+    CASE
+        WHEN TRIM(COALESCE("n°affaire", '')) = '' THEN ''
+        ELSE UPPER('RA' || TRIM("n°affaire") || TRIM(COALESCE(code_agence, '')))
+    END
+)
+""".strip()
+
 
 def _parse_reference_parts(reference: str) -> tuple[str, int, str, int]:
     ref = str(reference or "").strip()
@@ -44,6 +69,102 @@ def _parse_reference_parts(reference: str) -> tuple[str, int, str, int]:
     return ref, annee, region, numero
 
 
+def _normalize_key(value: str | None) -> str:
+    text = str(value or "").replace("*", "").upper()
+    text = re.sub(r"[\s\-_/\.]+", "", text)
+    return text.strip()
+
+
+@lru_cache(maxsize=1)
+def _nge_titulaire_by_key() -> dict[str, str]:
+    if not NGE_REF_DB_PATH.exists():
+        return {}
+    with sqlite3.connect(str(NGE_REF_DB_PATH)) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            f"""
+            SELECT {FULL_AFFAIRE_CODE_SQL} AS numero_affaire_complet, titulaire
+            FROM affaires
+            """
+        ).fetchall()
+    by_key: dict[str, set[str]] = {}
+    for row in rows:
+        key = _normalize_key(row["numero_affaire_complet"])
+        titulaire = str(row["titulaire"] or "").strip()
+        if not key or not titulaire:
+            continue
+        by_key.setdefault(key, set()).add(titulaire)
+    return {k: next(iter(v)) for k, v in by_key.items() if len(v) == 1}
+
+
+@lru_cache(maxsize=1)
+def _etude_filiale_by_key() -> dict[str, str]:
+    if not ETUDES_REF_DB_PATH.exists():
+        return {}
+    with sqlite3.connect(str(ETUDES_REF_DB_PATH)) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT nAffaire AS numero_etude, filiale
+            FROM etudes
+            """
+        ).fetchall()
+    by_key: dict[str, set[str]] = {}
+    for row in rows:
+        key = _normalize_key(row["numero_etude"])
+        filiale = str(row["filiale"] or "").strip()
+        if not key or not filiale:
+            continue
+        by_key.setdefault(key, set()).add(filiale)
+    return {k: next(iter(v)) for k, v in by_key.items() if len(v) == 1}
+
+
+@lru_cache(maxsize=1)
+def _etude_statut_offre_by_key() -> dict[str, str]:
+    if not ETUDES_REF_DB_PATH.exists():
+        return {}
+    with sqlite3.connect(str(ETUDES_REF_DB_PATH)) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT nAffaire AS numero_etude, statuAffaire AS statut_offre
+            FROM etudes
+            """
+        ).fetchall()
+    by_key: dict[str, set[str]] = {}
+    for row in rows:
+        key = _normalize_key(row["numero_etude"])
+        statut_offre = str(row["statut_offre"] or "").strip()
+        if not key or not statut_offre:
+            continue
+        by_key.setdefault(key, set()).add(statut_offre)
+    return {k: next(iter(v)) for k, v in by_key.items() if len(v) == 1}
+
+
+def _resolve_statut_offre_by_numero_etude(numero_etude: str | None) -> str | None:
+    etude_key = _normalize_key(numero_etude)
+    if not etude_key:
+        return None
+    return _etude_statut_offre_by_key().get(etude_key) or None
+
+
+def _resolve_titulaire_by_rule(affaire_nge: str | None, numero_etude: str | None) -> str | None:
+    # Rule agreed with user:
+    # - with affaire_nge (alone or with etude): titulaire from NGE reference
+    # - with only numero_etude: titulaire from etudes filiale
+    nge_key = _normalize_key(affaire_nge)
+    if nge_key:
+        titulaire = _nge_titulaire_by_key().get(nge_key)
+        return titulaire or None
+
+    etude_key = _normalize_key(numero_etude)
+    if etude_key:
+        filiale = _etude_filiale_by_key().get(etude_key)
+        return filiale or None
+
+    return None
+
+
 def _resp(r: AffaireRstRecord) -> AffaireRstResponseSchema:
     return AffaireRstResponseSchema(
         uid=r.uid, reference=r.reference, annee=r.annee, region=r.region, numero=r.numero,
@@ -54,7 +175,7 @@ def _resp(r: AffaireRstRecord) -> AffaireRstResponseSchema:
         dossier_nom_prevu=build_affaire_folder_name_from_record(r),
         dossier_path=r.dossier_path,
         date_ouverture=r.date_ouverture, date_cloture=r.date_cloture,
-        statut=r.statut, responsable=r.responsable,
+        statut=r.statut, statut_offre=r.statut_offre, responsable=r.responsable,
         source_legacy_id=r.source_legacy_id,
         created_at=r.created_at, updated_at=r.updated_at,
         nb_demandes=r.nb_demandes, nb_demandes_actives=r.nb_demandes_actives,
@@ -120,14 +241,16 @@ def get_demandes(uid: int):
 @router.post("", response_model=AffaireRstResponseSchema, status_code=201)
 def create_affaire(body: AffaireRstCreateSchema):
     ref, annee, region, numero = _parse_reference_parts(body.reference)
+    resolved_titulaire = _resolve_titulaire_by_rule(body.affaire_nge, body.numero_etude)
+    resolved_statut_offre = _resolve_statut_offre_by_numero_etude(body.numero_etude)
     record = AffaireRstRecord(
         uid=0, reference=ref, annee=annee, region=region, numero=numero,
-        client=body.client, titulaire=body.titulaire,
+        client=body.client, titulaire=resolved_titulaire or body.titulaire,
         chantier=body.chantier, affaire_nge=body.affaire_nge,
         dossier_nom=body.dossier_nom, dossier_path=body.dossier_path,
         site=body.site, numero_etude=body.numero_etude, filiale=body.filiale, autre_reference=body.autre_reference,
         date_ouverture=body.date_ouverture, date_cloture=body.date_cloture,
-        statut=body.statut, responsable=body.responsable,
+        statut=body.statut, statut_offre=resolved_statut_offre or body.statut_offre, responsable=body.responsable,
         source_legacy_id=None,
     )
     if not record.dossier_nom:
@@ -154,6 +277,16 @@ def update_affaire(uid: int, body: AffaireRstUpdateSchema):
         fields["annee"] = annee
         fields["region"] = region
         fields["numero"] = numero
+
+    effective_affaire_nge = fields.get("affaire_nge", existing.affaire_nge)
+    effective_numero_etude = fields.get("numero_etude", existing.numero_etude)
+    resolved_titulaire = _resolve_titulaire_by_rule(effective_affaire_nge, effective_numero_etude)
+    resolved_statut_offre = _resolve_statut_offre_by_numero_etude(effective_numero_etude)
+    if resolved_titulaire:
+        fields["titulaire"] = resolved_titulaire
+    if resolved_statut_offre:
+        fields["statut_offre"] = resolved_statut_offre
+
     updated = _repo.update(uid, fields)
     previous_nom = updated.dossier_nom
     previous_path = updated.dossier_path

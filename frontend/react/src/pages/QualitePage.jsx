@@ -1,6 +1,6 @@
 /**
  * QualitePage.jsx — 5 tabs fidèles à qualite.html
- * Équipements · Métrologie · Procédures · Normes · Non-conformités
+ * Équipements · Métrologie · Procédures · Normes · QSSE / FNC
  */
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
+import TabQSSE from './components/TabQSSE'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const STAT_CLS = {
@@ -1071,169 +1072,6 @@ function TabNormes({ meta }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TAB NON-CONFORMITÉS
-// ═══════════════════════════════════════════════════════════════════════════
-function TabNc({ meta, initialStatus = '' }) {
-  const qc = useQueryClient()
-  const search = useSearch()
-  const [statut, setStatut] = useState(initialStatus)
-  const [severity, setSeverity] = useState('')
-  const [source, setSource] = useState('')
-  const [selected, setSelected] = useState(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editItem, setEditItem] = useState(null)
-  const [form, setForm] = useState({})
-  function set(k,v) { setForm(f=>({...f,[k]:v})) }
-
-  const { data: rows = [] } = useQuery({
-    queryKey: ['qualite-nc', search.debounced, statut, severity, source],
-    queryFn: () => {
-      const p = new URLSearchParams()
-      if (search.debounced) p.set('search', search.debounced)
-      if (statut && statut !== NC_OPEN_FILTER_VALUE) p.set('status', statut)
-      if (severity) p.set('severity', severity)
-      if (source) p.set('source_type', source)
-      return api.get('/qualite/nc?' + p).then((items) => {
-        if (statut !== NC_OPEN_FILTER_VALUE) return items
-        return (Array.isArray(items) ? items : []).filter((item) => NC_OPEN_STATUSES.includes(item.status))
-      })
-    },
-  })
-
-  const saveMut = useMutation({
-    mutationFn: (data) => editItem ? api.put(`/qualite/nc/${editItem.uid}`, data) : api.post('/qualite/nc', data),
-    onSuccess: (saved) => { qc.invalidateQueries({ queryKey: ['qualite-nc'] }); qc.invalidateQueries({ queryKey: ['qualite-stats'] }); setModalOpen(false); setSelected(saved) },
-  })
-  const delMut = useMutation({
-    mutationFn: (uid) => api.delete(`/qualite/nc/${uid}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['qualite-nc'] }); qc.invalidateQueries({ queryKey: ['qualite-stats'] }); setSelected(null) },
-  })
-  const closeMut = useMutation({
-    mutationFn: (uid) => api.put(`/qualite/nc/${uid}`, { status: 'Clôturée' }),
-    onSuccess: (saved) => { qc.invalidateQueries({ queryKey: ['qualite-nc'] }); qc.invalidateQueries({ queryKey: ['qualite-stats'] }); setSelected(saved) },
-  })
-
-  function openCreate() { setEditItem(null); setForm({ source_type:'Essai', severity:'Mineure', status:'Ouverte', source_ref:'', title:'', description:'', detected_on:new Date().toISOString().split('T')[0], detected_by:'', action_immediate:'', corrective_action:'', owner:'', due_date:'' }); setModalOpen(true) }
-  function openEdit() { setEditItem(selected); setForm({...selected}); setModalOpen(true) }
-  const today = new Date().toISOString().split('T')[0]
-
-  return (
-    <div className="flex flex-1 overflow-hidden min-h-0">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-border shrink-0 flex-wrap">
-          <Input value={search.value} onChange={e=>search.onChange(e.target.value)} placeholder="Référence, titre, responsable…" className="w-[200px]"/>
-          <Select value={statut} onChange={e=>setStatut(e.target.value)} className="text-sm">
-            <option value="">— Statut —</option>
-            <option value={NC_OPEN_FILTER_VALUE}>NC ouvertes</option>
-            {(meta?.nc_statuts||[]).map(s=><option key={s}>{s}</option>)}
-          </Select>
-          <Select value={severity} onChange={e=>setSeverity(e.target.value)} className="text-sm">
-            <option value="">— Sévérité —</option>
-            {(meta?.nc_severites||[]).map(s=><option key={s}>{s}</option>)}
-          </Select>
-          <Select value={source} onChange={e=>setSource(e.target.value)} className="text-sm">
-            <option value="">— Source —</option>
-            {(meta?.nc_sources||[]).map(s=><option key={s}>{s}</option>)}
-          </Select>
-          <span className="text-xs text-text-muted ml-auto">{rows.length} NC</span>
-          <Button size="sm" variant="primary" onClick={openCreate}>+ Nouvelle NC</Button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr>{['Référence','Source','Titre','Sévérité','Statut','Détectée','Échéance','Responsable'].map(h=>(
-                <th key={h} className="bg-bg px-3 py-2 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0">{h}</th>
-              ))}</tr>
-            </thead>
-            <tbody>
-              {rows.length===0 ? <tr><td colSpan={8} className="text-center py-12 text-text-muted text-xs">Aucune non-conformité</td></tr>
-              : rows.map(r=>(
-                <tr key={r.uid} onClick={()=>setSelected(r)}
-                  className={`border-b border-border cursor-pointer transition-colors ${selected?.uid===r.uid?'bg-[#eeeffe]':'hover:bg-bg'} ${r.is_late?'bg-[#fff5f5]':''}`}>
-                  <td className="px-3 py-2 font-bold text-danger text-[12px]">{r.reference}</td>
-                  <td className="px-3 py-2 text-xs">{r.source_type}</td>
-                  <td className="px-3 py-2 max-w-[180px] truncate">{r.title||'—'}</td>
-                  <td className="px-3 py-2"><Badge s={r.severity} map={NC_SEV_CLS}/></td>
-                  <td className="px-3 py-2"><Badge s={r.status} map={NC_STAT_CLS}/></td>
-                  <td className="px-3 py-2 text-xs">{formatDate(r.detected_on)}</td>
-                  <td className={`px-3 py-2 text-xs ${r.is_late?'text-danger font-bold':''}`}>{formatDate(r.due_date)}</td>
-                  <td className="px-3 py-2 text-xs">{r.owner||'—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <DetailPanel visible={!!selected} onClose={()=>setSelected(null)}>
-        {selected && <>
-          <div>
-            <div className="text-danger font-bold">{selected.reference}</div>
-            <div className="text-[14px] font-semibold mt-0.5">{selected.title||'—'}</div>
-            <div className="flex gap-1.5 mt-2 flex-wrap">
-              <Badge s={selected.status} map={NC_STAT_CLS}/>
-              <Badge s={selected.severity} map={NC_SEV_CLS}/>
-            </div>
-          </div>
-          <div className="border-t border-border pt-3">
-            <DF label="Source" value={selected.source_type}/>
-            <DF label="Réf. source" value={selected.source_ref}/>
-            <DF label="Détectée le" value={formatDate(selected.detected_on)}/>
-            <DF label="Par" value={selected.detected_by}/>
-            <DF label="Responsable" value={selected.owner}/>
-            <DF label="Échéance" value={formatDate(selected.due_date)}/>
-            <DF label="Clôturée le" value={formatDate(selected.closure_date)}/>
-          </div>
-          {selected.description && <div className="border-t border-border pt-3"><span className="text-[10px] text-text-muted">Description</span><p className="text-[13px] mt-1 whitespace-pre-wrap">{selected.description}</p></div>}
-          {selected.action_immediate && <div><span className="text-[10px] text-text-muted">Action immédiate</span><p className="text-[13px] mt-1">{selected.action_immediate}</p></div>}
-          {selected.corrective_action && <div><span className="text-[10px] text-text-muted">Action corrective</span><p className="text-[13px] mt-1">{selected.corrective_action}</p></div>}
-          <div className="flex gap-2 mt-auto pt-3 border-t border-border flex-wrap">
-            <Button size="sm" onClick={openEdit}>✏️ Modifier</Button>
-            {!['Clôturée','Vérifiée'].includes(selected.status) && (
-              <Button size="sm" onClick={()=>closeMut.mutate(selected.uid)}>✓ Clôturer</Button>
-            )}
-            <Button size="sm" variant="danger" onClick={()=>{ if(confirm(`Supprimer ${selected.reference}?`)) delMut.mutate(selected.uid) }}>🗑</Button>
-          </div>
-        </>}
-      </DetailPanel>
-      <Modal open={modalOpen} onClose={()=>setModalOpen(false)} title={editItem?'Modifier la NC':'Nouvelle non-conformité'} size="xl">
-        <div className="grid grid-cols-2 gap-3">
-          <FG label="Source">
-            <Select value={form.source_type||'Essai'} onChange={e=>set('source_type',e.target.value)} className="w-full">
-              {(meta?.nc_sources||[]).map(s=><option key={s}>{s}</option>)}
-            </Select>
-          </FG>
-          <FG label="Sévérité">
-            <Select value={form.severity||'Mineure'} onChange={e=>set('severity',e.target.value)} className="w-full">
-              {(meta?.nc_severites||[]).map(s=><option key={s}>{s}</option>)}
-            </Select>
-          </FG>
-          <FG label="Statut">
-            <Select value={form.status||'Ouverte'} onChange={e=>set('status',e.target.value)} className="w-full">
-              {(meta?.nc_statuts||[]).map(s=><option key={s}>{s}</option>)}
-            </Select>
-          </FG>
-          <FG label="Réf. source"><Input value={form.source_ref||''} onChange={e=>set('source_ref',e.target.value)}/></FG>
-          <FG label="Titre" full><Input value={form.title||''} onChange={e=>set('title',e.target.value)}/></FG>
-          <FG label="Description" full><TA value={form.description} onChange={v=>set('description',v)} rows={3}/></FG>
-          <FG label="Détectée le"><Input type="date" value={form.detected_on||''} onChange={e=>set('detected_on',e.target.value)}/></FG>
-          <FG label="Détectée par"><Input value={form.detected_by||''} onChange={e=>set('detected_by',e.target.value)}/></FG>
-          <FG label="Action immédiate" full><TA value={form.action_immediate} onChange={v=>set('action_immediate',v)}/></FG>
-          <FG label="Action corrective" full><TA value={form.corrective_action} onChange={v=>set('corrective_action',v)}/></FG>
-          <FG label="Responsable"><Input value={form.owner||''} onChange={e=>set('owner',e.target.value)}/></FG>
-          <FG label="Échéance"><Input type="date" value={form.due_date||''} onChange={e=>set('due_date',e.target.value||null)}/></FG>
-        </div>
-        <div className="flex justify-end gap-2 pt-3">
-          <Button onClick={()=>setModalOpen(false)}>Annuler</Button>
-          <Button variant="primary" onClick={()=>saveMut.mutate(form)} disabled={!form.title||saveMut.isPending}>
-            {saveMut.isPending?'…':'Enregistrer'}
-          </Button>
-        </div>
-      </Modal>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // PAGE PRINCIPALE
 // ═══════════════════════════════════════════════════════════════════════════
 const TABS = [
@@ -1241,7 +1079,7 @@ const TABS = [
   { id: 'metrology',  label: '📊 Métrologie' },
   { id: 'procedures', label: '📄 Procédures' },
   { id: 'standards',  label: '📐 Normes' },
-  { id: 'nc',         label: '⚠️ Non-conformités' },
+  { id: 'qsse',       label: '🧭 QSSE / FNC' },
 ]
 
 export default function QualitePage() {
@@ -1250,7 +1088,6 @@ export default function QualitePage() {
   const initialMetrologyDays = [30, 60, 90, 180].includes(Number(searchParams.get('days')))
     ? Number(searchParams.get('days'))
     : 60
-  const initialNcStatus = searchParams.get('status') || ''
   const [tab, setTab] = useState(queryTab)
 
   const { data: stats } = useQuery({
@@ -1268,7 +1105,8 @@ export default function QualitePage() {
   return (
     <div className="flex flex-col h-full -m-6 overflow-hidden">
       {/* Header tabs */}
-      <div className="flex items-center gap-0 px-6 bg-surface border-b border-border shrink-0 h-[48px]">
+      <div className="flex items-center justify-between gap-4 px-6 bg-surface border-b border-border shrink-0 min-h-[48px]">
+        <div className="flex items-center gap-0 overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={`px-4 h-full text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -1279,6 +1117,7 @@ export default function QualitePage() {
             {t.label}
           </button>
         ))}
+        </div>
       </div>
 
       <StatsBar stats={stats} />
@@ -1288,7 +1127,7 @@ export default function QualitePage() {
         {tab === 'metrology'  && <TabMetrologie initialDays={initialMetrologyDays} />}
         {tab === 'procedures' && <TabProcedures   meta={meta} />}
         {tab === 'standards'  && <TabNormes       meta={meta} />}
-        {tab === 'nc'         && <TabNc           meta={meta} initialStatus={initialNcStatus} />}
+        {tab === 'qsse'       && <TabQSSE forcedWorkspaceMode="register" analysisHref="/qualite/qsse/analyse" />}
       </div>
     </div>
   )

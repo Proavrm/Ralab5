@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
 DEFAULT_DB_NAME = "ralab3.db"
+DEFAULT_QSSE_DB_NAME = "qsse.db"
 
 PASSATION_DDL = """
 CREATE TABLE IF NOT EXISTS laboratoires (
@@ -235,6 +236,114 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_pmt_essais_points_pmt_numero
     ON pmt_essais_points(pmt_id, numero_essai);
 """
 
+QSSE_IMPORT_DDL = """
+CREATE TABLE IF NOT EXISTS qsse_import_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_file TEXT NOT NULL,
+    source_year INTEGER NOT NULL,
+    source_mode TEXT NOT NULL DEFAULT 'live',
+    file_hash TEXT NOT NULL DEFAULT '',
+    workbook_title TEXT NOT NULL DEFAULT '',
+    sheet_count INTEGER NOT NULL DEFAULT 0,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    inserted_count INTEGER NOT NULL DEFAULT 0,
+    updated_count INTEGER NOT NULL DEFAULT 0,
+    skipped_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'started',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qsse_records (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER REFERENCES qsse_import_runs(id) ON DELETE SET NULL,
+    source_file TEXT NOT NULL DEFAULT '',
+    source_year INTEGER NOT NULL DEFAULT 0,
+    source_mode TEXT NOT NULL DEFAULT '',
+    sheet_name TEXT NOT NULL DEFAULT '',
+    sheet_kind TEXT NOT NULL DEFAULT '',
+    row_index INTEGER NOT NULL DEFAULT 0,
+    register_code TEXT NOT NULL DEFAULT '',
+    record_kind TEXT NOT NULL DEFAULT '',
+    agency TEXT NOT NULL DEFAULT '',
+    entity TEXT NOT NULL DEFAULT '',
+    person TEXT NOT NULL DEFAULT '',
+    site TEXT NOT NULL DEFAULT '',
+    theme TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    cause TEXT NOT NULL DEFAULT '',
+    treatment TEXT NOT NULL DEFAULT '',
+    corrective_action TEXT NOT NULL DEFAULT '',
+    action_label TEXT NOT NULL DEFAULT '',
+    pilot TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT '',
+    severity TEXT NOT NULL DEFAULT '',
+    date_event TEXT NOT NULL DEFAULT '',
+    date_closed TEXT NOT NULL DEFAULT '',
+    date_saisie TEXT NOT NULL DEFAULT '',
+    amount_text TEXT NOT NULL DEFAULT '',
+    amount_value REAL,
+    document_reference TEXT NOT NULL DEFAULT '',
+    metrics_json TEXT NOT NULL DEFAULT '{}',
+    raw_json TEXT NOT NULL DEFAULT '{}',
+    row_hash TEXT NOT NULL DEFAULT '',
+    imported_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(source_file, sheet_name, row_index)
+);
+
+CREATE TABLE IF NOT EXISTS qsse_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    qsse_record_id INTEGER NOT NULL REFERENCES qsse_records(id) ON DELETE CASCADE,
+    stored_name TEXT NOT NULL DEFAULT '',
+    original_name TEXT NOT NULL DEFAULT '',
+    content_type TEXT NOT NULL DEFAULT '',
+    file_size INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qsse_rex_drafts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    qsse_record_id INTEGER NOT NULL UNIQUE REFERENCES qsse_records(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL DEFAULT '',
+    prompt_version TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',
+    confidence_score INTEGER NOT NULL DEFAULT 0,
+    source_payload_json TEXT NOT NULL DEFAULT '{}',
+    draft_json TEXT NOT NULL DEFAULT '{}',
+    generated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    reviewed_at TEXT NOT NULL DEFAULT '',
+    approved_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_qsse_records_source_file ON qsse_records(source_file);
+CREATE INDEX IF NOT EXISTS idx_qsse_records_sheet_kind ON qsse_records(sheet_kind);
+CREATE INDEX IF NOT EXISTS idx_qsse_records_register_code ON qsse_records(register_code);
+CREATE INDEX IF NOT EXISTS idx_qsse_records_date_event ON qsse_records(date_event);
+CREATE INDEX IF NOT EXISTS idx_qsse_records_run_id ON qsse_records(run_id);
+CREATE INDEX IF NOT EXISTS idx_qsse_documents_record_id ON qsse_documents(qsse_record_id);
+CREATE INDEX IF NOT EXISTS idx_qsse_rex_drafts_record_id ON qsse_rex_drafts(qsse_record_id);
+
+CREATE TABLE IF NOT EXISTS qsse_analysis_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    analysis_code TEXT NOT NULL DEFAULT '',
+    source_year INTEGER NOT NULL DEFAULT 0,
+    stored_name TEXT NOT NULL DEFAULT '',
+    original_name TEXT NOT NULL DEFAULT '',
+    content_type TEXT NOT NULL DEFAULT '',
+    file_size INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_qsse_analysis_documents_scope ON qsse_analysis_documents(analysis_code, source_year);
+"""
+
 DEFAULT_LABS = [
     ("SP", "Saint-Priest", "RA"),
     ("PDC", "Pont-du-Château", "AUV"),
@@ -250,6 +359,13 @@ def get_db_path() -> Path:
     return DATA_DIR / DEFAULT_DB_NAME
 
 
+def get_qsse_db_path() -> Path:
+    env_path = os.environ.get("RALAB4_QSSE_DB_PATH", "").strip()
+    if env_path:
+        return Path(env_path)
+    return DATA_DIR / DEFAULT_QSSE_DB_NAME
+
+
 def connect_db(db_path: Path | None = None) -> sqlite3.Connection:
     path = db_path or get_db_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -258,6 +374,10 @@ def connect_db(db_path: Path | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     return conn
+
+
+def connect_qsse_db(db_path: Path | None = None) -> sqlite3.Connection:
+    return connect_db(db_path or get_qsse_db_path())
 
 
 def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
@@ -703,6 +823,7 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         conn.executescript(DEMANDE_CONFIGURATION_DDL)
         conn.executescript(LAB_WORKFLOW_DDL)
         conn.executescript(PMT_WORKFLOW_DDL)
+        conn.executescript(QSSE_IMPORT_DDL)
         _ensure_generic_essais_parent_schema(conn)
         _ensure_pmt_essais_harmonized_schema(conn)
 
@@ -767,6 +888,7 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "affaires_rst", "site", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "numero_etude", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "filiale", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "statut_offre", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "autre_reference", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "dossier_nom", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "dossier_path", "TEXT NOT NULL DEFAULT ''")
@@ -786,6 +908,8 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "qualite_equipment", "capacite", "REAL")
         _ensure_column(conn, "qualite_equipment", "sensibilite", "REAL")
         _ensure_column(conn, "qualite_equipment", "facteur_k", "REAL")
+
+        _ensure_column(conn, "qsse_records", "date_saisie", "TEXT NOT NULL DEFAULT ''")
 
         _ensure_column(conn, "pmt_essais", "essai_id", "INTEGER")
         _ensure_column(conn, "pmt_essais", "import_source_file", "TEXT NOT NULL DEFAULT ''")
@@ -855,6 +979,14 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
                 (code, nom, region),
             )
 
+        conn.commit()
+    return path
+
+
+def ensure_qsse_schema(db_path: Path | None = None) -> Path:
+    path = db_path or get_qsse_db_path()
+    with connect_qsse_db(path) as conn:
+        conn.executescript(QSSE_IMPORT_DDL)
         conn.commit()
     return path
 

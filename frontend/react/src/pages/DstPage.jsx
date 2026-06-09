@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
 import { RefreshCw, X, Upload } from 'lucide-react'
+import { FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
 
 const STATUT_CLS = {
   'En cours':    'bg-[#eaf3de] text-[#3b6d11]',
@@ -163,6 +164,25 @@ export default function DstPage() {
     return `/affaires?${p}`
   }
 
+  function buildAffairePrefill(d) {
+    const fromAffaireDemandeur = classifyAffaireDemandeur(d['N° affaire demandeur'])
+    const explicitNumeroEtude = dstNumeroEtude(d)
+    const numeroEtude = explicitNumeroEtude || fromAffaireDemandeur.numeroEtude
+    const affaireNge = fromAffaireDemandeur.numeroAffaireNge
+
+    return {
+      chantier: d['Libellé du projet'] || '',
+      site: d['Situation Géographique'] || d['Situation géographique projet'] || '',
+      numero_etude: numeroEtude,
+      affaire_nge: affaireNge,
+      filiale: d['Société'] || '',
+      titulaire: d['Société'] || '',
+      responsable: shortName(d['Demandeur']),
+      client: d['Société'] || '',
+      statut: 'À qualifier',
+    }
+  }
+
   function createAffaire() {
     if (!selected) return
     const match = findMatchingAffaire(selected)
@@ -171,14 +191,29 @@ export default function DstPage() {
         `Affaire existante detectee (${match.reference || `#${match.uid}`}).\n\nCreer une nouvelle demande sur cette affaire ?`
       )
       if (createDemandeOnExisting) {
-        sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill(match)))
-        navigate('/demandes?create=1')
+        navigate('/demandes?create=1', {
+          state: {
+            openCreate: true,
+            source_type: 'dst',
+            source_id: selected.id,
+            prefill: buildDemandePrefill(match),
+          },
+        })
       } else {
+        const openExisting = window.confirm("Voulez-vous ouvrir l'affaire existante ?\n\nAnnuler = rester sur la page actuelle.")
+        if (!openExisting) return
         navigate(`/affaires/${match.uid}`)
       }
       return
     }
-    navigate(buildAffaireUrl(selected))
+    navigate('/affaires', {
+      state: {
+        openCreate: true,
+        source_type: 'dst',
+        source_id: selected.id,
+        prefill: buildAffairePrefill(selected),
+      },
+    })
   }
 
   function dstNumeroEtude(row) {
@@ -249,10 +284,14 @@ export default function DstPage() {
       .replace(/_x000D_/gi, '').trim()
     const typePrestation = dstField('Type de prestation attendue', 'Autre type de prestation')
     return {
-      target: 'demande_rst',
-      source_type: 'dst',
-      source_id: selected.id,
-      prefill: {
+      source: {
+        source_type: 'dst',
+        source_id: selected.id,
+        numero_dst: chrono,
+        libelle_projet: selected['Libellé du projet'] || '',
+        demandeur: shortName(selected['Demandeur']),
+      },
+      demande: {
         affaire_rst_id: matchedAffaire?.uid || undefined,
         numero_dst:     chrono,
         numero_affaire_nge: numeroAffaireNge,
@@ -275,8 +314,14 @@ export default function DstPage() {
 
   function createDemande() {
     if (!selected) return
-    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill()))
-    navigate('/demandes?create=1')
+    navigate('/demandes?create=1', {
+      state: {
+        openCreate: true,
+        source_type: 'dst',
+        source_id: selected.id,
+        prefill: buildDemandePrefill(),
+      },
+    })
   }
 
   function openEditDst() {
@@ -299,14 +344,14 @@ export default function DstPage() {
     if (f?.name.match(/\.(xlsx|xls)$/i)) setImportFile(f)
   }
 
-  const { getColProps } = useResizableColumns([80, 200, 110, 130, 85, 90, 100, 80])
+  const { widths, getColProps } = useResizableColumns([140, 330, 170, 220, 140, 150, 170, 140])
 
   function Th({ col, label, colIdx }) {
     const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
         style={style}
-        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
+        className="relative bg-bg px-3 py-1.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
         {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">\u2195</span>}
         <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
@@ -319,36 +364,37 @@ export default function DstPage() {
     : ''
 
   return (
-    <div className="flex flex-col h-full -m-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0">
-        <span className="text-[15px] font-semibold flex-1">DST</span>
-        {/* Status */}
-        {status && (
-          <div className="flex items-center gap-2 text-xs text-text-muted">
-            <span className={`w-2 h-2 rounded-full ${status.available ? 'bg-success' : 'bg-warn'}`} />
-            {status.available
-              ? `${status.row_count} dossiers · ${status.columns?.length || 0} colonnes`
-              : 'Base vide'}
-          </div>
-        )}
-        <Button size="sm" onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }}>
+    <FichePageShell>
+      <FicheTopbar backLabel="← Retour" onBack={() => navigate('/')} eyebrow="Référentiel" title="DST">
+        <button type="button" onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }} className="px-3.5 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f] inline-flex items-center gap-1.5">
           <Upload size={13} /> Importer Excel
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => refetch()}><RefreshCw size={13} /></Button>
-      </div>
+        </button>
+        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+          <RefreshCw size={14} />
+        </button>
+      </FicheTopbar>
 
-      {/* Search */}
-      <div className="flex items-center gap-3 px-6 py-2.5 bg-surface border-b border-border shrink-0">
-        <input value={search} onChange={e => onSearch(e.target.value)}
-          placeholder="Rechercher N° chrono, projet, demandeur…"
-          className="flex-1 max-w-[400px] px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent" />
-        <span className="text-xs text-text-muted ml-auto">{rows.length} dossier{rows.length !== 1 ? 's' : ''}</span>
-      </div>
-
-      {/* Split */}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto bg-surface min-w-0">
+      <FicheMain>
+        <SectionCard
+          title="DST"
+          subtitle="Tableau principal et panneau de détail"
+          actions={(
+            <div className="flex items-center gap-3 flex-wrap">
+              <input value={search} onChange={e => onSearch(e.target.value)}
+                placeholder="Rechercher N° chrono, projet, demandeur…"
+                className="flex-1 min-w-[220px] max-w-[360px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]" />
+              {status && (
+                <div className="flex items-center gap-2 text-xs text-text-muted">
+                  <span className={`w-2 h-2 rounded-full ${status.available ? 'bg-success' : 'bg-warn'}`} />
+                  {status.available ? `${status.row_count} dossiers · ${status.columns?.length || 0} colonnes` : 'Base vide'}
+                </div>
+              )}
+              <span className="text-xs text-text-muted ml-auto">{rows.length} dossier{rows.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        >
+      <div className="flex overflow-hidden h-[73.5vh] min-h-[485px] max-h-[845px]">
+        <div className="flex-1 overflow-x-scroll overflow-y-auto bg-surface min-w-0">
           {isLoading ? (
             <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
           ) : sorted.length === 0 ? (
@@ -358,7 +404,15 @@ export default function DstPage() {
               <Button size="sm" onClick={() => setImportOpen(true)}><Upload size={13} /> Importer Excel</Button>
             </div>
           ) : (
-            <table className="w-full border-collapse text-sm">
+            <table
+              className="border-collapse text-sm min-w-full [&_td]:whitespace-nowrap [&_td]:overflow-hidden [&_td]:text-ellipsis"
+              style={{ width: 'max-content', tableLayout: 'fixed' }}
+            >
+              <colgroup>
+                {widths.map((w, i) => (
+                  <col key={i} style={{ width: w, minWidth: w, maxWidth: w }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
                   <Th col="N° chrono" colIdx={0}          label="N° chrono" />
@@ -379,14 +433,14 @@ export default function DstPage() {
                     className={`border-b border-border cursor-pointer transition-colors ${
                       selected?.id === row.id ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
-                    <td className="px-3 py-2.5"><strong className="text-accent text-xs">{row['N° chrono'] || '—'}</strong></td>
-                    <td className="px-3 py-2.5 text-xs max-w-[260px] truncate" title={row['Libellé du projet'] || ''}>{row['Libellé du projet'] || '—'}</td>
-                    <td className="px-3 py-2.5 text-xs">{shortName(row['Demandeur'])}</td>
-                    <td className="px-3 py-2.5 text-xs">{row['Situation Géographique'] || '—'}</td>
-                    <td className="px-3 py-2.5 text-xs">{formatDate(row['Ouverture'])}</td>
-                    <td className="px-3 py-2.5"><StatBadge s={row['Statut']} /></td>
-                    <td className="px-3 py-2.5 text-xs">{row['Service DST'] || '—'}</td>
-                    <td className="px-3 py-2.5 text-xs">{shortDR(row['Direction régionale'])}</td>
+                    <td className="px-3 py-1.5"><strong className="text-accent text-xs font-mono">{row['N° chrono'] || '—'}</strong></td>
+                    <td className="px-3 py-1.5 text-xs max-w-[260px] truncate" title={row['Libellé du projet'] || ''}>{row['Libellé du projet'] || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs">{shortName(row['Demandeur'])}</td>
+                    <td className="px-3 py-1.5 text-xs">{row['Situation Géographique'] || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs">{formatDate(row['Ouverture'])}</td>
+                    <td className="px-3 py-1.5"><StatBadge s={row['Statut']} /></td>
+                    <td className="px-3 py-1.5 text-xs">{row['Service DST'] || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs">{shortDR(row['Direction régionale'])}</td>
                   </tr>
                 ))}
               </tbody>
@@ -399,8 +453,8 @@ export default function DstPage() {
           <div className="w-[360px] min-w-[320px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
-                <div className="text-[16px] font-bold text-accent">{selected['N° chrono'] || '—'}</div>
-                <div className="text-[12px] font-semibold text-text mt-0.5">{selected['Libellé du projet'] || '—'}</div>
+                <div className="text-[13px] font-bold text-accent">{selected['N° chrono'] || '—'}</div>
+                <div className="text-[11px] font-semibold text-text mt-0.5">{selected['Libellé du projet'] || '—'}</div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0"><X size={14} /></button>
             </div>
@@ -436,6 +490,8 @@ export default function DstPage() {
           </div>
         )}
       </div>
+        </SectionCard>
+      </FicheMain>
 
       {/* Modal import */}
       <Modal open={importOpen} onClose={() => setImportOpen(false)} title="Importer DST — Excel" size="sm">
@@ -509,6 +565,6 @@ export default function DstPage() {
           </div>
         </div>
       </Modal>
-    </div>
+    </FichePageShell>
   )
 }

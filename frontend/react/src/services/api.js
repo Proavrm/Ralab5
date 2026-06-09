@@ -167,6 +167,7 @@ export const interventionsApi = {
 }
 
 export const interventionCampaignsApi = {
+  list:   (params = {}) => api.get('/intervention-campaigns?' + new URLSearchParams(params)),
   get:    (uid)         => api.get(`/intervention-campaigns/${uid}`),
   create: (data)        => api.post('/intervention-campaigns', data),
   update: (uid, data)   => api.patch(`/intervention-campaigns/${uid}`, data),
@@ -217,6 +218,31 @@ export const interventionRequalificationApi = {
 // ── Qualité ───────────────────────────────────────────────────────────────────
 export const qualiteApi = {
   stats:      ()            => api.get('/qualite/stats'),
+  qsse: {
+      overview: (params = {}) => api.get('/qualite/qsse/overview?' + new URLSearchParams(params)),
+      records: (params = {}) => api.get('/qualite/qsse/records?' + new URLSearchParams(params)),
+    updateCell: (recordId, data) => api.patch(`/qualite/qsse/records/${Number(recordId)}`, data),
+    documents: (recordId) => api.get(`/qualite/qsse/records/${Number(recordId)}/documents`),
+    fncAnalysisPresentations: (params = {}) => api.get('/qualite/qsse/fnc-analysis/presentations?' + new URLSearchParams(params)),
+    generateFncAnalysisPresentation: (params = {}) => api.post('/qualite/qsse/fnc-analysis/presentations/generate?' + new URLSearchParams(params), {}),
+    uploadFncAnalysisPresentation: (file, params = {}) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.postForm('/qualite/qsse/fnc-analysis/presentations?' + new URLSearchParams(params), form)
+    },
+    deleteFncAnalysisPresentation: (documentId) => api.delete(`/qualite/qsse/fnc-analysis/presentations/${Number(documentId)}`),
+      analysisStats: (params = {}) => api.get('/qualite/qsse/analysis-stats?' + new URLSearchParams(params)),
+    rexDraft: (recordId) => api.get(`/qualite/qsse/records/${Number(recordId)}/rex-draft`),
+    generateRexDraft: (recordId) => api.post(`/qualite/qsse/records/${Number(recordId)}/rex-draft/generate`, {}),
+    uploadDocument: (recordId, file) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.postForm(`/qualite/qsse/records/${Number(recordId)}/documents`, form)
+    },
+    deleteDocument: (documentId) => api.delete(`/qualite/qsse/documents/${Number(documentId)}`),
+      refreshLive: (replaceExisting = true) =>
+          api.post(`/qualite/qsse/refresh-live?replace_existing=${replaceExisting ? 'true' : 'false'}`, {}),
+  },
   equipment:  {
       list:   () => api.get('/qualite/equipment'),
       create: (d) => api.post('/qualite/equipment', d),
@@ -294,6 +320,8 @@ export const rapportsValidationApi = {
     api.post(`/rapports/validation/${encodeURIComponent(String(reportId || ''))}/status`, body),
   refreshPreview: (reportId) =>
     api.post(`/rapports/validation/${encodeURIComponent(String(reportId || ''))}/preview`, {}),
+  getDossierEmails: (reportId) =>
+    api.get(`/rapports/validation/${encodeURIComponent(String(reportId || ''))}/dossier-emails`),
 }
 
 export const feuillesTerrainApi = {

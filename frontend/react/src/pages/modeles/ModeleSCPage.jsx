@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import Button from "@/components/ui/Button"
+import EssaiCorrectionBanner from "@/components/essais/EssaiCorrectionBanner"
+import { getFeuilleValidationInfo } from "@/lib/essaiValidation"
 import { feuillesTerrainApi } from "@/services/api"
 import {
     ScPointDetailView,
@@ -9,6 +11,7 @@ import {
     scBuildCoucheForm,
     scToPointPayload,
     scToCouchePayload,
+    scBuildDefaultScCoupe,
 } from "@/pages/modeles/scStratigraphicWorksheet"
 
 function formatMetric(value) {
@@ -42,9 +45,12 @@ export default function ModeleSCPage() {
         queryKey: ["feuille-terrain", sourceUid],
         queryFn: () => feuillesTerrainApi.get(sourceUid),
         enabled: Boolean(sourceUid),
+        staleTime: 0,
+        refetchOnMount: "always",
     })
 
     const points = useMemo(() => (Array.isArray(data?.points) ? data.points : []), [data?.points])
+    const validationInfo = useMemo(() => getFeuilleValidationInfo(data), [data])
     const selectedPoint = useMemo(
         () => points.find((item) => String(item.uid) === String(pointParam)) || null,
         [points, pointParam],
@@ -76,7 +82,12 @@ export default function ModeleSCPage() {
             setNewCoucheRow(null)
             return
         }
-        setPointForm(scBuildPointForm(selectedPoint))
+        const newForm = scBuildPointForm(selectedPoint)
+        if (!Array.isArray(newForm.carotte_coupes) || !newForm.carotte_coupes.length) {
+            const pointCouches = Array.isArray(selectedPoint?.couches) ? selectedPoint.couches : []
+            newForm.carotte_coupes = [scBuildDefaultScCoupe({ pointForm: newForm, selectedPhoto: null, couches: pointCouches, title: "Coupe 1" })]
+        }
+        setPointForm(newForm)
         setPointEditing(true)
         setEditingCoucheId(null)
         setCoucheFormState(scBuildCoucheForm())
@@ -280,10 +291,29 @@ export default function ModeleSCPage() {
                         Intervention
                     </Button>
                 ) : null}
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                        const ref = encodeURIComponent(String(data?.reference || selectedPoint?.point_code || selectedPoint?.uid || 'view'))
+                        const params = new URLSearchParams()
+                        params.set('embed', '1')
+                        params.set('source_family', 'terrain')
+                        if (data?.uid || sourceUid) params.set('source_uid', String(data?.uid || sourceUid))
+                        if (selectedPoint?.uid || selectedPoint?.point_code) params.set('point', String(selectedPoint.uid || selectedPoint.point_code))
+                        navigate(`/rapports/sc/${ref}?${params.toString()}`)
+                    }}
+                >
+                    Imprimer / Ouvrir rapport
+                </Button>
             </>
         )
 
         return (
+            <div className="flex flex-col gap-4">
+                <div className="mx-auto w-full max-w-[1400px] px-6 pt-4">
+                    <EssaiCorrectionBanner validation={validationInfo} essaiLabel="sondage SC" />
+                </div>
             <ScPointDetailView
                 data={data}
                 point={selectedPoint}
@@ -336,6 +366,7 @@ export default function ModeleSCPage() {
                 handleInsertCouche={handleInsertCouche}
                 sheetToolbarActions={sheetToolbarActions}
             />
+            </div>
         )
     }
 
@@ -363,87 +394,172 @@ export default function ModeleSCPage() {
         )
     }
 
+    const totalCouches = points.reduce((sum, p) => sum + (p.couches?.length || 0), 0)
+    const totalPrelev = points.reduce((sum, p) => sum + (p.prelevements?.length || 0), 0)
+
     return (
-        <div className="flex flex-col h-full -m-6 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border bg-surface px-6">
-                <Button variant="secondary" size="sm" onClick={() => navigate(returnTo || "/tools")}>
-                    ← Retour
-                </Button>
-                <div className="min-w-0 flex-1">
-                    <div className="truncate text-[15px] font-semibold text-text">Feuille SC de travail</div>
-                    <div className="truncate text-[11px] text-text-muted">{data?.reference || sourceUid}</div>
-                </div>
-                <div className="flex flex-wrap gap-2">
+        <div
+            className="flex flex-col h-full -m-6 overflow-y-auto"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
+        >
+            {/* ═══ Topbar ═══ */}
+            <div
+                className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+                style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+            >
+                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+                    <button
+                        onClick={() => navigate(returnTo || "/tools")}
+                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+                    >
+                        ← Retour
+                    </button>
+                    <div className="flex-1 min-w-[220px]">
+                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Feuille SC · Coupe de sondages</div>
+                        <div className="text-[15px] font-black">{data?.reference || sourceUid}</div>
+                    </div>
                     {data?.demande_id ? (
-                        <Button variant="secondary" size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>
-                            Demande
-                        </Button>
+                        <Button size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button>
                     ) : null}
                     {data?.intervention_id ? (
-                        <Button variant="secondary" size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>
-                            Intervention
-                        </Button>
+                        <Button size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button>
                     ) : null}
                 </div>
             </div>
 
-            <div className="p-6 max-w-[1400px] mx-auto w-full flex flex-col gap-5">
-                <div className="rounded-lg border border-[#d8e6e1] bg-[#f6fbf9] px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Coupe de sondages</p>
-                    <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-text">{data.reference}</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-muted">
-                        {[data.label, data.observations].filter(Boolean).join(" · ") ||
-                            "Sélectionne un sondage SC pour ouvrir la fiche complète."}
-                    </p>
-                </div>
+            {/* ═══ Main ═══ */}
+            <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+                <EssaiCorrectionBanner validation={validationInfo} essaiLabel="feuille SC" />
 
-                <div className="rounded-xl border border-border bg-surface shadow-sm">
-                    <div className="flex items-center justify-between gap-2 border-b border-border bg-bg px-4 py-3">
-                        <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Sondages de la coupe</div>
-                        <span className="text-[11px] text-text-muted">{points.length} point(s)</span>
+                {/* ── Hero ── */}
+                <section
+                    className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+                    style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+                >
+                    <div
+                        className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+                        style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+                    >
+                        <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
+                        <div>
+                            <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                                <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
+                                RaLab 5 · Sondage Carotte
+                            </div>
+                            <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{data.reference}</h1>
+                            <p className="mt-3 text-[14px] leading-relaxed text-white/70 max-w-2xl">
+                                {[data.label, data.observations].filter(Boolean).join(" · ") || "Coupe de sondages carotte — sélectionne un sondage pour ouvrir la fiche."}
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-start gap-2">
+                            {data.code_feuille ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">
+                                    {data.code_feuille}
+                                </span>
+                            ) : null}
+                            {data.statut ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">
+                                    {data.statut}
+                                </span>
+                            ) : null}
+                            {data.date_feuille ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">
+                                    {data.date_feuille}
+                                </span>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    {/* ── Metrics ── */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Sondages</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{points.length}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Couches</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{totalCouches}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Prélèvements</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{totalPrelev}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Demande</div>
+                            <div className="mt-1 text-[14px] font-black text-[#172033] truncate">{data.demande_reference || '—'}</div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* ── Sondages list ── */}
+                <section
+                    className="rounded-[22px] border border-[#dbe1ea] bg-white overflow-hidden"
+                    style={{ boxShadow: '0 4px 18px rgba(0,49,112,0.06)' }}
+                >
+                    <div className="px-5 py-4 border-b border-[#e4e9f1] bg-[#fbfcfe] flex items-center justify-between gap-3">
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">Sondages de la coupe</div>
+                            <div className="mt-0.5 text-[12px] text-[#69758a]">{points.length} point(s) enregistrés</div>
+                        </div>
                     </div>
                     <div className="p-4">
                         {points.length ? (
-                            <div className="flex flex-col gap-3">
+                            <div className="flex flex-col gap-2">
                                 {points.map((point) => {
                                     const pointId = String(point?.uid || "").trim()
                                     const params = buildListSearchParams(searchParams, sourceUid)
                                     if (pointId) params.set("point", pointId)
                                     return (
-                                        <button
-                                            key={pointId || point.point_code}
-                                            type="button"
-                                            onClick={() => navigate(`/modeles/sc?${params.toString()}`)}
-                                            className="w-full rounded-lg border border-border bg-surface px-4 py-3 text-left hover:border-accent transition-colors"
-                                        >
-                                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                                <div>
-                                                    <div className="text-[14px] font-semibold text-text">
-                                                        {point.point_code || pointId || "Point"}
-                                                    </div>
-                                                    <div className="mt-1 text-[12px] text-text-muted">
-                                                        {[point.localisation, point.profil].filter(Boolean).join(" · ")}
-                                                    </div>
-                                                </div>
-                                                <div className="text-right text-[11px] text-text-muted">
-                                                    <div>{formatMetric(point.profondeur_finale_m)}</div>
+                                        <div key={pointId || point.point_code} className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => navigate(`/modeles/sc?${params.toString()}`)}
+                                                className="flex-1 min-w-0 rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3 text-left hover:border-[#003170]/30 hover:shadow-sm transition-all"
+                                            >
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
                                                     <div>
-                                                        {point.couches?.length || 0} couche(s) · {point.prelevements?.length || 0}{" "}
-                                                        prél.
+                                                        <div className="text-[14px] font-black text-[#003170]">
+                                                            {point.point_code || pointId || "Point"}
+                                                        </div>
+                                                        <div className="mt-1 text-[12px] text-[#69758a]">
+                                                            {[point.localisation, point.profil].filter(Boolean).join(" · ") || "—"}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-[13px] font-bold text-[#172033]">{formatMetric(point.profondeur_finale_m)}</div>
+                                                        <div className="text-[11px] text-[#69758a]">
+                                                            {point.couches?.length || 0} couche(s) · {point.prelevements?.length || 0} prél.
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </button>
+                                            </button>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                title="Ouvrir la fiche essai SC"
+                                                onClick={() => {
+                                                    const openParams = buildListSearchParams(searchParams, sourceUid)
+                                                    if (pointId) openParams.set('point', pointId)
+                                                    openParams.set('edit', '1')
+                                                    navigate(`/modeles/sc?${openParams.toString()}`)
+                                                }}
+                                            >
+                                                Feuille essai
+                                            </Button>
+                                        </div>
                                     )
                                 })}
                             </div>
                         ) : (
-                            <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-sm text-text-muted">
+                            <div className="rounded-[14px] border border-dashed border-[#dbe1ea] px-4 py-8 text-[13px] text-[#69758a] text-center">
                                 Aucun sondage SC disponible sur cette feuille.
                             </div>
                         )}
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     )

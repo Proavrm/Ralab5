@@ -4,6 +4,8 @@ import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { navigateBackWithFallback, navigateWithReturnTo, buildLocationTarget } from '@/lib/detailNavigation'
+import EssaiCorrectionBanner from '@/components/essais/EssaiCorrectionBanner'
+import { getFeuilleValidationInfo } from '@/lib/essaiValidation'
 import { feuillesTerrainApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
 import { getFeuilleTypeConfig } from '@/pages/terrain/feuilleTypeRegistry'
@@ -638,65 +640,122 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
         return pointPrelevementIds.has(item.uid)
     })
 
-    return (
-        <div className="flex flex-col h-full -m-6 overflow-y-auto">
-            <PageHeaderBar
-                backLabel="← Coupe"
-                onBack={onBackToCoupe}
-                title={point.point_code || point.reference || `Point ${point.uid}`}
-                subtitle={[data.reference, buildPointSummary(point)].filter(Boolean).join(' · ')}
-                actions={(
-                    <div className="flex flex-wrap gap-2">
-                        {data.demande_id ? <Button variant="secondary" size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button> : null}
-                        {data.intervention_id ? <Button variant="secondary" size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button> : null}
-                        {!pointEditing ? (
-                            <Button variant="primary" size="sm" onClick={() => setPointEditing(true)}>Modifier</Button>
-                        ) : (
-                            <>
-                                <Button variant="secondary" size="sm" onClick={() => setPointEditing(false)}>Annuler</Button>
-                                <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>Enregistrer</Button>
-                            </>
-                        )}
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                                const ref = encodeURIComponent(String(data?.reference || point?.point_code || point?.uid || 'view'))
-                                const params = new URLSearchParams()
-                                params.set('embed', '1')
-                                params.set('source_family', 'terrain')
-                                if (data?.uid) params.set('source_uid', String(data.uid))
-                                if (point?.uid || point?.point_code) params.set('point', String(point.uid || point.point_code))
-                                navigate(`/rapports/so/${ref}?${params.toString()}`)
-                            }}
-                        >
-                            Imprimer / Ouvrir rapport
-                        </Button>
-                    </div>
-                )}
-            />
+    const pointCouches = Array.isArray(point?.couches) ? point.couches : []
 
-            <div className="p-6 max-w-[1400px] mx-auto w-full flex flex-col gap-5">
-                {deleteErrorMessage ? (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {deleteErrorMessage}
+    return (
+        <div
+            className="flex flex-col h-full -m-6 overflow-y-auto"
+            style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
+        >
+            {/* Topbar */}
+            <div
+                className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+                style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+            >
+                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+                    <button
+                        onClick={onBackToCoupe}
+                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+                    >
+                        ← Coupe
+                    </button>
+                    <div className="flex-1 min-w-[220px]">
+                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Sondage · {data.code_feuille || 'SO'}</div>
+                        <div className="text-[15px] font-black">{point.point_code || point.reference || `Point ${point.uid}`}</div>
                     </div>
+                    {data.demande_id ? <Button size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button> : null}
+                    {data.intervention_id ? <Button size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button> : null}
+                    {!pointEditing ? (
+                        <Button size="sm" variant="primary" onClick={() => setPointEditing(true)}>Modifier</Button>
+                    ) : (
+                        <>
+                            <Button size="sm" onClick={() => setPointEditing(false)}>Annuler</Button>
+                            <Button size="sm" variant="primary" onClick={handleSavePoint} disabled={updatePointPending}>Enregistrer</Button>
+                        </>
+                    )}
+                    <Button
+                        size="sm"
+                        onClick={() => {
+                            const ref = encodeURIComponent(String(data?.reference || point?.point_code || point?.uid || 'view'))
+                            const params = new URLSearchParams()
+                            params.set('embed', '1')
+                            params.set('source_family', 'terrain')
+                            if (data?.uid) params.set('source_uid', String(data.uid))
+                            if (point?.uid || point?.point_code) params.set('point', String(point.uid || point.point_code))
+                            navigate(`/rapports/so/${ref}?${params.toString()}`)
+                        }}
+                    >
+                        Imprimer / Ouvrir rapport
+                    </Button>
+                </div>
+            </div>
+
+            {/* Main */}
+            <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+
+                {deleteErrorMessage ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{deleteErrorMessage}</div>
                 ) : null}
 
-                <div className="rounded-lg border border-[#d8e6e1] bg-[#f6fbf9] px-4 py-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Sondage</p>
-                    <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-text">{point.point_code || point.reference || `Point ${point.uid}`}</h1>
-                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-muted">
-                        {buildPointSummary(point) || data.label || 'Fiche de description geotechnique'}
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
-                        {data.reference ? <span className="rounded-full border border-border bg-bg px-3 py-1">Coupe {data.reference}</span> : null}
-                        {point.point_type ? <span className="rounded-full border border-border bg-bg px-3 py-1">{point.point_type}</span> : null}
-                        {(point.profondeur_finale_m || point.profondeur_bas) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Prof. finale {formatDepth(point.profondeur_finale_m || point.profondeur_bas)}</span> : null}
-                        {point.tenue_fouilles ? <span className="rounded-full border border-border bg-bg px-3 py-1">{point.tenue_fouilles}</span> : null}
-                        {(point.venue_eau || point.niveau_nappe) ? <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">∇ {point.niveau_nappe || 'nappe'}</span> : null}
+                {/* Hero */}
+                <section
+                    className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+                    style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+                >
+                    <div
+                        className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+                        style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+                    >
+                        <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
+                        <div>
+                            <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                                <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
+                                RaLab 5 · Sondage
+                            </div>
+                            <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{point.point_code || point.reference || `Point ${point.uid}`}</h1>
+                            <p className="mt-3 text-[14px] leading-relaxed text-white/70 max-w-2xl">
+                                {buildPointSummary(point) || data.label || 'Fiche de description géotechnique'}
+                            </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-start gap-2">
+                            {data.reference ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">Coupe {data.reference}</span>
+                            ) : null}
+                            {point.point_type ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">{point.point_type}</span>
+                            ) : null}
+                            {(point.profondeur_finale_m || point.profondeur_bas) ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">Prof. {formatDepth(point.profondeur_finale_m || point.profondeur_bas)}</span>
+                            ) : null}
+                            {(point.venue_eau || point.niveau_nappe) ? (
+                                <span className="rounded-full border border-[rgba(96,165,250,0.4)] bg-[rgba(96,165,250,0.15)] px-3 py-1.5 text-[11px] font-bold">∇ {point.niveau_nappe || 'nappe'}</span>
+                            ) : null}
+                        </div>
                     </div>
-                </div>
+
+                    {/* Metrics */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Couches</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{pointCouches.length}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Prélèvements</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{linkedPointPrelevements.length}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Profondeur finale</div>
+                            <div className="mt-1 text-[22px] font-black text-[#172033]">{formatDepth(point.profondeur_finale_m || point.profondeur_bas) || '—'}</div>
+                        </div>
+                        <div className="rounded-[14px] border border-[#e4e9f1] bg-white px-4 py-3">
+                            <div className="text-[10px] font-bold uppercase tracking-[.09em] text-[#69758a]">Tenue des fouilles</div>
+                            <div className="mt-1 text-[14px] font-black text-[#172033] truncate">{point.tenue_fouilles || '—'}</div>
+                        </div>
+                    </div>
+                </section>
 
                 {pointEditing ? (
                     <Card title="Modifier le sondage">
@@ -1143,6 +1202,7 @@ export default function FeuilleTerrainPage() {
     const isSondageSheet = Boolean(feuilleType.flags?.usesPointDetailView)
     const isStratigraphicCarotte = feuilleType.renderer === 'stratigraphic-carotte'
     const points = useMemo(() => Array.isArray(data?.points) ? data.points : [], [data?.points])
+    const validationInfo = useMemo(() => getFeuilleValidationInfo(data), [data])
     const selectedPoint = useMemo(
         () => points.find((item) => String(item.uid) === String(pointParam)) || null,
         [points, pointParam]
@@ -1415,6 +1475,8 @@ export default function FeuilleTerrainPage() {
 
     if (isSondageSheet && !isStratigraphicCarotte && selectedPoint) {
         return (
+            <div className="flex flex-col gap-4 p-6 max-w-[1400px] mx-auto w-full">
+                <EssaiCorrectionBanner validation={validationInfo} essaiLabel="sondage" />
             <PointDetailView
                 data={data}
                 point={selectedPoint}
@@ -1465,6 +1527,7 @@ export default function FeuilleTerrainPage() {
                 handleAddCouche={handleAddCouche}
                 handleInsertCouche={handleInsertCouche}
             />
+            </div>
         )
     }
 
@@ -1490,6 +1553,8 @@ export default function FeuilleTerrainPage() {
                     </div>
                 ) : null}
 
+                <EssaiCorrectionBanner validation={validationInfo} essaiLabel="feuille terrain" />
+
                 <div className="rounded-lg border border-[#d8e6e1] bg-[#f6fbf9] px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">{isSondageSheet ? 'Coupe de sondages' : 'Feuille terrain'}</p>
                     <h1 className="mt-2 text-[24px] font-semibold tracking-tight text-text">{data.reference}</h1>
@@ -1512,7 +1577,8 @@ export default function FeuilleTerrainPage() {
                     </div>
                     {points.length ? (
                         <div className="flex flex-col gap-3">
-                            {points.map((point) => (
+                            {points.map((point) => {
+                                return (
                                 <div key={point.uid || point.point_code} className="flex flex-wrap items-center gap-2">
                                     <button type="button" onClick={() => openPoint(point.uid)} className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-4 py-3 text-left hover:border-accent transition-colors">
                                         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1526,9 +1592,18 @@ export default function FeuilleTerrainPage() {
                                             </div>
                                         </div>
                                     </button>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        title="Ouvrir la fiche essai"
+                                        onClick={() => openPoint(point.uid, true)}
+                                    >
+                                        Feuille essai
+                                    </Button>
                                     <Button variant="danger" size="sm" onClick={() => { if (window.confirm('Supprimer ce sondage et ses couches ?')) handleDeletePoint(point.uid) }}>✕</Button>
                                 </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     ) : (
                         <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-sm text-text-muted">Aucun sondage n’est encore enregistré dans cette coupe.</div>

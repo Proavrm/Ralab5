@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import EssaiCorrectionBanner from '@/components/essais/EssaiCorrectionBanner'
+import { getPmtValidationInfo } from '@/lib/essaiValidation'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import { pmtEssaisApi } from '../../services/api'
@@ -182,6 +184,11 @@ export default function ModelePMTPage() {
   const [selectedModelId, setSelectedModelId] = useState('')
   const [selectedEssaiRef, setSelectedEssaiRef] = useState('')
   const [selectedEssaiId, setSelectedEssaiId] = useState('')
+  const [pmtValidationMeta, setPmtValidationMeta] = useState({
+    statut: '',
+    validationComment: '',
+    correctionReasons: [],
+  })
   const [pmtEssaiOptions, setPmtEssaiOptions] = useState([])
   const autoOpenDone = useRef(false)
   const [reference, setReference] = useState('')
@@ -208,6 +215,22 @@ export default function ModelePMTPage() {
     draft: normalizePmtRuntimeValues(draft || {}),
   }), [reference, draft])
   const hasUnsavedChanges = Boolean(savedSnapshot) && currentSnapshot !== savedSnapshot
+  const validationInfo = useMemo(
+    () => getPmtValidationInfo({
+      statut: pmtValidationMeta.statut,
+      validation_comment: pmtValidationMeta.validationComment,
+      correction_reasons: pmtValidationMeta.correctionReasons,
+    }),
+    [pmtValidationMeta],
+  )
+
+  function applyLoadedPmtEssai(data) {
+    setPmtValidationMeta({
+      statut: String(data?.statut || ''),
+      validationComment: String(data?.validation_comment || ''),
+      correctionReasons: Array.isArray(data?.correction_reasons) ? data.correction_reasons : [],
+    })
+  }
 
   useEffect(() => {
     if (models.length > 0) return
@@ -255,12 +278,13 @@ export default function ModelePMTPage() {
     setDraft(nextDraft)
     setSelectedEssaiRef(String(nextReference || ''))
     setSelectedEssaiId('')
+    setPmtValidationMeta({ statut: '', validationComment: '', correctionReasons: [] })
     setSavedSnapshot(JSON.stringify({ reference: String(nextReference || ''), draft: nextDraft }))
   }, [selectedModel?.id])
 
   useEffect(() => {
     if (autoOpenDone.current || !pmtEssaiOptions.length) return
-    const urlEssaiId = String(searchParams.get('essai_id') || '').trim()
+    const urlEssaiId = String(searchParams.get('essai_id') || searchParams.get('pmt_essai_id') || '').trim()
     if (!urlEssaiId) return
     const match = pmtEssaiOptions.find((o) => String(o.essaiId) === urlEssaiId)
     if (!match) return
@@ -280,6 +304,7 @@ export default function ModelePMTPage() {
         const loadedId = String(data?.id || '').trim()
         const nextRef = cleanModelReference(match.reference)
         setSelectedEssaiId(loadedId)
+        applyLoadedPmtEssai(data)
         setReference(nextRef)
         setDraft(hydratedDraft)
         setSavedSnapshot(JSON.stringify({ reference: String(nextRef || ''), draft: hydratedDraft }))
@@ -332,6 +357,7 @@ export default function ModelePMTPage() {
       const loadedId = String(data?.id || '').trim()
       const nextRef = cleanModelReference(ref)
       setSelectedEssaiId(loadedId)
+      applyLoadedPmtEssai(data)
       setReference(nextRef)
       setDraft(hydratedDraft)
       setSavedSnapshot(JSON.stringify({ reference: String(nextRef || ''), draft: hydratedDraft }))
@@ -470,6 +496,7 @@ export default function ModelePMTPage() {
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-3">
+      <EssaiCorrectionBanner validation={validationInfo} essaiLabel="essai PMT" />
       <div className="sticky top-0 z-10 flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border bg-surface px-6">
         <Button variant="secondary" size="sm" onClick={goBack}>
           ← Retour

@@ -89,14 +89,14 @@ class AffairesRstRepository:
                 INSERT INTO affaires_rst
                 (reference,annee,region,numero,client,titulaire,chantier,affaire_nge,
                  site,numero_etude,filiale,autre_reference,dossier_nom,dossier_path,
-                 date_ouverture,date_cloture,statut,responsable,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 date_ouverture,date_cloture,statut,statut_offre,responsable,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 ref, annee, region, numero,
                 record.client, record.titulaire, record.chantier, record.affaire_nge,
                 record.site, record.numero_etude, record.filiale, record.autre_reference, record.dossier_nom, record.dossier_path,
                 self._fmt(record.date_ouverture), self._fmt(record.date_cloture),
-                record.statut, record.responsable, now, now,
+                record.statut, record.statut_offre, record.responsable, now, now,
             ))
             uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         return self.get_by_uid(uid)
@@ -147,6 +147,7 @@ class AffairesRstRepository:
             date_ouverture=self._parse_date(row["date_ouverture"]) or date.today(),
             date_cloture=self._parse_date(row["date_cloture"]),
             statut=row["statut"] or "À qualifier",
+            statut_offre=(row["statut_offre"] or "") if "statut_offre" in keys else "",
             responsable=row["responsable"] or "",
             source_legacy_id=row["source_legacy_id"],
             created_at=row["created_at"] or "", updated_at=row["updated_at"] or "",

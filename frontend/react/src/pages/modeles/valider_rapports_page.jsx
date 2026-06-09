@@ -1,7 +1,53 @@
 // ValiderRapportsPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import Modal from "@/components/ui/Modal";
+import Button from "@/components/ui/Button";
+import { useAuth } from "@/hooks/useAuth";
+import { buildEssaiTarget, isCorrectionRequested } from "@/lib/essaiValidation";
 import { rapportsValidationApi } from "@/services/api";
+
+const VALIDATION_PREVIEW_IFRAME_ID = "vrp-report-preview-frame";
+
+const CORRECTION_REASONS = [
+    { id: "wrong_calculations", label: "Valeurs / calculs erronés" },
+    { id: "data_entry_error", label: "Erreur de saisie" },
+    { id: "missing_data", label: "Données manquantes ou incomplètes" },
+    { id: "model_mismatch", label: "Incohérence avec le modèle / la procédure" },
+    { id: "photo_document", label: "Photo, coupe ou document à corriger" },
+    { id: "layout_format", label: "Mise en forme du rapport" },
+    { id: "identification_layers", label: "Identification des couches / matériaux" },
+    { id: "lab_results", label: "Résultats de laboratoire à revoir" },
+    { id: "other", label: "Autre motif" },
+];
+
+const ISSUE_DISPATCH_OPTIONS = [
+    {
+        id: "print",
+        title: "Émettre et imprimer",
+        description: "Enregistre l'émission et ouvre le dialogue d'impression du système.",
+        icon: "pdf",
+    },
+    {
+        id: "email",
+        title: "Émettre et envoyer par mail",
+        description: "Enregistre l'émission et ouvre Gmail dans le navigateur avec les contacts du dossier.",
+        icon: "mail",
+    },
+    {
+        id: "emit_only",
+        title: "Émettre sans diffusion",
+        description: "Marque le rapport comme émis, sans impression ni envoi immédiat.",
+        icon: "check",
+    },
+    {
+        id: "export_pdf",
+        title: "Exporter PDF",
+        description: "Génération PDF directe — bientôt disponible.",
+        icon: "file",
+        disabled: true,
+    },
+];
 
 const STATUS = {
     all: "Tous",
@@ -16,6 +62,46 @@ const STATUS = {
 
 function classNames(...items) {
     return items.filter(Boolean).join(" ");
+}
+
+function formatSessionUserLabel(user) {
+    if (!user) {
+        return "Utilisateur non connecté";
+    }
+
+    const name = String(user.display_name || user.email || "").trim();
+    const role = String(user.employment_level_label || user.role_code || user.role || "").trim();
+    if (name && role) {
+        return `${name} · ${role}`;
+    }
+    return name || role || "Utilisateur";
+}
+
+function sessionUserInitials(user) {
+    const label = String(user?.display_name || user?.email || "").trim();
+    if (!label) {
+        return "?";
+    }
+    return label
+        .split(/\s+/)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+}
+
+function SessionUserChip({ user, compact = false }) {
+    const label = formatSessionUserLabel(user);
+
+    return (
+        <div className={classNames("vrp-session-user", compact && "vrp-session-user-compact")} title={label}>
+            <span className="vrp-session-user-avatar" aria-hidden="true">{sessionUserInitials(user)}</span>
+            <div className="vrp-session-user-text">
+                <div className="vrp-session-user-kicker">Validateur</div>
+                <div className="vrp-session-user-name">{label}</div>
+            </div>
+        </div>
+    );
 }
 
 function normalizeText(value) {
@@ -36,12 +122,30 @@ function normalizeHistory(rawHistory) {
         id: item.id || `${item.time || "event"}-${index}`,
         user: item.user || item.utilisateur || item.created_by || "RaLab",
         action: item.action || item.event_type || item.label || "Action",
-        time: item.time || item.created_at || item.date || ""
+        time: item.time || item.created_at || item.date || "",
+        comment: String(item.comment || "").trim(),
     }));
+}
+
+function resolveValidationComment(rawReport, history = []) {
+    const direct = String(rawReport?.validation_comment || rawReport?.validationComment || "").trim();
+    if (direct) {
+        return direct;
+    }
+
+    for (const item of history) {
+        const comment = String(item?.comment || "").trim();
+        if (comment) {
+            return comment;
+        }
+    }
+
+    return "";
 }
 
 function normalizeReport(rawReport) {
     const id = rawReport.id || rawReport.uid || rawReport.rapport_ref || rawReport.reference || "rapport-sans-reference";
+    const history = normalizeHistory(rawReport.history || rawReport.events || rawReport.validation_events);
 
     return {
         id: String(id),
@@ -60,7 +164,8 @@ function normalizeReport(rawReport) {
         source: rawReport.source || rawReport.criteria_source || rawReport.source_criteres || "Source non renseignée",
         model: rawReport.model || rawReport.model_version || rawReport.template_version || "Modèle non renseigné",
         previewUrl: rawReport.previewUrl || rawReport.preview_url || rawReport.pdf_url || rawReport.current_pdf_url || "",
-        history: normalizeHistory(rawReport.history || rawReport.events || rawReport.validation_events),
+        history,
+        validationComment: resolveValidationComment(rawReport, history),
         sourceUid: String(rawReport.source_uid || rawReport.feuille_uid || rawReport.feuille_terrain_uid || ""),
         sourceId: String(rawReport.source_id || rawReport.essai_id || rawReport.essai_uid || ""),
         pointUid: String(rawReport.point_uid || rawReport.point_id || ""),
@@ -94,9 +199,31 @@ function filterReports(sourceReports, query, statusFilter, typeFilter) {
     });
 }
 
+function normalizeReportStatus(status) {
+    return String(status || "").trim();
+}
+
 function getValidationLevel(report) {
     if (!report) {
         return "draft";
+    }
+
+    const status = normalizeReportStatus(report.status);
+
+    if (status === STATUS.issued) {
+        return "issued";
+    }
+
+    if (status === STATUS.technicallyValidated) {
+        return "validated";
+    }
+
+    if (status === STATUS.rejected) {
+        return "rejected";
+    }
+
+    if (status === STATUS.correctionRequested) {
+        return "correction";
     }
 
     if (report.blockers > 0) {
@@ -107,11 +234,215 @@ function getValidationLevel(report) {
         return "warning";
     }
 
+    if (status === STATUS.draft) {
+        return "draft";
+    }
+
     return "ready";
 }
 
 function canValidateReport(report) {
-    return Boolean(report) && report.blockers === 0;
+    if (!report || report.blockers > 0) {
+        return false;
+    }
+
+    const status = normalizeReportStatus(report.status);
+    return status !== STATUS.issued && status !== STATUS.technicallyValidated;
+}
+
+function canIssueReport(report) {
+    if (!report || report.blockers > 0) {
+        return false;
+    }
+
+    const status = normalizeReportStatus(report.status);
+    return status === STATUS.technicallyValidated || status === STATUS.issued;
+}
+
+function isReportIssued(report) {
+    return normalizeReportStatus(report?.status) === STATUS.issued;
+}
+
+function getIssueBlockedReason(report) {
+    if (!report) {
+        return "Aucun rapport sélectionné.";
+    }
+    if (report.blockers > 0) {
+        return "Des blocages empêchent l'émission.";
+    }
+    const status = normalizeReportStatus(report.status);
+    if (status !== STATUS.technicallyValidated && status !== STATUS.issued) {
+        return "Validez d'abord techniquement le rapport avant l'émission.";
+    }
+    return "";
+}
+
+function getIssueActionLabel(report) {
+    return isReportIssued(report) ? "Réémettre le rapport" : "Émettre le rapport";
+}
+
+function appendValidationIframeParams(params) {
+    params.set("embed", "1");
+    params.set("hide_toolbar", "1");
+    return params;
+}
+
+function buildAutoprintReportTarget(report) {
+    const raw = buildReportTarget(report);
+    if (!raw) {
+        return "";
+    }
+
+    const [path, query = ""] = raw.split("?");
+    const params = new URLSearchParams(query);
+    params.set("autoprint", "1");
+    return `${path}?${params.toString()}`;
+}
+
+function printValidationPreview() {
+    const iframe = document.getElementById(VALIDATION_PREVIEW_IFRAME_ID);
+    if (!(iframe instanceof HTMLIFrameElement)) {
+        return false;
+    }
+
+    const frameWindow = iframe.contentWindow;
+    if (!frameWindow) {
+        return false;
+    }
+
+    try {
+        frameWindow.focus();
+        frameWindow.print();
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function openReportPrintFallback(report) {
+    const printTarget = buildAutoprintReportTarget(report);
+    if (!printTarget) {
+        return false;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
+    iframe.src = printTarget;
+    document.body.appendChild(iframe);
+
+    window.setTimeout(() => {
+        if (iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+        }
+    }, 120000);
+
+    return true;
+}
+
+function openReportPrintDialog(report) {
+    if (printValidationPreview()) {
+        return true;
+    }
+
+    return openReportPrintFallback(report);
+}
+
+function buildReportMailPayload(report, dossierEmails = []) {
+    const uniqueEmails = Array.from(new Set(
+        (Array.isArray(dossierEmails) ? dossierEmails : [])
+            .map((item) => String(item?.email || item || "").trim().toLowerCase())
+            .filter((email) => email.includes("@"))
+    ));
+
+    if (!uniqueEmails.length) {
+        return null;
+    }
+
+    const reportRef = String(report?.id || report?.uid || "rapport").trim();
+    const affair = String(report?.affair || "").trim();
+    const subject = affair ? `Rapport ${reportRef} — ${affair}` : `Rapport ${reportRef}`;
+    const body = [
+        "Bonjour,",
+        "",
+        `Veuillez trouver ci-joint le rapport ${reportRef}.`,
+        "",
+        "Cordialement,",
+    ].join("\n");
+
+    return {
+        uniqueEmails,
+        bcc: uniqueEmails.join(","),
+        subject,
+        body,
+    };
+}
+
+function buildGmailComposeUrl({ bcc, subject, body }) {
+    const params = new URLSearchParams({
+        view: "cm",
+        fs: "1",
+        su: subject,
+        body,
+    });
+
+    if (bcc) {
+        params.set("bcc", bcc);
+    }
+
+    return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+function buildReportMailto(payload) {
+    if (!payload) {
+        return null;
+    }
+
+    const queryParts = [
+        payload.bcc ? `bcc=${encodeURIComponent(payload.bcc)}` : "",
+        `subject=${encodeURIComponent(payload.subject)}`,
+        `body=${encodeURIComponent(payload.body)}`,
+    ].filter(Boolean);
+
+    return `mailto:?${queryParts.join("&")}`;
+}
+
+function openReportMailCompose(report, dossierEmails = []) {
+    const payload = buildReportMailPayload(report, dossierEmails);
+    if (!payload) {
+        return false;
+    }
+
+    const gmailUrl = buildGmailComposeUrl(payload);
+    const popup = window.open(gmailUrl, "_blank", "noopener,noreferrer");
+    if (popup) {
+        return true;
+    }
+
+    const mailto = buildReportMailto(payload);
+    if (!mailto) {
+        return false;
+    }
+
+    const link = document.createElement("a");
+    link.href = mailto;
+    link.rel = "noopener noreferrer";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    return true;
+}
+
+function getReportMailSuccessMessage(report, dossierEmails = [], { isReissue = false } = {}) {
+    const payload = buildReportMailPayload(report, dossierEmails);
+    const prefix = isReissue ? "Rapport réémis." : "Rapport émis.";
+    const count = payload?.uniqueEmails?.length || 0;
+
+    if (count > 1) {
+        return `${prefix} Gmail ouvert avec ${count} adresses du dossier en BCC.`;
+    }
+
+    return `${prefix} Gmail ouvert avec l'adresse du dossier en BCC.`;
 }
 
 function getNextReportId(sourceReports, selectedId) {
@@ -166,7 +497,7 @@ function buildReportTarget(report) {
             params.set("source_id", sourceUid);
             params.set("source_uid", sourceUid);
             params.set("feuille_uid", sourceUid);
-            params.set("embed", "1");
+            appendValidationIframeParams(params);
             return `/rapports/de/view?${params.toString()}`;
         }
         const deRef = sourceId || essaiReference || uid || id;
@@ -174,7 +505,7 @@ function buildReportTarget(report) {
         const params = new URLSearchParams();
         params.set("mode", "work");
         params.set("source_id", deRef);
-        params.set("embed", "1");
+        appendValidationIframeParams(params);
         return `/rapports/de/view?${params.toString()}`;
     }
     if (type === "PMT") {
@@ -182,41 +513,41 @@ function buildReportTarget(report) {
         if (!resolved) return "";
         const params = new URLSearchParams();
         params.set("pmt_essai_id", String(resolved));
-        params.set("embed", "1");
+        appendValidationIframeParams(params);
         return `/rapports/pmt/view?${params.toString()}`;
     }
     if (type === "SC") {
         const scRef = sourceId || essaiReference || uid || id;
         if (sourceUid) {
             const params = new URLSearchParams();
-            params.set("embed", "1");
             params.set("source_family", "terrain");
             params.set("source_uid", sourceUid);
             if (pointUid) params.set("point", pointUid);
             if (scRef) params.set("reference", scRef);
+            appendValidationIframeParams(params);
             return `/rapports/sc/view?${params.toString()}`;
         }
         if (!scRef) return "";
         const params = new URLSearchParams();
-        params.set("embed", "1");
         if (pointUid) params.set("point", pointUid);
+        appendValidationIframeParams(params);
         return `/rapports/sc/${encodeURIComponent(scRef)}?${params.toString()}`;
     }
     if (type === "SO") {
         const soRef = sourceId || essaiReference || uid || id;
         if (sourceUid) {
             const params = new URLSearchParams();
-            params.set("embed", "1");
             params.set("source_family", "terrain");
             params.set("source_uid", sourceUid);
             if (pointUid) params.set("point", pointUid);
             if (soRef) params.set("reference", soRef);
+            appendValidationIframeParams(params);
             return `/rapports/so/view?${params.toString()}`;
         }
         if (!soRef) return "";
         const params = new URLSearchParams();
-        params.set("embed", "1");
         if (pointUid) params.set("point", pointUid);
+        appendValidationIframeParams(params);
         return `/rapports/so/${encodeURIComponent(soRef)}?${params.toString()}`;
     }
     const fallback = sourceId || uid || id;
@@ -238,6 +569,7 @@ function Icon({ name, size = 18, className = "" }) {
         refresh: "↺",
         search: "⌕",
         send: "➤",
+        mail: "✉",
         shield: "◈"
     };
 
@@ -329,11 +661,19 @@ function ReaderToolbar({ onNextReport }) {
 function ReportReader({ report }) {
     const target = buildReportTarget(report);
     if (!target) {
-        return <EmptyState />;
+        return (
+            <div className="vrp-state-card">
+                <Icon name="file" size={32} />
+                <strong>Prévisualisation indisponible</strong>
+                <span>Impossible de construire l’URL du rapport pour {report?.id || "ce dossier"}.</span>
+            </div>
+        );
     }
     return (
         <div className="vrp-reader-pdf-wrap">
             <iframe
+                id={VALIDATION_PREVIEW_IFRAME_ID}
+                key={`${report.uid || report.id}-${report.status}`}
                 title={`Rapport ${report.id}`}
                 src={target}
                 className="vrp-reader-pdf"
@@ -344,7 +684,7 @@ function ReportReader({ report }) {
 
 function ValidationGauge({ report }) {
     const level = getValidationLevel(report);
-    const data = {
+    const gaugeByLevel = {
         ready: {
             title: "Prêt à valider",
             detail: "Aucun blocage détecté",
@@ -368,8 +708,33 @@ function ValidationGauge({ report }) {
             detail: "Rapport en préparation",
             className: "vrp-gauge-neutral",
             icon: "file"
+        },
+        issued: {
+            title: "Rapport émis",
+            detail: "Réémission possible (impression, mail, etc.)",
+            className: "vrp-gauge-issued",
+            icon: "send"
+        },
+        validated: {
+            title: "Validé techniquement",
+            detail: "En attente d'émission ou de diffusion",
+            className: "vrp-gauge-validated",
+            icon: "shield"
+        },
+        rejected: {
+            title: "Rapport refusé",
+            detail: "Décision de refus enregistrée",
+            className: "vrp-gauge-blocked",
+            icon: "lock"
+        },
+        correction: {
+            title: "Correction demandée",
+            detail: "Le rapport doit être corrigé",
+            className: "vrp-gauge-warning",
+            icon: "alert"
         }
-    }[level];
+    };
+    const data = gaugeByLevel[level] || gaugeByLevel.draft;
 
     return (
         <div className={classNames("vrp-validation-gauge", data.className)}>
@@ -412,6 +777,293 @@ function QuickControls({ report }) {
     );
 }
 
+function buildCorrectionComment(selectedReasonIds, detail) {
+    const labels = CORRECTION_REASONS
+        .filter((reason) => selectedReasonIds.includes(reason.id))
+        .map((reason) => reason.label);
+
+    const lines = ["Demande de correction :"];
+    if (labels.length) {
+        lines.push(...labels.map((label) => `• ${label}`));
+    }
+    const cleanDetail = String(detail || "").trim();
+    if (cleanDetail) {
+        lines.push("", "Précisions :", cleanDetail);
+    }
+    return lines.join("\n");
+}
+
+function CorrectionRequestModal({ open, onClose, onSubmit, loading, reportId }) {
+    const [selectedReasons, setSelectedReasons] = useState([]);
+    const [detail, setDetail] = useState("");
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+        setSelectedReasons([]);
+        setDetail("");
+    }, [open]);
+
+    function toggleReason(reasonId) {
+        setSelectedReasons((current) => (
+            current.includes(reasonId)
+                ? current.filter((id) => id !== reasonId)
+                : [...current, reasonId]
+        ));
+    }
+
+    function handleSubmit(event) {
+        event.preventDefault();
+        const cleanDetail = String(detail || "").trim();
+        if (!selectedReasons.length && !cleanDetail) {
+            return;
+        }
+        onSubmit({
+            reasonIds: selectedReasons,
+            detail: cleanDetail,
+            comment: buildCorrectionComment(selectedReasons, cleanDetail),
+        });
+    }
+
+    const canSubmit = selectedReasons.length > 0 || String(detail || "").trim().length > 0;
+
+    return (
+        <Modal open={open} onClose={onClose} title="Demande de correction" size="lg">
+            <form className="vrp-correction-modal" onSubmit={handleSubmit}>
+                <p className="vrp-correction-modal-intro">
+                    Indiquez ce qui doit être corrigé sur le rapport
+                    {reportId ? <strong> {reportId}</strong> : null}
+                    . Sélectionnez un ou plusieurs motifs et précisez si nécessaire.
+                </p>
+
+                <div className="vrp-correction-reasons">
+                    {CORRECTION_REASONS.map((reason) => {
+                        const checked = selectedReasons.includes(reason.id);
+                        return (
+                            <label
+                                key={reason.id}
+                                className={classNames("vrp-correction-reason", checked && "vrp-correction-reason-selected")}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleReason(reason.id)}
+                                />
+                                <span>{reason.label}</span>
+                            </label>
+                        );
+                    })}
+                </div>
+
+                <label className="vrp-correction-detail-label">
+                    Précisions complémentaires
+                    <textarea
+                        value={detail}
+                        onChange={(event) => setDetail(event.target.value)}
+                        placeholder="Ex. : recalculer la compacité, corriger la profondeur d'arrêt, remplacer la photo de la carotte..."
+                        className="vrp-correction-detail-area"
+                        rows={5}
+                    />
+                </label>
+
+                <div className="vrp-correction-modal-actions">
+                    <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+                        Annuler
+                    </Button>
+                    <Button type="submit" variant="danger" disabled={!canSubmit || loading}>
+                        {loading ? "Envoi…" : "Envoyer la demande de correction"}
+                    </Button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+function IssueReportModal({ open, onClose, onSubmit, loading, reportId, reportUid = "", isReissue = false }) {
+    const [pendingMode, setPendingMode] = useState(null);
+    const [optionsReady, setOptionsReady] = useState(false);
+    const [dossierEmails, setDossierEmails] = useState([]);
+    const [emailsLoading, setEmailsLoading] = useState(false);
+    const [emailsError, setEmailsError] = useState("");
+
+    useEffect(() => {
+        if (!open) {
+            setPendingMode(null);
+            setOptionsReady(false);
+            setDossierEmails([]);
+            setEmailsLoading(false);
+            setEmailsError("");
+            return undefined;
+        }
+
+        const timer = window.setTimeout(() => setOptionsReady(true), 350);
+        return () => window.clearTimeout(timer);
+    }, [open]);
+
+    useEffect(() => {
+        if (!open || pendingMode !== "email") {
+            setDossierEmails([]);
+            setEmailsLoading(false);
+            setEmailsError("");
+            return undefined;
+        }
+
+        const reportKey = String(reportUid || reportId || "").trim();
+        if (!reportKey) {
+            setEmailsError("Impossible d'identifier le rapport pour préparer le mail.");
+            return undefined;
+        }
+
+        let cancelled = false;
+        setEmailsLoading(true);
+        setEmailsError("");
+
+        rapportsValidationApi.getDossierEmails(reportKey)
+            .then((response) => {
+                if (cancelled) {
+                    return;
+                }
+
+                const emails = Array.isArray(response?.emails) ? response.emails : [];
+                setDossierEmails(emails);
+                if (!emails.length) {
+                    setEmailsError(response?.message || "Aucune adresse mail trouvée dans le dossier complet.");
+                }
+            })
+            .catch((error) => {
+                if (cancelled) {
+                    return;
+                }
+                setDossierEmails([]);
+                setEmailsError(error?.message || "Impossible de charger les adresses mail du dossier.");
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setEmailsLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open, pendingMode, reportUid, reportId]);
+
+    const pendingOption = ISSUE_DISPATCH_OPTIONS.find((option) => option.id === pendingMode) || null;
+    const canConfirmEmail = pendingMode !== "email" || (!emailsLoading && dossierEmails.length > 0);
+
+    function handleClose() {
+        if (loading) {
+            return;
+        }
+        setPendingMode(null);
+        onClose();
+    }
+
+    function handlePick(mode) {
+        if (loading || !optionsReady) {
+            return;
+        }
+        setPendingMode(mode);
+    }
+
+    function handleConfirm() {
+        if (loading || !pendingMode || !canConfirmEmail) {
+            return;
+        }
+
+        onSubmit(pendingMode, {
+            dossierEmails,
+            emailsError,
+            emailsLoading,
+        });
+    }
+
+    return (
+        <Modal
+            open={open}
+            onClose={handleClose}
+            title={isReissue ? "Réémettre le rapport" : "Émettre le rapport"}
+            size="lg"
+        >
+            <div className="vrp-issue-modal">
+                {!pendingMode ? (
+                    <>
+                        <p className="vrp-issue-modal-intro">
+                            {isReissue ? "Choisissez comment rediffuser le rapport" : "Choisissez comment diffuser le rapport"}
+                            {reportId ? <strong> {reportId}</strong> : null}
+                            . {isReissue ? "La réémission" : "L'émission"} ne sera enregistrée qu'après confirmation.
+                        </p>
+
+                        <div className={classNames("vrp-issue-options", !optionsReady && "vrp-issue-options-pending")}>
+                            {ISSUE_DISPATCH_OPTIONS.map((option) => (
+                                <button
+                                    key={option.id}
+                                    type="button"
+                                    className={classNames("vrp-issue-option", option.disabled && "vrp-issue-option-disabled")}
+                                    disabled={loading || option.disabled || !optionsReady}
+                                    onClick={() => handlePick(option.id)}
+                                >
+                                    <span className="vrp-issue-option-icon">
+                                        <Icon name={option.icon} size={20} />
+                                    </span>
+                                    <span className="vrp-issue-option-text">
+                                        <span className="vrp-issue-option-title">{option.title}</span>
+                                        <span className="vrp-issue-option-description">{option.description}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="vrp-issue-modal-actions">
+                            <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+                                Annuler
+                            </Button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <p className="vrp-issue-modal-intro">
+                            Confirmer {isReissue ? "la réémission" : "l'émission"} du rapport
+                            {reportId ? <strong> {reportId}</strong> : null}
+                            {" "}via <strong>{pendingOption?.title || pendingMode}</strong> ?
+                        </p>
+                        {pendingOption?.description ? (
+                            <p className="vrp-issue-modal-confirm-copy">{pendingOption.description}</p>
+                        ) : null}
+                        {pendingMode === "email" ? (
+                            <p className={classNames("vrp-issue-modal-confirm-copy", emailsError && "vrp-issue-modal-confirm-error")}>
+                                {emailsLoading
+                                    ? "Chargement des adresses mail du dossier…"
+                                    : emailsError
+                                        ? emailsError
+                                        : `${dossierEmails.length} adresse(s) seront ajoutées en copie cachée (BCC) dans Gmail.`}
+                            </p>
+                        ) : null}
+
+                        <div className="vrp-issue-modal-actions vrp-issue-modal-actions-confirm">
+                            <Button type="button" variant="secondary" onClick={() => setPendingMode(null)} disabled={loading}>
+                                Retour
+                            </Button>
+                            <Button type="button" variant="secondary" onClick={handleClose} disabled={loading}>
+                                Annuler
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="primary"
+                                onClick={handleConfirm}
+                                disabled={loading || !canConfirmEmail}
+                            >
+                                {loading ? (isReissue ? "Réémission…" : "Émission…") : (isReissue ? "Confirmer la réémission" : "Confirmer l'émission")}
+                            </Button>
+                        </div>
+                    </>
+                )}
+            </div>
+        </Modal>
+    );
+}
+
 function ValidationTrail({ report }) {
     const history = report.history.length ? report.history : [{ user: "RaLab", action: "Aucun historique disponible", time: "" }];
 
@@ -433,8 +1085,12 @@ function ValidationTrail({ report }) {
     );
 }
 
-function ValidationPanel({ report, comment, setComment, onAction, actionLoading }) {
+function ValidationPanel({ report, sessionUser, comment, setComment, onAction, onOpenCorrectionModal, onOpenIssueModal, onOpenEssaiFeuille, actionLoading }) {
     const canRunValidation = canValidateReport(report);
+    const canRunIssue = canIssueReport(report);
+    const issueBlockedReason = getIssueBlockedReason(report);
+    const issueActionLabel = getIssueActionLabel(report);
+    const needsEssaiCorrection = isCorrectionRequested(report?.status);
 
     return (
         <div className="vrp-validation-panel">
@@ -442,12 +1098,32 @@ function ValidationPanel({ report, comment, setComment, onAction, actionLoading 
                 <div>
                     <div className="vrp-kicker">Décision</div>
                     <h2>Validation rapport</h2>
+                    <SessionUserChip user={sessionUser} compact />
                 </div>
                 <Icon name="shield" size={22} />
             </div>
 
             <div className="vrp-validation-scroll">
                 <ValidationGauge report={report} />
+
+                {needsEssaiCorrection ? (
+                    <section className="vrp-panel-card vrp-correction-target-card">
+                        <h3 className="vrp-panel-title">
+                            <Icon name="edit" size={18} />
+                            Correction sur la feuille essai
+                        </h3>
+                        <p className="vrp-correction-target-copy">
+                            Les modifications se font dans la feuille de saisie (données terrain / calculs), pas dans le PDF du rapport.
+                        </p>
+                        <button
+                            type="button"
+                            className="vrp-primary-action vrp-correction-target-action"
+                            onClick={onOpenEssaiFeuille}
+                        >
+                            Ouvrir feuille essai
+                        </button>
+                    </section>
+                ) : null}
 
                 <section className="vrp-panel-card">
                     <div className="vrp-selected-report-head">
@@ -460,6 +1136,7 @@ function ValidationPanel({ report, comment, setComment, onAction, actionLoading 
                     <div className="vrp-small-info-grid">
                         <InfoBox label="Type" value={report.type} />
                         <InfoBox label="Pages" value={report.pages} />
+                        <InfoBox label="Auteur" value={report.author || "—"} />
                         <InfoBox label="Source" value={report.source} />
                         <InfoBox label="Modèle" value={report.model} />
                     </div>
@@ -489,7 +1166,7 @@ function ValidationPanel({ report, comment, setComment, onAction, actionLoading 
                         type="button"
                         className="vrp-secondary-action"
                         disabled={actionLoading}
-                        onClick={() => onAction("correction_requested")}
+                        onClick={onOpenCorrectionModal}
                     >
                         Correction
                     </button>
@@ -506,19 +1183,28 @@ function ValidationPanel({ report, comment, setComment, onAction, actionLoading 
                     type="button"
                     disabled={!canRunValidation || actionLoading}
                     className={classNames("vrp-primary-action", (!canRunValidation || actionLoading) && "vrp-action-disabled")}
-                    onClick={() => onAction("technical_validation")}
+                    onClick={() => {
+                        const reportRef = String(report?.id || "").trim();
+                        const prompt = reportRef
+                            ? `Confirmer la validation technique du rapport ${reportRef} ?`
+                            : "Confirmer la validation technique de ce rapport ?";
+                        if (window.confirm(prompt)) {
+                            onAction("technical_validation");
+                        }
+                    }}
                 >
                     <Icon name="shield" size={18} />
                     Valider techniquement
                 </button>
                 <button
                     type="button"
-                    disabled={actionLoading}
-                    className={classNames("vrp-issue-action", actionLoading && "vrp-action-disabled")}
-                    onClick={() => onAction("issue")}
+                    disabled={!canRunIssue || actionLoading}
+                    title={canRunIssue ? issueActionLabel : issueBlockedReason}
+                    className={classNames("vrp-issue-action", (!canRunIssue || actionLoading) && "vrp-action-disabled")}
+                    onClick={onOpenIssueModal}
                 >
                     <Icon name="send" size={18} />
-                    Émettre le rapport
+                    {issueActionLabel}
                 </button>
             </div>
         </div>
@@ -570,8 +1256,25 @@ function ErrorBanner({ message, usingFallback, onRetry }) {
     );
 }
 
+function SuccessBanner({ message, onDismiss }) {
+    if (!message) {
+        return null;
+    }
+
+    return (
+        <div className="vrp-success-banner">
+            <div>
+                <strong>Enregistré</strong>
+                <span>{message}</span>
+            </div>
+            <button type="button" onClick={onDismiss}>OK</button>
+        </div>
+    );
+}
+
 export default function ValiderRapportsPage() {
     const navigate = useNavigate();
+    const { user: sessionUser } = useAuth();
     const [urlParams] = useSearchParams();
     const [reports, setReports] = useState([]);
     const [selectedReportId, setSelectedReportId] = useState("");
@@ -583,9 +1286,13 @@ export default function ValiderRapportsPage() {
     const [comment, setComment] = useState("");
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
+    const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+    const [issueModalOpen, setIssueModalOpen] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
     const [usingFallback, setUsingFallback] = useState(false);
     const [searchLoading, setSearchLoading] = useState(false);
+    const listBusy = loading || searchLoading;
 
     async function loadReports(params = {}) {
         setLoading(true);
@@ -621,6 +1328,7 @@ export default function ValiderRapportsPage() {
             loadReports();
             return;
         }
+        setLoading(true);
         setSearchLoading(true);
         setErrorMessage("");
         try {
@@ -639,7 +1347,17 @@ export default function ValiderRapportsPage() {
             setSelectedReportId("");
         } finally {
             setSearchLoading(false);
+            setLoading(false);
         }
+    }
+
+    async function refreshCurrentReportList() {
+        const q = String(query || selectedReportId || "").trim();
+        if (q) {
+            await searchByReference();
+            return;
+        }
+        await loadReports();
     }
 
     useEffect(() => {
@@ -659,8 +1377,9 @@ export default function ValiderRapportsPage() {
     }, [reports, selectedReportId]);
 
     useEffect(() => {
-        setComment("");
-    }, [selectedReportId]);
+        const report = reports.find((item) => item.id === selectedReportId);
+        setComment(String(report?.validationComment || ""));
+    }, [selectedReportId, reports]);
 
     function selectReport(reportId) {
         setSelectedReportId(reportId);
@@ -674,7 +1393,7 @@ export default function ValiderRapportsPage() {
         }
     }
 
-    async function handleAction(action) {
+    async function handleAction(action, options = {}) {
         if (!selectedReport) {
             return;
         }
@@ -686,18 +1405,47 @@ export default function ValiderRapportsPage() {
             issue: STATUS.issued
         };
         const nextStatus = nextStatusByAction[action] || selectedReport.status;
+        const isReissue = action === "issue" && isReportIssued(selectedReport);
+        const actorLabel = formatSessionUserLabel(sessionUser);
+        const actionComment = String(options.comment ?? comment ?? "").trim();
+
         const payload = {
             action,
             status: nextStatus,
-            comment,
-            report_id: selectedReport.uid || selectedReport.id
+            comment: actionComment,
+            report_id: selectedReport.uid || selectedReport.id,
+            user: actorLabel,
+            ...(Array.isArray(options.correctionReasons) && options.correctionReasons.length
+                ? { correction_reasons: options.correctionReasons }
+                : {}),
         };
 
         setActionLoading(true);
         setErrorMessage("");
+        setSuccessMessage("");
 
         try {
-            await rapportsValidationApi.updateStatus(selectedReport.uid || selectedReport.id, payload);
+            const response = await rapportsValidationApi.updateStatus(selectedReport.uid || selectedReport.id, payload);
+
+            if (response?.persisted === false) {
+                setErrorMessage("La décision n’a pas pu être enregistrée en base. Vérifiez que l’API backend est démarrée.");
+                await refreshCurrentReportList();
+                return;
+            }
+
+            const firstCorrectionReason = actionComment
+                .split("\n")
+                .find((line) => line.startsWith("•"))
+                ?.replace(/^•\s*/, "");
+            const historyAction = action === "correction_requested"
+                ? (firstCorrectionReason
+                    ? `Correction demandée — ${firstCorrectionReason}`
+                    : "Correction demandée")
+                : action === "technical_validation"
+                    ? "Validation technique"
+                    : action === "issue"
+                        ? (isReissue ? "Réémission du rapport" : "Émission du rapport")
+                        : "Révision demandée";
 
             setReports((currentReports) => currentReports.map((report) => {
                 if (report.id !== selectedReport.id) {
@@ -707,30 +1455,116 @@ export default function ValiderRapportsPage() {
                 return {
                     ...report,
                     status: nextStatus,
+                    validationComment: actionComment || report.validationComment,
                     history: [
                         {
                             id: `${Date.now()}-${action}`,
-                            user: "Utilisateur",
-                            action: action === "technical_validation"
-                                ? "Validation technique"
-                                : action === "issue"
-                                    ? "Émission du rapport"
-                                    : action === "correction_requested"
-                                        ? "Correction demandée"
-                                        : "Révision demandée",
-                            time: new Date().toLocaleString("fr-FR")
+                            user: actorLabel,
+                            action: historyAction,
+                            time: new Date().toLocaleString("fr-FR"),
+                            comment: actionComment,
                         },
                         ...report.history
                     ]
                 };
             }));
-            setComment("");
+            if (action === "correction_requested") {
+                setCorrectionModalOpen(false);
+                setStatusFilter(STATUS.all);
+                const essaiTarget = buildEssaiTarget(selectedReport);
+                const essaiHint = essaiTarget
+                    ? ` Le technicien doit corriger l’essai (${essaiTarget}), pas le PDF du rapport.`
+                    : " Le technicien doit corriger les données de l’essai, pas le PDF du rapport.";
+                setSuccessMessage(
+                    (response?.message || "Demande de correction enregistrée. Le statut est passé à « Correction demandée ».")
+                    + essaiHint
+                );
+            } else if (action === "technical_validation") {
+                setSuccessMessage(response?.message || "Validation technique enregistrée.");
+            } else if (action === "issue") {
+                setIssueModalOpen(false);
+                const issueSuccessPrefix = isReissue ? "Rapport réémis." : "Rapport émis.";
+                if (options.issueMode === "print") {
+                    const printOpened = options.printOk !== false;
+                    setSuccessMessage(
+                        printOpened
+                            ? `${issueSuccessPrefix} Dialogue d'impression ouvert.`
+                            : `${issueSuccessPrefix} Impossible d'ouvrir l'impression automatique.`
+                    );
+                } else if (options.issueMode === "email") {
+                    if (options.mailOpened) {
+                        setSuccessMessage(getReportMailSuccessMessage(selectedReport, options.dossierEmails, { isReissue }));
+                    } else {
+                        setSuccessMessage(`${issueSuccessPrefix}`);
+                        setErrorMessage(options.emailsError || "Impossible d'ouvrir Gmail.");
+                    }
+                } else {
+                    setSuccessMessage(response?.message || `${issueSuccessPrefix} Diffusion enregistrée.`);
+                }
+            } else {
+                setSuccessMessage(response?.message || "Décision enregistrée.");
+            }
+
+            await refreshCurrentReportList();
         } catch (error) {
             setErrorMessage(error.message || "Action impossible sur ce rapport.");
+            setSuccessMessage("");
         } finally {
             setActionLoading(false);
         }
     }
+
+    async function handleCorrectionSubmit({ reasonIds, detail, comment: correctionComment }) {
+        await handleAction("correction_requested", {
+            comment: correctionComment,
+            correctionReasons: reasonIds,
+            correctionDetail: detail,
+        });
+    }
+
+    async function handleIssueSubmit(issueMode, extras = {}) {
+        if (!selectedReport || actionLoading) {
+            return;
+        }
+
+        const isReissue = isReportIssued(selectedReport);
+        let printOk = null;
+        let mailOpened = false;
+
+        if (issueMode === "print") {
+            printOk = openReportPrintDialog(selectedReport);
+        } else if (issueMode === "email") {
+            if (extras.emailsLoading) {
+                return;
+            }
+
+            mailOpened = openReportMailCompose(selectedReport, extras.dossierEmails || []);
+            if (!mailOpened) {
+                setErrorMessage(extras.emailsError || "Aucune adresse mail trouvée dans le dossier complet.");
+                setSuccessMessage("");
+                return;
+            }
+        }
+
+        await handleAction("issue", {
+            issueMode,
+            printOk,
+            mailOpened,
+            dossierEmails: extras.dossierEmails || [],
+            emailsError: extras.emailsError || "",
+        });
+    }
+
+    function openEssaiFeuille(report = selectedReport) {
+        const target = buildEssaiTarget(report);
+        if (!target) {
+            setErrorMessage("Impossible de construire l’URL de la feuille essai pour ce dossier.");
+            return;
+        }
+        navigate(target);
+    }
+
+    const selectedNeedsEssaiCorrection = isCorrectionRequested(selectedReport?.status);
 
     return (
         <div className="vrp-page -m-6">
@@ -764,6 +1598,7 @@ export default function ValiderRapportsPage() {
                             <h1>File rapports</h1>
                             <p>Sélection rapide sans voler la scène au rapport.</p>
                         </div>
+                        <SessionUserChip user={sessionUser} compact />
                     </div>
 
                     <div className="vrp-filter-block">
@@ -796,8 +1631,8 @@ export default function ValiderRapportsPage() {
                     </div>
 
                     <div className="vrp-rail-list">
-                        {loading && <LoadingState />}
-                        {!loading && visibleReports.map((report) => (
+                        {listBusy && <LoadingState />}
+                        {!listBusy && visibleReports.map((report) => (
                             <ReportRailCard
                                 key={report.id}
                                 report={report}
@@ -805,7 +1640,7 @@ export default function ValiderRapportsPage() {
                                 onClick={() => selectReport(report.id)}
                             />
                         ))}
-                        {!loading && visibleReports.length === 0 && <EmptyState />}
+                        {!listBusy && visibleReports.length === 0 && <EmptyState />}
                     </div>
                 </aside>
 
@@ -823,20 +1658,34 @@ export default function ValiderRapportsPage() {
                                 </>
                             )}
                         </div>
-                        <button
-                            type="button"
-                            className="vrp-full-report-button"
-                            onClick={() => {
-                                const target = buildReportTarget(selectedReport);
-                                if (!target) return;
-                                navigate(target);
-                            }}
-                        >
-                            Ouvrir rapport
-                        </button>
+                        <div className="vrp-main-head-actions">
+                            <SessionUserChip user={sessionUser} />
+                            {selectedNeedsEssaiCorrection ? (
+                                <button
+                                    type="button"
+                                    className="vrp-full-report-button vrp-full-report-button-essai"
+                                    onClick={() => openEssaiFeuille(selectedReport)}
+                                >
+                                    Ouvrir feuille essai
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className="vrp-full-report-button"
+                                    onClick={() => {
+                                        const target = buildReportTarget(selectedReport);
+                                        if (!target) return;
+                                        navigate(target);
+                                    }}
+                                >
+                                    Ouvrir rapport
+                                </button>
+                            )}
+                        </div>
                     </header>
 
                     <ErrorBanner message={errorMessage} usingFallback={usingFallback} onRetry={loadReports} />
+                    <SuccessBanner message={successMessage} onDismiss={() => setSuccessMessage("")} />
 
                     {selectedReport && (
                         <ReaderToolbar
@@ -845,8 +1694,9 @@ export default function ValiderRapportsPage() {
                     )}
 
                     <div className="vrp-reader-area">
-                        {!selectedReport && !loading && <EmptyState />}
-                        {selectedReport && <ReportReader report={selectedReport} />}
+                        {listBusy && !selectedReport ? <LoadingState /> : null}
+                        {!listBusy && !selectedReport ? <EmptyState /> : null}
+                        {selectedReport ? <ReportReader report={selectedReport} /> : null}
                     </div>
                 </main>
 
@@ -854,14 +1704,44 @@ export default function ValiderRapportsPage() {
                     {selectedReport && (
                         <ValidationPanel
                             report={selectedReport}
+                            sessionUser={sessionUser}
                             comment={comment}
                             setComment={setComment}
                             onAction={handleAction}
+                            onOpenCorrectionModal={() => setCorrectionModalOpen(true)}
+                            onOpenIssueModal={() => setIssueModalOpen(true)}
+                            onOpenEssaiFeuille={() => openEssaiFeuille(selectedReport)}
                             actionLoading={actionLoading}
                         />
                     )}
                 </aside>
             </div>
+
+            <CorrectionRequestModal
+                open={correctionModalOpen}
+                onClose={() => {
+                    if (!actionLoading) {
+                        setCorrectionModalOpen(false);
+                    }
+                }}
+                onSubmit={handleCorrectionSubmit}
+                loading={actionLoading}
+                reportId={selectedReport?.id || ""}
+            />
+
+            <IssueReportModal
+                open={issueModalOpen}
+                onClose={() => {
+                    if (!actionLoading) {
+                        setIssueModalOpen(false);
+                    }
+                }}
+                onSubmit={handleIssueSubmit}
+                loading={actionLoading}
+                reportId={selectedReport?.id || ""}
+                reportUid={selectedReport?.uid || selectedReport?.id || ""}
+                isReissue={isReportIssued(selectedReport)}
+            />
         </div>
     );
 }
@@ -958,6 +1838,9 @@ const styles = `
 }
 
 .vrp-column-head {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
     padding: 18px;
     border-bottom: 1px solid #e2e8f0;
 }
@@ -1265,6 +2148,33 @@ const styles = `
     background: rgba(255, 255, 255, 0.12);
 }
 
+.vrp-full-report-button-essai {
+    border-color: rgba(255, 204, 0, 0.45);
+    background: rgba(255, 204, 0, 0.16);
+    color: #fff8df;
+}
+
+.vrp-full-report-button-essai:hover {
+    background: rgba(255, 204, 0, 0.24);
+}
+
+.vrp-correction-target-card {
+    border-color: #f5d08a;
+    background: linear-gradient(180deg, #fff9eb 0%, #fffdf7 100%);
+}
+
+.vrp-correction-target-copy {
+    margin: 0 0 14px;
+    color: #7a5b12;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.vrp-correction-target-action {
+    width: 100%;
+    justify-content: center;
+}
+
 .vrp-error-banner {
     display: flex;
     align-items: center;
@@ -1301,6 +2211,32 @@ const styles = `
     border-radius: 999px;
     background: transparent;
     color: inherit;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+    padding: 5px 10px;
+}
+
+.vrp-success-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 16px 10px;
+    padding: 10px 14px;
+    border: 1px solid #86efac;
+    border-radius: 14px;
+    background: #ecfdf5;
+    color: #166534;
+    font-size: 13px;
+}
+
+.vrp-success-banner button {
+    flex-shrink: 0;
+    border: 1px solid #166534;
+    border-radius: 999px;
+    background: #fff;
+    color: #166534;
     cursor: pointer;
     font-size: 12px;
     font-weight: 900;
@@ -1642,6 +2578,248 @@ const styles = `
     font-weight: 950;
 }
 
+.vrp-main-head-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.vrp-session-user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 280px;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.vrp-session-user-compact {
+    margin-top: 10px;
+    max-width: 100%;
+    padding: 7px 9px;
+}
+
+.vrp-session-user-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #003170 0%, #1d4ed8 100%);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 950;
+    flex-shrink: 0;
+}
+
+.vrp-session-user-compact .vrp-session-user-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 11px;
+}
+
+.vrp-session-user-text {
+    min-width: 0;
+}
+
+.vrp-session-user-kicker {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.vrp-session-user-name {
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+.vrp-correction-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.vrp-correction-modal-intro {
+    margin: 0;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.vrp-correction-reasons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.vrp-correction-reason {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.vrp-correction-reason-selected {
+    border-color: #fca5a5;
+    background: #fef2f2;
+}
+
+.vrp-correction-reason input {
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+.vrp-correction-detail-label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.vrp-correction-detail-area {
+    width: 100%;
+    min-height: 110px;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.vrp-correction-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 4px;
+}
+
+.vrp-issue-modal {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.vrp-issue-modal-intro {
+    margin: 0;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.vrp-issue-options {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.vrp-issue-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+    color: #0f172a;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.vrp-issue-option:hover:not(:disabled) {
+    border-color: #93c5fd;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12);
+    transform: translateY(-1px);
+}
+
+.vrp-issue-option-disabled,
+.vrp-issue-option:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.vrp-issue-option-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(0, 49, 112, 0.08);
+    color: #003170;
+    flex-shrink: 0;
+}
+
+.vrp-issue-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.vrp-issue-option-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+.vrp-issue-option-description {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.vrp-issue-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.vrp-issue-modal-actions-confirm {
+    flex-wrap: wrap;
+}
+
+.vrp-issue-modal-confirm-copy {
+    margin: 0 0 18px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #475569;
+}
+
+.vrp-issue-modal-confirm-error {
+    color: #b91c1c;
+}
+
+.vrp-issue-options-pending {
+    opacity: 0.72;
+    pointer-events: none;
+}
+
 .vrp-kicker {
     color: #94a3b8;
     font-size: 11px;
@@ -1689,6 +2867,18 @@ const styles = `
     border-color: #e2e8f0;
     background: #f8fafc;
     color: #475569;
+}
+
+.vrp-gauge-issued {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.vrp-gauge-validated {
+    border-color: #a7f3d0;
+    background: #f0fdf4;
+    color: #047857;
 }
 
 .vrp-gauge-icon {

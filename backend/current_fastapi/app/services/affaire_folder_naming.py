@@ -1,6 +1,6 @@
 """
 app/services/affaire_folder_naming.py
-Format: Reference - Affaire NGE/Etude/Autre - Chantier - Client_Site
+Format: Reference - Affaire NGE/Etude/Autre - Site - Client_Chantier
 """
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def clean_piece(value: str) -> str:
     if not text:
         return ""
     text = re.sub(r"\s+", " ", text.replace("\n", " ").replace("\r", " ")).strip()
-    invalid = {"nan", "none", "null", "non communiqué", "non communique", "à qualifier", "a qualifier", "-"}
+    invalid = {"nan", "none", "null", "non communiqué", "non communique", "non comuniqué", "non comunique", "à qualifier", "a qualifier", "-"}
     return "" if text.lower() in invalid else text
 
 
@@ -46,11 +46,11 @@ def build_affaire_folder_name(
     if affaire_label := _build_affaire_label(affaire_nge, numero_etude, autre_reference):
         parts.append(affaire_label)
 
-    if chantier_piece := clean_piece(chantier):
-        parts.append(chantier_piece)
+    if site_piece := clean_piece(site):
+        parts.append(site_piece)
 
-    if client_site_piece := _build_client_site_piece(client, site):
-        parts.append(client_site_piece)
+    if client_chantier_piece := _build_client_chantier_piece(client, chantier):
+        parts.append(client_chantier_piece)
 
     return sanitize_folder_name(" - ".join(parts))
 
@@ -74,7 +74,36 @@ def is_auto_affaire_folder_name(folder_name: str, record: AffaireRstRecord) -> b
 
     auto_name = clean_piece(build_affaire_folder_name_from_record(record))
     reference = clean_piece(record.reference)
-    return current == auto_name or (reference and current == reference)
+    if current == auto_name or (reference and current == reference):
+        return True
+
+    old_name = clean_piece(_build_old_format_name(record))
+    return bool(old_name and current == old_name)
+
+
+def _build_old_format_name(record: AffaireRstRecord) -> str:
+    """Old format: Reference - AffaireNGE - Chantier - Client_Site"""
+    parts: list[str] = []
+    if ref := clean_piece(record.reference):
+        parts.append(ref)
+    if label := _build_affaire_label(record.affaire_nge, record.numero_etude, record.autre_reference):
+        parts.append(label)
+    if chantier := clean_piece(record.chantier):
+        parts.append(chantier)
+    client_value = clean_piece(record.client)
+    site_value = clean_piece(record.site)
+    if client_value and site_value:
+        client_norm = normalize_for_compare(client_value)
+        site_norm = normalize_for_compare(site_value)
+        if site_norm.startswith(client_norm) or client_norm in site_norm:
+            parts.append(site_value)
+        else:
+            parts.append(f"{client_value}_{site_value}")
+    elif client_value:
+        parts.append(client_value)
+    elif site_value:
+        parts.append(site_value)
+    return sanitize_folder_name(" - ".join(parts))
 
 
 def _build_affaire_label(affaire_nge: str, numero_etude: str, autre_reference: str) -> str:
@@ -84,16 +113,16 @@ def _build_affaire_label(affaire_nge: str, numero_etude: str, autre_reference: s
     return ""
 
 
-def _build_client_site_piece(client: str, site: str) -> str:
+def _build_client_chantier_piece(client: str, chantier: str) -> str:
     client_value = clean_piece(client)
-    site_value = clean_piece(site)
+    chantier_value = clean_piece(chantier)
     if not client_value:
-        return site_value
-    if not site_value:
+        return chantier_value
+    if not chantier_value:
         return client_value
 
     client_norm = normalize_for_compare(client_value)
-    site_norm = normalize_for_compare(site_value)
-    if site_norm.startswith(client_norm) or client_norm in site_norm:
-        return site_value
-    return f"{client_value}_{site_value}"
+    chantier_norm = normalize_for_compare(chantier_value)
+    if chantier_norm.startswith(client_norm) or client_norm in chantier_norm:
+        return chantier_value
+    return f"{client_value}_{chantier_value}"

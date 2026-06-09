@@ -69,6 +69,9 @@ ACCESS_KEY_ALLOWED_EMAILS = {
     if item != ACCESS_KEY_ALLOW_ALL_TOKEN
 }
 
+PRESENTATION_ADMIN_ROLE_ENV_VAR = "RALAB_PRESENTATION_ADMIN_ROLE"
+PRESENTATION_ADMIN_ROLE = os.environ.get(PRESENTATION_ADMIN_ROLE_ENV_VAR, "").strip().lower()
+
 JWT_SECRET_ENV_VAR = "RALAB_JWT_SECRET"
 JWT_LEGACY_SECRET = "ralab3-secret-dev-2026"
 JWT_DEFAULT_SECRET = "ralab5-dev-jwt-secret-2026-minimum-32-bytes"
@@ -148,6 +151,14 @@ class HintResponse(BaseModel):
 
 
 # ── Helpers JWT ───────────────────────────────────────────────────────────────
+def _session_role_and_permissions(user: dict) -> tuple[str, list[str]]:
+    """Em access_key + RALAB_PRESENTATION_ADMIN_ROLE, eleva o perfil (demo opcao 5)."""
+    role_code = user["role_code"]
+    if AUTH_MODE == AUTH_MODE_ACCESS_KEY and PRESENTATION_ADMIN_ROLE:
+        role_code = PRESENTATION_ADMIN_ROLE
+    return role_code, _sec_repo.get_permissions_for_role(role_code)
+
+
 def _create_token(email: str, role_code: str, permissions: list[str]) -> str:
     payload = {
         "sub":         email,
@@ -550,8 +561,8 @@ def login(body: LoginRequest, request: Request):
     if int(user["is_active"]) != 1:
         raise HTTPException(status_code=401, detail="Compte inactif.")
 
-    permissions = _sec_repo.get_permissions_for_role(user["role_code"])
-    token = _create_token(user["email"], user["role_code"], permissions)
+    role_code, permissions = _session_role_and_permissions(user)
+    token = _create_token(user["email"], role_code, permissions)
 
     return LoginResponse(
         token=token,
@@ -559,7 +570,7 @@ def login(body: LoginRequest, request: Request):
         user=UserSchema(
             email=user["email"],
             display_name=user["display_name"],
-            role_code=user["role_code"],
+            role_code=role_code,
             service_code=user["service_code"],
             employment_level_code=user["employment_level_code"],
             employment_level_label=user["employment_level_label"],
@@ -579,11 +590,12 @@ def me(current=Depends(get_current_user)):
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
 
-    permissions = _sec_repo.get_permissions_for_role(user["role_code"])
+    role_code = current.get("role") or user["role_code"]
+    permissions = current.get("permissions") or _sec_repo.get_permissions_for_role(role_code)
     return UserSchema(
         email=user["email"],
         display_name=user["display_name"],
-        role_code=user["role_code"],
+        role_code=role_code,
         service_code=user["service_code"],
         employment_level_code=user["employment_level_code"],
         employment_level_label=user["employment_level_label"],

@@ -1,0 +1,1913 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RaLab - Qualité / QSSE FNC Mockup</title>
+    <style>
+        :root {
+            --bg: #f5f7fa;
+            --surface: #ffffff;
+            --text: #1f2630;
+            --muted: #6f7681;
+            --border: #d8dde6;
+            --accent: #003275;
+            --accent-2: #d3ae43;
+            --danger: #a32d2d;
+            --danger-bg: #fcebeb;
+            --green: #3b6d11;
+            --green-bg: #eaf3de;
+            --amber: #854f0b;
+            --amber-bg: #faeeda;
+            --blue: #185fa5;
+            --blue-bg: #e6f1fb;
+            --neutral-bg: #f1efe8;
+            --neutral: #5f5e5a;
+            --shadow: 0 2px 10px rgba(31, 38, 48, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+            font-size: 13px;
+        }
+
+        button,
+        input,
+        select {
+            font-family: inherit;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .page {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg);
+        }
+
+        .top-tabs {
+            height: 48px;
+            display: flex;
+            align-items: center;
+            gap: 0;
+            padding: 0 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .top-tab {
+            height: 48px;
+            padding: 0 16px;
+            border: 0;
+            border-bottom: 2px solid transparent;
+            background: transparent;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .top-tab:hover {
+            color: var(--text);
+        }
+
+        .top-tab.active {
+            border-bottom-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .stats-bar {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 10px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        .stat-inline {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .stat-inline strong {
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .stat-inline span {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .text-green {
+            color: var(--green);
+        }
+
+        .text-red {
+            color: var(--danger);
+        }
+
+        .text-amber {
+            color: var(--amber);
+        }
+
+        .text-blue {
+            color: var(--blue);
+        }
+
+        .main {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .tab-placeholder {
+            flex: 1;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            overflow: auto;
+        }
+
+        .placeholder-card {
+            max-width: 760px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 24px;
+        }
+
+        .placeholder-eyebrow {
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 700;
+        }
+
+        .placeholder-card h2 {
+            margin: 6px 0 8px;
+            font-size: 22px;
+        }
+
+        .placeholder-card p {
+            color: var(--muted);
+            line-height: 1.6;
+            margin: 0;
+        }
+
+        .qsse-left {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .qsse-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        .field,
+        .select {
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg);
+            color: var(--text);
+            outline: none;
+            padding: 0 10px;
+            font-size: 13px;
+        }
+
+        .field:focus,
+        .select:focus {
+            border-color: var(--accent);
+            background: var(--surface);
+        }
+
+        .field.search {
+            width: 300px;
+        }
+
+        .segmented {
+            display: flex;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--surface);
+        }
+
+        .segmented button {
+            height: 34px;
+            padding: 0 12px;
+            border: 0;
+            border-right: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .segmented button:last-child {
+            border-right: 0;
+        }
+
+        .segmented button.active {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn {
+            height: 36px;
+            padding: 0 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .btn.primary {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .btn.amber {
+            border-color: #efd8ad;
+            background: var(--amber-bg);
+            color: var(--amber);
+        }
+
+        .btn.green {
+            border-color: #cde4bd;
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .toolbar-count {
+            margin-left: auto;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .kpi-strip {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(110px, 1fr));
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg);
+            flex-shrink: 0;
+        }
+
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            min-width: 0;
+        }
+
+        .kpi-card .label {
+            color: var(--muted);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .kpi-card .value {
+            margin-top: 4px;
+            font-size: 20px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .workflow {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .workflow-step {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 9px 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .workflow-step .num {
+            width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            display: grid;
+            place-items: center;
+            background: var(--accent);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .workflow-step span:last-child {
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .mini-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding: 12px 16px;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .mini-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+            min-height: 136px;
+        }
+
+        .mini-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .bars-list {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .bar-row {
+            display: grid;
+            grid-template-columns: 170px 1fr 28px;
+            gap: 8px;
+            align-items: center;
+            font-size: 11px;
+        }
+
+        .bar-track {
+            height: 7px;
+            background: var(--bg);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 999px;
+        }
+
+        .month-chart {
+            display: flex;
+            height: 94px;
+            align-items: end;
+            gap: 12px;
+        }
+
+        .month {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .month-bars {
+            width: 100%;
+            height: 72px;
+            display: flex;
+            gap: 4px;
+            align-items: end;
+            justify-content: center;
+            background: var(--bg);
+            border-radius: 6px;
+            padding: 5px 5px 3px;
+        }
+
+        .month-bar {
+            width: 45%;
+            min-height: 6px;
+            border-radius: 4px 4px 0 0;
+        }
+
+        .month-bar.raw {
+            background: var(--accent);
+        }
+
+        .month-bar.clean {
+            background: var(--accent-2);
+        }
+
+        .month-label {
+            font-size: 10px;
+            color: var(--muted);
+        }
+
+        .table-wrap {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            background: var(--surface);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 2;
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 9px 10px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        tr {
+            cursor: pointer;
+        }
+
+        tbody tr:hover {
+            background: var(--bg);
+        }
+
+        tbody tr.selected {
+            background: #eeeffe;
+        }
+
+        tbody tr.late {
+            border-left: 3px solid var(--danger);
+        }
+
+        .ref {
+            color: var(--accent);
+            font-weight: 800;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .ref.fnc {
+            color: var(--danger);
+        }
+
+        .truncate {
+            max-width: 260px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .num-right {
+            text-align: right;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            height: 20px;
+            padding: 0 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .badge.fnc,
+        .badge.ouverte,
+        .badge.majeure,
+        .badge.critique,
+        .badge.absence {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .badge.fae,
+        .badge.mesure,
+        .badge.cloturee,
+        .badge.validee,
+        .badge.positive,
+        .badge.env {
+            background: var(--green-bg);
+            color: var(--green);
+        }
+
+        .badge.bp,
+        .badge.diffuser,
+        .badge.verifiee,
+        .badge.mineure,
+        .badge.bonne {
+            background: var(--blue-bg);
+            color: var(--blue);
+        }
+
+        .badge.info,
+        .badge.signal,
+        .badge.neutral {
+            background: var(--neutral-bg);
+            color: var(--neutral);
+        }
+
+        .badge.amber,
+        .badge.analyse,
+        .badge.en-cours,
+        .badge.backlog,
+        .badge.significative,
+        .badge.methode {
+            background: var(--amber-bg);
+            color: var(--amber);
+        }
+
+        .detail {
+            width: 500px;
+            min-width: 360px;
+            max-width: 760px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            box-shadow: -10px 0 28px rgba(31, 38, 48, 0.08);
+        }
+
+        .detail-resizer {
+            width: 8px;
+            flex-shrink: 0;
+            cursor: col-resize;
+            background:
+                linear-gradient(90deg, transparent 0, transparent 2px, rgba(0, 50, 117, 0.16) 2px, rgba(0, 50, 117, 0.16) 4px, transparent 4px);
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }
+
+        .detail-resizer:hover,
+        body.resizing-detail .detail-resizer {
+            background:
+                linear-gradient(90deg, rgba(0, 50, 117, 0.10), rgba(0, 50, 117, 0.22), rgba(0, 50, 117, 0.10));
+            border-color: var(--accent);
+        }
+
+        body.resizing-detail {
+            cursor: col-resize;
+            user-select: none;
+        }
+
+        .detail-head {
+            min-height: 58px;
+            padding: 13px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+            background: linear-gradient(135deg, var(--accent), #0d4c9a);
+            color: #fff;
+        }
+
+        .detail-head span {
+            color: #fff;
+            font-size: 13px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .detail-head small {
+            display: block;
+            margin-top: 2px;
+            color: rgba(255, 255, 255, 0.76);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        .detail-head button {
+            width: 30px;
+            height: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 21px;
+            line-height: 1;
+        }
+
+        .detail-head button:hover {
+            background: rgba(255, 255, 255, 0.18);
+        }
+
+        .detail-body {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            background:
+                linear-gradient(180deg, rgba(0, 50, 117, 0.045), transparent 180px),
+                var(--surface);
+        }
+
+        .detail-summary-card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            background: var(--surface);
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .detail-title .ref {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .detail-title h3 {
+            margin: 0;
+            font-size: 17px;
+            line-height: 1.35;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 14px;
+        }
+
+        .detail-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            padding: 12px;
+        }
+
+        .detail-card-title {
+            margin-bottom: 9px;
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .detail-card.highlight {
+            border-color: #efd8ad;
+            background: #fffaf0;
+        }
+
+        .detail-card.warning {
+            border-color: #f4c7c7;
+            background: #fff8f8;
+        }
+
+        .detail-meta-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .detail-meta {
+            border-radius: 10px;
+            background: var(--bg);
+            padding: 8px;
+        }
+
+        .detail-meta label {
+            display: block;
+            margin-bottom: 2px;
+            color: var(--muted);
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .detail-meta span {
+            font-size: 12px;
+            font-weight: 800;
+        }
+
+        .badge-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .detail-section {
+            border-top: 0;
+            padding-top: 0;
+        }
+
+        .df {
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .df:last-child {
+            margin-bottom: 0;
+        }
+
+        .df label {
+            color: var(--muted);
+            font-size: 10px;
+        }
+
+        .df span {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .text-block {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--surface);
+            padding: 12px;
+        }
+
+        .text-block label {
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .text-block p {
+            margin: 7px 0 0;
+            line-height: 1.6;
+            font-size: 13px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .chip {
+            border-radius: 999px;
+            background: var(--amber-bg);
+            color: var(--amber);
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 8px;
+        }
+
+        .convert-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-top: 8px;
+        }
+
+        .convert-grid button {
+            height: 32px;
+            border: 0;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 900;
+        }
+
+        .detail-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: auto;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .cards-view {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            padding: 16px;
+            background: var(--bg);
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .action-card,
+        .rex-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 14px;
+            box-shadow: var(--shadow);
+        }
+
+        .card-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .card-head h3 {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.3;
+        }
+
+        .card-muted {
+            margin-top: 4px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .mini-grid {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .mini-box {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 12px;
+        }
+
+        .mini-box span {
+            display: block;
+            color: var(--muted);
+            font-size: 10px;
+            margin-bottom: 2px;
+        }
+
+        .rex-body {
+            margin-top: 12px;
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 12px;
+            line-height: 1.5;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 1400px) {
+            .detail {
+                width: 440px;
+                min-width: 390px;
+            }
+        }
+
+        @media (max-width: 1300px) {
+            .detail {
+                width: 390px;
+                min-width: 340px;
+            }
+
+            .kpi-strip {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .workflow {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .mini-area {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 900px) {
+            body {
+                overflow: auto;
+                height: auto;
+            }
+
+            .page {
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .main {
+                flex-direction: column;
+                overflow: visible;
+            }
+
+            .detail {
+                width: 100% !important;
+                min-width: 0;
+                max-width: none;
+                border-left: 0;
+                border-top: 1px solid var(--border);
+            }
+
+            .detail-resizer {
+                display: none;
+            }
+
+            .table-wrap {
+                max-height: 520px;
+            }
+
+            .cards-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .kpi-strip {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <nav class="top-tabs" aria-label="Qualité tabs">
+            <button class="top-tab" data-main-tab="equipment">🔧 Équipements</button>
+            <button class="top-tab" data-main-tab="metrology">📊 Métrologie</button>
+            <button class="top-tab" data-main-tab="procedures">📄 Procédures</button>
+            <button class="top-tab" data-main-tab="standards">📐 Normes</button>
+            <button class="top-tab active" data-main-tab="qsse">🧭 QSSE / FNC</button>
+        </nav>
+
+        <section class="stats-bar">
+            <div class="stat-inline"><strong class="text-green">142</strong><span>Équip. actifs</span></div>
+            <div class="stat-inline"><strong class="text-red">4</strong><span>Hors service</span></div>
+            <div class="stat-inline"><strong class="text-amber">12</strong><span>Étalonn. à faire</span></div>
+            <div class="stat-inline"><strong>38</strong><span>Procédures</span></div>
+            <div class="stat-inline"><strong>64</strong><span>Normes</span></div>
+            <div class="stat-inline"><strong class="text-red">19</strong><span>QSSE ouverts</span></div>
+            <div class="stat-inline"><strong class="text-amber">79</strong><span>Backlog 2025</span></div>
+            <div class="stat-inline"><strong class="text-blue">31</strong><span>BP à valoriser</span></div>
+        </section>
+
+        <main class="main">
+            <section class="tab-placeholder hidden" data-panel="equipment">
+                <div class="placeholder-card">
+                    <div class="placeholder-eyebrow">Onglet existant conservé</div>
+                    <h2>Équipements</h2>
+                    <p>Inventaire, statut, affectation, métrologie liée et fiche matériel restent dans l’onglet existant de QualitePage.</p>
+                </div>
+            </section>
+
+            <section class="tab-placeholder hidden" data-panel="metrology">
+                <div class="placeholder-card">
+                    <div class="placeholder-eyebrow">Onglet existant conservé</div>
+                    <h2>Métrologie</h2>
+                    <p>Suivi des étalonnages, vérifications, échéances et certificats. La QSSE/FNC vient en plus, sans casser cette logique.</p>
+                </div>
+            </section>
+
+            <section class="tab-placeholder hidden" data-panel="procedures">
+                <div class="placeholder-card">
+                    <div class="placeholder-eyebrow">Onglet existant conservé</div>
+                    <h2>Procédures</h2>
+                    <p>Gestion documentaire des procédures qualité, indices, statuts, révisions et rattachement aux essais.</p>
+                </div>
+            </section>
+
+            <section class="tab-placeholder hidden" data-panel="standards">
+                <div class="placeholder-card">
+                    <div class="placeholder-eyebrow">Onglet existant conservé</div>
+                    <h2>Normes</h2>
+                    <p>Référentiel normatif, versions applicables et liens avec les feuilles d’essais et rapports.</p>
+                </div>
+            </section>
+
+            <section class="qsse-left" data-panel="qsse">
+                <div class="qsse-toolbar">
+                    <input id="searchInput" class="field search" placeholder="Référence, chantier, titre, responsable…" />
+
+                    <select id="typeFilter" class="select">
+                        <option value="ALL">Tous registres</option>
+                        <option value="FNC">Registre FNC</option>
+                        <option value="FAE">Registre FAE</option>
+                        <option value="BP">Registre BP</option>
+                        <option value="INFO">Remontées d'infos</option>
+                    </select>
+
+                    <select id="statusFilter" class="select">
+                        <option value="ALL">Tous statuts</option>
+                        <option value="OPEN">Ouverts / en cours</option>
+                        <option value="BACKLOG">Backlog</option>
+                        <option value="REX">À valoriser REX</option>
+                        <option value="LATE">En retard</option>
+                    </select>
+
+                    <select id="dateMode" class="select">
+                        <option value="registered">Date de saisie</option>
+                        <option value="event">Date du fait</option>
+                        <option value="reported">Date de remontée</option>
+                        <option value="closed">Date de clôture</option>
+                    </select>
+
+                    <div class="segmented">
+                        <button class="active" data-view="table">Registre</button>
+                        <button data-view="actions">Actions</button>
+                        <button data-view="rex">REX</button>
+                    </div>
+
+                    <button id="backlogBtn" class="btn amber">Inclure backlog</button>
+
+                    <span id="rowsCount" class="toolbar-count">0 événements</span>
+                    <button class="btn primary">+ Nouvelle remontée</button>
+                </div>
+
+                <div id="kpiStrip" class="kpi-strip"></div>
+
+                <div class="workflow">
+                    <div class="workflow-step"><span class="num">1</span><span>Remontée info</span></div>
+                    <div class="workflow-step"><span class="num">2</span><span>Qualification</span></div>
+                    <div class="workflow-step"><span class="num">3</span><span>FNC / FAE / BP</span></div>
+                    <div class="workflow-step"><span class="num">4</span><span>Action</span></div>
+                    <div class="workflow-step"><span class="num">5</span><span>Validation</span></div>
+                    <div class="workflow-step"><span class="num">6</span><span>REX</span></div>
+                </div>
+
+                <div class="mini-area">
+                    <div class="mini-card">
+                        <div class="mini-head">
+                            <span>Pareto familles</span>
+                            <span id="filteredNote">0 lignes filtrées</span>
+                        </div>
+                        <div id="familyBars" class="bars-list"></div>
+                    </div>
+
+                    <div class="mini-card">
+                        <div class="mini-head">
+                            <span>Lecture mensuelle</span>
+                            <span>brut / nettoyé</span>
+                        </div>
+                        <div id="monthChart" class="month-chart"></div>
+                    </div>
+                </div>
+
+                <div id="tableView" class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Référence</th>
+                                <th>Chantier</th>
+                                <th>Sujet</th>
+                                <th>Famille</th>
+                                <th>Sévérité</th>
+                                <th>Statut</th>
+                                <th>Date fait</th>
+                                <th>Saisie</th>
+                                <th>Responsable</th>
+                                <th>Coût</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eventsBody"></tbody>
+                    </table>
+                </div>
+
+                <div id="actionsView" class="cards-view hidden">
+                    <div id="actionsGrid" class="cards-grid"></div>
+                </div>
+
+                <div id="rexView" class="cards-view hidden">
+                    <div id="rexGrid" class="cards-grid"></div>
+                </div>
+            </section>
+
+            <div id="detailResizer" class="detail-resizer" title="Glisser pour élargir ou réduire le détail QSSE"></div>
+            <aside id="detailPanel" class="detail">
+                <div class="detail-head">
+                    <span>Détail QSSE<small>glisser la barre à gauche pour élargir</small></span>
+                    <button id="closeDetail" title="Fermer">×</button>
+                </div>
+                <div id="detailBody" class="detail-body"></div>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        const QSSE_EVENTS = [
+            {
+                uid: "evt-001",
+                reference: "2026-RA-FNC0001",
+                type: "FNC",
+                source_year: "2025",
+                registered_year: "2026",
+                detected_on: "12/02/2026",
+                event_date: "2025 à confirmer",
+                reported_on: "Février 2026",
+                closure_date: "",
+                agency: "RL GT",
+                chantier: "RAN63C",
+                title: "Liste FNC T6 - réseaux / voirie",
+                family: "Technique / interfaces",
+                severity: "Majeure",
+                status: "Backlog 2025",
+                owner: "Qualité RA",
+                source_type: "Registre FNC",
+                cost: 43140,
+                is_backlog: true,
+                is_late: true,
+                data_quality: ["date du fait à confirmer", "doublons 2025 suspects", "action corrective à compléter"],
+                description: "FNC issues du chantier RAN63C / T6, rattachées à des faits 2025 mais remontées tardivement et saisies dans le registre 2026.",
+                cause: "Remontée tardive par le chantier, consolidation incomplète des références T6 et risque de mélange entre performance opérationnelle 2025 et saisie 2026.",
+                action_immediate: "Marquer le lot comme backlog 2025 et empêcher son interprétation comme dérive opérationnelle de février 2026.",
+                corrective_action: "Requalifier les lignes RAN63C/T6, vérifier les doublons avec le registre 2025 et imposer date du fait, date de remontée et date de saisie.",
+                rex: "Cas école pour séparer performance chantier et qualité du circuit de remontée."
+            },
+            {
+                uid: "evt-002",
+                reference: "2026-RA-FNC0081",
+                type: "FNC",
+                source_year: "2026",
+                registered_year: "2026",
+                detected_on: "18/02/2026",
+                event_date: "18/02/2026",
+                reported_on: "18/02/2026",
+                closure_date: "",
+                agency: "AUV EHTP",
+                chantier: "RAP22K",
+                title: "Absence de contrôle sur tranchées AEP",
+                family: "Absence de contrôle",
+                severity: "Majeure",
+                status: "Action en cours",
+                owner: "Responsable travaux",
+                source_type: "Chantier",
+                cost: 25000,
+                is_backlog: false,
+                is_late: false,
+                data_quality: ["coût renseigné", "cause à détailler"],
+                description: "Défaut de contrôle identifié après exécution de tranchées AEP.",
+                cause: "Contrôle insuffisant avant fermeture et traçabilité chantier incomplète.",
+                action_immediate: "Sécurisation du périmètre et reprise ciblée.",
+                corrective_action: "Formaliser le plan de contrôle avant démarrage des phases similaires.",
+                rex: "Checklist contrôle avant remblaiement à diffuser."
+            },
+            {
+                uid: "evt-003",
+                reference: "2026-RA-FAE0014",
+                type: "FAE",
+                source_year: "2026",
+                registered_year: "2026",
+                detected_on: "04/03/2026",
+                event_date: "04/03/2026",
+                reported_on: "04/03/2026",
+                closure_date: "",
+                agency: "RL TU",
+                chantier: "RAQ18B",
+                title: "Départ de boue vers avaloir après pluie",
+                family: "Environnement / eaux",
+                severity: "Significative",
+                status: "Mesure faite",
+                owner: "QSE chantier",
+                source_type: "FAE environnement",
+                cost: 1200,
+                is_backlog: false,
+                is_late: false,
+                data_quality: ["photo preuve attendue"],
+                description: "Écoulement chargé vers un avaloir après épisode pluvieux.",
+                cause: "Protection d’avaloir insuffisante avant épisode pluvieux.",
+                action_immediate: "Protection avaloir et nettoyage de la zone.",
+                corrective_action: "Renforcer le balisage et les protections avant intempéries.",
+                rex: "Prévoir alerte météo chantier + kit protection avaloir."
+            },
+            {
+                uid: "evt-004",
+                reference: "2026-RA-BP0007",
+                type: "BP",
+                source_year: "2026",
+                registered_year: "2026",
+                detected_on: "11/03/2026",
+                event_date: "11/03/2026",
+                reported_on: "11/03/2026",
+                closure_date: "",
+                agency: "AUV",
+                chantier: "RAP56C",
+                title: "Pré-check enrobés avant intervention de nuit",
+                family: "Bonne pratique / contrôle",
+                severity: "Positive",
+                status: "À diffuser",
+                owner: "Labo / travaux",
+                source_type: "Bonne pratique",
+                cost: 0,
+                is_backlog: false,
+                is_late: false,
+                data_quality: ["validation qualité attendue"],
+                description: "Vérification partagée labo/travaux avant intervention nocturne.",
+                cause: "Bonne anticipation des interfaces travaux, labo et production.",
+                action_immediate: "Documenter la pratique avec photos et checklist.",
+                corrective_action: "Transformer en support 1/4h qualité.",
+                rex: "Standardiser le pré-check enrobés avant intervention sensible."
+            },
+            {
+                uid: "evt-005",
+                reference: "2026-RA-RI0023",
+                type: "INFO",
+                source_year: "2026",
+                registered_year: "2026",
+                detected_on: "22/03/2026",
+                event_date: "22/03/2026",
+                reported_on: "22/03/2026",
+                closure_date: "",
+                agency: "AIN",
+                chantier: "RAP99A",
+                title: "Risque récurrent de confusion de plans indice B/C",
+                family: "Remontée d'info / prévention",
+                severity: "Signal faible",
+                status: "À analyser",
+                owner: "Méthodes / travaux",
+                source_type: "Remontée d'info",
+                cost: 0,
+                is_backlog: false,
+                is_late: false,
+                data_quality: ["qualification à décider"],
+                description: "Plusieurs équipes évoquent une confusion possible entre deux indices de plans.",
+                cause: "Circuit documentaire chantier à vérifier.",
+                action_immediate: "Vérifier les plans diffusés aux équipes.",
+                corrective_action: "Créer une alerte prévention documentaire si le risque est confirmé.",
+                rex: "Signal faible à qualifier avant apparition d’une FNC."
+            },
+            {
+                uid: "evt-006",
+                reference: "2026-RA-FNC0097",
+                type: "FNC",
+                source_year: "2026",
+                registered_year: "2026",
+                detected_on: "05/03/2026",
+                event_date: "05/03/2026",
+                reported_on: "05/03/2026",
+                closure_date: "",
+                agency: "AIN",
+                chantier: "RAP99A",
+                title: "Fuite réseau incendie",
+                family: "Méthode de travail",
+                severity: "Majeure",
+                status: "Ouverte",
+                owner: "Chef de secteur",
+                source_type: "Chantier",
+                cost: 20000,
+                is_backlog: false,
+                is_late: true,
+                data_quality: ["analyse cause racine attendue"],
+                description: "Fuite sur réseau incendie après intervention.",
+                cause: "Méthodologie de travail et contrôle d’interface à analyser.",
+                action_immediate: "Mise en sécurité et réparation.",
+                corrective_action: "Analyse cause racine + contrôle avant remise en service.",
+                rex: "REX réseau sous pression à produire."
+            },
+            {
+                uid: "evt-007",
+                reference: "2026-RA-FAE0021",
+                type: "FAE",
+                source_year: "2026",
+                registered_year: "2026",
+                detected_on: "08/04/2026",
+                event_date: "08/04/2026",
+                reported_on: "08/04/2026",
+                closure_date: "",
+                agency: "LHL",
+                chantier: "RAQ31D",
+                title: "Stockage provisoire matériaux à clarifier",
+                family: "Environnement / stockage",
+                severity: "Mineure",
+                status: "En cours",
+                owner: "Chef chantier",
+                source_type: "FAE environnement",
+                cost: 0,
+                is_backlog: false,
+                is_late: false,
+                data_quality: ["photo zone attendue"],
+                description: "Zone de stockage provisoire non suffisamment formalisée.",
+                cause: "Zone chantier en évolution et consignes non stabilisées.",
+                action_immediate: "Définir zone balisée et photo preuve.",
+                corrective_action: "Ajouter un point stockage au briefing environnement.",
+                rex: "Modèle de zone stockage temporaire à partager."
+            },
+            {
+                uid: "evt-008",
+                reference: "2026-RA-BP0012",
+                type: "BP",
+                source_year: "2026",
+                registered_year: "2026",
+                detected_on: "15/04/2026",
+                event_date: "15/04/2026",
+                reported_on: "15/04/2026",
+                closure_date: "20/04/2026",
+                agency: "RL GT",
+                chantier: "RAQ40F",
+                title: "Planche photo autocontrôle avant remblaiement",
+                family: "Bonne pratique / traçabilité",
+                severity: "Positive",
+                status: "Validée",
+                owner: "Qualité RA",
+                source_type: "Bonne pratique",
+                cost: 0,
+                is_backlog: false,
+                is_late: false,
+                data_quality: ["validée pour diffusion"],
+                description: "Planche photo claire avant remblaiement, avec repérage et date.",
+                cause: "Bonne organisation de la preuve chantier.",
+                action_immediate: "Capitaliser la trame.",
+                corrective_action: "Diffusion agences et intégration dans le support 1/4h qualité.",
+                rex: "Bonne pratique directement diffusable."
+            }
+        ];
+
+        const QSSE_ACTIONS = [
+            { uid: "act-001", type: "FNC", title: "Requalifier le stock RAN63C / T6", pilot: "Qualité RA", due_date: "31/05/2026", status: "En cours", risk: "Haut" },
+            { uid: "act-002", type: "FNC", title: "Créer typologie causes RaLab", pilot: "RST / Qualité", due_date: "15/06/2026", status: "À faire", risk: "Moyen" },
+            { uid: "act-003", type: "FAE", title: "Formaliser les FAE environnement", pilot: "QSE / Exploitation", due_date: "20/06/2026", status: "À faire", risk: "Moyen" },
+            { uid: "act-004", type: "BP", title: "Transformer les BP en supports diffusables", pilot: "Qualité RA", due_date: "30/06/2026", status: "À faire", risk: "Faible" },
+            { uid: "act-005", type: "INFO", title: "Trier les remontées d'infos utiles", pilot: "Méthodes / RST", due_date: "15/07/2026", status: "À cadrer", risk: "Moyen" }
+        ];
+
+        const FAMILY_DATA = [
+            { label: "Technique / interfaces", value: 82 },
+            { label: "Erreur humaine / rigueur", value: 30 },
+            { label: "Environnement / eaux", value: 14 },
+            { label: "Communication", value: 8 },
+            { label: "Méthode", value: 7 }
+        ];
+
+        const MONTH_DATA = [
+            { label: "Jan", fnc: 27, clean: 21 },
+            { label: "Fév", fnc: 87, clean: 19 },
+            { label: "Mar", fnc: 29, clean: 26 },
+            { label: "Avr", fnc: 13, clean: 11 }
+        ];
+
+        const state = {
+            selectedUid: "evt-001",
+            hideBacklog: false,
+            view: "table",
+            activeTab: "qsse",
+            detailOpen: true
+        };
+
+        const els = {
+            searchInput: document.getElementById("searchInput"),
+            typeFilter: document.getElementById("typeFilter"),
+            statusFilter: document.getElementById("statusFilter"),
+            dateMode: document.getElementById("dateMode"),
+            backlogBtn: document.getElementById("backlogBtn"),
+            rowsCount: document.getElementById("rowsCount"),
+            kpiStrip: document.getElementById("kpiStrip"),
+            eventsBody: document.getElementById("eventsBody"),
+            detailPanel: document.getElementById("detailPanel"),
+            detailResizer: document.getElementById("detailResizer"),
+            detailBody: document.getElementById("detailBody"),
+            closeDetail: document.getElementById("closeDetail"),
+            familyBars: document.getElementById("familyBars"),
+            monthChart: document.getElementById("monthChart"),
+            filteredNote: document.getElementById("filteredNote"),
+            tableView: document.getElementById("tableView"),
+            actionsView: document.getElementById("actionsView"),
+            rexView: document.getElementById("rexView"),
+            actionsGrid: document.getElementById("actionsGrid"),
+            rexGrid: document.getElementById("rexGrid")
+        };
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function formatMoney(value) {
+            if (!value) {
+                return "—";
+            }
+
+            return new Intl.NumberFormat("fr-FR", {
+                style: "currency",
+                currency: "EUR",
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+
+        function badgeClass(value, type) {
+            const key = String(value || "").toLowerCase();
+
+            if (type === "register") {
+                if (key === "fnc") return "fnc";
+                if (key === "fae") return "fae";
+                if (key === "bp") return "bp";
+                return "info";
+            }
+
+            if (key.includes("backlog")) return "backlog";
+            if (key.includes("ouverte")) return "ouverte";
+            if (key.includes("analyse") || key.includes("cours") || key.includes("diffuser")) return key.includes("diffuser") ? "diffuser" : "en-cours";
+            if (key.includes("mesure") || key.includes("clôturée") || key.includes("validée")) return "validee";
+            if (key.includes("majeure") || key.includes("critique")) return "majeure";
+            if (key.includes("significative")) return "significative";
+            if (key.includes("mineure")) return "mineure";
+            if (key.includes("positive")) return "positive";
+            if (key.includes("signal")) return "signal";
+            if (key.includes("environnement")) return "env";
+            if (key.includes("bonne")) return "bonne";
+            if (key.includes("méthode")) return "methode";
+            if (key.includes("absence") || key.includes("technique")) return "absence";
+            return "neutral";
+        }
+
+        function badge(value, type) {
+            if (!value) return "";
+            return `<span class="badge ${badgeClass(value, type)}">${escapeHtml(value)}</span>`;
+        }
+
+        function getFilteredRows() {
+            const q = els.searchInput.value.trim().toLowerCase();
+            const type = els.typeFilter.value;
+            const status = els.statusFilter.value;
+
+            return QSSE_EVENTS.filter(row => {
+                if (type !== "ALL" && row.type !== type) return false;
+                if (state.hideBacklog && row.is_backlog) return false;
+                if (status === "OPEN" && !["Ouverte", "En analyse", "En cours", "Action en cours", "À analyser"].includes(row.status)) return false;
+                if (status === "BACKLOG" && !row.is_backlog) return false;
+                if (status === "REX" && !row.rex) return false;
+                if (status === "LATE" && !row.is_late) return false;
+
+                if (!q) return true;
+
+                return [
+                    row.reference,
+                    row.type,
+                    row.chantier,
+                    row.title,
+                    row.family,
+                    row.status,
+                    row.owner,
+                    row.agency,
+                    row.description
+                ].filter(Boolean).join(" ").toLowerCase().includes(q);
+            });
+        }
+
+        function renderKpis(rows) {
+            const counters = { FNC: 0, FAE: 0, BP: 0, INFO: 0 };
+            let cost = 0;
+            let backlog = 0;
+            let late = 0;
+
+            rows.forEach(row => {
+                counters[row.type] += 1;
+                cost += row.cost || 0;
+                if (row.is_backlog) backlog += 1;
+                if (row.is_late) late += 1;
+            });
+
+            const items = [
+                { label: "FNC", value: counters.FNC, cls: "text-red" },
+                { label: "FAE", value: counters.FAE, cls: "text-green" },
+                { label: "BP", value: counters.BP, cls: "text-blue" },
+                { label: "Infos", value: counters.INFO, cls: "" },
+                { label: state.hideBacklog ? "Backlog masqué" : "Backlog affiché", value: backlog, cls: "text-amber" },
+                { label: "En retard", value: late, cls: "text-red" },
+                { label: "Coût déclaré", value: formatMoney(cost), cls: "" }
+            ];
+
+            els.kpiStrip.innerHTML = items.map(item => `
+                <div class="kpi-card">
+                    <div class="label">${escapeHtml(item.label)}</div>
+                    <div class="value ${item.cls}">${escapeHtml(item.value)}</div>
+                </div>
+            `).join("");
+        }
+
+        function renderMiniCharts(rows) {
+            const maxFamily = Math.max(...FAMILY_DATA.map(item => item.value));
+            const maxMonth = Math.max(...MONTH_DATA.map(item => item.fnc));
+
+            els.filteredNote.textContent = `${rows.length} lignes filtrées`;
+
+            els.familyBars.innerHTML = FAMILY_DATA.map(item => `
+                <div class="bar-row">
+                    <span>${escapeHtml(item.label)}</span>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width:${Math.max(7, (item.value / maxFamily) * 100)}%"></div>
+                    </div>
+                    <span>${item.value}</span>
+                </div>
+            `).join("");
+
+            els.monthChart.innerHTML = MONTH_DATA.map(item => `
+                <div class="month">
+                    <div class="month-bars">
+                        <div class="month-bar raw" style="height:${Math.max(8, (item.fnc / maxMonth) * 100)}%"></div>
+                        <div class="month-bar clean" style="height:${Math.max(8, (item.clean / maxMonth) * 100)}%"></div>
+                    </div>
+                    <div class="month-label">${escapeHtml(item.label)}</div>
+                </div>
+            `).join("");
+        }
+
+        function renderTable(rows) {
+            if (rows.length === 0) {
+                els.eventsBody.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:48px;color:var(--muted);font-size:12px;">Aucun événement QSSE</td></tr>`;
+                return;
+            }
+
+            els.eventsBody.innerHTML = rows.map(row => `
+                <tr data-uid="${escapeHtml(row.uid)}" class="${row.uid === state.selectedUid ? "selected" : ""} ${row.is_late ? "late" : ""}">
+                    <td>${badge(row.type, "register")}</td>
+                    <td><span class="ref ${row.type === "FNC" ? "fnc" : ""}">${escapeHtml(row.reference)}</span></td>
+                    <td><strong style="font-size:12px;">${escapeHtml(row.chantier)}</strong></td>
+                    <td class="truncate" title="${escapeHtml(row.title)}">${escapeHtml(row.title)}</td>
+                    <td>${badge(row.family, "family")}</td>
+                    <td>${badge(row.severity, "severity")}</td>
+                    <td>${badge(row.status, "status")}</td>
+                    <td style="font-size:12px;">${escapeHtml(row.event_date || "—")}</td>
+                    <td style="font-size:12px;">${escapeHtml(row.detected_on || "—")}</td>
+                    <td style="font-size:12px;">${escapeHtml(row.owner || "—")}</td>
+                    <td class="num-right">${escapeHtml(formatMoney(row.cost))}</td>
+                </tr>
+            `).join("");
+
+            els.eventsBody.querySelectorAll("tr[data-uid]").forEach(tr => {
+                tr.addEventListener("click", () => {
+                    state.selectedUid = tr.dataset.uid;
+                    state.detailOpen = true;
+                    renderAll();
+                });
+            });
+        }
+
+        function renderActions() {
+            els.actionsGrid.innerHTML = QSSE_ACTIONS.map(action => `
+                <article class="action-card">
+                    <div class="card-head">
+                        <div>
+                            <h3>${escapeHtml(action.title)}</h3>
+                            <div class="card-muted">Pilote : ${escapeHtml(action.pilot)}</div>
+                        </div>
+                        ${badge(action.type, "register")}
+                    </div>
+                    <div class="mini-grid">
+                        <div class="mini-box"><span>Échéance</span><b>${escapeHtml(action.due_date)}</b></div>
+                        <div class="mini-box"><span>Statut</span><b>${escapeHtml(action.status)}</b></div>
+                        <div class="mini-box"><span>Risque</span><b>${escapeHtml(action.risk)}</b></div>
+                    </div>
+                </article>
+            `).join("");
+        }
+
+        function renderRex(rows) {
+            const rexRows = rows.filter(row => row.rex);
+
+            if (rexRows.length === 0) {
+                els.rexGrid.innerHTML = `<div style="color:var(--muted);font-size:12px;">Aucun REX dans la sélection.</div>`;
+                return;
+            }
+
+            els.rexGrid.innerHTML = rexRows.map(row => `
+                <article class="rex-card">
+                    <div class="card-head">
+                        <div>
+                            <div class="ref">${escapeHtml(row.reference)}</div>
+                            <h3>${escapeHtml(row.title)}</h3>
+                        </div>
+                        ${badge(row.type, "register")}
+                    </div>
+                    <div class="rex-body">${escapeHtml(row.rex)}</div>
+                    <div class="detail-actions">
+                        <button class="btn primary">Fiche REX</button>
+                        <button class="btn">Support 1/4h</button>
+                        <button class="btn">Diffuser</button>
+                    </div>
+                </article>
+            `).join("");
+        }
+
+        function df(label, value) {
+            return `
+                <div class="df">
+                    <label>${escapeHtml(label)}</label>
+                    <span>${escapeHtml(value || "—")}</span>
+                </div>
+            `;
+        }
+
+        function textBlock(label, value) {
+            if (!value) return "";
+            return `
+                <div class="text-block">
+                    <label>${escapeHtml(label)}</label>
+                    <p>${escapeHtml(value)}</p>
+                </div>
+            `;
+        }
+
+        function renderDetail(row) {
+            if (!row || state.activeTab !== "qsse" || !state.detailOpen) {
+                els.detailPanel.classList.add("hidden");
+                els.detailResizer.classList.add("hidden");
+                return;
+            }
+
+            els.detailPanel.classList.remove("hidden");
+            els.detailResizer.classList.remove("hidden");
+
+            els.detailBody.innerHTML = `
+                <div class="detail-summary-card">
+                    <div class="detail-title">
+                        <span class="ref ${row.type === "FNC" ? "fnc" : ""}">${escapeHtml(row.reference)}</span>
+                        <h3>${escapeHtml(row.title)}</h3>
+                        <div class="badge-row">
+                            ${badge(row.type, "register")}
+                            ${badge(row.status, "status")}
+                            ${badge(row.severity, "severity")}
+                            ${row.is_backlog ? '<span class="badge backlog">Backlog</span>' : ''}
+                        </div>
+                    </div>
+
+                    <div class="detail-meta-row">
+                        <div class="detail-meta">
+                            <label>Chantier</label>
+                            <span>${escapeHtml(row.chantier || "—")}</span>
+                        </div>
+                        <div class="detail-meta">
+                            <label>Responsable</label>
+                            <span>${escapeHtml(row.owner || "—")}</span>
+                        </div>
+                        <div class="detail-meta">
+                            <label>Coût</label>
+                            <span>${escapeHtml(formatMoney(row.cost))}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-grid">
+                    <section class="detail-card">
+                        <div class="detail-card-title">Identification</div>
+                        ${df("Registre", row.type)}
+                        ${df("Source", row.source_type)}
+                        ${df("Agence", row.agency)}
+                        ${df("Famille", row.family)}
+                    </section>
+
+                    <section class="detail-card ${row.is_backlog ? "highlight" : ""}">
+                        <div class="detail-card-title">Temporalité</div>
+                        ${df("Date du fait", row.event_date)}
+                        ${df("Date de remontée", row.reported_on)}
+                        ${df("Date de saisie", row.detected_on)}
+                        ${df("Année opérationnelle", row.source_year)}
+                        ${df("Année registre", row.registered_year)}
+                        ${df("Clôturée le", row.closure_date)}
+                    </section>
+                </div>
+
+                <section class="detail-card warning">
+                    <div class="detail-card-title">Alertes qualité données</div>
+                    <div class="chips">
+                        ${(row.data_quality || []).map(item => `<span class="chip">${escapeHtml(item)}</span>`).join("") || '<span style="color:var(--muted);font-size:12px;">Aucune alerte</span>'}
+                    </div>
+                </section>
+
+                ${textBlock("Constat", row.description)}
+                ${textBlock("Cause / analyse", row.cause)}
+                ${textBlock("Action immédiate", row.action_immediate)}
+                ${textBlock("Action corrective / suite", row.corrective_action)}
+                ${textBlock("REX potentiel", row.rex)}
+
+                <section class="detail-card">
+                    <div class="detail-card-title">Conversion / qualification</div>
+                    <div class="convert-grid">
+                        <button class="badge fnc">FNC</button>
+                        <button class="badge fae">FAE</button>
+                        <button class="badge bp">BP</button>
+                        <button class="badge info">INFO</button>
+                    </div>
+                </section>
+
+                <div class="detail-actions">
+                    <button class="btn">✏️ Modifier</button>
+                    <button class="btn">✓ Clôturer</button>
+                    <button class="btn primary">REX</button>
+                    <button class="btn" style="background:var(--danger-bg);color:var(--danger);border-color:#f4c7c7;">🗑</button>
+                </div>
+            `;
+        }
+
+        function switchView(view) {
+            state.view = view;
+
+            document.querySelectorAll("[data-view]").forEach(btn => {
+                btn.classList.toggle("active", btn.dataset.view === view);
+            });
+
+            els.tableView.classList.toggle("hidden", view !== "table");
+            els.actionsView.classList.toggle("hidden", view !== "actions");
+            els.rexView.classList.toggle("hidden", view !== "rex");
+
+            if (view !== "table") {
+                els.detailPanel.classList.add("hidden");
+                els.detailResizer.classList.add("hidden");
+                return;
+            }
+
+            if (state.activeTab === "qsse" && state.detailOpen) {
+                const selected = QSSE_EVENTS.find(row => row.uid === state.selectedUid) || getFilteredRows()[0] || null;
+                renderDetail(selected);
+            }
+        }
+
+        function renderAll() {
+            const rows = getFilteredRows();
+            const selected = QSSE_EVENTS.find(row => row.uid === state.selectedUid) || rows[0] || null;
+
+            if (selected && !rows.some(row => row.uid === selected.uid)) {
+                state.selectedUid = rows[0]?.uid || "";
+            }
+
+            const effectiveSelected = QSSE_EVENTS.find(row => row.uid === state.selectedUid) || rows[0] || null;
+
+            els.rowsCount.textContent = `${rows.length} événement${rows.length !== 1 ? "s" : ""}`;
+            els.backlogBtn.textContent = state.hideBacklog ? "Backlog exclu" : "Inclure backlog";
+            els.backlogBtn.className = `btn ${state.hideBacklog ? "green" : "amber"}`;
+
+            renderKpis(rows);
+            renderMiniCharts(rows);
+            renderTable(rows);
+            renderActions();
+            renderRex(rows);
+            renderDetail(effectiveSelected);
+            switchView(state.view);
+        }
+
+        function switchMainTab(tab) {
+            state.activeTab = tab;
+
+            document.querySelectorAll("[data-main-tab]").forEach(btn => {
+                btn.classList.toggle("active", btn.dataset.mainTab === tab);
+            });
+
+            document.querySelectorAll("[data-panel]").forEach(panel => {
+                panel.classList.toggle("hidden", panel.dataset.panel !== tab);
+            });
+
+            if (tab !== "qsse") {
+                els.detailPanel.classList.add("hidden");
+                els.detailResizer.classList.add("hidden");
+                return;
+            }
+
+            renderAll();
+        }
+
+
+        function setupDetailResizer() {
+            let isDragging = false;
+            let startX = 0;
+            let startWidth = 0;
+
+            function clamp(value, min, max) {
+                return Math.min(Math.max(value, min), max);
+            }
+
+            function onMouseMove(event) {
+                if (!isDragging) return;
+
+                const delta = startX - event.clientX;
+                const nextWidth = clamp(startWidth + delta, 360, Math.min(760, window.innerWidth - 420));
+                els.detailPanel.style.width = `${nextWidth}px`;
+            }
+
+            function onMouseUp() {
+                if (!isDragging) return;
+
+                isDragging = false;
+                document.body.classList.remove("resizing-detail");
+                window.removeEventListener("mousemove", onMouseMove);
+                window.removeEventListener("mouseup", onMouseUp);
+            }
+
+            if (!els.detailResizer) return;
+
+            els.detailResizer.addEventListener("mousedown", (event) => {
+                if (els.detailPanel.classList.contains("hidden")) return;
+
+                isDragging = true;
+                startX = event.clientX;
+                startWidth = els.detailPanel.getBoundingClientRect().width;
+                document.body.classList.add("resizing-detail");
+
+                window.addEventListener("mousemove", onMouseMove);
+                window.addEventListener("mouseup", onMouseUp);
+                event.preventDefault();
+            });
+
+            els.detailResizer.addEventListener("dblclick", () => {
+                els.detailPanel.style.width = "500px";
+            });
+        }
+
+        els.searchInput.addEventListener("input", renderAll);
+        els.typeFilter.addEventListener("change", renderAll);
+        els.statusFilter.addEventListener("change", renderAll);
+        els.dateMode.addEventListener("change", renderAll);
+        els.backlogBtn.addEventListener("click", () => {
+            state.hideBacklog = !state.hideBacklog;
+            renderAll();
+        });
+        els.closeDetail.addEventListener("click", () => {
+            state.detailOpen = false;
+            els.detailPanel.classList.add("hidden");
+            els.detailResizer.classList.add("hidden");
+        });
+
+        document.querySelectorAll("[data-view]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                switchView(btn.dataset.view);
+            });
+        });
+
+        document.querySelectorAll("[data-main-tab]").forEach(btn => {
+            btn.addEventListener("click", () => {
+                switchMainTab(btn.dataset.mainTab);
+            });
+        });
+
+        setupDetailResizer();
+        switchMainTab("qsse");
+    </script>
+</body>
+</html>

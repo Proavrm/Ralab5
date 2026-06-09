@@ -1,8 +1,8 @@
 /**
  * pages/AffairePage.jsx
- * Fiche détail d'une affaire RST — fidèle à affaire.html legacy.
+ * Fiche détail d'une affaire RST — layout wide avec hero, métriques, grid 2 colonnes.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, affairesApi } from '@/services/api'
@@ -11,9 +11,10 @@ import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import Input, { Select } from '@/components/ui/Input'
+import { MetricCard } from '@/components/layout/FicheLayout'
 
 const STATUTS    = ['À qualifier', 'En cours', 'Terminée', 'Archivée']
-const TITULAIRES = ['', 'NGE GC', 'NGE Energie', 'NGE Routes', 'EHTP', 'NGE E.S.', 'NGE Transitions', 'Lyaudet', 'Autre']
+const DEFAULT_TITULAIRES = ['NGE GC', 'NGE Energie', 'NGE Routes', 'EHTP', 'NGE E.S.', 'NGE Transitions', 'Lyaudet', 'Autre']
 
 const STAT_AFF = {
   'À qualifier': 'bg-[#f1efe8] text-[#5f5e5a]',
@@ -48,16 +49,7 @@ function Badge({ s, map }) {
     </span>
   )
 }
-function FieldRow({ label, value }) {
-  return (
-    <div className="flex flex-col gap-0.5 mb-3 last:mb-0">
-      <div className="text-[10px] text-text-muted">{label}</div>
-      <div className={`text-[13px] font-medium ${!value ? 'text-text-muted italic font-normal' : ''}`}>
-        {value || '—'}
-      </div>
-    </div>
-  )
-}
+
 function FG({ label, children }) {
   return (
     <div className="flex flex-col gap-1">
@@ -67,12 +59,50 @@ function FG({ label, children }) {
   )
 }
 
+function FieldCard({ label, value, highlight, className = '' }) {
+  return (
+    <div className={`min-w-0 rounded-[14px] px-3 py-2.5 ${highlight ? 'border border-[#efd36b] bg-gradient-to-b from-[#fffdf2] to-[#fbfcfe]' : 'border border-[#e4e9f1] bg-[#fbfcfe]'} ${className}`}>
+      <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">{label}</div>
+      <div className="mt-1.5 min-h-[22px] text-[13px] font-black text-[#172033] break-all">{value || '—'}</div>
+    </div>
+  )
+}
+
+function SectionCard({ title, subtitle, chip, actions, children, technical }) {
+  return (
+    <section className={`overflow-hidden rounded-[18px] border bg-white ${technical ? 'opacity-[.82] border-dashed border-[#dbe1ea] shadow-none' : 'border-[#dbe1ea] shadow-[0_6px_22px_rgba(0,49,112,0.06)]'}`}>
+      <div
+        className={`flex justify-between items-center gap-3.5 min-h-[52px] border-b border-[#e5e9f0] px-5 py-3.5 ${technical ? 'min-h-[44px] bg-[#f7f8fb]' : ''}`}
+        style={!technical ? { background: 'linear-gradient(90deg, #f8fafc 0%, #f8fafc 78%, #fff6cf 100%)' } : undefined}
+      >
+        <div>
+          <div className={`font-black uppercase tracking-[.12em] ${technical ? 'text-[11px] text-[#536079]' : 'text-[13px] text-[#003170]'}`}>{title}</div>
+          {subtitle && <div className="mt-0.5 text-[11px] text-[#69758a]">{subtitle}</div>}
+        </div>
+        <div className="flex items-center gap-2">
+          {chip}
+          {actions}
+        </div>
+      </div>
+      <div className={technical ? 'p-3.5' : 'p-5'}>{children}</div>
+    </section>
+  )
+}
+
 function buildTerrainFamiliesSummary(demande) {
   const items = []
   if ((demande?.nb_feuilles_sc || 0) > 0) items.push(`SC: ${demande.nb_feuilles_sc}`)
   if ((demande?.nb_feuilles_so || 0) > 0) items.push(`SO: ${demande.nb_feuilles_so}`)
   if ((demande?.nb_feuilles_de || 0) > 0) items.push(`DE: ${demande.nb_feuilles_de}`)
   return items.join(' · ')
+}
+
+function normalizeAffaireKey(value) {
+  return String(value || '')
+    .replaceAll('*', '')
+    .toUpperCase()
+    .replace(/[\s\-_/\.]+/g, '')
+    .trim()
 }
 
 export default function AffairePage() {
@@ -85,7 +115,6 @@ export default function AffairePage() {
   const [refEditOpen, setRefEditOpen] = useState(false)
   const [refEditVal, setRefEditVal] = useState('')
 
-  // Reset quando muda de affaire — evita dados da affaire anterior no modal
   useEffect(() => {
     setForm(null)
     setEditOpen(false)
@@ -100,6 +129,21 @@ export default function AffairePage() {
     queryKey: ['affaire-demandes', uid],
     queryFn:  () => affairesApi.demandes(uid),
     enabled:  !!uid,
+  })
+
+  const { data: allAffaires = [] } = useQuery({
+    queryKey: ['affaires-titulaire-options'],
+    queryFn: () => affairesApi.list(),
+  })
+
+  const { data: affairesNgeRows = [] } = useQuery({
+    queryKey: ['affaires-nge-titulaire-options'],
+    queryFn: () => api.get('/reference-affaires/rows?limit=2000'),
+  })
+
+  const { data: etudesRows = [] } = useQuery({
+    queryKey: ['etudes-titulaire-options'],
+    queryFn: () => api.get('/reference-etudes/rows?limit=2000'),
   })
 
   const { data: passations = [] } = useQuery({
@@ -180,6 +224,119 @@ export default function AffairePage() {
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
+  const metrics = useMemo(() => {
+    const totalEch = demandes.reduce((s, d) => s + (d.nb_echantillons || 0), 0)
+    const totalInt = demandes.reduce((s, d) => s + (d.nb_interventions || 0), 0)
+    const sc = demandes.reduce((s, d) => s + (d.nb_feuilles_sc || 0), 0)
+    const so = demandes.reduce((s, d) => s + (d.nb_feuilles_so || 0), 0)
+    const de = demandes.reduce((s, d) => s + (d.nb_feuilles_de || 0), 0)
+    const detail = [sc > 0 && `SC: ${sc}`, so > 0 && `SO: ${so}`, de > 0 && `DE: ${de}`].filter(Boolean).join(' · ')
+    return { totalEch, totalInt, detail }
+  }, [demandes])
+
+  const chronoItems = useMemo(() => {
+    if (!affaire) return []
+    const items = []
+    if (affaire.date_ouverture)
+      items.push({ date: affaire.date_ouverture, title: 'Ouverture affaire', text: 'Création de la fiche et rattachement chantier.' })
+    const latest = demandes.reduce((best, d) => (!best || (d.updated_at && d.updated_at > best.updated_at)) ? d : best, null)
+    if (latest?.updated_at)
+      items.push({ date: latest.updated_at, title: 'Dernière activité demandes', text: `Demande ${latest.reference || '—'} mise à jour.` })
+    if (affaire.date_cloture)
+      items.push({ date: affaire.date_cloture, title: 'Clôture affaire', text: 'Affaire marquée comme terminée.' })
+    return items
+  }, [affaire, demandes])
+
+  const operationalView = useMemo(() => {
+    const latestActivity = demandes.reduce((best, d) => {
+      if (!d.updated_at) return best
+      return (!best || d.updated_at > best) ? d.updated_at : best
+    }, null)
+    const nextEcheance = demandes.reduce((best, d) => {
+      if (!d.date_echeance) return best
+      return (!best || d.date_echeance < best) ? d.date_echeance : best
+    }, null)
+    const allFamilies = new Set()
+    demandes.forEach(d => {
+      if ((d.nb_feuilles_sc || 0) > 0) allFamilies.add('SC')
+      if ((d.nb_feuilles_so || 0) > 0) allFamilies.add('SO')
+      if ((d.nb_feuilles_de || 0) > 0) allFamilies.add('DE')
+    })
+    return {
+      latestActivity: latestActivity ? formatDate(latestActivity) : '—',
+      nextEcheance: nextEcheance ? formatDate(nextEcheance) : '—',
+      families: allFamilies.size > 0 ? [...allFamilies].join(' · ') : '—',
+    }
+  }, [demandes])
+
+  const titulaireOptions = useMemo(() => {
+    const values = new Set(DEFAULT_TITULAIRES)
+    allAffaires.forEach((item) => {
+      const value = String(item?.titulaire ?? '').trim()
+      if (value) values.add(value)
+    })
+    affairesNgeRows.forEach((row) => {
+      const value = String(row?.titulaire ?? '').trim()
+      if (value) values.add(value)
+    })
+    etudesRows.forEach((row) => {
+      const titulaire = String(row?.titulaire ?? '').trim()
+      const filiale = String(row?.filiale ?? '').trim()
+      if (titulaire) values.add(titulaire)
+      if (filiale) values.add(filiale)
+    })
+    const currentAffaire = String(affaire?.titulaire ?? '').trim()
+    if (currentAffaire) values.add(currentAffaire)
+    const currentForm = String(form?.titulaire ?? '').trim()
+    if (currentForm) values.add(currentForm)
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [allAffaires, affairesNgeRows, etudesRows, affaire?.titulaire, form?.titulaire])
+
+  const ngeTitulaireByKey = useMemo(() => {
+    const byKey = new Map()
+    affairesNgeRows.forEach((row) => {
+      const key = normalizeAffaireKey(row?.numero_affaire_complet || row?.numero_affaire)
+      const value = String(row?.titulaire ?? '').trim()
+      if (!key || !value) return
+      if (!byKey.has(key)) byKey.set(key, new Set())
+      byKey.get(key).add(value)
+    })
+    const resolved = new Map()
+    byKey.forEach((values, key) => {
+      if (values.size === 1) resolved.set(key, [...values][0])
+    })
+    return resolved
+  }, [affairesNgeRows])
+
+  const etudeFilialeByKey = useMemo(() => {
+    const byKey = new Map()
+    etudesRows.forEach((row) => {
+      const key = normalizeAffaireKey(row?.numero_etude)
+      const value = String(row?.filiale ?? '').trim()
+      if (!key || !value) return
+      if (!byKey.has(key)) byKey.set(key, new Set())
+      byKey.get(key).add(value)
+    })
+    const resolved = new Map()
+    byKey.forEach((values, key) => {
+      if (values.size === 1) resolved.set(key, [...values][0])
+    })
+    return resolved
+  }, [etudesRows])
+
+  const suggestedTitulaire = useMemo(() => {
+    if (!form) return ''
+    if (String(form.titulaire || '').trim()) return ''
+
+    const ngeKey = normalizeAffaireKey(form.affaire_nge)
+    if (ngeKey) return ngeTitulaireByKey.get(ngeKey) || ''
+
+    const etudeKey = normalizeAffaireKey(form.numero_etude)
+    if (etudeKey) return etudeFilialeByKey.get(etudeKey) || ''
+
+    return ''
+  }, [form, ngeTitulaireByKey, etudeFilialeByKey])
+
   if (isLoading) return <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
   if (isError || !affaire) return (
     <div className="text-xs text-text-muted text-center py-12">
@@ -190,214 +347,319 @@ export default function AffairePage() {
 
   const a = affaire
   const dossierStatusLabel = DOSSIER_STATUS_LABELS[a.dossier_status] || a.dossier_status || '—'
-  const dossierModeLabel = DOSSIER_MODE_LABELS[a.dossier_mode] || a.dossier_mode || '—'
+  const dossierModeLabel   = DOSSIER_MODE_LABELS[a.dossier_mode] || a.dossier_mode || '—'
+  const dossierNomPrevu    = a.dossier_nom_prevu || a.reference
 
   return (
-    <div className="flex flex-col h-full -m-6 overflow-y-auto">
-
-      {/* Header */}
-      <div className="flex items-center gap-2 px-7 bg-surface border-b border-border h-[58px] shrink-0 sticky top-0 z-10 flex-wrap">
-        <button onClick={() => navigate('/affaires')}
-          className="flex items-center gap-1.5 text-text-muted text-[13px] hover:bg-bg hover:text-text px-2.5 py-1.5 rounded transition-colors shrink-0">
-          ← Affaires RST
-        </button>
-        <span className="text-[15px] font-semibold flex-1">Affaire {a.reference}</span>
-        <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>
-        <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>📂 Demandes</Button>
-        <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>🤝 Passations</Button>
-        <Button size="sm" onClick={() => navigate(`/passations/new?affaire_id=${uid}`)}>+ Passation</Button>
-        <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}&create=1`)}>+ Demande</Button>
-        <Button size="sm" variant="danger" onClick={handleDelete}>🗑 Supprimer</Button>
+    <div
+      className="flex flex-col h-full -m-6 overflow-y-auto"
+      style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
+    >
+      {/* ═══ Topbar ═══ */}
+      <div
+        className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+        style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+      >
+        <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+        <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+          <button
+            onClick={() => navigate('/affaires')}
+            className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+          >
+            ← Affaires RST
+          </button>
+          <div className="flex-1 min-w-[220px]">
+            <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche affaire</div>
+            <div className="text-[15px] font-black">{a.reference}</div>
+          </div>
+          <Button size="sm" variant="primary" onClick={openEdit}>Modifier</Button>
+          <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Demandes</Button>
+          <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Passations</Button>
+          <button
+            onClick={() => navigate(`/demandes?affaire_id=${uid}&create=1`)}
+            className="rounded-[11px] border border-[#e7b800] bg-[#ffcc00] text-[#003170] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-105 transition"
+          >
+            + Demande
+          </button>
+          <Button size="sm" onClick={() => navigate(`/passations/new?affaire_id=${uid}`)}>+ Passation</Button>
+          <button
+            onClick={handleDelete}
+            className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
+          >
+            Supprimer
+          </button>
+        </div>
       </div>
 
-      <div className="p-7 max-w-[900px] mx-auto w-full flex flex-col gap-5">
+      {/* ═══ Main ═══ */}
+      <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
 
-        {/* Hero */}
-        <div className="bg-surface border border-border rounded-[10px] p-6">
-          <div className="flex items-start justify-between gap-3">
+        {/* ── Hero ── */}
+        <section
+          className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+          style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+        >
+          <div
+            className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+            style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+          >
+            <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
             <div>
-              <div className="flex items-center gap-2">
-                <div className="text-[22px] font-bold text-accent">{a.reference}</div>
+              <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
+                RaLab 5 · Affaire RST
+              </div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{a.reference}</h1>
                 <button
                   onClick={() => { setRefEditVal(a.reference); setRefEditOpen(true) }}
-                  title="Modifier la référence"
-                  className="text-[11px] text-text-muted hover:text-accent border border-border rounded px-1.5 py-0.5 transition-colors"
+                  className="rounded-full border border-white/25 bg-white/10 text-white px-2.5 py-1.5 text-[11px] font-black hover:bg-white/20 transition"
                 >
-                  ✏
+                  Modifier réf.
                 </button>
               </div>
-              <div className="text-[15px] text-text mt-1">{a.chantier || '—'}</div>
-              {a.site   && <div className="text-[13px] text-text-muted mt-0.5">{a.site}</div>}
-              {a.client && <div className="text-[13px] text-text-muted">{a.client}</div>}
-            </div>
-            <div className="flex flex-wrap gap-1.5 justify-end">
-              <Badge s={a.statut} map={STAT_AFF} />
-              {a.titulaire && (
-                <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#002C77] text-white">{a.titulaire}</span>
-              )}
-              {a.filiale && (
-                <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#e6f1fb] text-[#185fa5]">{a.filiale}</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Cards */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-surface border border-border rounded-[10px] p-5">
-            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted border-b border-border pb-1.5 mb-3">Projet</div>
-            <FieldRow label="Client"  value={a.client} />
-            <FieldRow label="Chantier" value={a.chantier} />
-            <FieldRow label="Site"    value={a.site} />
-            <FieldRow label="Filiale" value={a.filiale} />
-          </div>
-          <div className="bg-surface border border-border rounded-[10px] p-5">
-            <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted border-b border-border pb-1.5 mb-3">Références</div>
-            <FieldRow label="N° étude"               value={a.numero_etude} />
-            <FieldRow label="N° Affaire NGE"         value={a.affaire_nge} />
-            <FieldRow label="Autre"                  value={a.autre_reference} />
-            <FieldRow label="Titulaire"              value={a.titulaire || '— Non défini —'} />
-            <FieldRow label="Responsable affaire NGE" value={a.responsable} />
-            <FieldRow label="Date ouverture"         value={formatDate(a.date_ouverture)} />
-            <FieldRow label="Date clôture"           value={a.date_cloture ? formatDate(a.date_cloture) : 'En cours'} />
-            <div className="flex flex-col gap-0.5 mb-3">
-              <div className="text-[10px] text-text-muted">Statut</div>
-              <Badge s={a.statut} map={STAT_AFF} />
-            </div>
-          </div>
-          <div className="bg-surface border border-border rounded-[10px] p-5">
-            <div className="flex items-center justify-between border-b border-border pb-1.5 mb-3">
-              <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted">Dossier</div>
-              <div className="flex items-center gap-2">
-                {a.dossier_can_sync ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => syncDossierMutation.mutate()}
-                    disabled={syncDossierMutation.isPending}
-                  >
-                    {syncDossierMutation.isPending ? 'Sync…' : 'Synchroniser'}
-                  </Button>
-                ) : null}
-                {a.dossier_can_open ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => openDossierMutation.mutate()}
-                    disabled={openDossierMutation.isPending}
-                  >
-                    {openDossierMutation.isPending ? 'Ouverture…' : 'Ouvrir'}
-                  </Button>
-                ) : null}
+              <div className="mt-3 text-[20px] font-black">{a.chantier || '—'}</div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
+                {a.client && <span>Client : <strong className="text-white">{a.client}</strong></span>}
+                {a.site && <span>Site : <strong className="text-white">{a.site}</strong></span>}
+                {a.responsable && <span>Responsable : <strong className="text-white">{a.responsable}</strong></span>}
               </div>
             </div>
-            <FieldRow label="Mode" value={dossierModeLabel} />
-            <FieldRow label="Statut" value={dossierStatusLabel} />
-            <FieldRow label="Nom dossier prévu" value={a.dossier_nom_prevu || a.reference} />
-            <FieldRow label="Nom dossier actuel" value={a.dossier_nom || '—'} />
-            <FieldRow label="Racine" value={a.dossier_root} />
-            <FieldRow label="Chemin" value={a.dossier_path} />
-            {a.dossier_message ? (
-              <p className="mt-3 text-xs leading-5 text-text-muted">{a.dossier_message}</p>
-            ) : null}
-            {syncDossierMutation.error ? (
-              <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mt-3">
-                {syncDossierMutation.error.message}
-              </p>
-            ) : null}
-            {openDossierMutation.error ? (
-              <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mt-3">
-                {openDossierMutation.error.message}
-              </p>
-            ) : null}
+
+            <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                  {a.statut === 'En cours' ? 'Affaire active' : a.statut || '—'}
+                </span>
+                {a.titulaire && (
+                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                    {a.titulaire}
+                  </span>
+                )}
+                {a.filiale && (
+                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                    {a.filiale}
+                  </span>
+                )}
+              </div>
+              <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Nom dossier prévu</div>
+              <div className="mt-1.5 text-[13px] font-black">{dossierNomPrevu}</div>
+            </div>
+          </div>
+
+          {/* Metrics bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+            <MetricCard label="Demandes"      value={demandes.length}    detail="Demandes rattachées à l'affaire" />
+            <MetricCard label="Passations"    value={passations.length}  detail="Passations liées" />
+            <MetricCard label="Échantillons"  value={metrics.totalEch}   detail="Total déclaré dans les demandes" />
+            <MetricCard label="Interventions" value={metrics.totalInt}   detail={metrics.detail || 'Aucune intervention'} />
+          </div>
+        </section>
+
+        {/* ── Two-column grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
+
+          {/* Left column */}
+          <div className="flex flex-col gap-5">
+            <SectionCard
+              title="Identité affaire"
+              subtitle="Informations générales et rattachement opérationnel"
+              chip={<span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">RST</span>}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FieldCard label="Référence RST" value={a.reference} highlight />
+                <FieldCard label="Statut" value={<Badge s={a.statut} map={STAT_AFF} />} />
+                <FieldCard label="Titulaire" value={a.titulaire || '— Non défini —'} />
+                <FieldCard label="Client" value={a.client} />
+                <FieldCard label="Chantier" value={a.chantier} className="sm:col-span-2" />
+                <FieldCard label="Site" value={a.site} className="sm:col-span-2" />
+                <FieldCard label="Filiale" value={a.filiale} />
+                <FieldCard label="Responsable affaire NGE" value={a.responsable} />
+                <FieldCard label="Date ouverture" value={formatDate(a.date_ouverture)} />
+                <FieldCard label="Date clôture" value={a.date_cloture ? formatDate(a.date_cloture) : 'En cours'} />
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Références" subtitle="Numéros externes, étude, affaire NGE et référence manuelle">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FieldCard label="N° étude" value={a.numero_etude} />
+                <FieldCard label="N° affaire NGE" value={a.affaire_nge} highlight />
+                <FieldCard label="Autre référence" value={a.autre_reference} />
+                <FieldCard label="Nom dossier manuel" value={a.dossier_nom} className="sm:col-span-3" />
+              </div>
+              <div className="mt-4 rounded-2xl border border-[#eed06a] bg-[#fff9de] px-4 py-3 text-[12px] leading-relaxed text-[#4d4213]">
+                Le nom automatique reste piloté par les références affaire / étude quand elles existent.
+                Le champ manuel sert uniquement à forcer un nom de dossier spécifique lorsque c'est nécessaire.
+              </div>
+            </SectionCard>
+          </div>
+
+          {/* Right column */}
+          <div className="flex flex-col gap-5">
+            <SectionCard
+              title="Vue opérationnelle"
+              subtitle="Ce qu'il faut voir en premier quand on ouvre l'affaire"
+              chip={<Badge s={a.statut} map={STAT_AFF} />}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FieldCard label="Statut actuel" value={a.statut} highlight />
+                <FieldCard label="Priorité" value={demandes.some(d => d.priorite === 'Haute') ? 'Haute' : 'Normale'} />
+                <FieldCard label="Dernière activité" value={operationalView.latestActivity} />
+                <FieldCard label="Prochaine échéance" value={operationalView.nextEcheance} />
+                <FieldCard label="Familles actives" value={operationalView.families} className="sm:col-span-2" />
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Chronologie" subtitle="Historique court de l'affaire">
+              <div className="grid gap-3">
+                {chronoItems.length === 0 ? (
+                  <div className="text-xs text-[#69758a] text-center py-4">Aucun événement</div>
+                ) : chronoItems.map((item, i) => (
+                  <div key={i} className="grid grid-cols-[92px_1fr] gap-3 rounded-2xl border border-[#e4e9f1] bg-[#fbfcfe] p-3">
+                    <div className="text-[12px] font-black text-[#003170]">{formatDate(item.date)}</div>
+                    <div>
+                      <div className="text-[13px] font-black">{item.title}</div>
+                      <div className="mt-0.5 text-[11px] text-[#69758a]">{item.text}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
           </div>
         </div>
 
-        {/* Delete error */}
+        {/* ── Delete error ── */}
         {deleteError && (
-          <div className="flex items-start gap-2 px-4 py-3 bg-[#fcebeb] border border-[#f0a0a0] rounded-[10px] text-sm text-[#a32d2d]">
+          <div className="flex items-start gap-2 px-4 py-3 bg-[#fcebeb] border border-[#f0a0a0] rounded-[18px] text-sm text-[#a32d2d]">
             <span>⛔</span>
             <div className="flex-1">{deleteError}</div>
             <button onClick={() => setDeleteError(null)} className="text-[#a32d2d] hover:opacity-70">×</button>
           </div>
         )}
 
-        {/* Passations */}
-        {passations.length > 0 && (
-          <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-              <h3 className="text-[13px] font-semibold">🤝 Passations liées ({passations.length})</h3>
-              <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Voir toutes</Button>
-            </div>
-            <div className="divide-y divide-border">
-              {passations.map(p => (
-                <div key={p.uid} className="flex items-center justify-between px-5 py-3 hover:bg-bg transition-colors">
-                  <div>
-                    <span className="text-xs font-semibold text-accent">{p.reference}</span>
-                    <span className="text-xs text-text-muted ml-3">{p.operation_type || '—'} · {p.phase_operation || '—'}</span>
-                  </div>
-                  <Button size="sm" onClick={() => navigate(`/passations/${p.uid}`)}>Fiche →</Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Demandes */}
-        <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <h3 className="text-[13px] font-semibold">Demandes associées ({demandes.length})</h3>
-            <div className="flex gap-2">
-              <Button size="sm" variant="primary" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Voir toutes</Button>
-            </div>
-          </div>
+        {/* ── Demandes ── */}
+        <SectionCard
+          title="Demandes associées"
+          subtitle="Liste des demandes rattachées à cette affaire"
+          actions={<Button size="sm" variant="primary" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Voir toutes</Button>}
+        >
           {demandes.length === 0 ? (
-            <div className="text-xs text-text-muted text-center py-8">Aucune demande associée à cette affaire</div>
+            <div className="text-xs text-[#69758a] text-center py-8">Aucune demande associée à cette affaire</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+            <div className="overflow-x-auto rounded-2xl border border-[#dbe1ea]">
+              <table className="w-full min-w-[1080px] border-collapse">
                 <thead>
                   <tr>
-                    {['Référence','Nature / mission','Statut','Priorité','Échantillons','Interventions','N° DST','Date demande','Échéance','Demandeur','MàJ'].map(h => (
-                      <th key={h} className="bg-bg px-3.5 py-2 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap">{h}</th>
+                    {['Référence','Nature / mission','Statut','Priorité','Éch.','Interv.','N° DST','Date demande','Échéance','Demandeur','MàJ'].map(h => (
+                      <th key={h} className="border-b border-[#dbe1ea] bg-[#f1f5f9] text-[#69758a] px-3.5 py-2.5 text-left text-[11px] font-black uppercase tracking-[.08em] whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {demandes.map(d => (
-                    <tr key={d.uid} onClick={() => navigate(buildPathWithReturnTo(`/demandes/${d.uid}`, detailReturnTo))}
-                      className="border-b border-border cursor-pointer hover:bg-[#f8f8fc] transition-colors">
-                      <td className="px-3.5 py-2"><strong className="text-accent text-xs">{d.reference}</strong></td>
-                      <td className="px-3.5 py-2 text-xs">
+                    <tr
+                      key={d.uid}
+                      onClick={() => navigate(buildPathWithReturnTo(`/demandes/${d.uid}`, detailReturnTo))}
+                      className="border-b border-[#edf1f6] cursor-pointer hover:bg-[#f8f8fc] transition-colors"
+                    >
+                      <td className="px-3.5 py-3 bg-white"><strong className="text-[#003170] text-xs font-black">{d.reference}</strong></td>
+                      <td className="px-3.5 py-3 bg-white text-xs">
                         <div className="font-medium">{d.nature || d.type_mission || '—'}</div>
-                        {d.type_mission && d.nature && d.type_mission !== d.nature ? (
-                          <div className="text-[10px] text-text-muted">{d.type_mission}</div>
-                        ) : null}
+                        {d.type_mission && d.nature && d.type_mission !== d.nature && (
+                          <div className="text-[10px] text-[#69758a]">{d.type_mission}</div>
+                        )}
                       </td>
-                      <td className="px-3.5 py-2"><Badge s={d.statut} map={STAT_DEM} /></td>
-                      <td className="px-3.5 py-2 text-xs">{d.priorite || '—'}</td>
-                      <td className="px-3.5 py-2 text-xs text-center">{d.nb_echantillons || 0}</td>
-                      <td className="px-3.5 py-2 text-xs text-center">
+                      <td className="px-3.5 py-3 bg-white"><Badge s={d.statut} map={STAT_DEM} /></td>
+                      <td className="px-3.5 py-3 bg-white text-xs">{d.priorite || '—'}</td>
+                      <td className="px-3.5 py-3 bg-white text-xs text-center">{d.nb_echantillons || 0}</td>
+                      <td className="px-3.5 py-3 bg-white text-xs text-center">
                         <div>{d.nb_interventions || 0}</div>
-                        {buildTerrainFamiliesSummary(d) ? (
-                          <div className="text-[10px] text-text-muted">{buildTerrainFamiliesSummary(d)}</div>
-                        ) : null}
+                        {(() => {
+                          const summary = buildTerrainFamiliesSummary(d)
+                          return summary ? <div className="text-[10px] text-[#69758a]">{summary}</div> : null
+                        })()}
                       </td>
-                      <td className="px-3.5 py-2 text-xs">{d.numero_dst || '—'}</td>
-                      <td className="px-3.5 py-2 text-xs">{d.date_reception ? formatDate(d.date_reception) : '—'}</td>
-                      <td className="px-3.5 py-2 text-xs">{d.date_echeance ? formatDate(d.date_echeance) : '—'}</td>
-                      <td className="px-3.5 py-2 text-xs">{d.demandeur || '—'}</td>
-                      <td className="px-3.5 py-2 text-xs">{d.updated_at ? formatDate(d.updated_at) : '—'}</td>
+                      <td className="px-3.5 py-3 bg-white text-xs">{d.numero_dst || '—'}</td>
+                      <td className="px-3.5 py-3 bg-white text-xs">{d.date_reception ? formatDate(d.date_reception) : '—'}</td>
+                      <td className="px-3.5 py-3 bg-white text-xs">{d.date_echeance ? formatDate(d.date_echeance) : '—'}</td>
+                      <td className="px-3.5 py-3 bg-white text-xs">{d.demandeur || '—'}</td>
+                      <td className="px-3.5 py-3 bg-white text-xs">{d.updated_at ? formatDate(d.updated_at) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
+        </SectionCard>
+
+        {/* ── Passations ── */}
+        {passations.length > 0 && (
+          <SectionCard
+            title="Passations associées"
+            subtitle="Passations opérationnelles liées à cette affaire"
+            actions={<Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Voir toutes</Button>}
+          >
+            <div className="divide-y divide-[#e5e9f0]">
+              {passations.map(p => (
+                <div
+                  key={p.uid}
+                  onClick={() => navigate(`/passations/${p.uid}`)}
+                  className="flex items-center justify-between gap-4 px-2 py-2.5 cursor-pointer hover:bg-[#f8fafc] transition-colors rounded-lg"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-[12px] font-black text-[#003170] shrink-0">{p.reference}</span>
+                    <span className="text-[12px] text-[#172033] truncate">{p.operation_type || '—'}</span>
+                    <span className="text-[11px] text-[#69758a] shrink-0">{p.phase_operation || '—'}</span>
+                  </div>
+                  <span className="text-[11px] font-black text-[#003170] shrink-0">→</span>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        {/* ── Dossier technique ── */}
+        <SectionCard
+          title="Dossier affaire · zone technique provisoire"
+          subtitle="Bloc discret pendant le codage : état local, chemin et synchronisation"
+          chip={<Badge s={dossierStatusLabel} map={{ 'Disponible': 'bg-[#eaf3de] text-[#3b6d11]', 'En attente': 'bg-[#f1efe8] text-[#5f5e5a]' }} />}
+          technical
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+            <FieldCard label="Mode" value={dossierModeLabel} />
+            <FieldCard label="Statut" value={dossierStatusLabel} />
+            <FieldCard label="Racine" value={a.dossier_root} />
+            <FieldCard label="Nom dossier actuel" value={a.dossier_nom || '—'} />
+            <FieldCard label="Chemin complet" value={a.dossier_path} className="sm:col-span-2 lg:col-span-4" />
+            {a.dossier_message && <FieldCard label="Message" value={a.dossier_message} />}
+          </div>
+          {syncDossierMutation.error && (
+            <p className="text-[#a32d2d] text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-3">
+              {syncDossierMutation.error.message}
+            </p>
+          )}
+          {openDossierMutation.error && (
+            <p className="text-[#a32d2d] text-xs bg-red-50 border border-red-200 rounded-xl px-3 py-2 mt-3">
+              {openDossierMutation.error.message}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 mt-3">
+            {a.dossier_can_sync && (
+              <Button size="sm" onClick={() => syncDossierMutation.mutate()} disabled={syncDossierMutation.isPending}>
+                {syncDossierMutation.isPending ? 'Sync…' : 'Synchroniser'}
+              </Button>
+            )}
+            {a.dossier_can_open && (
+              <Button size="sm" variant="primary" onClick={() => openDossierMutation.mutate()} disabled={openDossierMutation.isPending}>
+                {openDossierMutation.isPending ? 'Ouverture…' : 'Ouvrir dossier'}
+              </Button>
+            )}
+          </div>
+        </SectionCard>
       </div>
 
-      {/* Modal modifier */}
+      {/* ═══ Modals ═══ */}
       {form && (
         <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Modifier l'affaire RST" size="md">
           <div className="grid grid-cols-2 gap-3">
@@ -450,7 +712,9 @@ export default function AffairePage() {
             </div>
             <FG label="Titulaire">
               <Select value={form.titulaire} onChange={e => set('titulaire', e.target.value)} className="w-full">
-                {TITULAIRES.map(t => <option key={t} value={t}>{t || '— Non défini —'}</option>)}
+                {suggestedTitulaire ? <option value={suggestedTitulaire}>Suggestion source: {suggestedTitulaire}</option> : null}
+                <option value="">— Non défini —</option>
+                {titulaireOptions.filter(t => t !== suggestedTitulaire).map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
             </FG>
             <FG label="Responsable affaire NGE">

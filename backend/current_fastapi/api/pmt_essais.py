@@ -173,6 +173,29 @@ def _runtime_values_from_essai_row(sheet: dict[str, Any], points: list[dict[str,
     return {"meta": meta, "points_rows": rows}
 
 
+def _parse_resultats_payload(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    text = _clean(raw)
+    if not text:
+        return {}
+    try:
+        data = json.loads(text)
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _validation_meta_from_row(sheet: dict[str, Any]) -> dict[str, Any]:
+    payload = _parse_resultats_payload(sheet.get("resultats_json"))
+    correction_reasons = payload.get("correction_reasons")
+    return {
+        "validation_comment": _clean(payload.get("validation_comment")),
+        "correction_reasons": list(correction_reasons) if isinstance(correction_reasons, list) else [],
+        "rapport_status": _clean(payload.get("rapport_status") or payload.get("validation_status") or payload.get("report_status")),
+    }
+
+
 def _row_to_json_dict(row: sqlite3.Row) -> dict[str, Any]:
     d: dict[str, Any] = {}
     for k in row.keys():
@@ -237,6 +260,7 @@ def _serialize_pmt(conn: sqlite3.Connection, pmt_id: int, row: sqlite3.Row) -> d
     sheet = dict(row)
     pts = _load_points_for_runtime(conn, pmt_id)
     runtime_values = _runtime_values_from_essai_row(sheet, pts)
+    validation_meta = _validation_meta_from_row(sheet)
     return {
         "id": pmt_id,
         "reference": _clean(sheet.get("reference")),
@@ -244,6 +268,9 @@ def _serialize_pmt(conn: sqlite3.Connection, pmt_id: int, row: sqlite3.Row) -> d
         "campaign_id": sheet.get("campaign_id"),
         "intervention_id": sheet.get("intervention_id"),
         "statut": _clean(sheet.get("statut")),
+        "validation_comment": validation_meta["validation_comment"],
+        "correction_reasons": validation_meta["correction_reasons"],
+        "rapport_status": validation_meta["rapport_status"],
         "essai": _row_to_json_dict(row),
         "runtime_values": runtime_values,
     }

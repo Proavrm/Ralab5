@@ -11,6 +11,7 @@ import { feuillesTerrainApi, pmtEssaisApi } from "@/services/api";
 import RapportPageShell from "@/components/rapports/RapportPageShell";
 import { computePmtFromDiameterAndVolume } from "@/lib/pmt/compute";
 import { hasPositionCode, normalizePositionCodes } from "@/lib/positionCodes";
+import { useReportAutoPrint } from "@/lib/reportAutoPrint";
 import "@/styles/rapport-nge.css";
 import "@/styles/rapport-de.css";
 
@@ -329,9 +330,11 @@ export default function RapportPMTPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const isEmbed = String(searchParams.get("embed") || "").trim() === "1";
+    const hideToolbar = String(searchParams.get("hide_toolbar") || "").trim() === "1";
     const returnTo = String(searchParams.get("return_to") || "").trim();
     const feuilleUidFromQuery = String(searchParams.get("feuille_uid") || "").trim();
     const { loading, error, source } = useReportSourcePMT(essaiId, searchParams);
+    useReportAutoPrint(searchParams, !loading && !error);
     const [navLinks, setNavLinks] = useState({
         demandeId: "",
         interventionId: "",
@@ -512,6 +515,7 @@ export default function RapportPMTPage() {
     return (
         <RapportPageShell
             embedded={isEmbed}
+            hideToolbar={hideToolbar}
             managementHeader={managementHeader}
             toolbar={<RapportToolbar reportReference={toolbarReference} />}
         >

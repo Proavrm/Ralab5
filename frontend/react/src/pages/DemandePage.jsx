@@ -2,7 +2,7 @@
  * DemandePage.jsx — fiche complète d'une demande RST
  * Fidèle à demande.html legacy
  * API: GET /demandes_rst/{uid}  + GET /demandes_rst/{uid}/navigation
- * 2 modaux: édition demande + configuration préparation/modules
+ * 2 modaux: configuration préparation/modules + référence (admin)
  */
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
@@ -14,6 +14,9 @@ import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { buildLocationTarget, buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
+import { hasRole } from '@/lib/permissions'
+import { MetricCard } from '@/components/layout/FicheLayout'
 
 
 const DEMANDE_UI_STORAGE_PREFIX = 'ralab5:demande-ui:'
@@ -197,6 +200,36 @@ function InlineMeta({ label, value }) {
       <span className="font-medium text-text-muted">{label}</span>
       <span className={`font-semibold ${!value ? 'text-text-muted italic font-normal' : 'text-text'}`}>{value || '—'}</span>
     </div>
+  )
+}
+
+function FieldCard({ label, value, highlight, className = '' }) {
+  return (
+    <div className={`min-w-0 rounded-[14px] px-3 py-2.5 ${highlight ? 'border border-[#efd36b] bg-gradient-to-b from-[#fffdf2] to-[#fbfcfe]' : 'border border-[#e4e9f1] bg-[#fbfcfe]'} ${className}`}>
+      <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">{label}</div>
+      <div className="mt-1.5 min-h-[22px] text-[13px] font-black text-[#172033] break-all">{value || '—'}</div>
+    </div>
+  )
+}
+
+function SectionCard({ title, subtitle, chip, actions, children, technical }) {
+  return (
+    <section className={`overflow-hidden rounded-[18px] border bg-white ${technical ? 'opacity-[.82] border-dashed border-[#dbe1ea] shadow-none' : 'border-[#dbe1ea] shadow-[0_6px_22px_rgba(0,49,112,0.06)]'}`}>
+      <div
+        className={`flex justify-between items-center gap-3.5 min-h-[52px] border-b border-[#e5e9f0] px-5 py-3.5 ${technical ? 'min-h-[44px] bg-[#f7f8fb]' : ''}`}
+        style={!technical ? { background: 'linear-gradient(90deg, #f8fafc 0%, #f8fafc 78%, #fff6cf 100%)' } : undefined}
+      >
+        <div>
+          <div className={`font-black uppercase tracking-[.12em] ${technical ? 'text-[11px] text-[#536079]' : 'text-[13px] text-[#003170]'}`}>{title}</div>
+          {subtitle && <div className="mt-0.5 text-[11px] text-[#69758a]">{subtitle}</div>}
+        </div>
+        <div className="flex items-center gap-2">
+          {chip}
+          {actions}
+        </div>
+      </div>
+      <div className={technical ? 'p-3.5' : 'p-5'}>{children}</div>
+    </section>
   )
 }
 
@@ -772,156 +805,147 @@ function FG({ label, children, full }) {
   )
 }
 
-// ── Modal Édition ─────────────────────────────────────────────────────────────
-function EditModal({ open, onClose, demande, onSaved }) {
-  const [form, setForm] = useState({})
+function buildEditForm(demande) {
+  if (!demande) return {}
+  return {
+    labo_code: demande.labo_code || 'SP',
+    statut: demande.statut || 'À qualifier',
+    priorite: demande.priorite || 'Normale',
+    type_mission: demande.type_mission || '',
+    nature: demande.nature || '',
+    numero_dst: demande.numero_dst || '',
+    domaine_etude: demande.domaine_etude || '',
+    type_prestation_attendue: demande.type_prestation_attendue || '',
+    documents_fournis: demande.documents_fournis || '',
+    lien_pieces_jointes: demande.lien_pieces_jointes || '',
+    service_interne: demande.service_interne || '',
+    societe_interne: demande.societe_interne || '',
+    urgence_source: demande.urgence_source || '',
+    demandeur: demande.demandeur || '',
+    date_reception: demande.date_reception || '',
+    date_echeance: demande.date_echeance || '',
+    date_cloture: demande.date_cloture || '',
+    description: demande.description || '',
+    observations: demande.observations || '',
+    a_revoir: !!demande.a_revoir,
+    note_reconciliation: demande.note_reconciliation || '',
+    suivi_notes: demande.suivi_notes || '',
+    rapport_ref: demande.rapport_ref || '',
+    rapport_envoye: !!demande.rapport_envoye,
+    devis_ref: demande.devis_ref || '',
+    facture_ref: demande.facture_ref || '',
+  }
+}
 
-  useEffect(() => {
-    if (open && demande) {
-      setForm({
-        labo_code:          demande.labo_code      || 'SP',
-        statut:             demande.statut         || 'À qualifier',
-        priorite:           demande.priorite       || 'Normale',
-        type_mission:       demande.type_mission   || '',
-        nature:             demande.nature         || '',
-        numero_dst:         demande.numero_dst     || '',
-        domaine_etude:      demande.domaine_etude  || '',
-        type_prestation_attendue: demande.type_prestation_attendue || '',
-        documents_fournis:  demande.documents_fournis || '',
-        lien_pieces_jointes: demande.lien_pieces_jointes || '',
-        service_interne:    demande.service_interne || '',
-        societe_interne:    demande.societe_interne || '',
-        urgence_source:     demande.urgence_source || '',
-        demandeur:          demande.demandeur      || '',
-        date_reception:     demande.date_reception || '',
-        date_echeance:      demande.date_echeance  || '',
-        date_cloture:       demande.date_cloture   || '',
-        description:        demande.description    || '',
-        observations:       demande.observations   || '',
-        a_revoir:           !!demande.a_revoir,
-        note_reconciliation: demande.note_reconciliation || '',
-        suivi_notes:        demande.suivi_notes    || '',
-        rapport_ref:        demande.rapport_ref    || '',
-        rapport_envoye:     !!demande.rapport_envoye,
-        devis_ref:          demande.devis_ref      || '',
-        facture_ref:        demande.facture_ref    || '',
-      })
-    }
-  }, [open, demande])
+function sanitizeDemandeUpdate(form) {
+  const payload = { ...form }
+  for (const key of ['date_reception', 'date_echeance', 'date_cloture']) {
+    if (payload[key] === '') payload[key] = null
+  }
+  return payload
+}
 
-  const mutation = useMutation({
-    mutationFn: (data) => api.put(`/demandes_rst/${demande.uid}`, data),
-    onSuccess: (saved) => { onSaved(saved); onClose() },
-  })
-
-  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+// ── Formulaire édition inline ─────────────────────────────────────────────────
+function DemandeEditFields({ demande, form, onChange }) {
+  function set(k, v) { onChange((current) => ({ ...current, [k]: v })) }
 
   return (
-    <Modal open={open} onClose={onClose} title="Modifier la demande" size="xl">
-      <div className="grid grid-cols-2 gap-3">
-        <FG label="Référence">
-          <Input value={demande?.reference || ''} readOnly className="text-text-muted" />
-        </FG>
-        <FG label="Statut">
-          <Select value={form.statut || ''} onChange={e => set('statut', e.target.value)} className="w-full">
-            {STATUTS.map(s => <option key={s}>{s}</option>)}
-          </Select>
-        </FG>
-        <FG label="Laboratoire">
-          <Select value={form.labo_code || ''} onChange={e => set('labo_code', e.target.value)} className="w-full">
-            {LABOS.map(l => <option key={l}>{l}</option>)}
-          </Select>
-        </FG>
-        <FG label="Priorité">
-          <Select value={form.priorite || ''} onChange={e => set('priorite', e.target.value)} className="w-full">
-            {PRIORITES.map(p => <option key={p}>{p}</option>)}
-          </Select>
-        </FG>
-        <FG label="Type mission" full>
-          <Input value={form.type_mission || ''} onChange={e => set('type_mission', e.target.value)} placeholder="Texte libre" />
-        </FG>
-        <FG label="Nature">
-          <Input value={form.nature} onChange={e => set('nature', e.target.value)} />
-        </FG>
-        <FG label="N° DST">
-          <Input value={form.numero_dst} onChange={e => set('numero_dst', e.target.value)} placeholder="CET0001234" />
-        </FG>
-        <FG label="Domaine d'étude">
-          <Input value={form.domaine_etude} onChange={e => set('domaine_etude', e.target.value)} />
-        </FG>
-        <FG label="Type prestation attendue" full>
-          <Input value={form.type_prestation_attendue} onChange={e => set('type_prestation_attendue', e.target.value)} />
-        </FG>
-        <FG label="Urgence source">
-          <Input value={form.urgence_source} onChange={e => set('urgence_source', e.target.value)} />
-        </FG>
-        <FG label="Demandeur">
-          <Input value={form.demandeur} onChange={e => set('demandeur', e.target.value)} />
-        </FG>
-        <FG label="Service interne">
-          <Input value={form.service_interne} onChange={e => set('service_interne', e.target.value)} />
-        </FG>
-        <FG label="Société interne">
-          <Input value={form.societe_interne} onChange={e => set('societe_interne', e.target.value)} />
-        </FG>
-        <FG label="Date réception">
-          <Input type="date" value={form.date_reception} onChange={e => set('date_reception', e.target.value)} />
-        </FG>
-        <FG label="Échéance">
-          <Input type="date" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)} />
-        </FG>
-        <FG label="Date clôture">
-          <Input type="date" value={form.date_cloture} onChange={e => set('date_cloture', e.target.value)} />
-        </FG>
-        <FG label="Documents fournis" full>
-          <textarea value={form.documents_fournis} onChange={e => set('documents_fournis', e.target.value)} rows={2}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-        </FG>
-        <FG label="Lien pièces jointes volumineuses" full>
-          <textarea value={form.lien_pieces_jointes} onChange={e => set('lien_pieces_jointes', e.target.value)} rows={2}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-        </FG>
-        <FG label="Description" full>
-          <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-        </FG>
-        <FG label="Observations" full>
-          <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={2}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-        </FG>
-        <div className="col-span-2 flex items-center gap-2">
-          <input type="checkbox" checked={form.a_revoir} onChange={e => set('a_revoir', e.target.checked)} className="w-4 h-4 accent-[#ef9f27]" />
-          <label className="text-sm cursor-pointer">⚠ À revoir</label>
-        </div>
-        <FG label="Note réconciliation" full>
-          <Input value={form.note_reconciliation} onChange={e => set('note_reconciliation', e.target.value)} />
-        </FG>
-        <FG label="Notes suivi" full>
-          <textarea value={form.suivi_notes} onChange={e => set('suivi_notes', e.target.value)} rows={2}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-        </FG>
-        <FG label="Réf. rapport">
-          <Input value={form.rapport_ref} onChange={e => set('rapport_ref', e.target.value)} />
-        </FG>
-        <div className="flex items-center gap-2 mt-4">
-          <input type="checkbox" checked={form.rapport_envoye} onChange={e => set('rapport_envoye', e.target.checked)} className="w-4 h-4 accent-accent" />
-          <label className="text-sm cursor-pointer">Rapport envoyé</label>
-        </div>
-        <FG label="Réf. devis">
-          <Input value={form.devis_ref} onChange={e => set('devis_ref', e.target.value)} />
-        </FG>
-        <FG label="Réf. facture">
-          <Input value={form.facture_ref} onChange={e => set('facture_ref', e.target.value)} />
-        </FG>
+    <div className="grid grid-cols-2 gap-3">
+      <FG label="Référence">
+        <Input value={demande?.reference || ''} readOnly className="text-text-muted" />
+      </FG>
+      <FG label="Statut">
+        <Select value={form.statut || ''} onChange={e => set('statut', e.target.value)} className="w-full">
+          {STATUTS.map(s => <option key={s}>{s}</option>)}
+        </Select>
+      </FG>
+      <FG label="Laboratoire">
+        <Select value={form.labo_code || ''} onChange={e => set('labo_code', e.target.value)} className="w-full">
+          {LABOS.map(l => <option key={l}>{l}</option>)}
+        </Select>
+      </FG>
+      <FG label="Priorité">
+        <Select value={form.priorite || ''} onChange={e => set('priorite', e.target.value)} className="w-full">
+          {PRIORITES.map(p => <option key={p}>{p}</option>)}
+        </Select>
+      </FG>
+      <FG label="Type mission" full>
+        <Input value={form.type_mission || ''} onChange={e => set('type_mission', e.target.value)} placeholder="Texte libre" />
+      </FG>
+      <FG label="Nature">
+        <Input value={form.nature} onChange={e => set('nature', e.target.value)} />
+      </FG>
+      <FG label="N° DST">
+        <Input value={form.numero_dst} onChange={e => set('numero_dst', e.target.value)} placeholder="CET0001234" />
+      </FG>
+      <FG label="Domaine d'étude">
+        <Input value={form.domaine_etude} onChange={e => set('domaine_etude', e.target.value)} />
+      </FG>
+      <FG label="Type prestation attendue" full>
+        <Input value={form.type_prestation_attendue} onChange={e => set('type_prestation_attendue', e.target.value)} />
+      </FG>
+      <FG label="Urgence source">
+        <Input value={form.urgence_source} onChange={e => set('urgence_source', e.target.value)} />
+      </FG>
+      <FG label="Demandeur">
+        <Input value={form.demandeur} onChange={e => set('demandeur', e.target.value)} />
+      </FG>
+      <FG label="Service interne">
+        <Input value={form.service_interne} onChange={e => set('service_interne', e.target.value)} />
+      </FG>
+      <FG label="Société interne">
+        <Input value={form.societe_interne} onChange={e => set('societe_interne', e.target.value)} />
+      </FG>
+      <FG label="Date réception">
+        <Input type="date" value={form.date_reception} onChange={e => set('date_reception', e.target.value)} />
+      </FG>
+      <FG label="Échéance">
+        <Input type="date" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)} />
+      </FG>
+      <FG label="Date clôture">
+        <Input type="date" value={form.date_cloture} onChange={e => set('date_cloture', e.target.value)} />
+      </FG>
+      <FG label="Documents fournis" full>
+        <textarea value={form.documents_fournis} onChange={e => set('documents_fournis', e.target.value)} rows={2}
+          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+      </FG>
+      <FG label="Lien pièces jointes volumineuses" full>
+        <textarea value={form.lien_pieces_jointes} onChange={e => set('lien_pieces_jointes', e.target.value)} rows={2}
+          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+      </FG>
+      <FG label="Description" full>
+        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
+          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+      </FG>
+      <FG label="Observations" full>
+        <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={2}
+          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+      </FG>
+      <div className="col-span-2 flex items-center gap-2">
+        <input type="checkbox" checked={form.a_revoir} onChange={e => set('a_revoir', e.target.checked)} className="w-4 h-4 accent-[#ef9f27]" />
+        <label className="text-sm cursor-pointer">⚠ À revoir</label>
       </div>
-      {mutation.error && <p className="text-danger text-xs mt-3">{mutation.error.message}</p>}
-      <div className="flex justify-end gap-2 pt-4">
-        <Button onClick={onClose} variant="secondary">Annuler</Button>
-        <Button onClick={() => mutation.mutate(form)} variant="primary" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
-        </Button>
+      <FG label="Note réconciliation" full>
+        <Input value={form.note_reconciliation} onChange={e => set('note_reconciliation', e.target.value)} />
+      </FG>
+      <FG label="Notes suivi" full>
+        <textarea value={form.suivi_notes} onChange={e => set('suivi_notes', e.target.value)} rows={2}
+          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+      </FG>
+      <FG label="Réf. rapport">
+        <Input value={form.rapport_ref} onChange={e => set('rapport_ref', e.target.value)} />
+      </FG>
+      <div className="flex items-center gap-2 mt-4">
+        <input type="checkbox" checked={form.rapport_envoye} onChange={e => set('rapport_envoye', e.target.checked)} className="w-4 h-4 accent-accent" />
+        <label className="text-sm cursor-pointer">Rapport envoyé</label>
       </div>
-    </Modal>
+      <FG label="Réf. devis">
+        <Input value={form.devis_ref} onChange={e => set('devis_ref', e.target.value)} />
+      </FG>
+      <FG label="Réf. facture">
+        <Input value={form.facture_ref} onChange={e => set('facture_ref', e.target.value)} />
+      </FG>
+    </div>
   )
 }
 
@@ -1044,7 +1068,10 @@ export default function DemandePage() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
-  const [editOpen, setEditOpen] = useState(false)
+  const { user } = useAuth()
+  const isAdmin = hasRole(user, ['admin'])
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({})
   const [interventionCreateDraft, setInterventionCreateDraft] = useState(null)
   const [refEditOpen, setRefEditOpen] = useState(false)
   const [refEditVal,  setRefEditVal]  = useState('')
@@ -1066,6 +1093,16 @@ export default function DemandePage() {
   })
 
   useEffect(() => { if (raw) setDemande(raw) }, [raw])
+
+  const saveMutation = useMutation({
+    mutationFn: (data) => api.put(`/demandes_rst/${uid}`, data),
+    onSuccess: (saved) => {
+      setDemande(saved)
+      qc.setQueryData(['demande', uid], saved)
+      qc.invalidateQueries({ queryKey: ['demandes'] })
+      setIsEditing(false)
+    },
+  })
 
   useEffect(() => {
     const nextState = loadDemandeUiState(uid)
@@ -1277,150 +1314,325 @@ export default function DemandePage() {
     setInterventionCreateDraft(null)
   }
 
+  function startEditing() {
+    setEditForm(buildEditForm(d))
+    setIsEditing(true)
+  }
+
+  function cancelEditing() {
+    setIsEditing(false)
+    saveMutation.reset()
+  }
+
+  function handleSaveEditing() {
+    saveMutation.mutate(sanitizeDemandeUpdate(editForm))
+  }
+
+  function openPreparationPage() {
+    navigate(preparationEditHref)
+  }
+
+  function openCampaignPage() {
+    navigate(buildPathWithReturnTo(`/campagnes?demande_id=${uid}`, detailReturnTo))
+  }
+
+  function openInterventionPage() {
+    navigate(buildPathWithReturnTo(`/interventions?demande_id=${uid}`, detailReturnTo))
+  }
+
   return (
-    <div className="flex flex-col h-full -m-6 overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-6 bg-surface border-b border-border h-[58px] shrink-0 sticky top-0 z-10 flex-wrap">
-        <button onClick={handleBackNavigation}
-          className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors">
-          {backButtonLabel}
-        </button>
-        <span className="text-[15px] font-semibold flex-1">{d.reference}</span>
-        <Button size="sm" onClick={() => navigate(`/affaires/${d.affaire_rst_id}`)}>📋 Affaire</Button>
-        <Button size="sm" variant="primary" onClick={() => setEditOpen(true)}>✏️ Modifier</Button>
+    <div
+      className="flex flex-col h-full -m-6 overflow-y-auto"
+      style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
+    >
+      {/* ═══ Topbar ═══ */}
+      <div
+        className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+        style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+      >
+        <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+        <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+          <button
+            onClick={handleBackNavigation}
+            className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+          >
+            {backButtonLabel}
+          </button>
+          <div className="flex-1 min-w-[220px]">
+            <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche demande</div>
+            <div className="text-[15px] font-black">{d.reference}</div>
+          </div>
+          {d.affaire_rst_id && (
+            <Button size="sm" onClick={() => navigate(`/affaires/${d.affaire_rst_id}`)}>Affaire</Button>
+          )}
+          {isEditing ? (
+            <>
+              <Button size="sm" onClick={cancelEditing}>Annuler</Button>
+              <Button size="sm" variant="primary" onClick={handleSaveEditing} disabled={saveMutation.isPending}>
+                {saveMutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="primary" onClick={startEditing}>Modifier</Button>
+              <Button size="sm" onClick={openPreparationPage}>Préparation</Button>
+              <Button size="sm" onClick={openCampaignPage}>Campagnes</Button>
+              <Button size="sm" onClick={openInterventionPage}>Interventions</Button>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="p-6 max-w-[960px] mx-auto w-full flex flex-col gap-4">
+      {/* ═══ Main ═══ */}
+      <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
 
-        {/* Hero */}
-        <div className="bg-surface border border-border rounded-[10px] p-6">
-          <div className="flex items-start justify-between gap-3">
+        {/* ── Hero ── */}
+        <section
+          className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+          style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+        >
+          <div
+            className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+            style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+          >
+            <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
             <div>
-              <div className="flex items-center gap-2">
-                <div className="text-[22px] font-bold text-accent">{d.reference}</div>
-                <button onClick={() => { setRefEditVal(d.reference); setRefEditOpen(true) }}
-                  title="Modifier la référence"
-                  className="text-[11px] text-text-muted hover:text-accent border border-border rounded px-1.5 py-0.5 transition-colors">✏</button>
+              <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
+                RaLab 5 · Demande RST
               </div>
-              <div className="text-[14px] text-text mt-1">{d.nature || d.type_mission || '—'}</div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                <InlineMeta label="Affaire liée" value={d.affaire_ref} />
-                <InlineMeta label="Date demande" value={demandDate} />
-                <InlineMeta label="Création" value={createdDate} />
-                <InlineMeta label="Statut" value={d.statut} />
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{d.reference}</h1>
+                {isAdmin && (
+                  <button
+                    onClick={() => { setRefEditVal(d.reference); setRefEditOpen(true) }}
+                    className="rounded-full border border-white/25 bg-white/10 text-white px-2.5 py-1.5 text-[11px] font-black hover:bg-white/20 transition"
+                  >
+                    Modifier réf.
+                  </button>
+                )}
               </div>
-              {(d.chantier || d.client) && (
-                <div className="mt-3 text-[13px] text-text-muted space-y-0.5">
-                  {d.chantier ? <div>{d.chantier}</div> : null}
-                  {d.client ? <div>{d.client}</div> : null}
+              <div className="mt-3 text-[20px] font-black">{d.nature || d.type_mission || '—'}</div>
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
+                {d.affaire_ref && <span>Affaire : <strong className="text-white">{d.affaire_ref}</strong></span>}
+                {d.chantier && <span>Chantier : <strong className="text-white">{d.chantier}</strong></span>}
+                {d.client && <span>Client : <strong className="text-white">{d.client}</strong></span>}
+                {d.site && <span>Site : <strong className="text-white">{d.site}</strong></span>}
+              </div>
+            </div>
+
+            <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1.5 text-[11px] font-black leading-none ${STAT_CLS[d.statut] || 'bg-white/20 text-white'}`}>
+                  {d.statut || '—'}
+                </span>
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1.5 text-[11px] font-black leading-none ${PRIO_CLS[d.priorite] || 'bg-white/20 text-white'}`}>
+                  {d.priorite || '—'}
+                </span>
+                {d.a_revoir && (
+                  <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">⚠ À revoir</span>
+                )}
+                {d.numero_dst && (
+                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">DST {d.numero_dst}</span>
+                )}
+              </div>
+              <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Laboratoire</div>
+              <div className="mt-1.5 text-[13px] font-black">{LABO_NOM[d.labo_code] || d.labo_code || '—'}</div>
+              {urgDate !== null && (
+                <div className={`mt-2 text-[12px] font-black ${urgDate < 0 ? 'text-[#ff6b6b]' : urgDate <= 7 ? 'text-[#ffcc00]' : 'text-white/70'}`}>
+                  {urgDate < 0 ? `Échéance dépassée (${Math.abs(Math.round(urgDate))}j)` : `Échéance dans ${Math.round(urgDate)}j`}
                 </div>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5 justify-end">
-              <Badge s={d.statut}   map={STAT_CLS} />
-              <Badge s={d.priorite} map={PRIO_CLS} />
-              {d.a_revoir && <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#faeeda] text-[#854f0b]">⚠ À revoir</span>}
-              {d.numero_dst && <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#e6f1fb] text-[#185fa5]">DST {d.numero_dst}</span>}
+          </div>
+
+          {/* Metrics bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+            <MetricCard label="Campagnes" value={campaignsForDisplay.length} detail={`${campaignsForDisplay.length} campagne${campaignsForDisplay.length > 1 ? 's' : ''} cadrée${campaignsForDisplay.length > 1 ? 's' : ''}`} />
+            <MetricCard label="Interventions" value={counts.interventions || navigationInterventions.length} detail={discreetCounts.find(c => c.includes('intervention')) || 'Interventions rattachées'} />
+            <MetricCard label="Échantillons" value={d.nb_echantillons || 0} detail="Déclarés dans la demande" />
+            <MetricCard label="Modules" value={enabledModules.length} detail={enabledModules.length > 0 ? enabledModules.map(m => m.label || m.module_code).slice(0, 3).join(', ') : 'Aucun module activé'} />
+          </div>
+        </section>
+
+        {/* ── Two-column grid / édition inline ── */}
+        {isEditing ? (
+          <SectionCard
+            title="Modification de la demande"
+            subtitle="Édition inline — la référence se modifie séparément (admin)"
+          >
+            <DemandeEditFields demande={d} form={editForm} onChange={setEditForm} />
+            {saveMutation.error && (
+              <p className="text-danger text-xs mt-3">{saveMutation.error.message}</p>
+            )}
+          </SectionCard>
+        ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
+
+          {/* Left column */}
+          <div className="flex flex-col gap-5">
+            <SectionCard
+              title="Identité demande"
+              subtitle="Affaire rattachée et contexte du projet"
+              chip={<span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">{d.labo_code || 'RST'}</span>}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FieldCard label="Référence" value={d.reference} highlight />
+                <FieldCard label="Statut" value={<Badge s={d.statut} map={STAT_CLS} />} />
+                <FieldCard label="Priorité" value={<Badge s={d.priorite} map={PRIO_CLS} />} />
+                <FieldCard label="Affaire" value={d.affaire_ref} />
+                <FieldCard label="Client" value={d.client} />
+                <FieldCard label="N° étude" value={d.numero_etude} />
+                <FieldCard label="Chantier" value={d.chantier} className="sm:col-span-2" />
+                <FieldCard label="Site" value={d.site} />
+                <FieldCard label="N° NGE" value={d.affaire_nge} />
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Mission & contexte" subtitle="Type de prestation, domaine et paramètres techniques">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FieldCard label="Type mission" value={d.type_mission} />
+                <FieldCard label="Nature" value={d.nature} />
+                <FieldCard label="N° DST" value={d.numero_dst} highlight />
+                <FieldCard label="Domaine d'étude" value={d.domaine_etude} />
+                <FieldCard label="Type prestation attendue" value={d.type_prestation_attendue} className="sm:col-span-2" />
+                <FieldCard label="Urgence source" value={d.urgence_source} />
+                <FieldCard label="Laboratoire" value={LABO_NOM[d.labo_code] || d.labo_code} />
+              </div>
+            </SectionCard>
+
+            {(d.documents_fournis || d.lien_pieces_jointes) && (
+              <SectionCard title="Pièces source" subtitle="Documents fournis et liens vers pièces jointes" technical>
+                <div className="grid grid-cols-1 gap-3">
+                  <FieldCard label="Documents fournis" value={d.documents_fournis} />
+                  <FieldCard label="Lien pièces jointes" value={d.lien_pieces_jointes} />
+                </div>
+              </SectionCard>
+            )}
+          </div>
+
+          {/* Right column */}
+          <div className="flex flex-col gap-5">
+            <SectionCard
+              title="Acteurs & dates"
+              subtitle="Demandeur, échéances et cycle de vie"
+              chip={<Badge s={d.statut} map={STAT_CLS} />}
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FieldCard label="Demandeur" value={d.demandeur} />
+                <FieldCard label="Urgence source" value={d.urgence_source} />
+                <FieldCard label="Service interne" value={d.service_interne} />
+                <FieldCard label="Société interne" value={d.societe_interne} />
+                <FieldCard label="Date réception" value={formatDate(d.date_reception)} />
+                <FieldCard label="Échéance" value={d.date_echeance ? formatDate(d.date_echeance) : '—'} highlight={urgCls !== ''} />
+                <FieldCard label="Clôture" value={d.date_cloture ? formatDate(d.date_cloture) : 'En cours'} />
+                <FieldCard label="Création" value={createdDate} />
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Rapport & Administration" subtitle="Références rapport, devis, facture">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FieldCard label="Réf. rapport" value={d.rapport_ref} />
+                <FieldCard label="Rapport envoyé" value={d.rapport_envoye ? 'Oui' : '—'} />
+                <FieldCard label="Réf. devis" value={d.devis_ref} />
+                <FieldCard label="Réf. facture" value={d.facture_ref} />
+              </div>
+            </SectionCard>
+
+            {(d.description || d.observations) && (
+              <SectionCard title="Description & observations" subtitle="Notes descriptives de la demande">
+                {d.description && (
+                  <div className="mb-3">
+                    <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Description</div>
+                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#172033]">{d.description}</p>
+                  </div>
+                )}
+                {d.observations && (
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Observations</div>
+                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#172033]">{d.observations}</p>
+                  </div>
+                )}
+              </SectionCard>
+            )}
+          </div>
+        </div>
+        )}
+
+        {/* ── Préparation ── */}
+        <details className="rounded-[18px] border border-dashed border-[#dbe1ea] bg-white/60 px-5 py-3">
+          <summary className="cursor-pointer select-none flex items-center justify-between gap-3">
+            <span className="text-[10px] font-medium uppercase tracking-[.06em] text-[#69758a]/70">
+              Préparation <span className="ml-1 font-normal normal-case text-[#69758a]/50">{hasPreparationData ? 'configurée' : 'non initialisée'}</span>
+            </span>
+            <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+              <Button size="sm" variant="secondary" onClick={() => navigate(preparationPreviewHref)}>Voir</Button>
+              <Button size="sm" variant="primary" onClick={() => navigate(preparationEditHref)}>
+                {hasPreparationData ? 'Modifier' : 'Initialiser'}
+              </Button>
+            </div>
+          </summary>
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <FieldRow label="Phase opération" value={preparation.phase_operation} />
+              <FieldRow label="Familles prévues" value={selectedFamilyLabels.join(', ')} />
+              <FieldRow label="Attentes client" value={preparation.attentes_client} />
+              <FieldRow label="Contexte opérationnel" value={preparation.contexte_operationnel} />
+              <FieldRow label="Objectifs" value={preparation.objectifs} />
+              <FieldRow label="Objectif mission" value={preparation.objectif_mission} />
+              <FieldRow label="Points de vigilance" value={preparation.points_vigilance} />
+            </div>
+            <div className="space-y-1">
+              <FieldRow label="Finalité" value={preparation.finalite} />
+              <FieldRow label="Zone / localisation" value={preparation.zone_localisation} />
+              <FieldRow label="Matériau / objet" value={preparation.materiau_objet} />
+              <FieldRow label="Accès / contraintes" value={preparation.contraintes_acces || preparation.acces_site} />
+              <FieldRow label="Délais" value={preparation.contraintes_delais} />
+              <FieldRow label="HSE" value={preparation.contraintes_hse || preparation.hse} />
+              <FieldRow label="Programme / ressources" value={[preparation.programme_previsionnel || preparation.programme_investigations, preparation.ressources_notes || preparation.ressources].filter(Boolean).join('\n\n')} />
+              <FieldRow label="Pilotage" value={[preparation.responsable_referent, preparation.attribue_a, preparation.priorite].filter(Boolean).join(' · ')} />
+              <FieldRow label="Commentaires" value={[preparation.commentaires || preparation.comments, preparation.remarques].filter(Boolean).join('\n\n')} />
             </div>
           </div>
 
-          {discreetCounts.length > 0 ? (
-            <div className="mt-4 text-[11px] text-text-muted">
-              {discreetCounts.join(' • ')}
+          {selectedFamilyLabels.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Familles prévues</div>
+              <div className="flex flex-wrap gap-1">
+                {selectedFamilyLabels.map((label) => (
+                  <span key={label} className="inline-flex items-center px-2 py-0.5 border border-[#e4e9f1] rounded-full bg-[#fbfcfe] text-[11px] font-medium">{label}</span>
+                ))}
+              </div>
             </div>
-          ) : null}
+          )}
 
-          <details className="mt-4 rounded-[10px] border border-border bg-bg group">
-            <summary className="list-none cursor-pointer px-4 py-3 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[12px] font-semibold text-text">Préparation liée</div>
-                <div className="text-[11px] text-text-muted mt-0.5">
-                  {preparation.phase_operation || (hasPreparationData ? 'Préparation renseignée' : 'Préparation à initialiser')}
-                  {selectedFamilyLabels.length ? ` · ${selectedFamilyLabels.join(', ')}` : ''}
-                </div>
+          {enabledModules.length > 0 && (
+            <div className="mt-3">
+              <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Modules activés</div>
+              <div className="flex flex-wrap gap-1">
+                {enabledModules.map((item) => (
+                  <span key={item.module_code} className="inline-flex items-center px-2 py-0.5 border border-[#e4e9f1] rounded-full bg-[#fbfcfe] text-[11px] font-medium">{item.label || item.module_code}</span>
+                ))}
               </div>
-              <span className="text-[14px] text-text-muted transition-transform group-open:rotate-180">▾</span>
-            </summary>
-            <div className="border-t border-border px-4 py-4 flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[11px] text-text-muted">
-                  Préparation directe de la demande. La passation éventuelle reste uniquement une aide facultative de saisie.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => navigate(preparationPreviewHref)}>
-                    Voir toute la préparation
-                  </Button>
-                  <Button size="sm" variant="primary" onClick={() => navigate(preparationEditHref)}>
-                    {hasPreparationData ? 'Modifier la préparation' : 'Initialiser la préparation'}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <FieldRow label="Phase opération" value={preparation.phase_operation} />
-                  <FieldRow label="Familles prévues" value={selectedFamilyLabels.join(', ')} />
-                  <FieldRow label="Attentes client" value={preparation.attentes_client} />
-                  <FieldRow label="Contexte opérationnel" value={preparation.contexte_operationnel} />
-                  <FieldRow label="Objectifs" value={preparation.objectifs} />
-                  <FieldRow label="Objectif mission" value={preparation.objectif_mission} />
-                  <FieldRow label="Points de vigilance" value={preparation.points_vigilance} />
-                </div>
-                <div className="space-y-1.5">
-                  <FieldRow label="Finalité" value={preparation.finalite} />
-                  <FieldRow label="Zone / localisation" value={preparation.zone_localisation} />
-                  <FieldRow label="Matériau / objet" value={preparation.materiau_objet} />
-                  <FieldRow label="Accès / contraintes" value={preparation.contraintes_acces || preparation.acces_site} />
-                  <FieldRow label="Délais" value={preparation.contraintes_delais} />
-                  <FieldRow label="HSE" value={preparation.contraintes_hse || preparation.hse} />
-                  <FieldRow label="Programme / ressources" value={[preparation.programme_previsionnel || preparation.programme_investigations, preparation.ressources_notes || preparation.ressources].filter(Boolean).join('\n\n')} />
-                  <FieldRow label="Pilotage" value={[preparation.responsable_referent, preparation.attribue_a, preparation.priorite].filter(Boolean).join(' · ')} />
-                  <FieldRow label="Commentaires" value={[preparation.commentaires || preparation.comments, preparation.remarques].filter(Boolean).join('\n\n')} />
-                </div>
-              </div>
-
-              {selectedFamilyLabels.length > 0 ? (
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted mb-2">Familles prévues</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedFamilyLabels.map((label) => (
-                      <span key={label} className="inline-flex items-center px-2.5 py-1 border border-border rounded-full bg-surface text-[12px] font-medium">
-                        {label}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-
-              {enabledModules.length > 0 ? (
-                <div>
-                  <div className="text-[11px] font-bold uppercase tracking-[.06em] text-text-muted mb-2">Modules activés</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {enabledModules.map((item) => (
-                      <span key={item.module_code} className="inline-flex items-center px-2.5 py-1 border border-border rounded-full bg-surface text-[12px] font-medium">
-                        {item.label || item.module_code}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
             </div>
-          </details>
-        </div>
+          )}
+        </details>
 
-        {demandeSupportCount > 0 ? (
-          <details className="bg-surface border border-border/60 rounded-[10px] px-5 py-3">
-            <summary className="cursor-pointer select-none text-[10px] font-medium uppercase tracking-[.06em] text-text-muted/70">
-              PI / NI (demande) <span className="ml-1 font-normal normal-case text-text-muted/50">({demandeSupportCount})</span>
+        {/* ── PI/NI ── */}
+        {demandeSupportCount > 0 && (
+          <details className="rounded-[18px] border border-dashed border-[#dbe1ea] bg-white/60 px-5 py-3 opacity-[.82]">
+            <summary className="cursor-pointer select-none text-[10px] font-medium uppercase tracking-[.06em] text-[#69758a]/70">
+              PI / NI (demande) <span className="ml-1 font-normal normal-case text-[#69758a]/50">({demandeSupportCount})</span>
             </summary>
             <div className="mt-3 flex flex-col gap-4">
               {demandeSupportCampaignGroups.map((entry) => (
-                <div key={entry.campaign?.uid || entry.campaign?.reference} className="rounded-lg border border-border bg-bg px-3 py-3">
-                  <div className="text-[12px] font-semibold text-accent">{entry.campaign?.reference || entry.campaign?.label || 'Campagne'}</div>
+                <div key={entry.campaign?.uid || entry.campaign?.reference} className="rounded-lg border border-[#e4e9f1] bg-[#fbfcfe] px-3 py-3">
+                  <div className="text-[12px] font-semibold text-[#003170]">{entry.campaign?.reference || entry.campaign?.label || 'Campagne'}</div>
                   <div className="mt-2 flex flex-col gap-3">
                     {entry.interventionGroups.map((group) => (
                       <div key={group.intervention_uid || group.intervention_reference} className="flex flex-col gap-2">
-                        <div className="text-[11px] font-semibold text-text">{group.intervention_reference}</div>
+                        <div className="text-[11px] font-semibold text-[#172033]">{group.intervention_reference}</div>
                         <div className="flex flex-col gap-2">
                           {group.objects.map((item) => (
                             <RelatedObjectNode
@@ -1440,18 +1652,14 @@ export default function DemandePage() {
               ))}
             </div>
           </details>
-        ) : null}
+        )}
 
-        {/* Campagnes */}
+        {/* ── Campagnes ── */}
         {(visibility.campagnes !== false || campaignsForDisplay.length > 0) && (
-          <Card
+          <SectionCard
             title="Campagnes d'intervention"
-            action={(
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-text-muted">{campaignsForDisplay.length} campagne{campaignsForDisplay.length > 1 ? 's' : ''}</span>
-                <Button size="sm" variant="primary" onClick={openNewCampaignModal}>Nouvelle campagne</Button>
-              </div>
-            )}
+            subtitle={`${campaignsForDisplay.length} campagne${campaignsForDisplay.length > 1 ? 's' : ''} cadrée${campaignsForDisplay.length > 1 ? 's' : ''}`}
+            actions={<Button size="sm" variant="primary" onClick={openNewCampaignModal}>Nouvelle campagne</Button>}
           >
             {campaignsForDisplay.length > 0 ? (
               <div className="flex flex-col gap-4">
@@ -1470,112 +1678,48 @@ export default function DemandePage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-[10px] border border-dashed border-border bg-bg px-4 py-4 flex flex-col gap-3">
-                <div className="text-[13px] text-text">Aucune campagne n’est encore cadrée pour cette demande.</div>
-                <div className="text-[12px] text-text-muted leading-6">
-                  Commencer par créer une campagne explicite, puis rattacher les interventions à ce cadre au fur et à mesure de l’exécution.
+              <div className="rounded-[14px] border border-dashed border-[#dbe1ea] bg-[#f8fafc] px-4 py-4 flex flex-col gap-3">
+                <div className="text-[13px] text-[#172033]">Aucune campagne n'est encore cadrée pour cette demande.</div>
+                <div className="text-[12px] text-[#69758a] leading-6">
+                  Commencer par créer une campagne explicite, puis rattacher les interventions à ce cadre au fur et à mesure de l'exécution.
                 </div>
                 <div>
                   <Button size="sm" variant="primary" onClick={openNewCampaignModal}>Nouvelle campagne</Button>
                 </div>
               </div>
             )}
-          </Card>
+          </SectionCard>
         )}
 
-        {/* Cards identité */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card title="Affaire RST">
-            <FieldRow label="Référence"   value={d.affaire_ref} />
-            <FieldRow label="Client"      value={d.client} />
-            <FieldRow label="Chantier"    value={d.chantier} />
-            <FieldRow label="Site"        value={d.site} />
-            <FieldRow label="N° étude"    value={d.numero_etude} />
-            <FieldRow label="N° NGE"      value={d.affaire_nge} />
-          </Card>
-          <Card title="Mission">
-            <FieldRow label="Type mission" value={d.type_mission} />
-            <FieldRow label="Nature"       value={d.nature} />
-            <FieldRow label="N° DST"       value={d.numero_dst} />
-            <FieldRow label="Domaine d'étude" value={d.domaine_etude} />
-            <FieldRow label="Type prestation attendue" value={d.type_prestation_attendue} />
-            <FieldRow label="Urgence source" value={d.urgence_source} />
-            <FieldRow label="Laboratoire"  value={LABO_NOM[d.labo_code] || d.labo_code} />
-          </Card>
-          <Card title="Acteurs">
-            <FieldRow label="Demandeur" value={d.demandeur} />
-            <FieldRow label="Service interne" value={d.service_interne} />
-            <FieldRow label="Société interne" value={d.societe_interne} />
-          </Card>
-          <Card title="Dates">
-            <FieldRow label="Réception" value={formatDate(d.date_reception)} />
-            <FieldRow label="Échéance"  value={d.date_echeance ? formatDate(d.date_echeance) : '—'} warn={urgCls !== ''} />
-            <FieldRow label="Clôture"   value={d.date_cloture ? formatDate(d.date_cloture) : 'En cours'} />
-          </Card>
-          <Card title="Pièces source">
-            <FieldRow label="Documents fournis" value={d.documents_fournis} />
-            <FieldRow label="Lien pièces jointes" value={d.lien_pieces_jointes} />
-          </Card>
-          <Card title="Rapport / Admin">
-            <FieldRow label="Réf. rapport"  value={d.rapport_ref} />
-            <FieldRow label="Rapport envoyé" value={d.rapport_envoye ? 'Oui' : null} />
-            <FieldRow label="Réf. devis"    value={d.devis_ref} />
-            <FieldRow label="Réf. facture"  value={d.facture_ref} />
-          </Card>
-        </div>
-        {/* Description / Observations */}
-        {(d.description || d.observations) && (
-          <div className="grid grid-cols-2 gap-4">
-            {d.description && (
-              <Card title="Description">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-text">{d.description}</p>
-              </Card>
-            )}
-            {d.observations && (
-              <Card title="Observations">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-text">{d.observations}</p>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* Suivi & Notes */}
+        {/* ── Suivi & Notes ── */}
         {(d.suivi_notes || d.note_reconciliation) && (
-          <Card title="Suivi & Notes">
+          <SectionCard title="Suivi & notes" subtitle="Notes de réconciliation et suivi" technical>
             {d.note_reconciliation && <FieldRow label="Note réconciliation" value={d.note_reconciliation} />}
-            {d.suivi_notes && <p className="text-sm mt-2 whitespace-pre-wrap">{d.suivi_notes}</p>}
-          </Card>
+            {d.suivi_notes && <p className="text-[13px] mt-2 whitespace-pre-wrap text-[#172033]">{d.suivi_notes}</p>}
+          </SectionCard>
         )}
 
-        {/* DST context */}
+        {/* ── DST context ── */}
         {d.dst_libelle_projet && (
-          <Card title="Contexte DST">
-            {d.dst_libelle_projet   && <FieldRow label="Libellé projet"      value={d.dst_libelle_projet} />}
-            {d.dst_societe          && <FieldRow label="Société"             value={d.dst_societe} />}
-            {d.dst_cadre_demande    && <FieldRow label="Cadre demande"       value={d.dst_cadre_demande} />}
-            {d.dst_domaine_etude    && <FieldRow label="Domaine étude"       value={d.dst_domaine_etude} />}
-            {d.dst_remise_souhaitee && <FieldRow label="Remise souhaitée"    value={d.dst_remise_souhaitee} />}
-            {d.dst_objet_demande    && (
-              <div className="mt-2">
-                <div className="text-[11px] text-text-muted mb-1">Objet de la demande</div>
-                <p className="text-sm whitespace-pre-wrap">{d.dst_objet_demande}</p>
+          <SectionCard title="Contexte DST" subtitle="Informations issues de la demande DST" technical>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {d.dst_libelle_projet && <FieldCard label="Libellé projet" value={d.dst_libelle_projet} />}
+              {d.dst_societe && <FieldCard label="Société" value={d.dst_societe} />}
+              {d.dst_cadre_demande && <FieldCard label="Cadre demande" value={d.dst_cadre_demande} />}
+              {d.dst_domaine_etude && <FieldCard label="Domaine étude" value={d.dst_domaine_etude} />}
+              {d.dst_remise_souhaitee && <FieldCard label="Remise souhaitée" value={d.dst_remise_souhaitee} />}
+            </div>
+            {d.dst_objet_demande && (
+              <div className="mt-3">
+                <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Objet de la demande</div>
+                <p className="text-[13px] whitespace-pre-wrap text-[#172033]">{d.dst_objet_demande}</p>
               </div>
             )}
-          </Card>
+          </SectionCard>
         )}
-
       </div>
 
-      <EditModal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        demande={demande}
-        onSaved={(saved) => {
-          setDemande(saved)
-          qc.setQueryData(['demande', uid], saved)
-          qc.invalidateQueries({ queryKey: ['demandes'] })
-        }}
-      />
+      {/* ═══ Modals ═══ */}
       <InterventionTypeModal
         open={Boolean(interventionCreateDraft)}
         onClose={() => setInterventionCreateDraft(null)}
@@ -1595,7 +1739,12 @@ export default function DemandePage() {
               <Button variant="primary"
                 disabled={!refEditVal.trim() || refEditVal === d.reference}
                 onClick={() => demandesApi.update(d.uid, { reference: refEditVal.trim() })
-                  .then(() => { qc.invalidateQueries({ queryKey: ['demande', String(uid)] }); setRefEditOpen(false) })}>
+                  .then((saved) => {
+                    setDemande(saved)
+                    qc.setQueryData(['demande', uid], saved)
+                    qc.invalidateQueries({ queryKey: ['demandes'] })
+                    setRefEditOpen(false)
+                  })}>
                 ✓ Enregistrer
               </Button>
             </div>

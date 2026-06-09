@@ -2,20 +2,60 @@
  * PassationPage.jsx — fidèle à passation.html
  * 7 sections A–G + tables documents/actions éditables inline
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, affairesApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate } from '@/lib/utils'
+import { useAuth } from '@/hooks/useAuth'
+import { hasRole } from '@/lib/permissions'
+import {
+  FieldCard,
+  FichePageShell,
+  MetricCard,
+  SectionCard,
+} from '@/components/layout/FicheLayout'
 
 const today = () => new Date().toISOString().split('T')[0]
+
+function normalizeEtudeKey(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function normalizeAffaireKey(value) {
+  return String(value || '')
+    .replaceAll('*', '')
+    .toUpperCase()
+    .replace(/[\s\-_/\.]+/g, '')
+    .trim()
+}
+
+function getNgeFullCode(row) {
+  return String(row?.numero_affaire_complet || row?.numero_affaire || '').trim()
+}
+
+function optionToValue(option) {
+  if (option == null) return ''
+  if (typeof option === 'string' || typeof option === 'number') return String(option).trim()
+  if (typeof option === 'object') {
+    return String(option.value ?? option.label ?? '').trim()
+  }
+  return ''
+}
+
+function buildSelectOptions(baseOptions, selectedValue) {
+  const values = new Set((baseOptions || []).map(optionToValue).filter(Boolean))
+  const selected = String(selectedValue || '').trim()
+  if (selected) values.add(selected)
+  return [...values]
+}
 
 function FG({ label, children, full }) {
   return (
     <div className={full ? 'col-span-2 flex flex-col gap-1' : 'flex flex-col gap-1'}>
-      {label && <label className="text-[11px] font-medium text-text-muted">{label}</label>}
+      {label && <label className="text-[10px] font-medium text-text-muted">{label}</label>}
       {children}
     </div>
   )
@@ -24,21 +64,40 @@ function TA({ value, onChange, rows = 3, placeholder }) {
   return (
     <textarea value={value ?? ''} onChange={e => onChange(e.target.value)} rows={rows}
       placeholder={placeholder}
-      className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+      className="w-full px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
   )
 }
-function SectionCard({ letter, title, children }) {
-  return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-border bg-bg">
-        <span className="w-6 h-6 rounded-full bg-accent text-white text-[11px] font-bold flex items-center justify-center shrink-0">{letter}</span>
-        <span className="text-[13px] font-semibold">{title}</span>
-      </div>
-      <div className="p-5">
-        {children}
-      </div>
-    </div>
-  )
+
+function ReadText({ value, empty = '—' }) {
+  const text = String(value || '').trim()
+  return <div className="text-[13px] leading-relaxed text-[#172033] whitespace-pre-wrap">{text || empty}</div>
+}
+
+function cleanText(value) {
+  const text = String(value || '').trim()
+  return text || ''
+}
+
+function buildAffaireSyncPatch(form, affaire) {
+  if (!affaire) return null
+  const patch = {}
+
+  const candidates = [
+    ['affaire_nge', cleanText(form.numero_affaire_nge)],
+    ['numero_etude', cleanText(form.numero_etude)],
+    ['chantier', cleanText(form.chantier)],
+    ['client', cleanText(form.client)],
+    ['titulaire', cleanText(form.entreprise_responsable)],
+    ['responsable', cleanText(form.responsable)],
+  ]
+
+  candidates.forEach(([key, next]) => {
+    if (!next) return
+    const current = cleanText(affaire?.[key])
+    if (next !== current) patch[key] = next
+  })
+
+  return Object.keys(patch).length > 0 ? patch : null
 }
 
 const EMPTY = {
@@ -68,6 +127,16 @@ const EMPTY = {
   synthese: '',
   notes: '',
 }
+
+const PHASE_EXAMPLES = [
+  'Études / Conception',
+  'Préparation de chantier',
+  'Installation / Mobilisation',
+  'Exécution',
+  'Contrôles / Essais',
+  'Réception',
+  'Clôture',
+]
 
 function DocRow({ doc, onChange, onRemove }) {
   function set(k, v) { onChange({ ...doc, [k]: v }) }
@@ -144,11 +213,15 @@ export default function PassationPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
+  const { user } = useAuth()
+  const isAdmin = hasRole(user, ['admin'])
   const isNew = !uid || uid === 'new'
 
   const [form, setForm] = useState(EMPTY)
   const [documents, setDocuments] = useState([])
   const [actions, setActions] = useState([])
+  const [isEditing, setIsEditing] = useState(isNew)
+  const [saveInfo, setSaveInfo] = useState('')
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -170,6 +243,31 @@ export default function PassationPage() {
     queryKey: ['passations-filters'],
     queryFn: () => api.get('/passations/filters'),
   })
+
+  const { data: etudesRows = [] } = useQuery({
+    queryKey: ['reference-etudes-passation'],
+    queryFn: () => api.get('/reference-etudes/rows?limit=2000'),
+  })
+
+  const { data: affairesNgeRows = [] } = useQuery({
+    queryKey: ['reference-affaires-passation'],
+    queryFn: () => api.get('/reference-affaires/rows?limit=2000'),
+  })
+
+  const { data: passationRows = [] } = useQuery({
+    queryKey: ['passation-phase-options'],
+    queryFn: () => api.get('/passations'),
+  })
+
+  const passationSourceValues = useMemo(
+    () => buildSelectOptions(passationRows.map((row) => row?.source), form.source),
+    [passationRows, form.source]
+  )
+
+  const passationOperationTypeValues = useMemo(
+    () => buildSelectOptions(passationRows.map((row) => row?.operation_type), form.operation_type),
+    [passationRows, form.operation_type]
+  )
 
   // Bootstrap from affaire if ?affaire_id=X
   const bootstrapAffaireId = searchParams.get('affaire_id')
@@ -215,12 +313,36 @@ export default function PassationPage() {
     mutationFn: (payload) => isNew
       ? api.post('/passations', payload)
       : api.put(`/passations/${uid}`, payload),
-    onSuccess: (saved) => {
+    onSuccess: async (saved, variables) => {
+      const affaireUid = Number(saved?.affaire_rst_id || variables?.affaire_rst_id || 0)
+      const affaire = affaires.find((a) => Number(a?.uid) === affaireUid)
+      const patch = buildAffaireSyncPatch(variables || form, affaire)
+      let affaireSynced = false
+
+      if (affaireUid && patch) {
+        try {
+          await affairesApi.update(affaireUid, patch)
+          qc.invalidateQueries({ queryKey: ['affaire', affaireUid] })
+          qc.invalidateQueries({ queryKey: ['affaires'] })
+          affaireSynced = true
+        } catch {
+          // Keep passation save successful even if affaire sync fails.
+        }
+      }
+
+      setSaveInfo(affaireSynced ? 'Affaire RST mise à jour' : 'Passation enregistrée')
       qc.invalidateQueries({ queryKey: ['passations'] })
       if (isNew) navigate(`/passations/${saved.uid}`, { replace: true })
-      else qc.setQueryData(['passation', uid], saved)
+      else {
+        qc.setQueryData(['passation', uid], saved)
+        setIsEditing(false)
+      }
     },
   })
+
+  useEffect(() => {
+    setIsEditing(isNew)
+  }, [isNew, uid])
 
   function handleSave() {
     if (!form.affaire_rst_id) return
@@ -230,6 +352,24 @@ export default function PassationPage() {
       documents: documents.filter(d => d.document_type || d.comment || d.is_received),
       actions: actions.filter(a => a.action_label || a.responsable),
     })
+  }
+
+  function handleStartEdit() {
+    if (isNew) return
+    setSaveInfo('')
+    setIsEditing(true)
+  }
+
+  function handleCancelEdit() {
+    if (isNew) return
+    if (passation) {
+      const { documents: docs, actions: acts, ...rest } = passation
+      setForm({ ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') })
+      setDocuments(docs || [])
+      setActions(acts || [])
+    }
+    setSaveInfo('')
+    setIsEditing(false)
   }
 
   function addDoc() {
@@ -244,221 +384,540 @@ export default function PassationPage() {
   function updateAction(i, act) { setActions(a => a.map((x, j) => j === i ? act : x)) }
   function removeAction(i) { setActions(a => a.filter((_, j) => j !== i)) }
 
+  const etudeRowsByNumero = useMemo(() => {
+    const map = new Map()
+    etudesRows.forEach((row) => {
+      const key = normalizeEtudeKey(row?.numero_etude)
+      if (!key || map.has(key)) return
+      map.set(key, row)
+    })
+    return map
+  }, [etudesRows])
+
+  const ngeRowsByCode = useMemo(() => {
+    const map = new Map()
+    affairesNgeRows.forEach((row) => {
+      const key = normalizeAffaireKey(getNgeFullCode(row))
+      if (!key || map.has(key)) return
+      map.set(key, row)
+    })
+    return map
+  }, [affairesNgeRows])
+
+  const etudeNumberOptions = useMemo(() => {
+    const values = new Set()
+    etudesRows.forEach((row) => {
+      const value = String(row?.numero_etude || '').trim()
+      if (value) values.add(value)
+    })
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [etudesRows])
+
+  const ngeCodeOptions = useMemo(() => {
+    const values = new Set()
+    affairesNgeRows.forEach((row) => {
+      const value = getNgeFullCode(row)
+      if (value) values.add(value)
+    })
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [affairesNgeRows])
+
+  function handleNumeroEtudeInput(nextValue) {
+    set('numero_etude', nextValue)
+    const match = etudeRowsByNumero.get(normalizeEtudeKey(nextValue))
+    if (!match) return
+    const chantier = String(match?.nom_affaire || '').trim()
+    const client = String(match?.maitre_ouvrage || '').trim()
+    const entreprise = String(match?.filiale || '').trim()
+    const responsable = String(match?.responsable_etude || '').trim()
+    setForm((f) => ({
+      ...f,
+      numero_etude: String(match?.numero_etude || nextValue || '').trim(),
+      chantier: chantier || f.chantier,
+      client: client || f.client,
+      entreprise_responsable: entreprise || f.entreprise_responsable,
+      responsable: responsable || f.responsable,
+    }))
+  }
+
+  function handleNumeroAffaireNgeInput(nextValue) {
+    set('numero_affaire_nge', nextValue)
+    const match = ngeRowsByCode.get(normalizeAffaireKey(nextValue))
+    if (!match) return
+    const fullCode = getNgeFullCode(match)
+    const chantier = String(match?.libelle || '').trim()
+    const entreprise = String(match?.filiales_toutes || match?.filiale_principale || match?.filiales_resume || '').trim()
+    const responsable = String(match?.responsable || '').trim()
+    const numeroEtude = String(match?.numero_etude || '').trim()
+    setForm((f) => ({
+      ...f,
+      numero_affaire_nge: fullCode || nextValue,
+      numero_etude: numeroEtude || f.numero_etude,
+      chantier: chantier || f.chantier,
+      entreprise_responsable: entreprise || f.entreprise_responsable,
+      responsable: responsable || f.responsable,
+    }))
+  }
+
   const title = isNew ? 'Nouvelle passation' : (passation?.reference || `Passation #${uid}`)
-  const sources = filters.source_options || filters.sources || []
-  const opTypes = filters.operation_type_options || filters.operation_types || []
-  const phases  = filters.phase_operation_options || filters.phase_operations || []
+  const sources = useMemo(
+    () => buildSelectOptions([...(filters.source_options || filters.sources || []), ...passationSourceValues], form.source),
+    [filters.source_options, filters.sources, passationSourceValues, form.source]
+  )
+  const opTypes = useMemo(
+    () => buildSelectOptions([...(filters.operation_type_options || filters.operation_types || []), ...passationOperationTypeValues], form.operation_type),
+    [filters.operation_type_options, filters.operation_types, passationOperationTypeValues, form.operation_type]
+  )
+  const phases = useMemo(
+    () => buildSelectOptions([
+      ...(filters.phase_operation_options || filters.phase_operations || []),
+      ...passationRows.map((row) => row?.phase_operation),
+      ...PHASE_EXAMPLES,
+    ], form.phase_operation),
+    [filters.phase_operation_options, filters.phase_operations, passationRows, form.phase_operation]
+  )
   const priorites = filters.action_priorite_options || ['Basse','Normale','Haute','Critique']
   const actStatuts = filters.action_statut_options || ['À lancer','En cours','Fait','Annulé']
+  const linkedAffaire = form.affaire_rst_id
+    ? affaires.find(a => String(a.uid) === String(form.affaire_rst_id))
+    : null
+  const canEditAffaireLink = isNew && !linkedAffaire
+  const backTarget = linkedAffaire ? `/affaires/${linkedAffaire.uid}` : '/passations'
+  const canEdit = isNew || isEditing
+
+  const metrics = {
+    docs: documents.filter(d => d.document_type).length,
+    actions: actions.filter(a => a.action_label).length,
+    source: form.source || '—',
+    phase: form.phase_operation || '—',
+  }
 
   if (!isNew && isLoading) {
-    return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+    return (
+      <FichePageShell>
+        <div
+          className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+          style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+        >
+          <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+          <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+            <button
+              type="button"
+              onClick={() => navigate('/passations')}
+              className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+            >
+              ← Affaires RST
+            </button>
+            <div className="flex-1 min-w-[220px]">
+              <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche passation</div>
+              <div className="text-[15px] font-black">{title}</div>
+            </div>
+          </div>
+        </div>
+        <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+          <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+        </div>
+      </FichePageShell>
+    )
   }
 
   return (
-    <div className="flex flex-col h-full -m-6 overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0 sticky top-0 z-10">
-        <button onClick={() => navigate('/passations')}
-          className="text-text-muted text-[13px] hover:text-text px-2 py-1.5 rounded transition-colors">
-          ← Passations
-        </button>
-        <span className="text-[15px] font-semibold flex-1">{title}</span>
-        {/* Summary pills */}
-        <span className="text-xs text-text-muted hidden sm:block">
-          {form.affaire_rst_id
-            ? affaires.find(a => String(a.uid) === String(form.affaire_rst_id))?.reference || '—'
-            : '—'}
-        </span>
-        <span className="text-xs bg-[#e6f1fb] text-[#185fa5] px-2 py-0.5 rounded-full">{documents.filter(d => d.document_type).length} docs</span>
-        <span className="text-xs bg-[#eaf3de] text-[#3b6d11] px-2 py-0.5 rounded-full">{actions.filter(a => a.action_label).length} actions</span>
-        <Button variant="primary" onClick={handleSave} disabled={!form.affaire_rst_id || mutation.isPending}>
-          {mutation.isPending ? 'Enregistrement…' : (isNew ? '✓ Créer' : '✓ Enregistrer')}
-        </Button>
+    <FichePageShell>
+      <div
+        className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+        style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+      >
+        <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+        <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+          <button
+            type="button"
+            onClick={() => navigate(backTarget)}
+            className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+          >
+            ← Affaires RST
+          </button>
+          <div className="flex-1 min-w-[220px]">
+            <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche passation</div>
+            <div className="text-[15px] font-black">{title}</div>
+          </div>
+
+          {linkedAffaire ? (
+            <Button size="sm" onClick={() => navigate(`/affaires/${linkedAffaire.uid}`)}>Affaire</Button>
+          ) : null}
+          {linkedAffaire ? (
+            <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${linkedAffaire.uid}`)}>Demandes</Button>
+          ) : null}
+          {!isNew && !isEditing ? (
+            <Button size="sm" variant="primary" onClick={handleStartEdit}>Modifier</Button>
+          ) : (
+            <>
+              <Button size="sm" onClick={isNew ? () => navigate('/passations') : handleCancelEdit}>Annuler</Button>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleSave}
+                disabled={!form.affaire_rst_id || mutation.isPending}
+              >
+                {mutation.isPending ? 'Enregistrement…' : (isNew ? '✓ Créer' : '✓ Enregistrer')}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
+      <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+        {saveInfo && (
+          <div className="px-4 py-2 rounded border border-[#b8e3c7] bg-[#eaf8ef] text-[#1b6f43] text-xs font-medium">
+            {saveInfo}
+          </div>
+        )}
+        {linkedAffaire ? (
+          <section
+            className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+            style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+          >
+            <div
+              className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+              style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+            >
+              <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
+              <div>
+                <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                  <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
+                  RaLab 5 · Passation RST
+                </div>
+                <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{title}</h1>
+                <div className="mt-3 text-[20px] font-black">{linkedAffaire.chantier || '—'}</div>
+                <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
+                  {linkedAffaire.client ? <span>Client : <strong className="text-white">{linkedAffaire.client}</strong></span> : null}
+                  {linkedAffaire.site ? <span>Site : <strong className="text-white">{linkedAffaire.site}</strong></span> : null}
+                  {linkedAffaire.responsable ? <span>Responsable : <strong className="text-white">{linkedAffaire.responsable}</strong></span> : null}
+                </div>
+              </div>
+
+              <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
+                <div className="flex flex-wrap justify-end gap-2">
+                  <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                    {linkedAffaire.statut === 'En cours' ? 'Affaire active' : (linkedAffaire.statut || '—')}
+                  </span>
+                  {linkedAffaire.titulaire ? (
+                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                      {linkedAffaire.titulaire}
+                    </span>
+                  ) : null}
+                  {linkedAffaire.filiale ? (
+                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                      {linkedAffaire.filiale}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Demandes</div>
+                <div className="mt-1.5 text-[13px] font-black">
+                  {linkedAffaire.nb_demandes_actives ?? 0} active{(linkedAffaire.nb_demandes_actives ?? 0) !== 1 ? 's' : ''} / {linkedAffaire.nb_demandes ?? 0}
+                </div>
+                {linkedAffaire.date_ouverture ? (
+                  <div className="mt-2 text-[12px] font-black text-white/70">Ouverture {formatDate(linkedAffaire.date_ouverture)}</div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+              <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
+              <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
+              <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
+              <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
+            </div>
+          </section>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
+            <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
+            <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
+            <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
+          </div>
+        )}
+
       {mutation.error && (
-        <div className="mx-6 mt-4 px-4 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded text-xs text-danger">
+        <div className="px-4 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded text-xs text-danger">
           {mutation.error.message}
         </div>
       )}
 
-      <div className="p-6 flex flex-col gap-5 max-w-[960px] mx-auto w-full">
+        {canEdit ? (
+          <>
+            <SectionCard title="A - Identité" subtitle="Rattachement affaire et informations de cadrage" >
+              <div className="grid grid-cols-2 gap-3.5">
+                <FG label="Affaire liée *" full>
+                  {canEditAffaireLink ? (
+                    <Select value={form.affaire_rst_id} onChange={e => set('affaire_rst_id', e.target.value)} className="w-full">
+                      <option value="">— Sélectionner —</option>
+                      {affaires.map(a => (
+                        <option key={a.uid} value={a.uid}>{a.reference} — {a.chantier || a.client}</option>
+                      ))}
+                    </Select>
+                  ) : (
+                    <FieldCard
+                      label="Affaire liée"
+                      value={linkedAffaire?.reference || '—'}
+                      highlight
+                    />
+                  )}
+                </FG>
+                <FG label="Date de passation">
+                  <Input type="date" value={form.date_passation ?? ''} onChange={e => set('date_passation', e.target.value)} />
+                </FG>
+                <FG label="N° étude">
+                  <Input
+                    value={form.numero_etude}
+                    onChange={e => handleNumeroEtudeInput(e.target.value)}
+                    list="passation-etudes-options"
+                  />
+                </FG>
+                <FG label="N° affaire NGE">
+                  <Input
+                    value={form.numero_affaire_nge}
+                    onChange={e => handleNumeroAffaireNgeInput(e.target.value)}
+                    list="passation-nge-options"
+                  />
+                </FG>
+                <FG label="Chantier">
+                  <Input value={form.chantier} onChange={e => set('chantier', e.target.value)} />
+                </FG>
+                <FG label="Client">
+                  <Input value={form.client} onChange={e => set('client', e.target.value)} />
+                </FG>
+                <FG label="Entreprise responsable">
+                  <Input value={form.entreprise_responsable} onChange={e => set('entreprise_responsable', e.target.value)} />
+                </FG>
+                <FG label="Agence">
+                  <Input value={form.agence} onChange={e => set('agence', e.target.value)} />
+                </FG>
+                <FG label="Responsable / pilote" full>
+                  <Input value={form.responsable} onChange={e => set('responsable', e.target.value)} />
+                </FG>
+              </div>
+            </SectionCard>
 
-        {/* A — Identité */}
-        <SectionCard letter="A" title="Identité">
-          <div className="grid grid-cols-2 gap-4">
-            <FG label="Affaire liée *" full>
-              <select value={form.affaire_rst_id} onChange={e => set('affaire_rst_id', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
-                <option value="">— Sélectionner —</option>
-                {affaires.map(a => (
-                  <option key={a.uid} value={a.uid}>{a.reference} — {a.chantier || a.client}</option>
-                ))}
-              </select>
-            </FG>
-            <FG label="Date de passation">
-              <Input type="date" value={form.date_passation ?? ''} onChange={e => set('date_passation', e.target.value)} />
-            </FG>
-            <FG label="N° étude">
-              <Input value={form.numero_etude} onChange={e => set('numero_etude', e.target.value)} />
-            </FG>
-            <FG label="N° affaire NGE">
-              <Input value={form.numero_affaire_nge} onChange={e => set('numero_affaire_nge', e.target.value)} />
-            </FG>
-            <FG label="Chantier">
-              <Input value={form.chantier} onChange={e => set('chantier', e.target.value)} />
-            </FG>
-            <FG label="Client">
-              <Input value={form.client} onChange={e => set('client', e.target.value)} />
-            </FG>
-            <FG label="Entreprise responsable">
-              <Input value={form.entreprise_responsable} onChange={e => set('entreprise_responsable', e.target.value)} />
-            </FG>
-            <FG label="Agence">
-              <Input value={form.agence} onChange={e => set('agence', e.target.value)} />
-            </FG>
-            <FG label="Responsable / pilote" full>
-              <Input value={form.responsable} onChange={e => set('responsable', e.target.value)} />
-            </FG>
-          </div>
-        </SectionCard>
+            <SectionCard title="B - Contexte & origine" subtitle="Source, type d'opération et contexte marché" >
+              <div className="grid grid-cols-2 gap-3.5">
+                <FG label="Origine de la passation">
+                  <Input value={form.source ?? ''} onChange={e => set('source', e.target.value)} list="passation-source-options" placeholder="Écris ou choisis une origine" />
+                </FG>
+                <FG label="Type d'opération">
+                  <Input value={form.operation_type ?? ''} onChange={e => set('operation_type', e.target.value)} list="passation-operation-type-options" placeholder="Écris ou choisis un type" />
+                </FG>
+                <FG label="Phase chantier">
+                  <Input value={form.phase_operation ?? ''} onChange={e => set('phase_operation', e.target.value)} list="passation-phase-options" placeholder="Écris ou choisis une phase" />
+                </FG>
+                <div />
+                <FG label="Interlocuteurs principaux" full>
+                  <TA value={form.interlocuteurs_principaux} onChange={v => set('interlocuteurs_principaux', v)} rows={3} />
+                </FG>
+                <FG label="Description générale" full>
+                  <TA value={form.description_generale} onChange={v => set('description_generale', v)} rows={4} />
+                </FG>
+                <FG label="Contexte marché" full>
+                  <TA value={form.contexte_marche} onChange={v => set('contexte_marche', v)} rows={3} />
+                </FG>
+              </div>
+            </SectionCard>
+          </>
+        ) : (
+          <>
+            <SectionCard title="A - Identité" subtitle="Rattachement affaire et informations de cadrage" >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FieldCard label="Affaire liée" value={linkedAffaire?.reference || ''} highlight />
+                <FieldCard label="Date de passation" value={formatDate(form.date_passation)} />
+                <FieldCard label="N° étude" value={form.numero_etude} />
+                <FieldCard label="N° affaire NGE" value={form.numero_affaire_nge} />
+                <FieldCard label="Client" value={form.client} />
+                <FieldCard label="Chantier" value={form.chantier} className="sm:col-span-2" />
+                <FieldCard label="Entreprise responsable" value={form.entreprise_responsable} />
+                <FieldCard label="Agence" value={form.agence} />
+                <FieldCard label="Responsable / pilote" value={form.responsable} />
+              </div>
+            </SectionCard>
 
-        {/* B — Contexte */}
-        <SectionCard letter="B" title="Contexte & origine">
-          <div className="grid grid-cols-2 gap-4">
-            <FG label="Origine de la passation">
-              <select value={form.source ?? ''} onChange={e => set('source', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
-                <option value="">—</option>
-                {sources.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </FG>
-            <FG label="Type d'opération">
-              <select value={form.operation_type ?? ''} onChange={e => set('operation_type', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
-                <option value="">—</option>
-                {opTypes.map(t => <option key={t}>{t}</option>)}
-              </select>
-            </FG>
-            <FG label="Phase chantier">
-              <select value={form.phase_operation ?? ''} onChange={e => set('phase_operation', e.target.value)}
-                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
-                <option value="">—</option>
-                {phases.map(p => <option key={p}>{p}</option>)}
-              </select>
-            </FG>
-            <div />
-            <FG label="Interlocuteurs principaux" full>
-              <TA value={form.interlocuteurs_principaux} onChange={v => set('interlocuteurs_principaux', v)} rows={3} />
-            </FG>
-            <FG label="Description générale" full>
-              <TA value={form.description_generale} onChange={v => set('description_generale', v)} rows={4} />
-            </FG>
-            <FG label="Contexte marché" full>
-              <TA value={form.contexte_marche} onChange={v => set('contexte_marche', v)} rows={3} />
-            </FG>
-          </div>
-        </SectionCard>
+            <SectionCard title="B - Contexte & origine" subtitle="Source, type d'opération et contexte marché" >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <FieldCard label="Origine" value={form.source} />
+                <FieldCard label="Type d'opération" value={form.operation_type} />
+                <FieldCard label="Phase chantier" value={form.phase_operation} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 mt-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Interlocuteurs principaux</div>
+                  <ReadText value={form.interlocuteurs_principaux} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Description générale</div>
+                  <ReadText value={form.description_generale} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Contexte marché</div>
+                  <ReadText value={form.contexte_marche} />
+                </div>
+              </div>
+            </SectionCard>
+          </>
+        )}
 
-        {/* C — Documents */}
-        <SectionCard letter="C" title="Documents reçus / attendus">
+        <datalist id="passation-etudes-options">
+          {etudeNumberOptions.map((value) => <option key={value} value={value} />)}
+        </datalist>
+        <datalist id="passation-nge-options">
+          {ngeCodeOptions.map((value) => <option key={value} value={value} />)}
+        </datalist>
+        <datalist id="passation-source-options">
+          {sources.map((value) => <option key={value} value={value} />)}
+        </datalist>
+        <datalist id="passation-operation-type-options">
+          {opTypes.map((value) => <option key={value} value={value} />)}
+        </datalist>
+        <datalist id="passation-phase-options">
+          {phases.map((value) => <option key={value} value={value} />)}
+        </datalist>
+
+        <SectionCard title="C - Documents reçus / attendus" subtitle="Pièces nécessaires pour le lancement" >
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs mb-3">
               <thead>
                 <tr className="border-b border-border">
                   {['Document','Reçu','Version','Date','Commentaire',''].map(h => (
-                    <th key={h} className="px-2 py-2 text-left font-medium text-text-muted">{h}</th>
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {documents.map((doc, i) => (
-                  <DocRow key={i} doc={doc} onChange={d => updateDoc(i, d)} onRemove={() => removeDoc(i)} />
-                ))}
+                {canEdit ? (
+                  documents.map((doc, i) => (
+                    <DocRow key={i} doc={doc} onChange={d => updateDoc(i, d)} onRemove={() => removeDoc(i)} />
+                  ))
+                ) : (
+                  documents.map((doc, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{doc.document_type || '—'}</td>
+                      <td className="px-2 py-1.5 text-center">{doc.is_received ? 'Oui' : 'Non'}</td>
+                      <td className="px-2 py-1.5">{doc.version || '—'}</td>
+                      <td className="px-2 py-1.5">{doc.document_date ? formatDate(doc.document_date) : '—'}</td>
+                      <td className="px-2 py-1.5">{doc.comment || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-          <Button size="sm" onClick={addDoc}>+ Ajouter document</Button>
+          {canEdit ? <Button size="sm" onClick={addDoc}>+ Ajouter document</Button> : null}
         </SectionCard>
 
-        {/* D — Points de vigilance */}
-        <SectionCard letter="D" title="Points de vigilance / contraintes">
-          <TA value={form.points_sensibles} onChange={v => set('points_sensibles', v)} rows={5} />
+        <SectionCard title="D - Points de vigilance / contraintes" subtitle="Risques et points de suivi" >
+          {canEdit
+            ? <TA value={form.points_sensibles} onChange={v => set('points_sensibles', v)} rows={5} />
+            : <ReadText value={form.points_sensibles} />}
         </SectionCard>
 
-        {/* E — Besoins */}
-        <SectionCard letter="E" title="Besoins RST">
-          <div className="grid grid-cols-2 gap-4">
-            <FG label="Besoins laboratoire">
-              <TA value={form.besoins_laboratoire} onChange={v => set('besoins_laboratoire', v)} rows={3} />
-            </FG>
-            <FG label="Besoins terrain">
-              <TA value={form.besoins_terrain} onChange={v => set('besoins_terrain', v)} rows={3} />
-            </FG>
-            <FG label="Besoins étude">
-              <TA value={form.besoins_etude} onChange={v => set('besoins_etude', v)} rows={3} />
-            </FG>
-            <FG label="Besoins G3">
-              <TA value={form.besoins_g3} onChange={v => set('besoins_g3', v)} rows={3} />
-            </FG>
-            <FG label="Besoins essais externes">
-              <TA value={form.besoins_essais_externes} onChange={v => set('besoins_essais_externes', v)} rows={3} />
-            </FG>
-            <FG label="Besoins équipements spécifiques">
-              <TA value={form.besoins_equipements_specifiques} onChange={v => set('besoins_equipements_specifiques', v)} rows={3} />
-            </FG>
-            <FG label="Besoins ressources humaines" full>
-              <TA value={form.besoins_ressources_humaines} onChange={v => set('besoins_ressources_humaines', v)} rows={3} />
-            </FG>
-          </div>
+        <SectionCard title="E - Besoins RST" subtitle="Ressources et besoins techniques" >
+          {canEdit ? (
+            <div className="grid grid-cols-2 gap-3.5">
+              <FG label="Besoins laboratoire">
+                <TA value={form.besoins_laboratoire} onChange={v => set('besoins_laboratoire', v)} rows={3} />
+              </FG>
+              <FG label="Besoins terrain">
+                <TA value={form.besoins_terrain} onChange={v => set('besoins_terrain', v)} rows={3} />
+              </FG>
+              <FG label="Besoins étude">
+                <TA value={form.besoins_etude} onChange={v => set('besoins_etude', v)} rows={3} />
+              </FG>
+              <FG label="Besoins G3">
+                <TA value={form.besoins_g3} onChange={v => set('besoins_g3', v)} rows={3} />
+              </FG>
+              <FG label="Besoins essais externes">
+                <TA value={form.besoins_essais_externes} onChange={v => set('besoins_essais_externes', v)} rows={3} />
+              </FG>
+              <FG label="Besoins équipements spécifiques">
+                <TA value={form.besoins_equipements_specifiques} onChange={v => set('besoins_equipements_specifiques', v)} rows={3} />
+              </FG>
+              <FG label="Besoins ressources humaines" full>
+                <TA value={form.besoins_ressources_humaines} onChange={v => set('besoins_ressources_humaines', v)} rows={3} />
+              </FG>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FieldCard label="Besoins laboratoire" value={form.besoins_laboratoire} />
+              <FieldCard label="Besoins terrain" value={form.besoins_terrain} />
+              <FieldCard label="Besoins étude" value={form.besoins_etude} />
+              <FieldCard label="Besoins G3" value={form.besoins_g3} />
+              <FieldCard label="Besoins essais externes" value={form.besoins_essais_externes} />
+              <FieldCard label="Besoins équipements spécifiques" value={form.besoins_equipements_specifiques} />
+              <FieldCard label="Besoins ressources humaines" value={form.besoins_ressources_humaines} className="sm:col-span-2" />
+            </div>
+          )}
         </SectionCard>
 
-        {/* F — Actions */}
-        <SectionCard letter="F" title="Actions à lancer">
+        <SectionCard title="F - Actions à lancer" subtitle="Plan d'actions opérationnel" >
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs mb-3">
               <thead>
                 <tr className="border-b border-border">
                   {['Action','Responsable','Échéance','Priorité','Statut','Commentaire',''].map(h => (
-                    <th key={h} className="px-2 py-2 text-left font-medium text-text-muted">{h}</th>
+                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {actions.map((act, i) => (
-                  <ActionRow key={i} action={act}
-                    onChange={a => updateAction(i, a)}
-                    onRemove={() => removeAction(i)}
-                    priorites={priorites} statuts={actStatuts} />
-                ))}
+                {canEdit ? (
+                  actions.map((act, i) => (
+                    <ActionRow key={i} action={act}
+                      onChange={a => updateAction(i, a)}
+                      onRemove={() => removeAction(i)}
+                      priorites={priorites} statuts={actStatuts} />
+                  ))
+                ) : (
+                  actions.map((act, i) => (
+                    <tr key={i} className="border-b border-border">
+                      <td className="px-2 py-1.5">{act.action_label || '—'}</td>
+                      <td className="px-2 py-1.5">{act.responsable || '—'}</td>
+                      <td className="px-2 py-1.5">{act.echeance ? formatDate(act.echeance) : '—'}</td>
+                      <td className="px-2 py-1.5">{act.priorite || '—'}</td>
+                      <td className="px-2 py-1.5">{act.statut || '—'}</td>
+                      <td className="px-2 py-1.5">{act.commentaire || '—'}</td>
+                      <td className="px-2 py-1.5">—</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
-          <Button size="sm" onClick={addAction}>+ Ajouter action</Button>
+          {canEdit ? <Button size="sm" onClick={addAction}>+ Ajouter action</Button> : null}
         </SectionCard>
 
-        {/* G — Synthèse */}
-        <SectionCard letter="G" title="Synthèse & notes">
-          <div className="flex flex-col gap-4">
-            <FG label="Synthèse">
-              <TA value={form.synthese} onChange={v => set('synthese', v)} rows={4} />
-            </FG>
-            <FG label="Notes complémentaires">
-              <TA value={form.notes} onChange={v => set('notes', v)} rows={4} />
-            </FG>
-          </div>
+        <SectionCard title="G - Synthèse & notes" subtitle="Conclusion et éléments complémentaires" >
+          {canEdit ? (
+            <div className="flex flex-col gap-4">
+              <FG label="Synthèse">
+                <TA value={form.synthese} onChange={v => set('synthese', v)} rows={4} />
+              </FG>
+              <FG label="Notes complémentaires">
+                <TA value={form.notes} onChange={v => set('notes', v)} rows={4} />
+              </FG>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Synthèse</div>
+                <ReadText value={form.synthese} />
+              </div>
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Notes complémentaires</div>
+                <ReadText value={form.notes} />
+              </div>
+            </div>
+          )}
         </SectionCard>
-
-        {/* Save bottom */}
-        <div className="flex justify-end gap-3 pb-4">
-          <Button onClick={() => navigate('/passations')}>Annuler</Button>
-          <Button variant="primary" onClick={handleSave} disabled={!form.affaire_rst_id || mutation.isPending}>
-            {mutation.isPending ? 'Enregistrement…' : (isNew ? '✓ Créer la passation' : '✓ Enregistrer')}
-          </Button>
-        </div>
 
       </div>
-    </div>
+    </FichePageShell>
   )
 }

@@ -10,10 +10,11 @@ import sqlite3
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.core.database import ensure_ralab4_schema, get_db_path
+from app.services.intervention_campaign_service import list_campaigns_for_demande
 
 router = APIRouter()
 DB_PATH = get_db_path()
@@ -135,6 +136,54 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
         uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         row = conn.execute("SELECT * FROM campagnes WHERE id = ?", (uid,)).fetchone()
     return _to_dict(row)
+
+
+@router.get("")
+def list_intervention_campaigns(demande_id: Optional[int] = Query(None)):
+    if demande_id is not None:
+        try:
+            return list_campaigns_for_demande(int(demande_id))
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                c.id,
+                c.reference,
+                c.label,
+                c.code,
+                c.designation,
+                c.statut,
+                c.demande_id,
+                d.reference AS demande_reference,
+                (
+                    SELECT COUNT(*)
+                    FROM interventions i
+                    WHERE i.campagne_id = c.id
+                ) AS intervention_count
+            FROM campagnes c
+            LEFT JOIN demandes d ON d.id = c.demande_id
+            ORDER BY COALESCE(c.reference, ''), c.id DESC
+            """
+        ).fetchall()
+
+    return [
+        {
+            "uid": int(row["id"]),
+            "reference": row["reference"] or "",
+            "label": row["label"] or "",
+            "code": row["code"] or "",
+            "designation": row["designation"] or "",
+            "statut": row["statut"] or "",
+            "demande_id": row["demande_id"],
+            "demande_reference": row["demande_reference"] or "",
+            "demande_uid": row["demande_id"],
+            "intervention_count": int(row["intervention_count"] or 0),
+        }
+        for row in rows
+    ]
 
 
 @router.get("/{uid}")

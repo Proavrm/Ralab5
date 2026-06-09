@@ -622,7 +622,11 @@ function SectionAction({ label, onClick }) {
   )
 }
 
-function SectionCard({ title, subtitle, actionLabel, onAction, className, children }) {
+function SectionCard({ title, subtitle, actionLabel, onAction, actionItems, className, children }) {
+  const headerActions = Array.isArray(actionItems) && actionItems.length
+    ? actionItems.filter((item) => item?.label && item?.onClick)
+    : (actionLabel && onAction ? [{ label: actionLabel, onClick: onAction }] : [])
+
   return (
     <Card className={cn('overflow-hidden', className)}>
       <CardHeader className="flex items-start justify-between gap-4">
@@ -630,7 +634,13 @@ function SectionCard({ title, subtitle, actionLabel, onAction, className, childr
           <CardTitle>{title}</CardTitle>
           {subtitle ? <p className="mt-1 text-xs text-text-muted">{subtitle}</p> : null}
         </div>
-        {actionLabel && onAction ? <SectionAction label={actionLabel} onClick={onAction} /> : null}
+        {headerActions.length ? (
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            {headerActions.map((item) => (
+              <SectionAction key={item.label} label={item.label} onClick={item.onClick} />
+            ))}
+          </div>
+        ) : null}
       </CardHeader>
       <CardBody className="flex flex-col gap-5">{children}</CardBody>
     </Card>
@@ -1981,6 +1991,10 @@ export default function DashboardPage() {
         <SectionCard
           title="Accès rapides"
           subtitle="Modules triés selon les signaux du moment et votre périmètre d'accès."
+          actionItems={[
+            { label: '🧭 Registre QSSE', onClick: () => navigate('/qualite?tab=qsse') },
+            { label: '📈 Analyse QSSE', onClick: () => navigate('/qualite/qsse/analyse') },
+          ]}
         >
           <div className="flex flex-wrap gap-2">
             <TonePill tone={shortcutsHeadlineTone}>{shortcutsHeadline}</TonePill>

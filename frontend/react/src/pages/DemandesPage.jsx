@@ -3,24 +3,31 @@
  * Fidèle à demandes.html legacy avec préfill depuis pages source (DST, Études, Affaires NGE)
  * Le préfill arrive via location.state: { openCreate, prefill, source_type, source_id }
  */
-import { useResizableColumns } from '@/hooks/useResizableColumns'
-import { useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { api, affairesApi, demandesApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
 import { Plus, RefreshCw, X } from 'lucide-react'
+import {
+  AffaireHero,
+  EmptyStateBox,
+  FicheMain,
+  FichePageShell,
+  FicheTopbar,
+  MetricCard,
+  SectionCard,
+} from '@/components/layout/FicheLayout'
 
 const STATUTS   = ['À qualifier','Demande','En Cours','Répondu','Fini','Envoyé - Perdu']
 const LABOS     = ['SP','PDC','CHB','CLM']
 const MISSIONS  = ['À définir','Études G1','Études G2','Exploitation G3','Essais Labo','Avis Technique','Externe','Autre']
 const PRIORITES = ['Basse','Normale','Haute','Critique']
 const LABO_NOM  = { SP:'Saint-Priest', PDC:'Pont-du-Château', CHB:'Chambéry', CLM:'Clermont' }
-const DEMANDE_ACTIVE_FILTER_VALUE = '__active__'
-const DEMANDE_CLOSED_STATUSES = ['Fini', 'Envoyé - Perdu', 'Archivée']
 
 const STAT_CLS = {
   'À qualifier':'bg-[#f1efe8] text-[#5f5e5a]','Demande':'bg-[#e6f1fb] text-[#185fa5]',
@@ -42,6 +49,14 @@ function df(value) {
 }
 function DetField({ label, value }) {
   return <div className="flex flex-col gap-0.5"><label className="text-[10px] text-text-muted">{label}</label>{df(value)}</div>
+}
+function DetItem({ label, value }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="text-[10px] text-text-muted">{label}</label>
+      {df(value)}
+    </div>
+  )
 }
 function DetSection({ title, children }) {
   return (
@@ -73,10 +88,7 @@ function urgence(ech, statut) {
 
 const EMPTY_FORM = {
   affaire_rst_id: '', labo_code: 'SP', statut: 'À qualifier', priorite: 'Normale',
-  type_mission: '', nature: '', numero_dst: '',
-  domaine_etude: '', type_prestation_attendue: '',
-  documents_fournis: '', lien_pieces_jointes: '',
-  service_interne: '', societe_interne: '', urgence_source: '',
+  type_mission: 'À définir', nature: '', numero_dst: '',
   numero_etude: '', affaire_nge_ref: '',  // lecture seule, pour référence
   demandeur: '', date_reception: new Date().toISOString().split('T')[0],
   date_echeance: '', description: '', observations: '',
@@ -98,16 +110,9 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
         labo_code: editDemande.labo_code || 'SP',
         statut: editDemande.statut || 'À qualifier',
         priorite: editDemande.priorite || 'Normale',
-        type_mission: editDemande.type_mission || '',
+        type_mission: editDemande.type_mission || 'À définir',
         nature: editDemande.nature || '',
         numero_dst: editDemande.numero_dst || '',
-        domaine_etude: editDemande.domaine_etude || '',
-        type_prestation_attendue: editDemande.type_prestation_attendue || '',
-        documents_fournis: editDemande.documents_fournis || '',
-        lien_pieces_jointes: editDemande.lien_pieces_jointes || '',
-        service_interne: editDemande.service_interne || '',
-        societe_interne: editDemande.societe_interne || '',
-        urgence_source: editDemande.urgence_source || '',
         numero_etude: editDemande.numero_etude || '',
         affaire_nge_ref: editDemande.affaire_nge || '',
         demandeur: editDemande.demandeur || '',
@@ -131,27 +136,13 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
     if (d.affaire_rst_id) {
       affaire_rst_id = String(d.affaire_rst_id)
     } else {
-      // Matching par numero_etude (normalisé + variante année 26/2026) ou affaire_nge (normalisé)
-      const normCode = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]+/g, '')
-      const etudeCandidates = (v) => {
-        const base = normCode(v)
-        if (!base) return []
-        const out = [base]
-        const y4 = base.match(/^20(\d{2})(.+)$/)
-        if (y4) out.push(`${y4[1]}${y4[2]}`)
-        const y2 = base.match(/^(\d{2})(.+)$/)
-        if (y2 && !base.startsWith('20')) out.push(`20${y2[1]}${y2[2]}`)
-        return Array.from(new Set(out))
-      }
-
-      const etudeKeys = etudeCandidates(d.numero_etude)
-      const ngeKey = normCode(d.numero_affaire_nge)
-      const match = affaires.find((a) => {
-        const affaireEtudeKeys = etudeCandidates(a.numero_etude)
-        const etudeMatch = etudeKeys.length > 0 && affaireEtudeKeys.some((key) => etudeKeys.includes(key))
-        const ngeMatch = !!ngeKey && normCode(a.affaire_nge) === ngeKey
-        return etudeMatch || ngeMatch
-      })
+      // Essai de matching par numero_etude ou affaire_nge
+      const neKey  = d.numero_etude  || src.numero_etude  || ''
+      const ngeKey = d.numero_affaire_nge || src.numero_affaire_nge || src.affaire_nge || ''
+      const match = affaires.find(a =>
+        (neKey  && a.numero_etude?.trim() === neKey.trim()) ||
+        (ngeKey && a.affaire_nge?.trim()  === ngeKey.trim())
+      )
       if (match) affaire_rst_id = String(match.uid)
     }
 
@@ -160,16 +151,9 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
       labo_code: d.labo_code || 'SP',
       statut: d.statut || 'À qualifier',
       priorite: d.priorite || 'Normale',
-      type_mission: d.type_mission || d.type_prestation_attendue || '',
+      type_mission: d.type_mission || 'À définir',
       nature: d.nature || src.type_demande || '',
       numero_dst: d.numero_dst || src.numero_dst || '',
-      domaine_etude: d.domaine_etude || src.domaine_etude || '',
-      type_prestation_attendue: d.type_prestation_attendue || src.type_prestation_attendue || '',
-      documents_fournis: d.documents_fournis || src.documents_fournis || '',
-      lien_pieces_jointes: d.lien_pieces_jointes || src.lien_pieces_jointes || '',
-      service_interne: d.service_interne || src.service_interne || '',
-      societe_interne: d.societe_interne || src.societe_interne || src.societe || '',
-      urgence_source: d.urgence_source || src.urgence_source || src.urgence || '',
       numero_etude: d.numero_etude || src.numero_etude || '',
       affaire_nge_ref: d.numero_affaire_nge || src.affaire_nge || '',
       demandeur: d.demandeur || src.demandeur || '',
@@ -210,13 +194,6 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
       type_mission: form.type_mission,
       nature: form.nature,
       numero_dst: form.numero_dst,
-      domaine_etude: form.domaine_etude,
-      type_prestation_attendue: form.type_prestation_attendue,
-      documents_fournis: form.documents_fournis,
-      lien_pieces_jointes: form.lien_pieces_jointes,
-      service_interne: form.service_interne,
-      societe_interne: form.societe_interne,
-      urgence_source: form.urgence_source,
       demandeur: form.demandeur,
       date_reception: form.date_reception,
       date_echeance: form.date_echeance || null,
@@ -271,7 +248,9 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
 
         <FS title="Mission" />
         <FG label="Type mission">
-          <Input value={form.type_mission} onChange={e => set('type_mission', e.target.value)} placeholder="Texte libre" />
+          <Select value={form.type_mission} onChange={e => set('type_mission', e.target.value)} className="w-full">
+            {MISSIONS.map(m => <option key={m}>{m}</option>)}
+          </Select>
         </FG>
         <FG label="Nature">
           <Input value={form.nature} onChange={e => set('nature', e.target.value)} placeholder="Demande DST, Demande G3…" />
@@ -279,35 +258,10 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
         <FG label="N° DST">
           <Input value={form.numero_dst} onChange={e => set('numero_dst', e.target.value)} placeholder="CET0001234" />
         </FG>
-        <FG label="Domaine d'étude">
-          <Input value={form.domaine_etude} onChange={e => set('domaine_etude', e.target.value)} />
-        </FG>
-        <FG label="Type prestation attendue" full>
-          <Input value={form.type_prestation_attendue} onChange={e => set('type_prestation_attendue', e.target.value)} />
-        </FG>
-        <FG label="Urgence source">
-          <Input value={form.urgence_source} onChange={e => set('urgence_source', e.target.value)} />
-        </FG>
         <FG label="Priorité">
           <Select value={form.priorite} onChange={e => set('priorite', e.target.value)} className="w-full">
             {PRIORITES.map(p => <option key={p}>{p}</option>)}
           </Select>
-        </FG>
-
-        <FS title="Contexte source" />
-        <FG label="Service interne">
-          <Input value={form.service_interne} onChange={e => set('service_interne', e.target.value)} />
-        </FG>
-        <FG label="Société interne">
-          <Input value={form.societe_interne} onChange={e => set('societe_interne', e.target.value)} />
-        </FG>
-        <FG label="Documents fournis" full>
-          <textarea value={form.documents_fournis} onChange={e => set('documents_fournis', e.target.value)} rows={2}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-        </FG>
-        <FG label="Lien pièces jointes volumineuses" full>
-          <textarea value={form.lien_pieces_jointes} onChange={e => set('lien_pieces_jointes', e.target.value)} rows={2}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
         </FG>
 
         <FS title="Acteurs & Dates" />
@@ -365,6 +319,7 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
 // ── Page principale ───────────────────────────────────────────────────────────
 export default function DemandesPage() {
   const navigate  = useNavigate()
+  const location  = useLocation()
   const [searchParams] = useSearchParams()
   const qc        = useQueryClient()
 
@@ -373,10 +328,10 @@ export default function DemandesPage() {
   const passationUid    = searchParams.get('passation_uid') || null
 
   const [search,    setSearch]    = useState('')
-  const [statut,    setStatut]    = useState(autoCreate ? '' : (searchParams.get('statut') || ''))
-  const [labo,      setLabo]      = useState(searchParams.get('labo_code') || '')
-  const [mission,   setMission]   = useState(searchParams.get('type_mission') || '')
-  const [aRevoir,   setARevoir]   = useState(searchParams.get('a_revoir') === 'true')
+  const [statut,    setStatut]    = useState('')
+  const [labo,      setLabo]      = useState('')
+  const [mission,   setMission]   = useState('')
+  const [aRevoir,   setARevoir]   = useState(false)
   const [sortCol,   setSortCol]   = useState('date_reception')
   const [sortAsc,   setSortAsc]   = useState(false)
   const [selected,  setSelected]  = useState(null)
@@ -386,22 +341,16 @@ export default function DemandesPage() {
   const [sourceMeta,setSourceMeta]= useState(null)
   const timer = useRef(null)
 
-  // Ouvrir modal — lit sessionStorage['ralab4_source_prefill'] comme le legacy
+  // Ouvrir modal depuis navigation state (depuis DST / Études / Affaires NGE)
   useEffect(() => {
-    if (autoCreate) {
+    if (location.state?.openCreate) {
+      setPrefill(location.state.prefill || null)
+      setSourceMeta({ source_type: location.state.source_type, source_id: location.state.source_id })
       setEditDemande(null)
-      // Lire le préfill depuis sessionStorage (stocké par DST / Études / Affaires NGE)
-      const raw = sessionStorage.getItem('ralab4_source_prefill')
-      if (raw) {
-        try {
-          const stored = JSON.parse(raw)
-          if (stored?.target === 'demande_rst' || stored?.prefill) {
-            sessionStorage.removeItem('ralab4_source_prefill')
-            setPrefill({ demande: stored.prefill || {}, source_type: stored.source_type, source_id: stored.source_id })
-            setSourceMeta({ source_type: stored.source_type, source_id: stored.source_id })
-          }
-        } catch {}
-      }
+      setModalOpen(true)
+      window.history.replaceState({}, '')
+    } else if (autoCreate) {
+      setEditDemande(null)
       setModalOpen(true)
     }
   }, [])
@@ -411,7 +360,7 @@ export default function DemandesPage() {
     queryFn: () => {
       const p = {}
       if (filterAffaireId) p.affaire_rst_id = filterAffaireId
-      if (statut && statut !== DEMANDE_ACTIVE_FILTER_VALUE) p.statut = statut
+      if (statut)   p.statut       = statut
       if (labo)     p.labo_code    = labo
       if (mission)  p.type_mission = mission
       if (aRevoir)  p.a_revoir     = 'true'
@@ -437,7 +386,6 @@ export default function DemandesPage() {
       qc.invalidateQueries({ queryKey: ['demandes'] })
       setSelected(null)
     },
-    onError: (e) => alert(e.message || 'Suppression impossible.'),
   })
 
   function onSearchChange(v) {
@@ -467,25 +415,21 @@ export default function DemandesPage() {
     deleteMutation.mutate(selected.uid)
   }
 
-  const visibleDemandes = statut === DEMANDE_ACTIVE_FILTER_VALUE
-    ? demandes.filter((demande) => !DEMANDE_CLOSED_STATUSES.includes(demande.statut))
-    : demandes
-
-  const sorted = [...visibleDemandes].sort((a, b) => {
+  const sorted = [...demandes].sort((a, b) => {
     const va = String(a[sortCol] ?? '').toLowerCase()
     const vb = String(b[sortCol] ?? '').toLowerCase()
     return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
   })
 
-  const { getColProps } = useResizableColumns([100, 80, 100, 140, 80, 80, 80, 120, 90, 80, 90, 100])
+  const { widths, getColProps } = useResizableColumns([130, 120, 170, 240, 100, 110, 120, 150, 110, 105, 105, 150])
 
   function Th({ col, label, colIdx }) {
     const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
         style={style}
-        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
-        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">\u2195</span>}
+        className="relative overflow-hidden bg-bg px-3 py-1.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text">
+        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
         <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
@@ -495,70 +439,109 @@ export default function DemandesPage() {
     ? affaires.find(a => String(a.uid) === String(filterAffaireId))?.reference
     : null
 
+  const affaireContext = filterAffaireId
+    ? affaires.find(a => String(a.uid) === String(filterAffaireId)) || null
+    : null
+
+  const metrics = useMemo(() => {
+    const total = sorted.length
+    const active = sorted.filter((d) => !['Fini', 'Envoyé - Perdu', 'Archivée'].includes(d.statut)).length
+    const aRevoirCount = sorted.filter((d) => !!d.a_revoir).length
+    const urgCount = sorted.filter((d) => {
+      if (!d.date_echeance) return false
+      const diff = (new Date(d.date_echeance) - new Date()) / 86400000
+      return diff <= 7
+    }).length
+    return { total, active, aRevoirCount, urgCount }
+  }, [sorted])
+
   return (
-    <div className="flex flex-col h-full -m-6">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0">
-        <span className="text-[15px] font-semibold flex-1">
-          {filterAffaireRef ? `Demandes — Affaire ${filterAffaireRef}` : 'Demandes'}
-        </span>
-        <Button variant="primary" size="sm" onClick={openCreate}>
-          <Plus size={13} /> Nouvelle demande
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => refetch()}><RefreshCw size={13} /></Button>
-      </div>
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigate(filterAffaireId ? `/affaires/${filterAffaireId}` : '/')}
+        eyebrow="Demandes RST"
+        title={filterAffaireRef ? `Affaire ${filterAffaireRef}` : 'Liste des demandes'}
+      >
+        <button type="button" onClick={openCreate} className="px-3.5 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f] inline-flex items-center gap-1.5">
+          <Plus size={14} /> Nouvelle demande
+        </button>
+        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+          <RefreshCw size={14} />
+        </button>
+      </FicheTopbar>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 px-6 py-2.5 bg-surface border-b border-border shrink-0 flex-wrap">
-        <input
-          onChange={e => onSearchChange(e.target.value)}
-          placeholder="Référence, chantier, client, N°DST…"
-          className="flex-1 min-w-[200px] max-w-[280px] px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
-        />
-        <Select value={statut} onChange={e => setStatut(e.target.value)} className="text-xs py-1.5">
-          <option value="">Tous statuts</option>
-          <option value={DEMANDE_ACTIVE_FILTER_VALUE}>Demandes actives</option>
-          {STATUTS.map(s => <option key={s}>{s}</option>)}
-        </Select>
-        <Select value={labo} onChange={e => setLabo(e.target.value)} className="text-xs py-1.5">
-          <option value="">Tous labos</option>
-          {LABOS.map(l => <option key={l} value={l}>{LABO_NOM[l]}</option>)}
-        </Select>
-        <Select value={mission} onChange={e => setMission(e.target.value)} className="text-xs py-1.5">
-          <option value="">Toutes missions</option>
-          {MISSIONS.map(m => <option key={m}>{m}</option>)}
-        </Select>
-        <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
-          <input type="checkbox" checked={aRevoir} onChange={e => setARevoir(e.target.checked)} className="accent-[#ef9f27]" />
-          À revoir
-        </label>
-        <span className="text-xs text-text-muted ml-auto">{sorted.length} demande{sorted.length !== 1 ? 's' : ''}</span>
-      </div>
+      <FicheMain>
+        {affaireContext ? <AffaireHero affaire={affaireContext} badgeLabel="RaLab 5 · Demandes" /> : null}
 
-      {/* Split */}
-      <div className="flex flex-1 overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <MetricCard label="Demandes" value={metrics.total} detail="Selon filtres actifs" />
+          <MetricCard label="Actives" value={metrics.active} detail="Hors statuts clos" />
+          <MetricCard label="À revoir" value={metrics.aRevoirCount} detail="Demandes à surveiller" />
+          <MetricCard label="Échéance ≤ 7j" value={metrics.urgCount} detail="Demandes urgentes" />
+        </div>
+
+        <SectionCard
+          title="Demandes"
+          subtitle="Vue opérationnelle avec tableau et panneau de détail"
+          actions={(
+            <div className="flex items-center gap-3 flex-wrap">
+              <input
+                onChange={e => onSearchChange(e.target.value)}
+                placeholder="Référence, chantier, client, N°DST…"
+                className="flex-1 min-w-[200px] max-w-[280px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]"
+              />
+              <Select value={statut} onChange={e => setStatut(e.target.value)} className="text-xs py-1.5">
+                <option value="">Tous statuts</option>
+                {STATUTS.map(s => <option key={s}>{s}</option>)}
+              </Select>
+              <Select value={labo} onChange={e => setLabo(e.target.value)} className="text-xs py-1.5">
+                <option value="">Tous labos</option>
+                {LABOS.map(l => <option key={l} value={l}>{LABO_NOM[l]}</option>)}
+              </Select>
+              <Select value={mission} onChange={e => setMission(e.target.value)} className="text-xs py-1.5">
+                <option value="">Toutes missions</option>
+                {MISSIONS.map(m => <option key={m}>{m}</option>)}
+              </Select>
+              <label className="flex items-center gap-1.5 text-xs text-[#69758a] cursor-pointer">
+                <input type="checkbox" checked={aRevoir} onChange={e => setARevoir(e.target.checked)} className="accent-[#ef9f27]" />
+                À revoir
+              </label>
+              <span className="text-xs text-[#69758a] ml-auto">{demandes.length} demande{demandes.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        >
+      <div className="flex overflow-hidden max-h-[66vh]">
         {/* Table */}
-        <div className="flex-1 overflow-y-auto bg-surface min-w-0">
+        <div className="flex-1 overflow-x-scroll overflow-y-auto bg-surface min-w-0">
           {isLoading ? (
             <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
           ) : sorted.length === 0 ? (
-            <div className="text-xs text-text-muted text-center py-12">📂 Aucune demande</div>
+            <EmptyStateBox icon="📂" title="Aucune demande" description="Aucun résultat pour les filtres en cours." />
           ) : (
-            <table className="w-full border-collapse text-sm">
+            <table
+              className="border-collapse text-sm min-w-full [&_td]:whitespace-nowrap [&_td]:overflow-hidden [&_td]:text-ellipsis"
+              style={{ width: 'max-content', tableLayout: 'fixed' }}
+            >
+              <colgroup>
+                {widths.map((w, i) => (
+                  <col key={i} style={{ width: w, minWidth: w, maxWidth: w }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <Th col="reference" colIdx={0}     label="Référence" />
-                  <Th col="affaire_ref" colIdx={1}   label="Affaire" />
-                  <Th col="client" colIdx={2}        label="Client" />
-                  <Th col="chantier" colIdx={3}      label="Chantier" />
-                  <Th col="numero_dst" colIdx={4}    label="N° DST" />
-                  <Th col="numero_etude" colIdx={5}  label="N° étude" />
-                  <Th col="affaire_nge" colIdx={6}   label="N° NGE" />
-                  <Th col="nature" colIdx={7}        label="Nature" />
-                  <Th col="statut" colIdx={8}        label="Statut" />
-                  <Th col="priorite" colIdx={9}      label="Priorité" />
+                  <Th col="reference" colIdx={0} label="Référence" />
+                  <Th col="affaire_ref" colIdx={1} label="Affaire" />
+                  <Th col="client" colIdx={2} label="Client" />
+                  <Th col="chantier" colIdx={3} label="Chantier" />
+                  <Th col="numero_dst" colIdx={4} label="N° DST" />
+                  <Th col="numero_etude" colIdx={5} label="N° étude" />
+                  <Th col="affaire_nge" colIdx={6} label="N° NGE" />
+                  <Th col="nature" colIdx={7} label="Nature" />
+                  <Th col="statut" colIdx={8} label="Statut" />
+                  <Th col="priorite" colIdx={9} label="Priorité" />
                   <Th col="date_echeance" colIdx={10} label="Échéance" />
-                  <Th col="demandeur" colIdx={11}     label="Demandeur" />
+                  <Th col="demandeur" colIdx={11} label="Demandeur" />
                 </tr>
               </thead>
               <tbody>
@@ -570,18 +553,18 @@ export default function DemandesPage() {
                       className={`border-b border-border cursor-pointer transition-colors ${
                         selected?.uid === d.uid ? 'bg-[#eeeffe]' : d.a_revoir ? 'bg-[#fffbf2]' : 'hover:bg-[#f8f8fc]'
                       }`}>
-                      <td className="px-3 py-2.5"><strong className="text-accent text-xs">{d.reference}</strong></td>
-                      <td className="px-3 py-2.5 text-xs text-text-muted">{d.affaire_ref || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs">{d.client || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs max-w-[140px] truncate">{d.chantier || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs">{d.numero_dst || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs">{d.numero_etude || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs">{d.affaire_nge || '—'}</td>
-                      <td className="px-3 py-2.5 text-xs max-w-[130px] truncate">{d.nature || '—'}</td>
-                      <td className="px-3 py-2.5"><Badge s={d.statut} map={STAT_CLS} /></td>
-                      <td className="px-3 py-2.5"><Badge s={d.priorite} map={PRIO_CLS} /></td>
-                      <td className={`px-3 py-2.5 text-xs ${urg}`}>{d.date_echeance ? formatDate(d.date_echeance) : '—'}</td>
-                      <td className="px-3 py-2.5 text-xs">{d.demandeur || '—'}</td>
+                      <td className="px-3 py-1.5"><strong className="text-accent text-xs font-mono">{d.reference}</strong></td>
+                      <td className="px-3 py-1.5 text-xs text-text-muted">{d.affaire_ref || '—'}</td>
+                      <td className="px-3 py-1.5 text-xs">{d.client || '—'}</td>
+                      <td className="px-3 py-1.5 text-xs max-w-[140px] truncate">{d.chantier || '—'}</td>
+                      <td className="px-3 py-1.5 text-xs">{d.numero_dst || '—'}</td>
+                      <td className="px-3 py-1.5 text-xs">{d.numero_etude || '—'}</td>
+                      <td className="px-3 py-1.5 text-xs">{d.affaire_nge || '—'}</td>
+                      <td className="px-3 py-1.5 text-xs max-w-[130px] truncate">{d.nature || '—'}</td>
+                      <td className="px-3 py-1.5"><Badge s={d.statut} map={STAT_CLS} /></td>
+                      <td className="px-3 py-1.5"><Badge s={d.priorite} map={PRIO_CLS} /></td>
+                      <td className={`px-3 py-1.5 text-xs ${urg}`}>{d.date_echeance ? formatDate(d.date_echeance) : '—'}</td>
+                      <td className="px-3 py-1.5 text-xs">{(d.demandeur || '—').split(',')[0]}</td>
                     </tr>
                   )
                 })}
@@ -597,58 +580,36 @@ export default function DemandesPage() {
               <div>
                 <div className="text-[13px] font-bold text-accent">{selected.reference}</div>
                 <div className="text-[11px] font-semibold text-text mt-0.5">{selected.affaire_ref || '—'}</div>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  <Badge s={selected.statut} map={STAT_CLS} />
-                  <Badge s={selected.priorite} map={PRIO_CLS} />
-                  {selected.a_revoir && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#faeeda] text-[#854f0b]">⚠ À revoir</span>}
-                  {selected.numero_dst && <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#e6f1fb] text-[#185fa5]">DST</span>}
-                </div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0"><X size={14} /></button>
             </div>
 
-            <div className="flex flex-col gap-4 px-[18px] py-4 flex-1">
-              <DetSection title="Affaire RST">
-                <DetField label="Client"    value={selected.client} />
-                <DetField label="Chantier"  value={selected.chantier} />
-                <DetField label="Site"      value={selected.site} />
-                <DetField label="N° étude"  value={selected.numero_etude} />
-                <DetField label="N° NGE"    value={selected.affaire_nge} />
-              </DetSection>
-              <DetSection title="Mission">
-                <DetField label="Type mission" value={selected.type_mission} />
-                <DetField label="Nature"       value={selected.nature} />
-                <DetField label="N° DST"       value={selected.numero_dst} />
-                <DetField label="Domaine d'étude" value={selected.domaine_etude} />
-                <DetField label="Type prestation attendue" value={selected.type_prestation_attendue} />
-                <DetField label="Urgence source" value={selected.urgence_source} />
-                <DetField label="Laboratoire"  value={LABO_NOM[selected.labo_code] || selected.labo_code} />
-              </DetSection>
-              <DetSection title="Acteurs">
-                <DetField label="Demandeur" value={selected.demandeur} />
-                <DetField label="Service interne" value={selected.service_interne} />
-                <DetField label="Société interne" value={selected.societe_interne} />
-              </DetSection>
-              <DetSection title="Dates">
-                <DetField label="Réception" value={formatDate(selected.date_reception)} />
-                <DetField label="Échéance"  value={selected.date_echeance ? formatDate(selected.date_echeance) : '—'} />
-              </DetSection>
-              {(selected.documents_fournis || selected.lien_pieces_jointes) && (
-                <DetSection title="Pièces source">
-                  <DetField label="Documents fournis" value={selected.documents_fournis} />
-                  <DetField label="Lien pièces jointes" value={selected.lien_pieces_jointes} />
-                </DetSection>
-              )}
-              {(selected.description || selected.observations) && (
-                <DetSection title="Description">
-                  <DetField label="" value={selected.description || selected.observations} />
-                </DetSection>
-              )}
+            <div className="grid grid-cols-3 gap-3 px-[18px] py-4 border-b border-border">
+              <DetItem label="Client" value={selected.client} />
+              <DetItem label="Site" value={selected.site} />
+              <DetItem label="Statut" value={selected.statut} />
+              <DetItem label="Priorité" value={selected.priorite} />
+              <DetItem label="À revoir" value={selected.a_revoir ? 'Oui' : 'Non'} />
+              <DetItem label="Type mission" value={selected.type_mission} />
+              <DetItem label="Nature" value={selected.nature} />
+              <DetItem label="Labo" value={LABO_NOM[selected.labo_code] || selected.labo_code} />
+              <DetItem label="N° DST" value={selected.numero_dst} />
+              <DetItem label="N° étude" value={selected.numero_etude} />
+              <DetItem label="N° aff. NGE" value={selected.affaire_nge} />
+              <DetItem label="Demandeur" value={selected.demandeur} />
+              <DetItem label="Réception" value={formatDate(selected.date_reception)} />
+              <DetItem label="Échéance" value={selected.date_echeance ? formatDate(selected.date_echeance) : '—'} />
             </div>
+
+            {(selected.description || selected.observations) && (
+              <div className="px-[18px] py-4 border-b border-border flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-[.06em] text-text-muted mb-2">Description</div>
+                <p className="text-xs leading-relaxed whitespace-pre-wrap text-text">{selected.description || selected.observations}</p>
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2 px-[18px] py-3.5 border-t border-border shrink-0">
               <Button size="sm" variant="primary" onClick={() => navigate(`/demandes/${selected.uid}`)}>📋 Fiche</Button>
-              <Button size="sm" onClick={() => navigate(`/preparations/${selected.uid}?ref=${encodeURIComponent(selected.reference || '')}`)}>⚙️ Préparation</Button>
               <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>
               <Button size="sm" onClick={() => navigate(`/affaires/${selected.affaire_rst_id}`)}>📁 Affaire</Button>
               <Button size="sm" variant="danger" onClick={handleDelete}>🗑</Button>
@@ -656,6 +617,8 @@ export default function DemandesPage() {
           </div>
         )}
       </div>
+        </SectionCard>
+      </FicheMain>
 
       {/* Modal */}
       <DemandeModal
@@ -667,6 +630,6 @@ export default function DemandesPage() {
         editDemande={editDemande}
         nextRef={nextRef}
       />
-    </div>
+    </FichePageShell>
   )
 }

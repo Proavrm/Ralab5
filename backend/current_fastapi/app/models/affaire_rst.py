@@ -7,7 +7,7 @@ from datetime import date
 from typing import Optional
 from pydantic import BaseModel, Field
 
-STATUTS_AFFAIRE = ["À qualifier", "En cours", "Terminée", "Archivée"]
+STATUTS_AFFAIRE = ["À qualifier", "Offre en cours", "En cours", "Terminée", "Archivée"]
 
 TITULAIRES = [
     "", "NGE GC", "NGE Energie", "NGE Routes", "EHTP",
@@ -29,6 +29,7 @@ class AffaireRstRecord:
     date_ouverture:  date
     date_cloture:    Optional[date]
     statut:          str
+    statut_offre:    str
     responsable:     str
     source_legacy_id: Optional[int]
     dossier_nom:     str
@@ -58,6 +59,7 @@ class AffaireRstCreateSchema(BaseModel):
     date_ouverture: date           = Field(default_factory=date.today)
     date_cloture:   Optional[date] = Field(None)
     statut:         str            = Field("À qualifier")
+    statut_offre:   str            = Field("")
     responsable:    str            = Field("")
 
 
@@ -76,6 +78,7 @@ class AffaireRstUpdateSchema(BaseModel):
     date_ouverture: Optional[date] = None
     date_cloture:   Optional[date] = None
     statut:         Optional[str]  = None
+    statut_offre:   Optional[str]  = None
     responsable:    Optional[str]  = None
 
 
@@ -106,6 +109,7 @@ class AffaireRstResponseSchema(BaseModel):
     date_ouverture:  date
     date_cloture:    Optional[date]
     statut:          str
+    statut_offre:    str = ""
     responsable:     str
     source_legacy_id: Optional[int]
     created_at:      str

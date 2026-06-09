@@ -6,19 +6,27 @@
  * Filtres: recherche, statut, titulaire
  * Modal unique : créer ET modifier
  */
-import { useState, useEffect } from 'react'
-import { useResizableColumns } from '@/hooks/useResizableColumns'
+import { useMemo, useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { affairesApi } from '@/services/api'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useResizableColumns } from '@/hooks/useResizableColumns'
+import { affairesApi, api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
 import { Plus, RefreshCw, X } from 'lucide-react'
+import {
+  EmptyStateBox,
+  FicheMain,
+  FichePageShell,
+  FicheTopbar,
+  MetricCard,
+  SectionCard,
+} from '@/components/layout/FicheLayout'
 
-const STATUTS = ['À qualifier', 'En cours', 'Terminée', 'Archivée']
-const TITULAIRES = ['NGE GC', 'NGE Energie', 'NGE Routes', 'EHTP', 'NGE E.S.', 'NGE Transitions', 'Lyaudet', 'Autre']
+const STATUTS = ['À qualifier', 'Offre en cours', 'En cours', 'Terminée', 'Archivée']
+const DEFAULT_TITULAIRES = ['NGE GC', 'NGE Energie', 'NGE Routes', 'EHTP', 'NGE E.S.', 'NGE Transitions', 'Lyaudet', 'Autre']
 
 const STAT_CLS = {
   'À qualifier': 'bg-[#f1efe8] text-[#5f5e5a]',
@@ -42,6 +50,15 @@ function DetField({ label, value }) {
   )
 }
 
+function DetItem({ label, value }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="text-[10px] text-text-muted">{label}</label>
+      <span className={`text-[13px] ${value ? 'font-medium' : 'text-text-muted italic font-normal'}`}>{value || '—'}</span>
+    </div>
+  )
+}
+
 function DetSection({ title, children }) {
   return (
     <div className="flex flex-col gap-2">
@@ -51,6 +68,22 @@ function DetSection({ title, children }) {
       {children}
     </div>
   )
+}
+
+function normalizeAffaireKey(value) {
+  return String(value || '')
+    .replaceAll('*', '')
+    .toUpperCase()
+    .replace(/[\s\-_/\.]+/g, '')
+    .trim()
+}
+
+function normalizeEtudeKey(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function getNgeFullCode(row) {
+  return String(row?.numero_affaire_complet || row?.numero_affaire || '').trim()
 }
 
 function FG({ label, children }) {
@@ -66,21 +99,21 @@ const EMPTY_FORM = {
   uid: 0,
   reference: '',
   client: '', chantier: '', site: '', filiale: '',
-  numero_etude: '', affaire_nge: '', autre_reference: '',
+  numero_etude: '', affaire_nge: '',
   titulaire: '', responsable: '',
   statut: 'À qualifier', date_ouverture: '',
+  statut_offre: '',
   source_type: '', source_id: '',
 }
 
 export default function AffairesPage() {
   const navigate  = useNavigate()
-  const [searchParams] = useSearchParams()
+  const location  = useLocation()
   const qc        = useQueryClient()
-  const initialStatutFilter = searchParams.get('create') === '1' ? '' : (searchParams.get('statut') || '')
 
   // ── Filtres ──────────────────────────────────────────────────────────────
   const [search,   setSearch]   = useState('')
-  const [statut,   setStatut]   = useState(initialStatutFilter)
+  const [statut,   setStatut]   = useState('')
   const [titulaire, setTitulaire] = useState('')
   const [sortCol,  setSortCol]  = useState('date_ouverture')
   const [sortAsc,  setSortAsc]  = useState(false)
@@ -91,28 +124,29 @@ export default function AffairesPage() {
   const [form, setForm]           = useState(EMPTY_FORM)
   const [isCreating, setIsCreating] = useState(false)
 
-  // Ouvrir modal avec préfill depuis pages source (URL params: create=1&chantier=...&source_type=...)
+  // Ouvrir modal avec préfill depuis pages source (Études, Affaires NGE, DST)
   useEffect(() => {
-    if (searchParams.get('create') === '1') {
+    if (location.state?.openCreate) {
+      const pf = location.state.prefill || {}
       const today = new Date().toISOString().split('T')[0]
       setForm({
         ...EMPTY_FORM,
-        date_ouverture: today,
-        chantier:       searchParams.get('chantier')    || '',
-        site:           searchParams.get('site')        || '',
-        numero_etude:   searchParams.get('numero_etude')|| '',
-        affaire_nge:    searchParams.get('affaire_nge') || '',
-        autre_reference: searchParams.get('autre_reference') || '',
-        filiale:        searchParams.get('filiale')     || '',
-        titulaire:      searchParams.get('titulaire')   || '',
-        responsable:    searchParams.get('responsable') || '',
-        client:         searchParams.get('client')      || '',
-        source_type:    searchParams.get('source_type') || '',
-        source_id:      searchParams.get('source_id')   || '',
-        statut:         searchParams.get('statut')      || 'À qualifier',
+        date_ouverture:  today,
+        chantier:        pf.chantier        ?? '',
+        site:            pf.site            ?? '',
+        numero_etude:    pf.numero_etude    ?? '',
+        affaire_nge:     pf.affaire_nge     ?? '',
+        filiale:         pf.filiale         ?? '',
+        titulaire:       pf.titulaire       ?? '',
+        responsable:     pf.responsable     ?? '',
+        client:          pf.client          ?? '',
+        statut_offre:    pf.statut_offre    ?? '',
+        source_type:     location.state.source_type || '',
+        source_id:       location.state.source_id   || '',
       })
       setIsCreating(true)
       setModalOpen(true)
+      window.history.replaceState({}, '')
     }
   }, [])
 
@@ -122,10 +156,25 @@ export default function AffairesPage() {
     queryFn:  () => affairesApi.list(),
   })
 
+  const { data: affairesNgeRows = [] } = useQuery({
+    queryKey: ['affaires-nge-titulaire-options'],
+    queryFn: () => api.get('/reference-affaires/rows?limit=2000'),
+  })
+
+  const { data: etudesRows = [] } = useQuery({
+    queryKey: ['etudes-titulaire-options'],
+    queryFn: () => api.get('/reference-etudes/rows?limit=2000'),
+  })
+
   const { data: nextRef } = useQuery({
     queryKey: ['affaires-next-ref'],
     queryFn:  () => affairesApi.nextRef(),
     enabled:  modalOpen && isCreating,
+  })
+
+  const { data: affaireFilters } = useQuery({
+    queryKey: ['affaires-filters'],
+    queryFn: () => api.get('/affaires/filters'),
   })
 
   // ── Mutations ────────────────────────────────────────────────────────────
@@ -147,7 +196,6 @@ export default function AffairesPage() {
       qc.invalidateQueries({ queryKey: ['affaires'] })
       setSelected(null)
     },
-    onError: (e) => alert(e.message || 'Suppression impossible — cet affaire a des éléments liés.'),
   })
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -176,10 +224,10 @@ export default function AffairesPage() {
       filiale:       selected.filiale       ?? '',
       numero_etude:  selected.numero_etude  ?? '',
       affaire_nge:   selected.affaire_nge   ?? '',
-      autre_reference: selected.autre_reference ?? '',
       titulaire:     selected.titulaire     ?? '',
       responsable:   selected.responsable   ?? '',
       statut:        selected.statut        ?? 'À qualifier',
+      statut_offre:  selected.statut_offre  ?? '',
       date_ouverture: selected.date_ouverture ?? '',
     })
     setIsCreating(false)
@@ -207,112 +255,330 @@ export default function AffairesPage() {
     saveMutation.mutate(payload)
   }
 
+  const etudeStatutOffreByKey = useMemo(() => {
+    const byKey = new Map()
+    etudesRows.forEach((row) => {
+      const key = normalizeEtudeKey(row?.numero_etude)
+      const value = String(row?.statut_affaire ?? '').trim()
+      if (!key || !value) return
+      if (!byKey.has(key)) byKey.set(key, new Set())
+      byKey.get(key).add(value)
+    })
+    const resolved = new Map()
+    byKey.forEach((values, key) => {
+      if (values.size === 1) resolved.set(key, [...values][0])
+    })
+    return resolved
+  }, [etudesRows])
+
+  function applySourceEtude(row, currentAffaireNge = form.affaire_nge) {
+    const etude = String(row?.numero_etude || '').trim()
+    const site = [String(row?.ville || '').trim(), String(row?.departement || '').trim()].filter(Boolean).join(' ').trim()
+    const statutOffre = String(row?.statut_affaire || '').trim() || etudeStatutOffreByKey.get(normalizeEtudeKey(etude)) || ''
+    const hasNge = !!normalizeAffaireKey(currentAffaireNge)
+
+    if (hasNge) {
+      setForm((f) => ({
+        ...f,
+        numero_etude: etude || f.numero_etude,
+        statut_offre: statutOffre,
+      }))
+      return
+    }
+
+    setForm((f) => ({
+      ...f,
+      chantier: String(row?.nom_affaire || '').trim(),
+      site,
+      numero_etude: etude,
+      affaire_nge: '',
+      filiale: String(row?.filiale || '').trim(),
+      titulaire: String(row?.filiale || '').trim(),
+      responsable: String(row?.responsable_etude || '').trim(),
+      client: '',
+      statut_offre: statutOffre,
+      source_type: 'etude',
+      source_id: String(row?.id || ''),
+    }))
+  }
+
+  function applySourceNge(row) {
+    const fullCode = getNgeFullCode(row)
+    const filiales = row.filiales_toutes || row.filiale_principale || row.filiales_resume || ''
+    const numeroEtude = String(row?.numero_etude || '').trim()
+    const statutOffre = etudeStatutOffreByKey.get(normalizeEtudeKey(numeroEtude)) || ''
+    setForm((f) => ({
+      ...f,
+      chantier: String(row?.libelle || '').trim(),
+      site: '',
+      numero_etude: numeroEtude,
+      affaire_nge: fullCode,
+      filiale: String(filiales || '').trim(),
+      titulaire: String(row?.titulaire || '').trim(),
+      responsable: String(row?.responsable || '').trim(),
+      client: '',
+      statut_offre: statutOffre,
+      source_type: 'affaire_nge',
+      source_id: String(row?.id || ''),
+    }))
+  }
+
+  const etudeRowsByNumero = useMemo(() => {
+    const map = new Map()
+    etudesRows.forEach((row) => {
+      const key = normalizeEtudeKey(row?.numero_etude)
+      if (!key || map.has(key)) return
+      map.set(key, row)
+    })
+    return map
+  }, [etudesRows])
+
+  const ngeRowsByCode = useMemo(() => {
+    const map = new Map()
+    affairesNgeRows.forEach((row) => {
+      const key = normalizeAffaireKey(getNgeFullCode(row))
+      if (!key || map.has(key)) return
+      map.set(key, row)
+    })
+    return map
+  }, [affairesNgeRows])
+
+  const etudeNumberOptions = useMemo(() => {
+    const values = new Set()
+    etudesRows.forEach((row) => {
+      const v = String(row?.numero_etude || '').trim()
+      if (v) values.add(v)
+    })
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [etudesRows])
+
+  const ngeCodeOptions = useMemo(() => {
+    const values = new Set()
+    affairesNgeRows.forEach((row) => {
+      const v = getNgeFullCode(row)
+      if (v) values.add(v)
+    })
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [affairesNgeRows])
+
+  function handleNumeroEtudeInput(nextValue) {
+    set('numero_etude', nextValue)
+    const match = etudeRowsByNumero.get(normalizeEtudeKey(nextValue))
+    if (match) applySourceEtude(match, form.affaire_nge)
+  }
+
+  function handleAffaireNgeInput(nextValue) {
+    set('affaire_nge', nextValue)
+    const match = ngeRowsByCode.get(normalizeAffaireKey(nextValue))
+    if (match) applySourceNge(match)
+  }
+
   // ── Filtered + sorted rows ───────────────────────────────────────────────
   const filtered = [...affaires]
     .filter(a => {
       const matchStatut    = !statut    || a.statut    === statut
       const matchTitulaire = !titulaire || a.titulaire === titulaire
       const q = search.toLowerCase()
-      const matchSearch = !q || [a.reference, a.chantier, a.client, a.site, a.numero_etude, a.affaire_nge, a.autre_reference, a.titulaire, a.responsable]
+      const matchSearch = !q || [a.reference, a.chantier, a.client, a.site, a.numero_etude, a.affaire_nge, a.titulaire, a.responsable]
         .some(v => v?.toLowerCase().includes(q))
       return matchStatut && matchTitulaire && matchSearch
     })
     .sort((a, b) => {
-      if (sortCol === 'reference') {
-        const parse = (v) => {
-          const m = String(v ?? '').match(/^(\d{4})-[^-]+-(\d+)$/)
-          return m ? [parseInt(m[1], 10), parseInt(m[2], 10)] : [0, 0]
-        }
-        const [ay, an] = parse(a.reference)
-        const [by, bn] = parse(b.reference)
-        const cmp = ay !== by ? ay - by : an - bn
-        return sortAsc ? cmp : -cmp
-      }
       const va = String(a[sortCol] ?? '').toLowerCase()
       const vb = String(b[sortCol] ?? '').toLowerCase()
       return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
     })
 
-  const { getColProps } = useResizableColumns([90, 90, 100, 180, 120, 100, 80, 120, 100, 90, 90, 60])
+  const metrics = useMemo(() => {
+    const total = filtered.length
+    const active = filtered.filter((a) => a.statut === 'En cours').length
+    const withDemands = filtered.filter((a) => (a.nb_demandes || 0) > 0).length
+    const toQualify = filtered.filter((a) => a.statut === 'À qualifier').length
+    return { total, active, withDemands, toQualify }
+  }, [filtered])
 
-  function Th({ col, label, colIdx }) {
+  const titulaireOptions = useMemo(() => {
+    const values = new Set(DEFAULT_TITULAIRES)
+    affaires.forEach((a) => {
+      const value = String(a?.titulaire ?? '').trim()
+      if (value) values.add(value)
+    })
+    affairesNgeRows.forEach((row) => {
+      const value = String(row?.titulaire ?? '').trim()
+      if (value) values.add(value)
+    })
+    etudesRows.forEach((row) => {
+      const titulaire = String(row?.titulaire ?? '').trim()
+      const filiale = String(row?.filiale ?? '').trim()
+      if (titulaire) values.add(titulaire)
+      if (filiale) values.add(filiale)
+    })
+    const currentFilter = String(titulaire ?? '').trim()
+    if (currentFilter) values.add(currentFilter)
+    const currentForm = String(form?.titulaire ?? '').trim()
+    if (currentForm) values.add(currentForm)
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [affaires, affairesNgeRows, etudesRows, titulaire, form?.titulaire])
+
+  const ngeTitulaireByKey = useMemo(() => {
+    const byKey = new Map()
+    affairesNgeRows.forEach((row) => {
+      const key = normalizeAffaireKey(row?.numero_affaire_complet || row?.numero_affaire)
+      const value = String(row?.titulaire ?? '').trim()
+      if (!key || !value) return
+      if (!byKey.has(key)) byKey.set(key, new Set())
+      byKey.get(key).add(value)
+    })
+    const resolved = new Map()
+    byKey.forEach((values, key) => {
+      if (values.size === 1) resolved.set(key, [...values][0])
+    })
+    return resolved
+  }, [affairesNgeRows])
+
+  const etudeFilialeByKey = useMemo(() => {
+    const byKey = new Map()
+    etudesRows.forEach((row) => {
+      const key = normalizeAffaireKey(row?.numero_etude)
+      const value = String(row?.filiale ?? '').trim()
+      if (!key || !value) return
+      if (!byKey.has(key)) byKey.set(key, new Set())
+      byKey.get(key).add(value)
+    })
+    const resolved = new Map()
+    byKey.forEach((values, key) => {
+      if (values.size === 1) resolved.set(key, [...values][0])
+    })
+    return resolved
+  }, [etudesRows])
+
+  const suggestedTitulaire = useMemo(() => {
+    if (!form) return ''
+    if (String(form.titulaire || '').trim()) return ''
+
+    const ngeKey = normalizeAffaireKey(form.affaire_nge)
+    if (ngeKey) return ngeTitulaireByKey.get(ngeKey) || ''
+
+    const etudeKey = normalizeAffaireKey(form.numero_etude)
+    if (etudeKey) return etudeFilialeByKey.get(etudeKey) || ''
+
+    return ''
+  }, [form, ngeTitulaireByKey, etudeFilialeByKey])
+
+  const statutOptions = useMemo(() => {
+    const values = new Set(STATUTS)
+    ;(affaireFilters?.statuts || []).forEach((s) => {
+      const value = String(s || '').trim()
+      if (value) values.add(value)
+    })
+    const selectedValue = String(form?.statut || '').trim()
+    if (selectedValue) values.add(selectedValue)
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [affaireFilters?.statuts, form?.statut])
+
+  const { widths, getColProps } = useResizableColumns([130, 110, 120, 240, 160, 170, 150, 240, 260, 110, 105, 80])
+
+  function Th({ col, label, colIdx, className = '' }) {
     const { style, resizerProps } = getColProps(colIdx ?? 0)
     return (
       <th onClick={() => toggleSort(col)}
         style={style}
-        className="relative bg-bg px-3 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text overflow-hidden">
+        className={`relative overflow-hidden bg-bg px-3 py-1.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text ${className}`}>
         {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
         <span {...resizerProps} onClick={e => e.stopPropagation()} />
       </th>
     )
   }
+
   // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full -m-6">
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigate('/')}
+        eyebrow="Affaires RST"
+        title="Portefeuille et suivi"
+      >
+        <button type="button" onClick={openCreate} className="px-3.5 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f] inline-flex items-center gap-1.5">
+          <Plus size={14} /> Nouvelle affaire
+        </button>
+        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+          <RefreshCw size={14} />
+        </button>
+      </FicheTopbar>
 
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0">
-        <span className="text-[15px] font-semibold flex-1">Affaires RST</span>
-        <Button variant="primary" size="sm" onClick={openCreate}>
-          <Plus size={13} /> Nouvelle affaire
-        </Button>
-        <Button variant="ghost" size="sm" onClick={() => refetch()}>
-          <RefreshCw size={13} />
-        </Button>
-      </div>
+      <FicheMain>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          <MetricCard label="Affaires" value={metrics.total} detail="Selon filtres actifs" />
+          <MetricCard label="En cours" value={metrics.active} detail="Statut opérationnel" />
+          <MetricCard label="Avec demandes" value={metrics.withDemands} detail="Affaires liées" />
+          <MetricCard label="À qualifier" value={metrics.toQualify} detail="À traiter rapidement" />
+        </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 px-6 py-2.5 bg-surface border-b border-border shrink-0 flex-wrap">
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Référence, chantier, client, N°étude…"
-          className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
-        />
-        <Select value={statut} onChange={e => setStatut(e.target.value)} className="text-xs py-1.5">
-          <option value="">Tous statuts</option>
-          {STATUTS.map(s => <option key={s}>{s}</option>)}
-        </Select>
-        <Select value={titulaire} onChange={e => setTitulaire(e.target.value)} className="text-xs py-1.5">
-          <option value="">Tous titulaires</option>
-          {TITULAIRES.map(t => <option key={t}>{t}</option>)}
-        </Select>
-        {(search || statut || titulaire) && (
-          <button onClick={() => { setSearch(''); setStatut(''); setTitulaire('') }}
-            className="text-xs text-text-muted hover:text-danger flex items-center gap-1">
-            <X size={11} /> Effacer
-          </button>
-        )}
-        <span className="text-xs text-text-muted ml-auto">
-          {filtered.length} affaire{filtered.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      {/* Split */}
-      <div className="flex flex-1 overflow-hidden">
+        <SectionCard
+          title="Affaires"
+          subtitle="Tableau principal et panneau de détail"
+          actions={(
+            <div className="flex items-center gap-3 flex-wrap">
+              <input
+                value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Référence, chantier, client, N°étude…"
+                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]"
+              />
+              <Select value={statut} onChange={e => setStatut(e.target.value)} className="text-xs py-1.5">
+                <option value="">Tous statuts</option>
+                {statutOptions.map(s => <option key={s}>{s}</option>)}
+              </Select>
+              <Select value={titulaire} onChange={e => setTitulaire(e.target.value)} className="text-xs py-1.5">
+                <option value="">Tous titulaires</option>
+                {titulaireOptions.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+              {(search || statut || titulaire) && (
+                <button onClick={() => { setSearch(''); setStatut(''); setTitulaire('') }}
+                  className="text-xs text-[#69758a] hover:text-danger flex items-center gap-1">
+                  <X size={11} /> Effacer
+                </button>
+              )}
+              <span className="text-xs text-[#69758a] ml-auto">
+                {filtered.length} affaire{filtered.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          )}
+        >
+      <div className="flex overflow-hidden max-h-[66vh]">
 
         {/* Table */}
-        <div className="flex-1 overflow-y-auto bg-surface min-w-0">
+        <div className="flex-1 overflow-x-scroll overflow-y-auto bg-surface min-w-0">
           {isLoading ? (
             <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
           ) : filtered.length === 0 ? (
-            <div className="text-xs text-text-muted text-center py-12">📋 Aucune affaire</div>
+            <EmptyStateBox icon="📋" title="Aucune affaire" description="Aucun résultat pour les filtres en cours." />
           ) : (
-            <table className="w-full border-collapse text-sm">
+            <table
+              className="border-collapse text-sm min-w-full [&_td]:whitespace-nowrap [&_td]:overflow-hidden [&_td]:text-ellipsis"
+              style={{ width: Math.max(widths.reduce((sum, w) => sum + w, 0), 0), minWidth: '100%', tableLayout: 'fixed' }}
+            >
+              <colgroup>
+                {widths.map((w, i) => (
+                  <col key={i} style={{ width: w, minWidth: w, maxWidth: w }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <Th col="reference" colIdx={0}    label="Référence" />
-                  <Th col="numero_etude" colIdx={6} label="N° étude" />
-                  <Th col="affaire_nge" colIdx={7}  label="N° aff. NGE" />
-                  <Th col="chantier" colIdx={3}     label="Chantier" />
-                  <Th col="site" colIdx={4}         label="Site" />
-                  <Th col="client" colIdx={5}       label="Client" />
-                  <Th col="responsable" colIdx={9}  label="Resp. NGE" />
-                  <Th col="filiale" colIdx={10}      label="Filiale" />
-                  <Th col="titulaire" colIdx={8}    label="Titulaire" />
-                  <Th col="statut" colIdx={2}       label="Statut" />
-                  <Th col="date_ouverture" colIdx={1} label="Ouverture" />
-                  <th className="bg-bg px-3 py-2.5 text-center text-[11px] font-medium text-text-muted border-b border-border sticky top-0 z-10">
+                  <Th col="reference" colIdx={0} label="Référence" />
+                  <Th col="numero_etude" colIdx={1} label="N° étude" />
+                  <Th col="affaire_nge" colIdx={2} label="N° aff. NGE" />
+                  <Th col="chantier" colIdx={3} label="Chantier" />
+                  <Th col="site" colIdx={4} label="Site" />
+                  <Th col="client" colIdx={5} label="Client" />
+                  <Th col="responsable" colIdx={6} label="Resp. NGE" />
+                  <Th col="filiale" colIdx={7} label="Filiale" />
+                  <Th col="titulaire" colIdx={8} label="Titulaire" />
+                  <Th col="statut" colIdx={9} label="Statut" />
+                  <Th col="date_ouverture" colIdx={10} label="Ouverture" />
+                  <th style={getColProps(11).style} className="relative overflow-hidden bg-bg px-3 py-1.5 text-center text-[11px] font-medium text-text-muted border-b border-border sticky top-0 z-10">
                     Dem.
+                    <span {...getColProps(11).resizerProps} />
                   </th>
                 </tr>
               </thead>
@@ -323,35 +589,39 @@ export default function AffairesPage() {
                     className={`border-b border-border cursor-pointer transition-colors ${
                       selected?.uid === a.uid ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-1.5">
                       <strong className="text-accent text-xs font-mono">{a.reference}</strong>
                     </td>
-                    <td className="px-3 py-2.5 text-xs max-w-[110px] truncate" title={a.numero_etude || ''}>
+                    <td className="px-3 py-1.5 text-xs max-w-[110px] truncate" title={a.numero_etude || ''}>
                       {a.numero_etude || '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-xs max-w-[110px] truncate" title={a.affaire_nge || ''}>
+                    <td className="px-3 py-1.5 text-xs max-w-[110px] truncate" title={a.affaire_nge || ''}>
                       {a.affaire_nge || '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-xs max-w-[220px] truncate" title={a.chantier || ''}>
+                    <td className="px-3 py-1.5 text-xs max-w-[220px] truncate" title={a.chantier || ''}>
                       {a.chantier || '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-xs max-w-[140px] truncate" title={a.site || ''}>
+                    <td className="px-3 py-1.5 text-xs max-w-[140px] truncate" title={a.site || ''}>
                       {a.site || '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-xs">{a.client || '—'}</td>
-                    <td className="px-3 py-2.5 text-xs max-w-[160px] truncate" title={a.responsable || ''}>
+                    <td className="px-3 py-1.5 text-xs">{a.client || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs max-w-[160px] truncate" title={a.responsable || ''}>
                       {a.responsable || '—'}
                     </td>
-                    <td className="px-3 py-2.5 text-xs">{a.filiale || '—'}</td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-3 py-1.5 text-xs">
+                      <span className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap" title={a.filiale || ''}>
+                        {a.filiale || '—'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-1.5">
                       {a.titulaire
-                        ? <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#002C77] text-white">{a.titulaire}</span>
+                        ? <span className="inline-flex max-w-full items-center overflow-hidden text-ellipsis whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#002C77] text-white" title={a.titulaire}>{a.titulaire}</span>
                         : <span className="text-text-muted text-xs">—</span>
                       }
                     </td>
-                    <td className="px-3 py-2.5"><StatBadge s={a.statut} /></td>
-                    <td className="px-3 py-2.5 text-xs">{formatDate(a.date_ouverture)}</td>
-                    <td className="px-3 py-2.5 text-center">
+                    <td className="px-3 py-1.5"><StatBadge s={a.statut} /></td>
+                    <td className="px-3 py-1.5 text-xs">{formatDate(a.date_ouverture)}</td>
+                    <td className="px-3 py-1.5 text-center">
                       {(a.nb_demandes > 0)
                         ? <span className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e6f1fb] text-[#185fa5]">
                             {a.nb_demandes_actives}/{a.nb_demandes}
@@ -368,70 +638,36 @@ export default function AffairesPage() {
 
         {/* Detail panel */}
         {selected && (
-          <div className="w-[340px] min-w-[300px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
-            {/* Panel header */}
+          <div className="w-[360px] min-w-[320px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
                 <div className="text-[13px] font-bold text-accent">{selected.reference}</div>
                 <div className="text-[11px] font-semibold text-text mt-0.5">{selected.chantier || '—'}</div>
-                <div className="text-[11px] text-text-muted mt-0.5">{selected.site || '—'}</div>
               </div>
-              <button onClick={() => setSelected(null)}
-                className="p-1 rounded text-text-muted hover:bg-bg hover:text-text transition-colors shrink-0">
+              <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg hover:text-text transition-colors shrink-0">
                 <X size={14} />
               </button>
             </div>
 
-            {/* Badges */}
-            <div className="flex flex-wrap gap-1.5 px-[18px] pt-3">
-              <StatBadge s={selected.statut} />
-              {selected.titulaire && (
-                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#002C77] text-white">
-                  {selected.titulaire}
-                </span>
-              )}
-              {selected.filiale && (
-                <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#e6f1fb] text-[#185fa5]">
-                  {selected.filiale}
-                </span>
-              )}
+            <div className="grid grid-cols-3 gap-3 px-[18px] py-4 border-b border-border">
+              <DetItem label="Client" value={selected.client} />
+              <DetItem label="Site" value={selected.site} />
+              <DetItem label="Statut" value={selected.statut} />
+              <DetItem label="Statut offre" value={selected.statut_offre} />
+              <DetItem label="Titulaire" value={selected.titulaire} />
+              <DetItem label="Filiale" value={selected.filiale} />
+              <DetItem label="Resp. NGE" value={selected.responsable} />
+              <DetItem label="N° étude" value={selected.numero_etude} />
+              <DetItem label="N° aff. NGE" value={selected.affaire_nge} />
+              <DetItem label="Ouverture" value={formatDate(selected.date_ouverture)} />
+              <DetItem label="Clôture" value={selected.date_cloture ? formatDate(selected.date_cloture) : 'En cours'} />
+              <DetItem label="Demandes actives" value={String(selected.nb_demandes_actives ?? 0)} />
+              <DetItem label="Demandes" value={String(selected.nb_demandes ?? 0)} />
             </div>
 
-            {/* Sections */}
-            <div className="flex flex-col gap-4 px-[18px] py-4 flex-1">
-              <DetSection title="Projet">
-                <DetField label="Client"  value={selected.client} />
-                <DetField label="Chantier" value={selected.chantier} />
-                <DetField label="Site"    value={selected.site} />
-              </DetSection>
-
-              <DetSection title="Parties">
-                <DetField label="Titulaire"             value={selected.titulaire || '— Non défini —'} />
-                <DetField label="Responsable affaire NGE" value={selected.responsable} />
-                <DetField label="Filiale"               value={selected.filiale} />
-              </DetSection>
-
-              <DetSection title="Références">
-                <DetField label="N° étude"       value={selected.numero_etude} />
-                <DetField label="N° affaire NGE" value={selected.affaire_nge} />
-                <DetField label="Autre"          value={selected.autre_reference} />
-              </DetSection>
-
-              <DetSection title="Dates">
-                <DetField label="Ouverture" value={formatDate(selected.date_ouverture)} />
-                <DetField label="Clôture"   value={selected.date_cloture ? formatDate(selected.date_cloture) : 'En cours'} />
-              </DetSection>
-
-              <DetSection title="Demandes">
-                <DetField label="Total"   value={String(selected.nb_demandes ?? 0)} />
-                <DetField label="Actives" value={String(selected.nb_demandes_actives ?? 0)} />
-              </DetSection>
-            </div>
-
-            {/* Actions */}
             <div className="flex flex-wrap gap-2 px-[18px] py-3.5 border-t border-border shrink-0">
-              <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>
               <Button size="sm" onClick={() => navigate(`/affaires/${selected.uid}`)}>📋 Fiche</Button>
+              <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>
               <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${selected.uid}`)}>📂 Demandes</Button>
               <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${selected.uid}&create=1`)}>+ Demande</Button>
               <Button size="sm" variant="danger" onClick={handleDelete}>🗑</Button>
@@ -439,6 +675,8 @@ export default function AffairesPage() {
           </div>
         )}
       </div>
+        </SectionCard>
+      </FicheMain>
 
       {/* Modal créer / modifier */}
       <Modal
@@ -459,8 +697,12 @@ export default function AffairesPage() {
           {/* Statut */}
           <FG label="Statut">
             <Select value={form.statut} onChange={e => set('statut', e.target.value)} className="w-full">
-              {STATUTS.map(s => <option key={s}>{s}</option>)}
+              {statutOptions.map(s => <option key={s}>{s}</option>)}
             </Select>
+          </FG>
+
+          <FG label="Statut offre (Études)">
+            <Input value={form.statut_offre || ''} readOnly className="text-text-muted cursor-not-allowed" />
           </FG>
 
           {/* Client / Chantier */}
@@ -481,29 +723,28 @@ export default function AffairesPage() {
 
           {/* N° étude / N° affaire NGE */}
           <FG label="N° étude">
-            <Input value={form.numero_etude} onChange={e => set('numero_etude', e.target.value)} placeholder="Source Études" />
+            <Input
+              value={form.numero_etude}
+              onChange={e => handleNumeroEtudeInput(e.target.value)}
+              placeholder="Source Études"
+              list="affaires-etudes-options"
+            />
           </FG>
           <FG label="N° affaire NGE">
-            <Input value={form.affaire_nge} onChange={e => set('affaire_nge', e.target.value)} placeholder="Source Affaires NGE" />
+            <Input
+              value={form.affaire_nge}
+              onChange={e => handleAffaireNgeInput(e.target.value)}
+              placeholder="Source Affaires NGE"
+              list="affaires-nge-options"
+            />
           </FG>
-          <div className="col-span-2">
-            <FG label="Autre (si pas aff. NGE / étude)">
-              <Input
-                value={form.autre_reference}
-                onChange={e => set('autre_reference', e.target.value)}
-                placeholder="Valeur manuelle à utiliser seulement s'il n'y a ni aff. NGE ni étude"
-              />
-              <p className="text-xs leading-5 text-text-muted">
-                Remplir uniquement si l'affaire n'a ni n° affaire NGE ni n° étude. Laisser vide dès qu'un de ces deux champs est renseigné.
-              </p>
-            </FG>
-          </div>
 
           {/* Titulaire / Responsable */}
           <FG label="Titulaire">
             <Select value={form.titulaire} onChange={e => set('titulaire', e.target.value)} className="w-full">
+              {suggestedTitulaire ? <option value={suggestedTitulaire}>Suggestion source: {suggestedTitulaire}</option> : null}
               <option value="">— Non défini —</option>
-              {TITULAIRES.map(t => <option key={t}>{t}</option>)}
+              {titulaireOptions.filter(t => t !== suggestedTitulaire).map(t => <option key={t} value={t}>{t}</option>)}
             </Select>
           </FG>
           <FG label="Responsable affaire NGE">
@@ -515,6 +756,13 @@ export default function AffairesPage() {
             <Input type="date" value={form.date_ouverture} onChange={e => set('date_ouverture', e.target.value)} />
           </FG>
         </div>
+
+        <datalist id="affaires-etudes-options">
+          {etudeNumberOptions.map((value) => <option key={value} value={value} />)}
+        </datalist>
+        <datalist id="affaires-nge-options">
+          {ngeCodeOptions.map((value) => <option key={value} value={value} />)}
+        </datalist>
 
         {saveMutation.error && (
           <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mt-3">
@@ -533,6 +781,6 @@ export default function AffairesPage() {
           </Button>
         </div>
       </Modal>
-    </div>
+    </FichePageShell>
   )
 }

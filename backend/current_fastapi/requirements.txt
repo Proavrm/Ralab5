@@ -9,3 +9,4 @@ openpyxl>=3.1                  # engine Excel para pandas
 # PySide6>=6.7,<7
 PyJWT>=2,<3
 python-multipart>=0.0.9
+python-pptx>=0.6.23

@@ -135,6 +135,25 @@ export default function DstDetailPage() {
     return `/affaires?${p}`
   }
 
+  function buildAffairePrefill(d) {
+    const fromAffaireDemandeur = classifyAffaireDemandeur(d['N° affaire demandeur'])
+    const explicitNumeroEtude = dstNumeroEtude(d)
+    const numeroEtude = explicitNumeroEtude || fromAffaireDemandeur.numeroEtude
+    const affaireNge = fromAffaireDemandeur.numeroAffaireNge
+
+    return {
+      chantier: d['Libellé du projet'] || '',
+      site: d['Situation Géographique'] || d['Situation géographique projet'] || '',
+      numero_etude: numeroEtude,
+      affaire_nge: affaireNge,
+      filiale: d['Société'] || '',
+      titulaire: d['Société'] || '',
+      responsable: shortName(d.Demandeur),
+      client: d['Société'] || '',
+      statut: 'À qualifier',
+    }
+  }
+
   function createAffaire() {
     const match = findMatchingAffaire(data)
     if (match?.uid) {
@@ -142,14 +161,29 @@ export default function DstDetailPage() {
         `Affaire existante detectee (${match.reference || `#${match.uid}`}).\n\nCreer une nouvelle demande sur cette affaire ?`
       )
       if (createDemandeOnExisting) {
-        sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill(match)))
-        navigate('/demandes?create=1')
+        navigate('/demandes?create=1', {
+          state: {
+            openCreate: true,
+            source_type: 'dst',
+            source_id: row?.row_id,
+            prefill: buildDemandePrefill(match),
+          },
+        })
       } else {
+        const openExisting = window.confirm("Voulez-vous ouvrir l'affaire existante ?\n\nAnnuler = rester sur la page actuelle.")
+        if (!openExisting) return
         navigate(`/affaires/${match.uid}`)
       }
       return
     }
-    navigate(buildAffaireUrl(data))
+    navigate('/affaires', {
+      state: {
+        openCreate: true,
+        source_type: 'dst',
+        source_id: row?.row_id,
+        prefill: buildAffairePrefill(data),
+      },
+    })
   }
 
   function buildDemandePrefill(matchedAffaire = null) {
@@ -164,10 +198,14 @@ export default function DstDetailPage() {
     const typePrestation = dstField('Type de prestation attendue', 'Autre type de prestation')
 
     return {
-      target: 'demande_rst',
-      source_type: 'dst',
-      source_id: row?.row_id,
-      prefill: {
+      source: {
+        source_type: 'dst',
+        source_id: row?.row_id,
+        numero_dst: chrono,
+        libelle_projet: data['Libellé du projet'] || '',
+        demandeur: shortName(data.Demandeur),
+      },
+      demande: {
         affaire_rst_id: matchedAffaire?.uid || undefined,
         numero_dst: chrono,
         numero_affaire_nge: numeroAffaireNge,
@@ -221,8 +259,14 @@ export default function DstDetailPage() {
   }
 
   function createDemande() {
-    sessionStorage.setItem('ralab4_source_prefill', JSON.stringify(buildDemandePrefill()))
-    navigate('/demandes?create=1')
+    navigate('/demandes?create=1', {
+      state: {
+        openCreate: true,
+        source_type: 'dst',
+        source_id: row?.row_id,
+        prefill: buildDemandePrefill(),
+      },
+    })
   }
 
   function saveEditDst() {

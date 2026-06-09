@@ -22,6 +22,12 @@ class PointTerrainPayload(BaseModel):
     profil: str = ''
     date_point: str = ''
     operateur: str = ''
+    sondeur: str = ''
+    procede: str = ''
+    diametre: str = ''
+    type_ouvrage: str = ''
+    partie_ouvrage: str = ''
+    document_reference: str = ''
     profondeur_finale_m: Optional[float] = None
     carotte_total_height_m: Optional[float] = None
     tenue_fouilles: str = ''
@@ -390,6 +396,12 @@ def _build_point_payload(point_row: sqlite3.Row, feuille_row: sqlite3.Row) -> di
         'venue_eau': _safe_bool(payload.get('venue_eau')),
         'niveau_nappe': payload.get('niveau_nappe') or '',
         'arret_sondage': payload.get('arret_sondage') or '',
+        'sondeur': payload.get('sondeur') or '',
+        'procede': payload.get('procede') or '',
+        'diametre': payload.get('diametre') or '',
+        'type_ouvrage': payload.get('type_ouvrage') or '',
+        'partie_ouvrage': payload.get('partie_ouvrage') or '',
+        'document_reference': payload.get('document_reference') or '',
         'ouvrage': payload.get('ouvrage') or '',
         'notes': payload.get('notes') or data.get('observation') or '',
         'carotte_annotations': payload.get('carotte_annotations') if isinstance(payload.get('carotte_annotations'), list) else [],
@@ -1280,6 +1292,12 @@ def create_point_terrain(uid: int, body: PointTerrainPayload):
             'reference': point_reference,
             'date_point': body.date_point,
             'operateur': body.operateur,
+            'sondeur': body.sondeur,
+            'procede': body.procede,
+            'diametre': body.diametre,
+            'type_ouvrage': body.type_ouvrage,
+            'partie_ouvrage': body.partie_ouvrage,
+            'document_reference': body.document_reference,
             'profondeur_finale_m': body.profondeur_finale_m,
             'carotte_total_height_m': body.carotte_total_height_m,
             'tenue_fouilles': body.tenue_fouilles,
@@ -1333,6 +1351,12 @@ def update_point_terrain(uid: int, point_uid: int, body: PointTerrainPayload):
         existing_payload.update({
             'date_point': body.date_point,
             'operateur': body.operateur,
+            'sondeur': body.sondeur,
+            'procede': body.procede,
+            'diametre': body.diametre,
+            'type_ouvrage': body.type_ouvrage,
+            'partie_ouvrage': body.partie_ouvrage,
+            'document_reference': body.document_reference,
             'profondeur_finale_m': body.profondeur_finale_m,
             'carotte_total_height_m': body.carotte_total_height_m,
             'tenue_fouilles': body.tenue_fouilles,
