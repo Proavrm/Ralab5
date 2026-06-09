@@ -50,6 +50,11 @@ CREATE TABLE IF NOT EXISTS passations (
     besoins_essais_externes TEXT NOT NULL DEFAULT '',
     besoins_equipements_specifiques TEXT NOT NULL DEFAULT '',
     besoins_ressources_humaines TEXT NOT NULL DEFAULT '',
+    workflow_status TEXT NOT NULL DEFAULT 'Brouillon',
+    workflow_decision TEXT NOT NULL DEFAULT 'À décider',
+    workflow_decision_comment TEXT NOT NULL DEFAULT '',
+    workflow_decided_by TEXT NOT NULL DEFAULT '',
+    workflow_decided_at TEXT,
     synthese TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -92,11 +97,90 @@ CREATE TABLE IF NOT EXISTS passation_role_assignments (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS passation_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    participant_role TEXT NOT NULL DEFAULT '',
+    full_name TEXT NOT NULL DEFAULT '',
+    organisation TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    comment TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS passation_perimeter_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    scope_category TEXT NOT NULL DEFAULT '',
+    scope_label TEXT NOT NULL DEFAULT '',
+    request_status TEXT NOT NULL DEFAULT 'Demandé',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS passation_responsibility_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    workstream_code TEXT NOT NULL DEFAULT '',
+    accountable_role_code TEXT NOT NULL DEFAULT '',
+    responsible_role_code TEXT NOT NULL DEFAULT '',
+    consulted_roles TEXT NOT NULL DEFAULT '',
+    informed_roles TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS passation_startup_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    item_code TEXT NOT NULL DEFAULT '',
+    owner_role_code TEXT NOT NULL DEFAULT '',
+    owner_name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'À confirmer',
+    due_date TEXT,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS passation_structured_needs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    need_code TEXT NOT NULL DEFAULT '',
+    need_label TEXT NOT NULL DEFAULT '',
+    request_status TEXT NOT NULL DEFAULT 'Non évalué',
+    quantity TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS passation_demande_preparation_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    module_code TEXT NOT NULL DEFAULT '',
+    is_required INTEGER NOT NULL DEFAULT 0,
+    is_ready INTEGER NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_passations_affaire ON passations(affaire_rst_id);
 CREATE INDEX IF NOT EXISTS idx_passations_date ON passations(date_passation);
 CREATE INDEX IF NOT EXISTS idx_passation_documents_passation ON passation_documents(passation_id);
 CREATE INDEX IF NOT EXISTS idx_passation_actions_passation ON passation_actions(passation_id);
 CREATE INDEX IF NOT EXISTS idx_passation_role_assignments_passation ON passation_role_assignments(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_participants_passation ON passation_participants(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_perimeter_items_passation ON passation_perimeter_items(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_responsibility_items_passation ON passation_responsibility_items(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_startup_items_passation ON passation_startup_items(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_structured_needs_passation ON passation_structured_needs(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_demande_preparation_items_passation ON passation_demande_preparation_items(passation_id);
 """
 
 DEMANDE_CONFIGURATION_DDL = """
@@ -942,6 +1026,12 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "demande_preparations", "remarques", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demande_preparations", "familles_prevues", "TEXT NOT NULL DEFAULT '[]'")
 
+        _ensure_column(conn, "passations", "workflow_status", "TEXT NOT NULL DEFAULT 'Brouillon'")
+        _ensure_column(conn, "passations", "workflow_decision", "TEXT NOT NULL DEFAULT 'À décider'")
+        _ensure_column(conn, "passations", "workflow_decision_comment", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "workflow_decided_by", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "workflow_decided_at", "TEXT")
+
         _ensure_column(conn, "affaires_rst", "site", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "numero_etude", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "filiale", "TEXT NOT NULL DEFAULT ''")
@@ -1027,6 +1117,12 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_sondage_couche_id ON prelevements(sondage_couche_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_import_uid ON pmt_essais(import_uid)")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_pmt_essais_import_source_sheet ON pmt_essais(import_source_file, import_source_sheet)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_participants_passation ON passation_participants(passation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_perimeter_items_passation ON passation_perimeter_items(passation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_responsibility_items_passation ON passation_responsibility_items(passation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_startup_items_passation ON passation_startup_items(passation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_structured_needs_passation ON passation_structured_needs(passation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_demande_preparation_items_passation ON passation_demande_preparation_items(passation_id)")
 
         _ensure_historical_sondage_prelevement_links(conn)
 

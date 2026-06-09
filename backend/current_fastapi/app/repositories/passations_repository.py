@@ -12,12 +12,24 @@ from app.core.database import connect_db, ensure_ralab4_schema, get_db_path
 from app.models.passation import (
     PassationActionRecord,
     PassationActionSchema,
+    PassationDemandePreparationItemSchema,
+    PassationDemandePreparationRecord,
     PassationDocumentRecord,
     PassationDocumentSchema,
+    PassationParticipantRecord,
+    PassationParticipantSchema,
+    PassationPerimeterItemRecord,
+    PassationPerimeterItemSchema,
+    PassationResponsibilityItemRecord,
+    PassationResponsibilityItemSchema,
     PassationRoleAssignmentRecord,
     PassationRoleAssignmentSchema,
     PassationRecord,
     PassationResponseSchema,
+    PassationStartupItemRecord,
+    PassationStartupItemSchema,
+    PassationStructuredNeedRecord,
+    PassationStructuredNeedSchema,
 )
 
 
@@ -90,6 +102,12 @@ class PassationsRepository:
             record.documents = self._list_documents(conn, uid)
             record.actions = self._list_actions(conn, uid)
             record.role_assignments = self._list_role_assignments(conn, uid)
+            record.participants = self._list_participants(conn, uid)
+            record.perimeter_items = self._list_perimeter_items(conn, uid)
+            record.responsibility_items = self._list_responsibility_items(conn, uid)
+            record.startup_items = self._list_startup_items(conn, uid)
+            record.structured_needs = self._list_structured_needs(conn, uid)
+            record.demande_preparation_items = self._list_demande_preparation_items(conn, uid)
             return record
 
     def filters(self) -> dict:
@@ -138,8 +156,10 @@ class PassationsRepository:
                     interlocuteurs_principaux, points_sensibles, besoins_laboratoire,
                     besoins_terrain, besoins_etude, besoins_g3, besoins_essais_externes,
                     besoins_equipements_specifiques, besoins_ressources_humaines,
+                    workflow_status, workflow_decision, workflow_decision_comment,
+                    workflow_decided_by, workflow_decided_at,
                     synthese, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reference,
@@ -166,6 +186,11 @@ class PassationsRepository:
                     body.besoins_essais_externes,
                     body.besoins_equipements_specifiques,
                     body.besoins_ressources_humaines,
+                    body.workflow_status,
+                    body.workflow_decision,
+                    body.workflow_decision_comment,
+                    body.workflow_decided_by,
+                    self._fmt_date(body.workflow_decided_at),
                     body.synthese,
                     body.notes,
                     now,
@@ -176,11 +201,28 @@ class PassationsRepository:
             self._replace_documents(conn, uid, body.documents)
             self._replace_actions(conn, uid, body.actions)
             self._replace_role_assignments(conn, uid, body.role_assignments)
+            self._replace_participants(conn, uid, body.participants)
+            self._replace_perimeter_items(conn, uid, body.perimeter_items)
+            self._replace_responsibility_items(conn, uid, body.responsibility_items)
+            self._replace_startup_items(conn, uid, body.startup_items)
+            self._replace_structured_needs(conn, uid, body.structured_needs)
+            self._replace_demande_preparation_items(conn, uid, body.demande_preparation_items)
             conn.commit()
         return self.get_by_uid(int(uid))
 
     def update(self, uid: int, body) -> PassationRecord:
-        fields = {k: v for k, v in body.model_dump().items() if v is not None and k not in {"documents", "actions", "role_assignments"}}
+        collection_fields = {
+            "documents",
+            "actions",
+            "role_assignments",
+            "participants",
+            "perimeter_items",
+            "responsibility_items",
+            "startup_items",
+            "structured_needs",
+            "demande_preparation_items",
+        }
+        fields = {k: v for k, v in body.model_dump().items() if v is not None and k not in collection_fields}
         if fields:
             fields = {k: self._prepare_value(k, v) for k, v in fields.items()}
             fields["updated_at"] = self._now()
@@ -193,8 +235,23 @@ class PassationsRepository:
                     self._replace_actions(conn, uid, body.actions)
                 if body.role_assignments is not None:
                     self._replace_role_assignments(conn, uid, body.role_assignments)
+                if body.participants is not None:
+                    self._replace_participants(conn, uid, body.participants)
+                if body.perimeter_items is not None:
+                    self._replace_perimeter_items(conn, uid, body.perimeter_items)
+                if body.responsibility_items is not None:
+                    self._replace_responsibility_items(conn, uid, body.responsibility_items)
+                if body.startup_items is not None:
+                    self._replace_startup_items(conn, uid, body.startup_items)
+                if body.structured_needs is not None:
+                    self._replace_structured_needs(conn, uid, body.structured_needs)
+                if body.demande_preparation_items is not None:
+                    self._replace_demande_preparation_items(conn, uid, body.demande_preparation_items)
                 conn.commit()
-        elif body.documents is not None or body.actions is not None or body.role_assignments is not None:
+        elif any(
+            getattr(body, name) is not None
+            for name in collection_fields
+        ):
             with self._connect() as conn:
                 if body.documents is not None:
                     self._replace_documents(conn, uid, body.documents)
@@ -202,6 +259,18 @@ class PassationsRepository:
                     self._replace_actions(conn, uid, body.actions)
                 if body.role_assignments is not None:
                     self._replace_role_assignments(conn, uid, body.role_assignments)
+                if body.participants is not None:
+                    self._replace_participants(conn, uid, body.participants)
+                if body.perimeter_items is not None:
+                    self._replace_perimeter_items(conn, uid, body.perimeter_items)
+                if body.responsibility_items is not None:
+                    self._replace_responsibility_items(conn, uid, body.responsibility_items)
+                if body.startup_items is not None:
+                    self._replace_startup_items(conn, uid, body.startup_items)
+                if body.structured_needs is not None:
+                    self._replace_structured_needs(conn, uid, body.structured_needs)
+                if body.demande_preparation_items is not None:
+                    self._replace_demande_preparation_items(conn, uid, body.demande_preparation_items)
                 conn.execute("UPDATE passations SET updated_at = ? WHERE id = ?", (self._now(), uid))
                 conn.commit()
         return self.get_by_uid(uid)
@@ -240,6 +309,11 @@ class PassationsRepository:
             besoins_essais_externes=record.besoins_essais_externes,
             besoins_equipements_specifiques=record.besoins_equipements_specifiques,
             besoins_ressources_humaines=record.besoins_ressources_humaines,
+            workflow_status=record.workflow_status,
+            workflow_decision=record.workflow_decision,
+            workflow_decision_comment=record.workflow_decision_comment,
+            workflow_decided_by=record.workflow_decided_by,
+            workflow_decided_at=record.workflow_decided_at,
             synthese=record.synthese,
             notes=record.notes,
             nb_documents=record.nb_documents,
@@ -249,6 +323,12 @@ class PassationsRepository:
             documents=[self._document_schema(item) for item in record.documents],
             actions=[self._action_schema(item) for item in record.actions],
             role_assignments=[self._role_assignment_schema(item) for item in record.role_assignments],
+            participants=[self._participant_schema(item) for item in record.participants],
+            perimeter_items=[self._perimeter_item_schema(item) for item in record.perimeter_items],
+            responsibility_items=[self._responsibility_item_schema(item) for item in record.responsibility_items],
+            startup_items=[self._startup_item_schema(item) for item in record.startup_items],
+            structured_needs=[self._structured_need_schema(item) for item in record.structured_needs],
+            demande_preparation_items=[self._demande_preparation_item_schema(item) for item in record.demande_preparation_items],
         )
 
     def _list_documents(self, conn, passation_id: int) -> list[PassationDocumentRecord]:
@@ -343,6 +423,188 @@ class PassationsRepository:
                 ),
             )
 
+    def _list_participants(self, conn, passation_id: int) -> list[PassationParticipantRecord]:
+        rows = conn.execute(
+            "SELECT * FROM passation_participants WHERE passation_id = ? ORDER BY id",
+            (passation_id,),
+        ).fetchall()
+        return [self._participant_row(row) for row in rows]
+
+    def _replace_participants(self, conn, passation_id: int, items) -> None:
+        conn.execute("DELETE FROM passation_participants WHERE passation_id = ?", (passation_id,))
+        now = self._now()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            conn.execute(
+                """
+                INSERT INTO passation_participants (
+                    passation_id, participant_role, full_name, organisation, email, phone, comment, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    passation_id,
+                    (payload.get("participant_role") or "").strip(),
+                    (payload.get("full_name") or "").strip(),
+                    (payload.get("organisation") or "").strip(),
+                    (payload.get("email") or "").strip(),
+                    (payload.get("phone") or "").strip(),
+                    (payload.get("comment") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+
+    def _list_perimeter_items(self, conn, passation_id: int) -> list[PassationPerimeterItemRecord]:
+        rows = conn.execute(
+            "SELECT * FROM passation_perimeter_items WHERE passation_id = ? ORDER BY id",
+            (passation_id,),
+        ).fetchall()
+        return [self._perimeter_item_row(row) for row in rows]
+
+    def _replace_perimeter_items(self, conn, passation_id: int, items) -> None:
+        conn.execute("DELETE FROM passation_perimeter_items WHERE passation_id = ?", (passation_id,))
+        now = self._now()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            conn.execute(
+                """
+                INSERT INTO passation_perimeter_items (
+                    passation_id, scope_category, scope_label, request_status, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    passation_id,
+                    (payload.get("scope_category") or "").strip(),
+                    (payload.get("scope_label") or "").strip(),
+                    (payload.get("request_status") or "Demandé").strip(),
+                    (payload.get("notes") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+
+    def _list_responsibility_items(self, conn, passation_id: int) -> list[PassationResponsibilityItemRecord]:
+        rows = conn.execute(
+            "SELECT * FROM passation_responsibility_items WHERE passation_id = ? ORDER BY id",
+            (passation_id,),
+        ).fetchall()
+        return [self._responsibility_item_row(row) for row in rows]
+
+    def _replace_responsibility_items(self, conn, passation_id: int, items) -> None:
+        conn.execute("DELETE FROM passation_responsibility_items WHERE passation_id = ?", (passation_id,))
+        now = self._now()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            conn.execute(
+                """
+                INSERT INTO passation_responsibility_items (
+                    passation_id, workstream_code, accountable_role_code, responsible_role_code,
+                    consulted_roles, informed_roles, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    passation_id,
+                    (payload.get("workstream_code") or "").strip(),
+                    (payload.get("accountable_role_code") or "").strip(),
+                    (payload.get("responsible_role_code") or "").strip(),
+                    (payload.get("consulted_roles") or "").strip(),
+                    (payload.get("informed_roles") or "").strip(),
+                    (payload.get("notes") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+
+    def _list_startup_items(self, conn, passation_id: int) -> list[PassationStartupItemRecord]:
+        rows = conn.execute(
+            "SELECT * FROM passation_startup_items WHERE passation_id = ? ORDER BY id",
+            (passation_id,),
+        ).fetchall()
+        return [self._startup_item_row(row) for row in rows]
+
+    def _replace_startup_items(self, conn, passation_id: int, items) -> None:
+        conn.execute("DELETE FROM passation_startup_items WHERE passation_id = ?", (passation_id,))
+        now = self._now()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            conn.execute(
+                """
+                INSERT INTO passation_startup_items (
+                    passation_id, item_code, owner_role_code, owner_name, status, due_date, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    passation_id,
+                    (payload.get("item_code") or "").strip(),
+                    (payload.get("owner_role_code") or "").strip(),
+                    (payload.get("owner_name") or "").strip(),
+                    (payload.get("status") or "À confirmer").strip(),
+                    self._fmt_date(payload.get("due_date")),
+                    (payload.get("notes") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+
+    def _list_structured_needs(self, conn, passation_id: int) -> list[PassationStructuredNeedRecord]:
+        rows = conn.execute(
+            "SELECT * FROM passation_structured_needs WHERE passation_id = ? ORDER BY id",
+            (passation_id,),
+        ).fetchall()
+        return [self._structured_need_row(row) for row in rows]
+
+    def _replace_structured_needs(self, conn, passation_id: int, items) -> None:
+        conn.execute("DELETE FROM passation_structured_needs WHERE passation_id = ?", (passation_id,))
+        now = self._now()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            conn.execute(
+                """
+                INSERT INTO passation_structured_needs (
+                    passation_id, need_code, need_label, request_status, quantity, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    passation_id,
+                    (payload.get("need_code") or "").strip(),
+                    (payload.get("need_label") or "").strip(),
+                    (payload.get("request_status") or "Non évalué").strip(),
+                    (payload.get("quantity") or "").strip(),
+                    (payload.get("notes") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+
+    def _list_demande_preparation_items(self, conn, passation_id: int) -> list[PassationDemandePreparationRecord]:
+        rows = conn.execute(
+            "SELECT * FROM passation_demande_preparation_items WHERE passation_id = ? ORDER BY id",
+            (passation_id,),
+        ).fetchall()
+        return [self._demande_preparation_item_row(row) for row in rows]
+
+    def _replace_demande_preparation_items(self, conn, passation_id: int, items) -> None:
+        conn.execute("DELETE FROM passation_demande_preparation_items WHERE passation_id = ?", (passation_id,))
+        now = self._now()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            conn.execute(
+                """
+                INSERT INTO passation_demande_preparation_items (
+                    passation_id, module_code, is_required, is_ready, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    passation_id,
+                    (payload.get("module_code") or "").strip(),
+                    1 if payload.get("is_required") else 0,
+                    1 if payload.get("is_ready") else 0,
+                    (payload.get("notes") or "").strip(),
+                    now,
+                    now,
+                ),
+            )
+
     def _row(self, row) -> PassationRecord:
         keys = row.keys()
         return PassationRecord(
@@ -371,6 +633,11 @@ class PassationsRepository:
             besoins_essais_externes=row["besoins_essais_externes"] or "",
             besoins_equipements_specifiques=row["besoins_equipements_specifiques"] or "",
             besoins_ressources_humaines=row["besoins_ressources_humaines"] or "",
+            workflow_status=row["workflow_status"] or "Brouillon",
+            workflow_decision=row["workflow_decision"] or "À décider",
+            workflow_decision_comment=row["workflow_decision_comment"] or "",
+            workflow_decided_by=row["workflow_decided_by"] or "",
+            workflow_decided_at=self._parse_date(row["workflow_decided_at"]),
             synthese=row["synthese"] or "",
             notes=row["notes"] or "",
             affaire_ref=row["affaire_ref"] if "affaire_ref" in keys else "",
@@ -419,6 +686,85 @@ class PassationsRepository:
             updated_at=row["updated_at"] or "",
         )
 
+    def _participant_row(self, row) -> PassationParticipantRecord:
+        return PassationParticipantRecord(
+            uid=int(row["id"]),
+            passation_id=int(row["passation_id"]),
+            participant_role=row["participant_role"] or "",
+            full_name=row["full_name"] or "",
+            organisation=row["organisation"] or "",
+            email=row["email"] or "",
+            phone=row["phone"] or "",
+            comment=row["comment"] or "",
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+        )
+
+    def _perimeter_item_row(self, row) -> PassationPerimeterItemRecord:
+        return PassationPerimeterItemRecord(
+            uid=int(row["id"]),
+            passation_id=int(row["passation_id"]),
+            scope_category=row["scope_category"] or "",
+            scope_label=row["scope_label"] or "",
+            request_status=row["request_status"] or "Demandé",
+            notes=row["notes"] or "",
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+        )
+
+    def _responsibility_item_row(self, row) -> PassationResponsibilityItemRecord:
+        return PassationResponsibilityItemRecord(
+            uid=int(row["id"]),
+            passation_id=int(row["passation_id"]),
+            workstream_code=row["workstream_code"] or "",
+            accountable_role_code=row["accountable_role_code"] or "",
+            responsible_role_code=row["responsible_role_code"] or "",
+            consulted_roles=row["consulted_roles"] or "",
+            informed_roles=row["informed_roles"] or "",
+            notes=row["notes"] or "",
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+        )
+
+    def _startup_item_row(self, row) -> PassationStartupItemRecord:
+        return PassationStartupItemRecord(
+            uid=int(row["id"]),
+            passation_id=int(row["passation_id"]),
+            item_code=row["item_code"] or "",
+            owner_role_code=row["owner_role_code"] or "",
+            owner_name=row["owner_name"] or "",
+            status=row["status"] or "À confirmer",
+            due_date=self._parse_date(row["due_date"]),
+            notes=row["notes"] or "",
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+        )
+
+    def _structured_need_row(self, row) -> PassationStructuredNeedRecord:
+        return PassationStructuredNeedRecord(
+            uid=int(row["id"]),
+            passation_id=int(row["passation_id"]),
+            need_code=row["need_code"] or "",
+            need_label=row["need_label"] or "",
+            request_status=row["request_status"] or "Non évalué",
+            quantity=row["quantity"] or "",
+            notes=row["notes"] or "",
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+        )
+
+    def _demande_preparation_item_row(self, row) -> PassationDemandePreparationRecord:
+        return PassationDemandePreparationRecord(
+            uid=int(row["id"]),
+            passation_id=int(row["passation_id"]),
+            module_code=row["module_code"] or "",
+            is_required=bool(row["is_required"]),
+            is_ready=bool(row["is_ready"]),
+            notes=row["notes"] or "",
+            created_at=row["created_at"] or "",
+            updated_at=row["updated_at"] or "",
+        )
+
     @staticmethod
     def _document_schema(record: PassationDocumentRecord) -> PassationDocumentSchema:
         return PassationDocumentSchema(
@@ -450,6 +796,73 @@ class PassationsRepository:
             assignee=record.assignee,
             assignment_status=record.assignment_status,
             comment=record.comment,
+        )
+
+    @staticmethod
+    def _participant_schema(record: PassationParticipantRecord) -> PassationParticipantSchema:
+        return PassationParticipantSchema(
+            uid=record.uid,
+            participant_role=record.participant_role,
+            full_name=record.full_name,
+            organisation=record.organisation,
+            email=record.email,
+            phone=record.phone,
+            comment=record.comment,
+        )
+
+    @staticmethod
+    def _perimeter_item_schema(record: PassationPerimeterItemRecord) -> PassationPerimeterItemSchema:
+        return PassationPerimeterItemSchema(
+            uid=record.uid,
+            scope_category=record.scope_category,
+            scope_label=record.scope_label,
+            request_status=record.request_status,
+            notes=record.notes,
+        )
+
+    @staticmethod
+    def _responsibility_item_schema(record: PassationResponsibilityItemRecord) -> PassationResponsibilityItemSchema:
+        return PassationResponsibilityItemSchema(
+            uid=record.uid,
+            workstream_code=record.workstream_code,
+            accountable_role_code=record.accountable_role_code,
+            responsible_role_code=record.responsible_role_code,
+            consulted_roles=record.consulted_roles,
+            informed_roles=record.informed_roles,
+            notes=record.notes,
+        )
+
+    @staticmethod
+    def _startup_item_schema(record: PassationStartupItemRecord) -> PassationStartupItemSchema:
+        return PassationStartupItemSchema(
+            uid=record.uid,
+            item_code=record.item_code,
+            owner_role_code=record.owner_role_code,
+            owner_name=record.owner_name,
+            status=record.status,
+            due_date=record.due_date,
+            notes=record.notes,
+        )
+
+    @staticmethod
+    def _structured_need_schema(record: PassationStructuredNeedRecord) -> PassationStructuredNeedSchema:
+        return PassationStructuredNeedSchema(
+            uid=record.uid,
+            need_code=record.need_code,
+            need_label=record.need_label,
+            request_status=record.request_status,
+            quantity=record.quantity,
+            notes=record.notes,
+        )
+
+    @staticmethod
+    def _demande_preparation_item_schema(record: PassationDemandePreparationRecord) -> PassationDemandePreparationItemSchema:
+        return PassationDemandePreparationItemSchema(
+            uid=record.uid,
+            module_code=record.module_code,
+            is_required=record.is_required,
+            is_ready=record.is_ready,
+            notes=record.notes,
         )
 
     @staticmethod

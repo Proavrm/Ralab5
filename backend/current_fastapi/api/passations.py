@@ -10,7 +10,14 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.models.passation import (
     ACTION_PRIORITY_OPTIONS,
+    PASSATION_DEMANDE_MODULE_CODES,
+    PASSATION_PARTICIPANT_ROLES,
+    PASSATION_STARTUP_ITEM_CODES,
+    PASSATION_STRUCTURED_NEED_CODES,
+    PASSATION_WORKSTREAM_CODES,
+    PERIMETER_STATUS_OPTIONS,
     ROLE_ASSIGNMENT_STATUS_OPTIONS,
+    STRUCTURED_NEED_STATUS_OPTIONS,
     PASSATION_ROLE_CODES,
     ACTION_STATUS_OPTIONS,
     DEFAULT_DOCUMENT_TYPES,
@@ -20,6 +27,8 @@ from app.models.passation import (
     PassationCreateSchema,
     PassationResponseSchema,
     PassationUpdateSchema,
+    WORKFLOW_DECISION_OPTIONS,
+    WORKFLOW_STATUS_OPTIONS,
 )
 from app.repositories.affaires_rst_repository import AffairesRstRepository
 from app.repositories.passations_repository import PassationsRepository
@@ -64,6 +73,15 @@ def filters():
             "action_status_options": ACTION_STATUS_OPTIONS,
             "role_code_options": PASSATION_ROLE_CODES,
             "role_assignment_status_options": ROLE_ASSIGNMENT_STATUS_OPTIONS,
+            "participant_role_options": PASSATION_PARTICIPANT_ROLES,
+            "perimeter_status_options": PERIMETER_STATUS_OPTIONS,
+            "workstream_code_options": PASSATION_WORKSTREAM_CODES,
+            "startup_item_code_options": PASSATION_STARTUP_ITEM_CODES,
+            "structured_need_code_options": PASSATION_STRUCTURED_NEED_CODES,
+            "structured_need_status_options": STRUCTURED_NEED_STATUS_OPTIONS,
+            "demande_module_code_options": PASSATION_DEMANDE_MODULE_CODES,
+            "workflow_status_options": WORKFLOW_STATUS_OPTIONS,
+            "workflow_decision_options": WORKFLOW_DECISION_OPTIONS,
         }
     )
     return payload
