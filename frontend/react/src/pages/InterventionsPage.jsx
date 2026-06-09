@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { interventionsApi, demandesApi } from '@/services/api'
+import { useAuth } from '@/hooks/useAuth'
 import { formatDate } from '@/lib/utils'
 import { buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import {
@@ -59,10 +60,13 @@ function InterventionCard({ row, onOpen }) {
 export default function InterventionsPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { user } = useAuth()
   const filterDemandeId = searchParams.get('demande_id')
+  const initialMineOnly = searchParams.get('mine') === '1'
   const returnTo = resolveReturnTo(searchParams.get('return_to'), '/demandes')
   const [search, setSearch] = useState('')
   const [statutFilter, setStatutFilter] = useState('')
+  const [mineOnly, setMineOnly] = useState(initialMineOnly)
 
   const { data: demande } = useQuery({
     queryKey: ['demande', filterDemandeId],
@@ -79,13 +83,19 @@ export default function InterventionsPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
+    const myDisplay = String(user?.display_name || '').trim().toLowerCase()
+    const myEmail = String(user?.email || '').trim().toLowerCase()
     return rows.filter((r) => {
       if (statutFilter && r.statut !== statutFilter) return false
+      if (mineOnly) {
+        const assignees = [r.technicien, r.operateur].map((v) => String(v || '').trim().toLowerCase())
+        if (!assignees.some((v) => v && (v === myDisplay || v === myEmail))) return false
+      }
       if (!q) return true
       return [r.reference, r.campagne_ref, r.campagne_reference, r.technicien, r.operateur, r.type, r.statut]
         .some((v) => String(v || '').toLowerCase().includes(q))
     })
-  }, [rows, search, statutFilter])
+  }, [rows, search, statutFilter, mineOnly, user?.display_name, user?.email])
 
   const metrics = useMemo(() => {
     const planifiees = rows.filter((r) => ['Planifiée', 'À planifier', 'Ouverte'].includes(r.statut)).length
@@ -166,6 +176,14 @@ export default function InterventionsPage() {
                 <option value="">Tous statuts</option>
                 {statuts.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
+              <label className="inline-flex items-center gap-2 rounded-xl border border-[#dbe1ea] bg-white px-3 py-2 text-[13px] text-[#123]">
+                <input
+                  type="checkbox"
+                  checked={mineOnly}
+                  onChange={(e) => setMineOnly(e.target.checked)}
+                />
+                <span>Seulement mes attributions</span>
+              </label>
             </div>
           )}
         >

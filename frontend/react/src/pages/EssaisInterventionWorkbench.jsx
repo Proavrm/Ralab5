@@ -18,6 +18,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
+import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/services/api'
 
 function parseObservations(raw) {
@@ -217,8 +218,10 @@ function SummaryCard({ title, value, hint = '' }) {
 export default function EssaisInterventionWorkbench() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
+    const { user } = useAuth()
 
     const demandeId = searchParams.get('demande_id') || ''
+    const initialMineOnly = searchParams.get('mine') === '1'
 
     const [rowsState, setRowsState] = useState([])
     const [prelevements, setPrelevements] = useState([])
@@ -231,6 +234,7 @@ export default function EssaisInterventionWorkbench() {
         demande: '',
         nature: '',
         intervention: 'all',
+        mineOnly: initialMineOnly,
     })
     const [sort, setSort] = useState({
         key: 'date',
@@ -272,6 +276,12 @@ export default function EssaisInterventionWorkbench() {
             if (filters.nature && row.nature !== filters.nature) return false
             if (filters.intervention === 'assigned' && !row.interventionKey) return false
             if (filters.intervention === 'unassigned' && row.interventionKey) return false
+            if (filters.mineOnly) {
+                const meDisplay = String(user?.display_name || '').trim().toLowerCase()
+                const meEmail = String(user?.email || '').trim().toLowerCase()
+                const owner = String(row.technicien || '').trim().toLowerCase()
+                if (!owner || !(owner === meDisplay || owner === meEmail)) return false
+            }
 
             if (!q) return true
 
@@ -307,7 +317,7 @@ export default function EssaisInterventionWorkbench() {
         })
 
         return result
-    }, [rowsState, filters, sort])
+    }, [rowsState, filters, sort, user?.display_name, user?.email])
 
     const demandeOptions = useMemo(() => {
         return [...new Set(rowsState.map((row) => row.demandeReference).filter(Boolean))]
@@ -623,6 +633,16 @@ export default function EssaisInterventionWorkbench() {
                                 <option value="all">Toutes</option>
                                 <option value="assigned">Attribuées</option>
                                 <option value="unassigned">Non attribuées</option>
+                            </Select>
+                        </FieldGroup>
+
+                        <FieldGroup label="Attribution">
+                            <Select
+                                value={filters.mineOnly ? 'mine' : 'all'}
+                                onChange={(e) => setFilters((prev) => ({ ...prev, mineOnly: e.target.value === 'mine' }))}
+                            >
+                                <option value="all">Toutes</option>
+                                <option value="mine">Seulement mes attributions</option>
                             </Select>
                         </FieldGroup>
                     </div>

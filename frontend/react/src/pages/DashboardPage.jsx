@@ -771,6 +771,12 @@ export default function DashboardPage() {
     enabled: Boolean(user?.email),
   })
 
+  const inboxMineQuery = useQuery({
+    queryKey: ['work-inbox-mine', user?.email || 'anon'],
+    queryFn: () => workInboxApi.mine({ limit: 8, offset: 0 }),
+    enabled: Boolean(user?.email),
+  })
+
   const passationsQuery = useQuery({
     queryKey: ['passations'],
     queryFn: () => passationsApi.list(),
@@ -825,6 +831,7 @@ export default function DashboardPage() {
   const demandes = demandesQuery.data || []
   const planning = planningQuery.data || []
   const inboxSummary = inboxSummaryQuery.data || null
+  const inboxMine = inboxMineQuery.data || null
   const passations = passationsQuery.data || []
   const interventions = interventionsQuery.data || []
   const echantillons = echantillonsQuery.data || []
@@ -848,6 +855,7 @@ export default function DashboardPage() {
   const myAssignedOpen = Number(inboxSummary?.assigned_open || 0)
   const myAssignedOverdue = Number(inboxSummary?.overdue || 0)
   const myAssignedDueToday = Number(inboxSummary?.due_today || 0)
+  const myInboxItems = Array.isArray(inboxMine?.items) ? inboxMine.items : []
 
   const essaisProgrammes = essais.filter((essai) => getEssaiDisplayStatus(essai) === 'Programmé').length
   const essaisEnCours = essais.filter((essai) => getEssaiDisplayStatus(essai) === 'En cours').length
@@ -998,6 +1006,7 @@ export default function DashboardPage() {
     affairesQuery.error ? 'Affaires' : null,
     demandesQuery.error ? 'Demandes' : null,
     planningQuery.error ? 'Planning' : null,
+    inboxSummaryQuery.error ? 'Mes attributions' : null,
     passationsQuery.error ? 'Passations' : null,
     interventionsQuery.error ? 'Interventions' : null,
     echantillonsQuery.error ? 'Échantillons' : null,
@@ -1026,6 +1035,28 @@ export default function DashboardPage() {
   const canViewDemandes = hasPermission(user, 'view_demandes')
   const canViewPlanning = hasPermission(user, 'view_planning')
   const canViewLabo = hasPermission(user, 'view_labo')
+
+  const openInboxItem = (item) => {
+    const moduleType = String(item?.module_type || '').toUpperCase()
+    const objectUid = Number(item?.object_uid || 0)
+    if (!objectUid) {
+      navigate('/labo/workbench?mine=1')
+      return
+    }
+    if (moduleType === 'INTERVENTION') {
+      navigate(`/interventions/${objectUid}`)
+      return
+    }
+    if (moduleType === 'ESSAI') {
+      navigate(`/essais/${objectUid}`)
+      return
+    }
+    if (moduleType === 'PRELEVEMENT_RECEPTION') {
+      navigate(`/prelevements/${objectUid}`)
+      return
+    }
+    navigate('/labo/workbench?mine=1')
+  }
 
   const shortcutLinks = DASHBOARD_SHORTCUTS
     .filter((shortcut) => !shortcut.permission || hasPermission(user, shortcut.permission))
@@ -2006,6 +2037,44 @@ export default function DashboardPage() {
                 onClick={metric.onClick}
               />
             ))}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <SubsectionHeader
+              title="Mes attributions détaillées"
+              actionLabel="Ouvrir workbench"
+              onAction={() => navigate('/labo/workbench?mine=1')}
+            />
+            {inboxMineQuery.isLoading ? (
+              <ListFallback loading label="Chargement de mes attributions..." />
+            ) : myInboxItems.length === 0 ? (
+              <ListFallback loading={false} label="Aucune attribution active." />
+            ) : (
+              myInboxItems.map((item) => {
+                const dueState = String(item?.due_state || 'none')
+                const tone = dueState === 'overdue' ? 'red' : dueState === 'today' ? 'amber' : 'sky'
+                const moduleLabel = item?.module_type === 'PRELEVEMENT_RECEPTION'
+                  ? 'Réception prélèvement'
+                  : item?.module_type === 'INTERVENTION'
+                    ? 'Intervention'
+                    : item?.module_type === 'ESSAI'
+                      ? 'Essai'
+                      : (item?.module_type || 'Tâche')
+                const dueLabel = item?.due_date ? formatDeadline(item.due_date) : 'Sans échéance'
+
+                return (
+                  <ListRow
+                    key={`inbox-${item.uid}`}
+                    title={item.object_reference || `${moduleLabel} #${item.object_uid}`}
+                    subtitle={`${moduleLabel} · ${item.assignment_role_code || 'OWNER'}`}
+                    meta={dueLabel}
+                    trailing={<TonePill tone={tone}>{dueState === 'overdue' ? 'En retard' : dueState === 'today' ? 'Aujourd\'hui' : 'Planifiée'}</TonePill>}
+                    leadingTone={tone}
+                    onClick={() => openInboxItem(item)}
+                  />
+                )
+              })
+            )}
           </div>
         </SectionCard>
       ) : null}

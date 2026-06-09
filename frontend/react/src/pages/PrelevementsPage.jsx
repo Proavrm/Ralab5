@@ -179,6 +179,7 @@ export default function PrelevementsPage() {
 
   const requestedLaboCode = normalizeCode(searchParams.get('labo') || '')
   const requestedView = VIEWS.some((item) => item.key === searchParams.get('view')) ? searchParams.get('view') : 'all'
+  const mineOnly = searchParams.get('mine') === '1'
   const search = searchParams.get('q') || ''
   const isAdmin = hasRole(user, ['admin'])
   const responsibleProfile = findResponsibleLaboProfileByUser(user)
@@ -233,10 +234,18 @@ export default function PrelevementsPage() {
 
   const filteredRows = useMemo(
     () => scopedRows
+      .filter((row) => {
+        if (!mineOnly) return true
+        const myDisplay = normalizeText(user?.display_name || '')
+        const myEmail = normalizeText(user?.email || '')
+        const assigneeA = normalizeText(row.receptionOwner)
+        const assigneeB = normalizeText(row.technicien)
+        return [assigneeA, assigneeB].some((assignee) => assignee && (assignee === myDisplay || assignee === myEmail))
+      })
       .filter((row) => filterByView(row, requestedView))
       .filter((row) => matchesSearch(row, search))
       .sort((left, right) => toDateMs(getPrelevementReferenceDate(right)) - toDateMs(getPrelevementReferenceDate(left))),
-    [requestedView, scopedRows, search]
+    [requestedView, scopedRows, search, mineOnly, user?.display_name, user?.email]
   )
 
   function openEtiquettes() {
@@ -341,6 +350,15 @@ export default function PrelevementsPage() {
               {effectiveLaboCode ? `Scope ${effectiveLaboCode}` : 'Vue multi-labo'}
             </div>
           )}
+
+          <label className="flex items-center gap-2 rounded-lg border border-border bg-bg px-3 text-sm text-text-muted">
+            <input
+              type="checkbox"
+              checked={mineOnly}
+              onChange={(event) => updateParams({ mine: event.target.checked ? '1' : '' })}
+            />
+            <span>Seulement mes attributions</span>
+          </label>
         </div>
       </div>
 
