@@ -20,6 +20,7 @@ import re, sqlite3
 from datetime import date, datetime
 from typing import Optional
 from app.core.database import ensure_ralab4_schema, get_db_path
+from app.services.work_assignment_service import sync_essai_assignment
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -1532,6 +1533,26 @@ def create_essai(body: EssaiCreate):
             ),
         )
         uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        assignment_row = conn.execute(
+            """
+            SELECT
+                e.id,
+                COALESCE(NULLIF(e.essai_code, ''), NULLIF(e.type_essai, ''), 'ESSAI-' || e.id) AS reference,
+                e.operateur,
+                e.date_debut,
+                e.date_fin,
+                d.id AS demande_id,
+                d.affaire_rst_id
+            FROM essais e
+            LEFT JOIN echantillons ech ON ech.id = e.echantillon_id
+            LEFT JOIN interventions i ON i.id = e.intervention_id
+            LEFT JOIN demandes d ON d.id = COALESCE(ech.demande_id, i.demande_id)
+            WHERE e.id = ?
+            """,
+            (uid,),
+        ).fetchone()
+        if assignment_row:
+            sync_essai_assignment(conn, assignment_row)
     return get_essai(int(uid))
 
 
@@ -1568,6 +1589,26 @@ def update_essai(uid: int, body: EssaiUpdate):
             raise HTTPException(404, f"Essai #{uid} introuvable")
         _require_essai_module_for_parent(conn, demande_id, echantillon_id=current["echantillon_id"], intervention_id=current["intervention_id"])
         conn.execute(f"UPDATE essais SET {clause} WHERE id = ?", list(fields.values()) + [uid])
+        assignment_row = conn.execute(
+            """
+            SELECT
+                e.id,
+                COALESCE(NULLIF(e.essai_code, ''), NULLIF(e.type_essai, ''), 'ESSAI-' || e.id) AS reference,
+                e.operateur,
+                e.date_debut,
+                e.date_fin,
+                d.id AS demande_id,
+                d.affaire_rst_id
+            FROM essais e
+            LEFT JOIN echantillons ech ON ech.id = e.echantillon_id
+            LEFT JOIN interventions i ON i.id = e.intervention_id
+            LEFT JOIN demandes d ON d.id = COALESCE(ech.demande_id, i.demande_id)
+            WHERE e.id = ?
+            """,
+            (uid,),
+        ).fetchone()
+        if assignment_row:
+            sync_essai_assignment(conn, assignment_row)
     return get_essai(uid)
 
 

@@ -40,6 +40,7 @@ from api.plans_implantation import router as plans_implantation_router
 from api.nivellements import router as nivellements_router
 from api.feuilles_terrain import router as feuilles_terrain_router
 from api.qualite import router as qualite_router
+from api.work_inbox import router as work_inbox_router
 from app.core.database import ensure_ralab4_schema
 from api.affaires_manual_correction_simple import router as affaires_manual_correction_simple_router
 from api.reference_sources import router as reference_sources_router
@@ -145,6 +146,7 @@ app.include_router(plans_implantation_router, prefix="/api/plans-implantation", 
 app.include_router(nivellements_router, prefix="/api/nivellements", tags=["Nivellements"])
 app.include_router(feuilles_terrain_router, prefix="/api/feuilles-terrain", tags=["Feuilles terrain"])
 app.include_router(qualite_router, prefix="/api/qualite", tags=["Qualité"])
+app.include_router(work_inbox_router, prefix="/api/work/inbox", tags=["Work Inbox"])
 app.include_router(import_historique_labo_router, prefix="/api/import-historique-labo", tags=["Import Historique Labo"])
 app.include_router(import_essais_de_router, prefix="/api/import-essais-de", tags=["Import Essais DE"])
 app.include_router(import_essais_sc_router)

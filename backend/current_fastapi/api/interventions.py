@@ -15,6 +15,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from app.core.database import ensure_ralab4_schema, get_db_path
+from app.services.work_assignment_service import sync_intervention_assignment
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -770,6 +771,17 @@ def create_intervention(body: InterventionCreate):
             ),
         )
         uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        assignment_row = conn.execute(
+            """
+            SELECT i.id, i.reference, i.technicien, i.date_intervention, i.demande_id, d.affaire_rst_id
+            FROM interventions i
+            LEFT JOIN demandes d ON d.id = i.demande_id
+            WHERE i.id = ?
+            """,
+            (uid,),
+        ).fetchone()
+        if assignment_row:
+            sync_intervention_assignment(conn, assignment_row)
     return get_intervention(int(uid))
 
 
@@ -801,6 +813,17 @@ def update_intervention(uid: int, body: InterventionUpdate):
             """,
             (DEFAULT_NATURE_REELLE, now, uid),
         )
+        assignment_row = conn.execute(
+            """
+            SELECT i.id, i.reference, i.technicien, i.date_intervention, i.demande_id, d.affaire_rst_id
+            FROM interventions i
+            LEFT JOIN demandes d ON d.id = i.demande_id
+            WHERE i.id = ?
+            """,
+            (uid,),
+        ).fetchone()
+        if assignment_row:
+            sync_intervention_assignment(conn, assignment_row)
     return get_intervention(uid)
 
 

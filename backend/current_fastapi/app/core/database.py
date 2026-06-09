@@ -344,6 +344,50 @@ CREATE TABLE IF NOT EXISTS qsse_analysis_documents (
 CREATE INDEX IF NOT EXISTS idx_qsse_analysis_documents_scope ON qsse_analysis_documents(analysis_code, source_year);
 """
 
+WORK_INBOX_DDL = """
+CREATE TABLE IF NOT EXISTS task_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    module_type TEXT NOT NULL,
+    object_uid INTEGER NOT NULL,
+    object_reference TEXT NOT NULL DEFAULT '',
+    affaire_rst_id INTEGER REFERENCES affaires_rst(id) ON DELETE SET NULL,
+    demande_id INTEGER REFERENCES demandes(id) ON DELETE SET NULL,
+    assignee_user_email TEXT,
+    assignee_display_name TEXT NOT NULL DEFAULT '',
+    assignment_role_code TEXT NOT NULL DEFAULT 'OWNER',
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    priority TEXT NOT NULL DEFAULT 'Normale',
+    due_date TEXT NOT NULL DEFAULT '',
+    assigned_by_user_email TEXT,
+    assigned_at TEXT NOT NULL DEFAULT (datetime('now')),
+    completed_at TEXT,
+    source_hash TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS task_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_uid INTEGER NOT NULL REFERENCES task_assignments(id) ON DELETE CASCADE,
+    recipient_user_email TEXT,
+    recipient_display_name TEXT NOT NULL DEFAULT '',
+    event_type TEXT NOT NULL DEFAULT 'UPDATED',
+    title TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    is_read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_assignments_assignee_status_due
+    ON task_assignments(assignee_user_email, assignee_display_name, status, due_date);
+CREATE INDEX IF NOT EXISTS idx_task_assignments_module_object
+    ON task_assignments(module_type, object_uid, assignment_role_code);
+CREATE INDEX IF NOT EXISTS idx_task_notifications_recipient_read_created
+    ON task_notifications(recipient_user_email, recipient_display_name, is_read, created_at);
+"""
+
 DEFAULT_LABS = [
     ("SP", "Saint-Priest", "RA"),
     ("PDC", "Pont-du-Château", "AUV"),
@@ -824,6 +868,7 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         conn.executescript(LAB_WORKFLOW_DDL)
         conn.executescript(PMT_WORKFLOW_DDL)
         conn.executescript(QSSE_IMPORT_DDL)
+        conn.executescript(WORK_INBOX_DDL)
         _ensure_generic_essais_parent_schema(conn)
         _ensure_pmt_essais_harmonized_schema(conn)
 

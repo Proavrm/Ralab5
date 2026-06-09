@@ -16,6 +16,7 @@ import {
   passationsApi,
   planningApi,
   qualiteApi,
+  workInboxApi,
 } from '@/services/api'
 import { cn, formatDate } from '@/lib/utils'
 import Card, { CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -764,6 +765,12 @@ export default function DashboardPage() {
     queryFn: () => planningApi.list(),
   })
 
+  const inboxSummaryQuery = useQuery({
+    queryKey: ['work-inbox-summary', user?.email || 'anon'],
+    queryFn: () => workInboxApi.summary(),
+    enabled: Boolean(user?.email),
+  })
+
   const passationsQuery = useQuery({
     queryKey: ['passations'],
     queryFn: () => passationsApi.list(),
@@ -817,6 +824,7 @@ export default function DashboardPage() {
   const affaires = affairesQuery.data || []
   const demandes = demandesQuery.data || []
   const planning = planningQuery.data || []
+  const inboxSummary = inboxSummaryQuery.data || null
   const passations = passationsQuery.data || []
   const interventions = interventionsQuery.data || []
   const echantillons = echantillonsQuery.data || []
@@ -837,6 +845,9 @@ export default function DashboardPage() {
   const planningLate = planning.filter((item) => item.urg === 'late').length
   const planningSoon = planning.filter((item) => item.urg === 'soon').length
   const planningUnderTension = planningLate + planningSoon
+  const myAssignedOpen = Number(inboxSummary?.assigned_open || 0)
+  const myAssignedOverdue = Number(inboxSummary?.overdue || 0)
+  const myAssignedDueToday = Number(inboxSummary?.due_today || 0)
 
   const essaisProgrammes = essais.filter((essai) => getEssaiDisplayStatus(essai) === 'Programmé').length
   const essaisEnCours = essais.filter((essai) => getEssaiDisplayStatus(essai) === 'En cours').length
@@ -1726,6 +1737,18 @@ export default function DashboardPage() {
       icon: Clock3,
       onClick: () => navigate('/planning?filter=soon'),
       visible: canViewPlanning,
+    },
+    {
+      id: 'my-assignments',
+      label: 'Mes attributions',
+      value: inboxSummaryQuery.isLoading ? '…' : myAssignedOpen,
+      subtitle: inboxSummaryQuery.isLoading
+        ? 'Chargement...'
+        : `${myAssignedOverdue} en retard - ${myAssignedDueToday} aujourd'hui`,
+      tone: myAssignedOverdue > 0 ? 'red' : myAssignedDueToday > 0 ? 'amber' : 'sky',
+      icon: RotateCcw,
+      onClick: () => navigate('/labo/workbench?mine=1'),
+      visible: true,
     },
     {
       id: 'essais',

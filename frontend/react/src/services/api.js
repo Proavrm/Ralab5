@@ -157,6 +157,13 @@ export const planningApi = {
   updateItem: (kind, uid, data) => api.patch(`/planning/items/${encodeURIComponent(kind)}/${uid}`, data),
 }
 
+// ── Work inbox ───────────────────────────────────────────────────────────────
+export const workInboxApi = {
+  mine:     (params = {}) => api.get('/work/inbox/me?' + new URLSearchParams(params)),
+  summary:  ()            => api.get('/work/inbox/me/summary'),
+  markRead: (uid)         => api.post(`/work/inbox/notifications/${uid}/read`, {}),
+}
+
 // ── Interventions ─────────────────────────────────────────────────────────────
 export const interventionsApi = {
   list:   (params = {}) => api.get('/interventions?' + new URLSearchParams(params)),

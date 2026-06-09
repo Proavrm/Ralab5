@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.core.database import ensure_ralab4_schema, get_db_path
+from app.services.work_assignment_service import sync_prelevement_reception_assignment
 
 router = APIRouter()
 DB_PATH = get_db_path()
@@ -315,6 +316,17 @@ def update_prelevement(uid: int, payload: UpdatePrelevementPayload) -> dict:
         cur = conn.execute(f"UPDATE prelevements SET {clause} WHERE id = ?", list(fields.values()) + [uid])
         if not cur.rowcount:
             raise HTTPException(404, "Prélèvement introuvable")
+        assignment_row = conn.execute(
+            """
+            SELECT p.id, p.reference, p.receptionnaire, p.date_reception_labo, p.demande_id, d.affaire_rst_id
+            FROM prelevements p
+            LEFT JOIN demandes d ON d.id = p.demande_id
+            WHERE p.id = ?
+            """,
+            (uid,),
+        ).fetchone()
+        if assignment_row:
+            sync_prelevement_reception_assignment(conn, assignment_row)
     return get_prelevement(uid)
 
 
