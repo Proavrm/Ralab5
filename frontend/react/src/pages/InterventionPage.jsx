@@ -1,6 +1,6 @@
 /**
  * InterventionPage.jsx
- * Simplified intervention page aligned with Preparation.
+ * Fiche intervention terrain — layout aligné sur AffairePage (hero, métriques, SectionCard).
  */
 
 import { useEffect, useMemo, useState } from 'react'
@@ -8,8 +8,22 @@ import { useLocation, useNavigate, useParams, useSearchParams } from 'react-rout
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { buildInterventionTypeOptions } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
-import { api, demandesApi, echantillonsApi, essaisApi, interventionRequalificationApi, interventionsApi } from '@/services/api'
+import { api, demandesApi, echantillonsApi, essaisApi, feuillesTerrainApi, interventionRequalificationApi, interventionsApi } from '@/services/api'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import {
+    buildTerrainFeuilleOpenPath,
+    createTerrainFeuilleForIntervention,
+    isFeuilleTerrainEssaiCode,
+} from '@/lib/terrainFeuilleFromIntervention'
+import { formatDate } from '@/lib/utils'
+import {
+  DEMANDE_STAT_CLS,
+  FieldCard,
+  FicheBadge,
+  MetricCard,
+  PAGE_BG,
+  SectionCard,
+} from '@/components/layout/FicheLayout'
 
 const FINALITY_OPTIONS = [
     'Identification / classification',
@@ -85,9 +99,11 @@ const DIRECT_ESSAI_TEMPLATES = [
     { code: 'PA', label: 'Pénétromètre', typeEssai: 'Pénétromètre / PANDA', norme: '' },
     { code: 'SO', label: 'Coupe de sondage', typeEssai: 'Coupe de sondage', norme: '' },
     { code: 'SC', label: 'Coupe de sondage carotté', typeEssai: 'Coupe de sondage carotté', norme: '' },
-    { code: 'EA', label: 'Étanchéité à l’eau', typeEssai: 'Étanchéité à l’eau', norme: '' },
+    { code: 'EAU', label: 'Essai d’eau ou d’infiltration', typeEssai: 'Essai d’eau / infiltration', norme: '' },
     { code: 'PER', label: 'Percolation', typeEssai: 'Percolation', norme: '' },
-    { code: 'INF', label: 'Infiltration', typeEssai: 'Infiltration', norme: '' },
+    { code: 'INF', label: 'Infiltration / perméabilité', typeEssai: 'Infiltration / perméabilité', norme: '' },
+    { code: 'EE', label: 'Étanchéité à l’eau', typeEssai: 'Étanchéité à l’eau', norme: '' },
+    { code: 'EA', label: 'Étanchéité à l’air', typeEssai: 'Étanchéité à l’air', norme: '' },
 ]
 
 const DIRECT_ESSAI_TEMPLATE_BY_CODE = DIRECT_ESSAI_TEMPLATES.reduce((accumulator, item) => {
@@ -140,6 +156,31 @@ const DIRECT_ESSAIS_BY_HISTORICAL_CODE = {
     SC: ['SC'],
 }
 
+function getInterventionEssaiMismatchWarning(interventionType, essaiCode) {
+    const type = String(interventionType || '').toLowerCase()
+    const code = String(essaiCode || '').trim().toUpperCase()
+    const waterish = (
+        type.includes('eau')
+        || type.includes('infiltration')
+        || type.includes('percolation')
+        || type.includes('perméabilité')
+        || type.includes('permeabilite')
+    )
+    const enrobeish = type.includes('enrob') || type.includes('chaussée') || type.includes('chaussee')
+    const sondageish = type.includes('sondage') || type.includes('carottage') || type.includes('reconnaissance')
+
+    if (waterish && ['DE', 'DF', 'CFE', 'PLD', 'PL', 'PDL', 'SC', 'SO'].includes(code)) {
+        return `Cette intervention concerne l’eau ou l’infiltration. Un essai ${code} n’y est en principe pas attendu.`
+    }
+    if (enrobeish && ['EAU', 'INF', 'PER', 'PA'].includes(code)) {
+        return `Cette intervention concerne les enrobés / chaussées. Un essai ${code} n’y est en principe pas attendu.`
+    }
+    if (sondageish && ['DE', 'DF', 'EAU', 'PER'].includes(code)) {
+        return `Cette intervention concerne un sondage / une reconnaissance. Un essai ${code} n’y est en principe pas attendu.`
+    }
+    return ''
+}
+
 function inferDirectEssaiCodes(source = {}) {
     const normalizedType = String(source?.type_intervention || '').trim()
     const normalizedTypeLookup = normalizeHistoricalLookup(normalizedType)
@@ -166,13 +207,8 @@ function inferDirectEssaiCodes(source = {}) {
     return []
 }
 
-function getDirectEssaiTemplatesForIntervention(source = {}) {
-    const allowedCodes = inferDirectEssaiCodes(source)
-    if (!allowedCodes.length) return []
-
-    return allowedCodes
-        .map((code) => DIRECT_ESSAI_TEMPLATE_BY_CODE[code])
-        .filter(Boolean)
+function getDirectEssaiTemplatesForIntervention(_source = {}) {
+    return DIRECT_ESSAI_TEMPLATES
 }
 
 function guessDirectEssaiCode(source = null) {
@@ -183,8 +219,10 @@ function guessDirectEssaiCode(source = null) {
     if (typeIntervention.includes('enrob')) return 'DE'
     if (typeIntervention.includes('plateforme') || finalite.includes('portance')) return 'PLD'
     if (finalite.includes('compactage')) return 'QS'
-    if (typeIntervention.includes('infiltration') || finalite.includes('percolation')) return 'PER'
-    if (typeIntervention.includes('étanchéité') || finalite.includes('étanchéité') || materiau.includes('réseau')) return 'EA'
+    if (finalite.includes('percolation') || typeIntervention.includes('percolation')) return 'PER'
+    if (typeIntervention.includes('infiltration') || finalite.includes('infiltration') || finalite.includes('perméabilité') || finalite.includes('permeabilite')) return 'INF'
+    if (typeIntervention.includes('essai d') && typeIntervention.includes('eau')) return 'EAU'
+    if (typeIntervention.includes('étanchéité') || finalite.includes('étanchéité') || materiau.includes('réseau')) return 'EE'
     if (typeIntervention.includes('reconnaissance')) return 'SO'
     return 'GEN'
 }
@@ -248,14 +286,9 @@ function buildEssaiFollowupKey(item) {
 
 function Card({ title, children }) {
     return (
-        <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
-            {title ? (
-                <div className="px-4 py-2.5 border-b border-border bg-bg">
-                    <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{title}</span>
-                </div>
-            ) : null}
-            <div className="p-4">{children}</div>
-        </div>
+        <SectionCard title={title || 'Section'}>
+            {children}
+        </SectionCard>
     )
 }
 
@@ -284,17 +317,11 @@ function Section({ title, children, right }) {
     }
 
     return (
-        <section className="bg-surface border border-border rounded-[10px] overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-border bg-bg flex items-center justify-between gap-3">
-                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">
-                    {title}
-                </div>
-                {right}
-            </div>
-            <div className="p-4 flex flex-col gap-3">
+        <SectionCard title={title || 'Section'} chip={right}>
+            <div className="flex flex-col gap-3">
                 {children}
             </div>
-        </section>
+        </SectionCard>
     )
 }
 
@@ -1158,6 +1185,8 @@ export default function InterventionPage() {
     const [quickEssaiForm, setQuickEssaiForm] = useState(buildQuickEssaiForm())
     const [creatingPrelevement, setCreatingPrelevement] = useState(false)
     const [creatingEchantillons, setCreatingEchantillons] = useState(false)
+    const [creatingDirectFeuille, setCreatingDirectFeuille] = useState(false)
+    const [removingFeuilleUid, setRemovingFeuilleUid] = useState(null)
     const [typePickerOpen, setTypePickerOpen] = useState(false)
 
     const demandeId = form.demande_id || ''
@@ -1560,40 +1589,17 @@ export default function InterventionPage() {
         }),
         [form.type_intervention, historicalCode, historicalObservations, interventionInfo]
     )
-    const directEssaiSelectOptions = useMemo(() => {
-        const options = []
-        for (const template of allowedDirectEssaiTemplates) {
-            const code = String(template?.code || '').toUpperCase()
-            if ((code === 'SC' || code === 'SO' || code === 'DE') && linkedFeuillesTerrain.length > 0) {
-                const matchingFeuilles = linkedFeuillesTerrain.filter(
-                    (item) => String(item?.code_feuille || '').toUpperCase() === code
-                )
-                if (matchingFeuilles.length > 0) {
-                    for (const feuille of matchingFeuilles) {
-                        options.push({
-                            value: `${code}::${feuille.uid}`,
-                            essai_code: template.code,
-                            type_essai: template.typeEssai,
-                            norme: template.norme || '',
-                            source_label: feuille.reference || '',
-                            label: feuille.reference || template.label,
-                        })
-                    }
-                    continue
-                }
-            }
-
-            options.push({
-                value: template.code,
-                essai_code: template.code,
-                type_essai: template.typeEssai,
-                norme: template.norme || '',
-                source_label: '',
-                label: template.label,
-            })
-        }
-        return options
-    }, [allowedDirectEssaiTemplates, linkedFeuillesTerrain])
+    const directEssaiSelectOptions = useMemo(
+        () => allowedDirectEssaiTemplates.map((template) => ({
+            value: template.code,
+            essai_code: template.code,
+            type_essai: template.typeEssai,
+            norme: template.norme || '',
+            source_label: '',
+            label: template.label,
+        })),
+        [allowedDirectEssaiTemplates]
+    )
 
     const directEssaiOptionMap = useMemo(
         () => Object.fromEntries(directEssaiSelectOptions.map((item) => [item.value, item])),
@@ -1604,16 +1610,7 @@ export default function InterventionPage() {
         () => directEssaiOptionMap[quickEssaiForm.option_value] || directEssaiSelectOptions[0] || null,
         [directEssaiOptionMap, directEssaiSelectOptions, quickEssaiForm.option_value]
     )
-    const selectedLinkedFeuilleUid = useMemo(() => {
-        const rawValue = String(selectedDirectEssaiOption?.value || quickEssaiForm.option_value || '')
-        if (!rawValue.includes('::')) return null
-        const [code, rawUid] = rawValue.split('::')
-        const normalizedCode = String(code || '').toUpperCase()
-        if (!['SC', 'SO', 'DE'].includes(normalizedCode)) return null
-        const feuilleUid = Number.parseInt(String(rawUid || ''), 10)
-        return Number.isInteger(feuilleUid) && feuilleUid > 0 ? feuilleUid : null
-    }, [selectedDirectEssaiOption, quickEssaiForm.option_value])
-    const canCreateDirectEssai = allowedDirectEssaiTemplates.length > 0
+    const canCreateDirectEssai = !isCreate && Boolean(uid)
     const contextDemandeLabel = demandeInfo?.reference || (demandeId ? `#${demandeId}` : '')
     const contextCampaignLabel = campaignInfo.reference || campaignInfo.code || campaignInfo.label || campaignInfo.designation || ''
     const hasContextBanner = Boolean(contextDemandeLabel || contextCampaignLabel)
@@ -1815,8 +1812,46 @@ export default function InterventionPage() {
         return `/essais/new?${params.toString()}`
     }
 
-    function openDirectEssaiDraft(options = {}) {
+    async function openDirectEssaiDraft(options = {}) {
         if (isCreate || !uid) return
+
+        const selected = selectedDirectEssaiOption || {
+            essai_code: options.essaiCode || quickEssaiForm.essai_code,
+            type_essai: options.typeEssai,
+            norme: quickEssaiForm.norme,
+            source_label: quickEssaiForm.source_label || '',
+        }
+        const essaiCode = String(selected.essai_code || options.essaiCode || quickEssaiForm.essai_code || '').trim().toUpperCase()
+        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[essaiCode] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
+        const mismatchWarning = getInterventionEssaiMismatchWarning(
+            form.type_intervention || interventionInfo?.type_intervention || interventionInfo?.sujet,
+            essaiCode
+        )
+        if (mismatchWarning && !window.confirm(`${mismatchWarning}\n\nCréer quand même cet essai sur cette intervention ?`)) {
+            return
+        }
+
+        if (isFeuilleTerrainEssaiCode(essaiCode)) {
+            try {
+                setCreatingDirectFeuille(true)
+                setError('')
+                setSuccess('')
+                const { openPath } = await createTerrainFeuilleForIntervention({
+                    interventionId: Number(uid),
+                    code: essaiCode,
+                    label: selected.type_essai || template.typeEssai || template.label,
+                    dateFeuille: extractIsoDate(form.date_intervention || interventionInfo?.date_intervention),
+                    operateur: form.technicien || interventionInfo?.technicien || '',
+                })
+                navigateWithReturnTo(navigate, openPath, childReturnTo)
+            } catch (err) {
+                setError(err.message || 'Impossible de créer la feuille terrain.')
+            } finally {
+                setCreatingDirectFeuille(false)
+            }
+            return
+        }
+
         navigateWithReturnTo(navigate, buildDirectEssaiDraftPath(uid, options), childReturnTo)
     }
 
@@ -1881,12 +1916,44 @@ export default function InterventionPage() {
         }
     }
 
-    function handleOpenDirectEssaiDraft() {
-        if (selectedLinkedFeuilleUid) {
-            navigateWithReturnTo(navigate, `/feuilles-terrain/${selectedLinkedFeuilleUid}`, childReturnTo)
-            return
+    async function handleOpenDirectEssaiDraft() {
+        await openDirectEssaiDraft()
+    }
+
+    function openLinkedFeuilleTerrain(item) {
+        if (!item?.uid) return
+        const code = String(item?.code_feuille || '').trim().toUpperCase()
+        navigateWithReturnTo(navigate, buildTerrainFeuilleOpenPath(item.uid, code), childReturnTo)
+    }
+
+    async function refreshLinkedChain() {
+        if (isCreate || !uid) return
+        const chain = await api.get(`/interventions/${uid}/linked-chain`)
+        setLinkedPrelevements(Array.isArray(chain?.prelevements) ? chain.prelevements : [])
+        setLinkedEchantillons(Array.isArray(chain?.echantillons) ? chain.echantillons : [])
+        setLinkedEssais(Array.isArray(chain?.essais) ? chain.essais : [])
+        setLinkedFeuillesTerrain(Array.isArray(chain?.feuilles_terrain) ? chain.feuilles_terrain : [])
+        setLinkedPointsTerrain(Array.isArray(chain?.points_terrain) ? chain.points_terrain : [])
+        setLinkedCouchesTerrain(Array.isArray(chain?.couches_terrain) ? chain.couches_terrain : [])
+    }
+
+    async function handleRemoveLinkedFeuille(item) {
+        if (!item?.uid || isCreate || !uid) return
+        const label = item.reference || DIRECT_ESSAI_TEMPLATE_BY_CODE[String(item.code_feuille || '').toUpperCase()]?.label || 'cette feuille'
+        if (!window.confirm(`Retirer ${label} de cette intervention ?\n\nLa feuille terrain sera supprimée.`)) return
+
+        try {
+            setRemovingFeuilleUid(item.uid)
+            setError('')
+            setSuccess('')
+            await feuillesTerrainApi.delete(item.uid)
+            await refreshLinkedChain()
+            setSuccess(`${label} retirée de l’intervention.`)
+        } catch (err) {
+            setError(err.message || 'Impossible de retirer cette feuille terrain.')
+        } finally {
+            setRemovingFeuilleUid(null)
         }
-        openDirectEssaiDraft()
     }
 
     async function handleArchive() {
@@ -2002,105 +2069,197 @@ export default function InterventionPage() {
         }
     }
 
+    const heroSubtitle = [
+        demandeInfo?.chantier,
+        demandeInfo?.client ? `Client : ${demandeInfo.client}` : '',
+    ].filter(Boolean).join(' · ')
+
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64 text-text-muted text-sm">
-                Chargement intervention…
+            <div
+                className="flex flex-col h-full -m-6 overflow-y-auto"
+                style={{ background: PAGE_BG }}
+            >
+                <div className="text-xs text-text-muted text-center py-16">Chargement intervention…</div>
             </div>
         )
     }
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto">
-            <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-surface shrink-0 flex-wrap">
-                <button
-                    onClick={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
-                    className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors"
-                >
-                    Retour
-                </button>
-                {demandeInfo?.reference ? <span className="text-[13px] text-text-muted">{demandeInfo.reference} › </span> : null}
-                <span className="text-[14px] font-semibold flex-1 font-mono">{title}</span>
-                {!isCreate && form.statut ? <Badge>{form.statut}</Badge> : null}
-                {historicalCode ? <Badge>{`Import ${historicalCode}`}</Badge> : null}
-                {hasParentDemande ? (
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => navigateWithReturnTo(navigate, parentDemandePath, childReturnTo)}
+        <div
+            className="flex flex-col h-full -m-6 overflow-y-auto"
+            style={{ background: PAGE_BG }}
+        >
+            <div
+                className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+                style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+            >
+                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+                    <button
+                        type="button"
+                        onClick={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
+                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
                     >
-                        Demande
-                    </Button>
-                ) : null}
-                {hasParentAffaire ? (
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => navigateWithReturnTo(navigate, `/affaires/${parentAffaireId}`, childReturnTo)}
-                    >
-                        Affaire
-                    </Button>
-                ) : null}
-                {hasParentCampaign && hasParentDemande ? (
-                    <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => navigateWithReturnTo(navigate, parentDemandePath, childReturnTo)}
-                    >
-                        Campagne
-                    </Button>
-                ) : null}
-                {!isCreate && !editing ? (
-                    <>
-                        {form.statut !== 'Annulée' ? (
-                            <Button size="sm" variant="secondary" onClick={handleArchive} disabled={saving}>
-                                Archiver
-                            </Button>
-                        ) : null}
-                        <Button size="sm" variant="danger" onClick={handleDelete} disabled={saving}>
-                            Supprimer
+                        ← Retour
+                    </button>
+                    <div className="flex-1 min-w-[220px]">
+                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche intervention</div>
+                        <div className="text-[15px] font-black font-mono">{title}</div>
+                    </div>
+                    {hasParentDemande ? (
+                        <Button size="sm" onClick={() => navigateWithReturnTo(navigate, parentDemandePath, childReturnTo)}>
+                            Demande
                         </Button>
-                    </>
-                ) : null}
-                {editing ? (
-                    <>
-                        {!isCreate ? (
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => {
-                                    const resetForm = mergeFormFromIntervention(interventionInfo)
-                                    setForm(resetForm)
-                                    setQuickEchantillonForm(buildQuickEchantillonForm(resetForm))
-                                    setQuickEssaiForm(buildQuickEssaiForm(resetForm))
-                                    setEditing(false)
-                                    setError('')
-                                    setSuccess('')
-                                }}
-                            >
-                                Annuler
-                            </Button>
-                        ) : null}
-                        <Button size="sm" variant="primary" onClick={handleSave} disabled={saving}>
-                            {saving ? (isCreate ? 'Création…' : 'Enregistrement…') : (isCreate ? 'Créer l’intervention' : 'Enregistrer')}
+                    ) : null}
+                    {hasParentAffaire ? (
+                        <Button size="sm" onClick={() => navigateWithReturnTo(navigate, `/affaires/${parentAffaireId}`, childReturnTo)}>
+                            Affaire
                         </Button>
-                    </>
-                ) : (
-                    <Button size="sm" variant="primary" onClick={() => setEditing(true)}>
-                        Modifier
-                    </Button>
-                )}
+                    ) : null}
+                    {hasParentCampaign && hasParentDemande ? (
+                        <Button
+                            size="sm"
+                            onClick={() => navigateWithReturnTo(navigate, `/campagnes/${parentCampaignId}`, childReturnTo)}
+                        >
+                            Campagne
+                        </Button>
+                    ) : null}
+                    {!isCreate && !editing ? (
+                        <>
+                            {form.statut !== 'Annulée' ? (
+                                <Button size="sm" variant="secondary" onClick={handleArchive} disabled={saving}>
+                                    Archiver
+                                </Button>
+                            ) : null}
+                            <Button size="sm" variant="danger" onClick={handleDelete} disabled={saving}>
+                                Supprimer
+                            </Button>
+                            <Button size="sm" variant="primary" onClick={() => setEditing(true)}>
+                                Modifier
+                            </Button>
+                        </>
+                    ) : null}
+                    {editing ? (
+                        <>
+                            {!isCreate ? (
+                                <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => {
+                                        const resetForm = mergeFormFromIntervention(interventionInfo)
+                                        setForm(resetForm)
+                                        setQuickEchantillonForm(buildQuickEchantillonForm(resetForm))
+                                        setQuickEssaiForm(buildQuickEssaiForm(resetForm))
+                                        setEditing(false)
+                                        setError('')
+                                        setSuccess('')
+                                    }}
+                                >
+                                    Annuler
+                                </Button>
+                            ) : null}
+                            <Button size="sm" variant="primary" onClick={handleSave} disabled={saving}>
+                                {saving ? (isCreate ? 'Création…' : 'Enregistrement…') : (isCreate ? 'Créer l’intervention' : 'Enregistrer')}
+                            </Button>
+                        </>
+                    ) : null}
+                </div>
             </div>
 
-            <div className="p-5 max-w-[860px] mx-auto w-full flex flex-col gap-4">
+            <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+                <section
+                    className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+                    style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+                >
+                    <div
+                        className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+                        style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+                    >
+                        <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
+                        <div>
+                            <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                                <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
+                                RaLab 5 · Intervention terrain
+                            </div>
+                            <h1 className="text-[32px] font-black leading-none tracking-tight m-0 font-mono">{title}</h1>
+                            <div className="mt-3 text-[20px] font-black">{form.type_intervention || 'Type à qualifier'}</div>
+                            <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
+                                {contextDemandeLabel ? (
+                                    <span>Demande : <strong className="text-white">{contextDemandeLabel}</strong></span>
+                                ) : null}
+                                {contextCampaignLabel ? (
+                                    <span>Campagne : <strong className="text-white">{contextCampaignLabel}</strong></span>
+                                ) : null}
+                                {form.technicien ? (
+                                    <span>Technicien : <strong className="text-white">{form.technicien}</strong></span>
+                                ) : null}
+                                {heroSubtitle ? (
+                                    <span>{heroSubtitle}</span>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                                {form.statut ? (
+                                    <FicheBadge s={form.statut} map={DEMANDE_STAT_CLS} />
+                                ) : null}
+                                {historicalCode ? (
+                                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                                        Import {historicalCode}
+                                    </span>
+                                ) : null}
+                                {form.finalite_intervention ? (
+                                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                                        {form.finalite_intervention}
+                                    </span>
+                                ) : null}
+                            </div>
+                            <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Créneau</div>
+                            <div className="mt-1.5 text-[13px] font-black">{missionWindow || 'À planifier'}</div>
+                            {form.date_intervention ? (
+                                <div className="mt-2 text-[12px] font-black text-white/70">
+                                    {formatDate(form.date_intervention)}
+                                </div>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+                        <MetricCard
+                            label="Cadrage"
+                            value={`${planningChecklistDoneCount}/${planningChecklistItems.length}`}
+                            detail="Repères minimums"
+                        />
+                        <MetricCard
+                            label="Essais liés"
+                            value={linkedEssais.length}
+                            detail="Fiches rattachées"
+                        />
+                        <MetricCard
+                            label="Échantillons"
+                            value={linkedEchantillons.length}
+                            detail="Groupes directs"
+                        />
+                        <MetricCard
+                            label="Prélèvements"
+                            value={linkedPrelevements.length}
+                            detail="Objets terrain"
+                        />
+                    </div>
+                </section>
+
+                <div className="flex flex-col gap-5">
                 {error ? (
-                    <div className="text-sm text-danger bg-[#fcebeb] border border-[#f2d1d1] rounded-lg px-3 py-2">
+                    <div className="px-4 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded-[18px] text-xs text-danger">
                         {error}
                     </div>
                 ) : null}
 
                 {success ? (
-                    <div className="text-sm text-[#0f6e56] bg-[#e0f5ef] border border-[#bfe5db] rounded-lg px-3 py-2">
+                    <div className="px-4 py-2 rounded-[18px] border border-[#b8e3c7] bg-[#eaf8ef] text-[#1b6f43] text-xs font-medium">
                         {success}
                     </div>
                 ) : null}
@@ -2155,7 +2314,11 @@ export default function InterventionPage() {
                     </Card>
                 ) : null}
 
-                <Card title={editing || isCreate ? 'Intervention' : 'Intervention / mission terrain'}>
+                <SectionCard
+                    title={editing || isCreate ? 'Intervention' : 'Intervention / mission terrain'}
+                    subtitle="Type, finalité, planning et personnes affectées"
+                    chip={form.statut ? <FicheBadge s={form.statut} map={DEMANDE_STAT_CLS} /> : null}
+                >
                     {editing || isCreate ? (
                         <div className="grid grid-cols-2 gap-3">
                             <FG label="Type d'intervention" full>
@@ -2245,29 +2408,24 @@ export default function InterventionPage() {
                             </FG>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-x-8">
-                            <div>
-                                <FR label="Référence" value={interventionInfo?.reference || ''} />
-                                <FR label="Demande" value={contextDemandeLabel} />
-                                <FR label="Campagne" value={contextCampaignLabel} />
-                                <FR label="Type d'intervention" value={form.type_intervention} />
-                                <FR label="Finalité" value={form.finalite_intervention} />
-                                <FR label="Date / créneau" value={missionWindow} />
-                                <FR label="Technicien / opérateur" value={form.technicien} />
-                            </div>
-                            <div>
-                                <FR label="Zone / localisation" value={form.zone_intervention} />
-                                <FR label="Matériau / objet concerné" value={form.nature_materiau} />
-                                <FR label="Statut" value={form.statut} />
-                                <FR label="Responsable / référent" value={form.responsable_referent} />
-                                <FR label="Attribué à" value={form.attribue_a} />
-                                <FR label="Objectif terrain" value={form.objectif_intervention} />
-                                <FR label="Notes terrain" value={form.notes_terrain} />
-                            </div>
-
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <FieldCard label="Référence" value={interventionInfo?.reference} highlight />
+                            <FieldCard label="Demande" value={contextDemandeLabel} />
+                            <FieldCard label="Campagne" value={contextCampaignLabel} />
+                            <FieldCard label="Type d'intervention" value={form.type_intervention} />
+                            <FieldCard label="Finalité" value={form.finalite_intervention} />
+                            <FieldCard label="Date / créneau" value={missionWindow} />
+                            <FieldCard label="Technicien / opérateur" value={form.technicien} />
+                            <FieldCard label="Zone / localisation" value={form.zone_intervention} />
+                            <FieldCard label="Matériau / objet" value={form.nature_materiau} />
+                            <FieldCard label="Statut" value={form.statut} />
+                            <FieldCard label="Responsable / référent" value={form.responsable_referent} />
+                            <FieldCard label="Attribué à" value={form.attribue_a} />
+                            <FieldCard label="Objectif terrain" value={form.objectif_intervention} className="sm:col-span-2" />
+                            <FieldCard label="Notes terrain" value={form.notes_terrain} className="sm:col-span-3" />
                         </div>
                     )}
-                </Card>
+                </SectionCard>
 
                 {false ? (
                 <Card title="Préparation / réalisation">
@@ -2468,26 +2626,37 @@ export default function InterventionPage() {
                                 <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Sondages / feuilles terrain liées</div>
                                 <div className="flex flex-col gap-2">
                                     {linkedFeuillesTerrain.map((item) => (
-                                        <button
+                                        <div
                                             key={item.uid}
-                                            type="button"
-                                            onClick={() => navigateWithReturnTo(navigate, `/feuilles-terrain/${item.uid}`, childReturnTo)}
-                                            className="rounded-lg border border-border bg-bg px-3 py-3 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+                                            className="rounded-lg border border-border bg-bg px-3 py-3 flex items-start justify-between gap-3"
                                         >
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    <div className="text-[13px] font-semibold text-text">
-                                                        {item.reference || `${item.code_feuille || 'Feuille'} #${item.uid}`}
-                                                    </div>
-                                                    <div className="mt-1 text-[12px] text-text-muted">
-                                                        {[item.label, item.code_feuille, item.date_feuille].filter(Boolean).join(' · ') || 'Feuille terrain liée'}
-                                                    </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => openLinkedFeuilleTerrain(item)}
+                                                className="min-w-0 flex-1 text-left transition hover:opacity-80"
+                                            >
+                                                <div className="text-[13px] font-semibold text-text">
+                                                    {DIRECT_ESSAI_TEMPLATE_BY_CODE[String(item.code_feuille || '').toUpperCase()]?.label
+                                                        || item.label
+                                                        || item.code_feuille
+                                                        || 'Feuille terrain'}
                                                 </div>
-                                                <div className="shrink-0 text-[11px] text-text-muted">
+                                                <div className="mt-1 text-[12px] text-text-muted">
+                                                    {[item.reference, item.code_feuille, item.date_feuille].filter(Boolean).join(' · ') || 'Feuille terrain liée'}
+                                                </div>
+                                                <div className="mt-1 text-[11px] text-text-muted">
                                                     {item.points_count ?? 0} point(s)
                                                 </div>
-                                            </div>
-                                        </button>
+                                            </button>
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => handleRemoveLinkedFeuille(item)}
+                                                disabled={removingFeuilleUid === item.uid}
+                                            >
+                                                {removingFeuilleUid === item.uid ? '…' : 'Retirer'}
+                                            </Button>
+                                        </div>
                                     ))}
                                 </div>
                             </div>
@@ -2530,11 +2699,11 @@ export default function InterventionPage() {
                                         <option key={item.value} value={item.value}>{item.label}</option>
                                     ))
                                 ) : (
-                                    <option value="">Aucun essai direct lié à ce type d'intervention</option>
+                                    <option value="">Sélectionner un essai</option>
                                 )}
                             </Select>
-                            <Button variant="primary" size="sm" onClick={handleOpenDirectEssaiDraft} disabled={saving || !canCreateDirectEssai}>
-                                {selectedLinkedFeuilleUid ? 'Ouvrir la feuille liée' : '+ Créer cet essai'}
+                            <Button variant="primary" size="sm" onClick={handleOpenDirectEssaiDraft} disabled={saving || creatingDirectFeuille || !canCreateDirectEssai}>
+                                {creatingDirectFeuille ? 'Création…' : '+ Créer cet essai'}
                             </Button>
                         </div>
 
@@ -3519,6 +3688,7 @@ export default function InterventionPage() {
                     title="Choisir l’action terrain"
                     subtitle={campaignInfo.reference || campaignInfo.label || demandeInfo?.reference || ''}
                 />
+                </div>
             </div>
         </div>
     )

@@ -136,6 +136,12 @@ export const passationsApi = {
   create: (data)        => api.post('/passations', data),
   update: (uid, data)   => api.patch(`/passations/${uid}`, data),
   delete: (uid)         => api.delete(`/passations/${uid}`),
+  organizationProposal: (uid) => api.get(`/passations/${uid}/organization-proposal`),
+  applyOrganizationProposal: (uid) => api.post(`/passations/${uid}/organization-proposal/apply`, {}),
+  readiness: (uid) => api.get(`/passations/${uid}/readiness`),
+  openDemandeAffaireFolder: (uid) => api.get(`/passations/${uid}/open-demande-affaire-folder`),
+  demandesPreview: (uid) => api.get(`/passations/${uid}/demandes-preview`),
+  generateDemandes: (uid) => api.post(`/passations/${uid}/demandes-generate`, {}),
 }
 
 // ── DST ───────────────────────────────────────────────────────────────────────

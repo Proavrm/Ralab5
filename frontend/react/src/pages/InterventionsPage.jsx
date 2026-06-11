@@ -1,60 +1,60 @@
+/**
+ * InterventionsPage.jsx — liste des interventions (filtre demande_id)
+ * Layout aligné sur AffairesPage : tableau pleine largeur, double-clic → fiche
+ */
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { interventionsApi, demandesApi } from '@/services/api'
 import { useAuth } from '@/hooks/useAuth'
+import Button from '@/components/ui/Button'
 import { formatDate } from '@/lib/utils'
 import { buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import { RefreshCw, X } from 'lucide-react'
 import {
   DemandeHero,
+  DEMANDE_STAT_CLS,
   EmptyStateBox,
-  FicheBadge,
   FicheMain,
   FichePageShell,
   FicheTopbar,
-  FieldCard,
   MetricCard,
-  PRIO_CLS,
   SectionCard,
 } from '@/components/layout/FicheLayout'
 
-const TYPE_CLS = {
-  Prélèvement: 'bg-[#e6f1fb] text-[#185fa5]',
-  Essai: 'bg-[#eaf3de] text-[#3b6d11]',
-  Mesure: 'bg-[#eeedfe] text-[#534ab7]',
-  Contrôle: 'bg-[#faeeda] text-[#854f0b]',
+const STAT_CLS = {
+  Planifiée: 'bg-[#e6f1fb] text-[#185fa5]',
+  'En cours': 'bg-[#eaf3de] text-[#3b6d11]',
+  Réalisée: 'bg-[#e0f5ef] text-[#0f6e56]',
+  Annulée: 'bg-[#fcebeb] text-[#a32d2d]',
+  Importée: 'bg-[#eeedfe] text-[#534ab7]',
+  ...DEMANDE_STAT_CLS,
 }
 
-function InterventionCard({ row, onOpen }) {
+function StatBadge({ s }) {
   return (
-    <article
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(row)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(row) } }}
-      className="rounded-[18px] border border-[#dbe1ea] bg-white p-4 cursor-pointer transition-all hover:border-[#003170] hover:shadow-[0_8px_24px_rgba(0,49,112,0.08)] focus:outline-none focus:ring-2 focus:ring-[#003170]/30"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-        <div>
-          <div className="text-[11px] font-black uppercase tracking-[.1em] text-[#69758a]">Intervention</div>
-          <div className="mt-1 text-[18px] font-black text-[#003170]">{row.reference || `#${row.uid}`}</div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <FicheBadge s={row.statut} />
-          {row.type ? <FicheBadge s={row.type} map={TYPE_CLS} /> : null}
-        </div>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
-        <FieldCard label="Campagne" value={row.campagne_ref || row.campagne_reference} />
-        <FieldCard label="Date prévue" value={row.date_prevue ? formatDate(row.date_prevue) : null} />
-        <FieldCard label="Date réalisée" value={row.date_realisee ? formatDate(row.date_realisee) : null} />
-        <FieldCard label="Technicien" value={row.technicien || row.operateur} />
-        <FieldCard label="Essais" value={row.nb_essais != null ? String(row.nb_essais) : null} />
-        <FieldCard label="Lieu" value={row.lieu || row.site} className="md:col-span-2" />
-        <FieldCard label="Commentaire" value={row.commentaire} className="md:col-span-2" />
-      </div>
-    </article>
+    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${STAT_CLS[s] || 'bg-[#f1efe8] text-[#5f5e5a]'}`}>
+      {s || '—'}
+    </span>
   )
+}
+
+function normalizeRow(row) {
+  return {
+    ...row,
+    uid: row.uid ?? row.id,
+    reference: row.reference || '',
+    type_label: row.type_intervention || row.type || '',
+    statut: row.statut || '',
+    date_label: row.date_intervention || row.date_prevue || row.date_realisee || '',
+    technicien_label: row.technicien || row.operateur || row.geotechnicien || '',
+    campagne_label: row.campagne_ref || row.campaign_ref || row.campagne_reference || '',
+    demande_label: row.demande_ref || row.demande_reference || '',
+    chantier_label: row.chantier || '',
+    lieu_label: row.lieu || row.site || row.zone_intervention || '',
+    nb_essais: Number(row.nb_essais) || 0,
+  }
 }
 
 export default function InterventionsPage() {
@@ -63,10 +63,13 @@ export default function InterventionsPage() {
   const { user } = useAuth()
   const filterDemandeId = searchParams.get('demande_id')
   const initialMineOnly = searchParams.get('mine') === '1'
-  const returnTo = resolveReturnTo(searchParams.get('return_to'), '/demandes')
+  const returnTo = resolveReturnTo(searchParams.get('return_to'), filterDemandeId ? `/demandes/${filterDemandeId}` : '/demandes')
+
   const [search, setSearch] = useState('')
   const [statutFilter, setStatutFilter] = useState('')
   const [mineOnly, setMineOnly] = useState(initialMineOnly)
+  const [sortCol, setSortCol] = useState('date_label')
+  const [sortAsc, setSortAsc] = useState(false)
 
   const { data: demande } = useQuery({
     queryKey: ['demande', filterDemandeId],
@@ -74,75 +77,128 @@ export default function InterventionsPage() {
     enabled: !!filterDemandeId,
   })
 
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading, refetch } = useQuery({
     queryKey: ['interventions', filterDemandeId],
     queryFn: () => interventionsApi.list(filterDemandeId ? { demande_id: filterDemandeId } : {}),
   })
 
-  const statuts = useMemo(() => [...new Set(rows.map((r) => r.statut).filter(Boolean))].sort(), [rows])
+  const normalizedRows = useMemo(
+    () => (Array.isArray(rows) ? rows : []).map(normalizeRow),
+    [rows]
+  )
+
+  const statuts = useMemo(
+    () => [...new Set(normalizedRows.map((r) => r.statut).filter(Boolean))].sort(),
+    [normalizedRows]
+  )
+
+  function toggleSort(col) {
+    if (sortCol === col) setSortAsc((a) => !a)
+    else {
+      setSortCol(col)
+      setSortAsc(true)
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const myDisplay = String(user?.display_name || '').trim().toLowerCase()
     const myEmail = String(user?.email || '').trim().toLowerCase()
-    return rows.filter((r) => {
-      if (statutFilter && r.statut !== statutFilter) return false
-      if (mineOnly) {
-        const assignees = [r.technicien, r.operateur].map((v) => String(v || '').trim().toLowerCase())
-        if (!assignees.some((v) => v && (v === myDisplay || v === myEmail))) return false
-      }
-      if (!q) return true
-      return [r.reference, r.campagne_ref, r.campagne_reference, r.technicien, r.operateur, r.type, r.statut]
-        .some((v) => String(v || '').toLowerCase().includes(q))
-    })
-  }, [rows, search, statutFilter, mineOnly, user?.display_name, user?.email])
+
+    return [...normalizedRows]
+      .filter((r) => {
+        if (statutFilter && r.statut !== statutFilter) return false
+        if (mineOnly) {
+          const assignees = [r.technicien, r.operateur, r.geotechnicien]
+            .map((v) => String(v || '').trim().toLowerCase())
+          if (!assignees.some((v) => v && (v === myDisplay || v === myEmail))) return false
+        }
+        if (!q) return true
+        return [
+          r.reference,
+          r.type_label,
+          r.campagne_label,
+          r.demande_label,
+          r.technicien_label,
+          r.statut,
+          r.chantier_label,
+          r.lieu_label,
+        ].some((v) => String(v || '').toLowerCase().includes(q))
+      })
+      .sort((a, b) => {
+        const va = String(a[sortCol] ?? '').toLowerCase()
+        const vb = String(b[sortCol] ?? '').toLowerCase()
+        return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va)
+      })
+  }, [normalizedRows, search, statutFilter, mineOnly, user?.display_name, user?.email, sortCol, sortAsc])
 
   const metrics = useMemo(() => {
-    const planifiees = rows.filter((r) => ['Planifiée', 'À planifier', 'Ouverte'].includes(r.statut)).length
-    const realisees = rows.filter((r) => ['Réalisée', 'Terminée', 'Clôturée'].includes(r.statut)).length
-    const essais = rows.reduce((acc, r) => acc + (Number(r.nb_essais) || 0), 0)
-    return { total: rows.length, planifiees, realisees, essais }
-  }, [rows])
+    const planifiees = normalizedRows.filter((r) => ['Planifiée', 'À planifier', 'Ouverte'].includes(r.statut)).length
+    const realisees = normalizedRows.filter((r) => ['Réalisée', 'Terminée', 'Clôturée'].includes(r.statut)).length
+    const essais = normalizedRows.reduce((acc, r) => acc + (r.nb_essais || 0), 0)
+    return { total: normalizedRows.length, planifiees, realisees, essais }
+  }, [normalizedRows])
 
-  const openIntervention = (row) => {
-    if (row?.uid) navigate(buildPathWithReturnTo(`/interventions/${row.uid}`, returnTo))
+  const { widths, getColProps } = useResizableColumns([150, 180, 110, 110, 140, 130, 130, 200, 120, 70])
+
+  function Th({ col, label, colIdx, className = '' }) {
+    const { style, resizerProps } = getColProps(colIdx ?? 0)
+    return (
+      <th
+        onClick={() => toggleSort(col)}
+        style={style}
+        className={`relative overflow-hidden bg-bg px-3 py-1.5 text-left text-[11px] font-medium text-text-muted border-b border-border whitespace-nowrap sticky top-0 z-10 cursor-pointer select-none hover:text-text ${className}`}
+      >
+        {label} {sortCol === col ? (sortAsc ? '↑' : '↓') : <span className="opacity-30">↕</span>}
+        <span {...resizerProps} onClick={(e) => e.stopPropagation()} />
+      </th>
+    )
   }
 
-  const goDemande = () => {
+  function openIntervention(row) {
+    if (!row?.uid) return
+    navigate(buildPathWithReturnTo(`/interventions/${row.uid}`, returnTo))
+  }
+
+  function goDemande() {
     if (filterDemandeId) navigate(buildPathWithReturnTo(`/demandes/${filterDemandeId}`, returnTo))
   }
 
-  const goCampagnes = () => {
+  function goCampagnes() {
     if (filterDemandeId) navigate(buildPathWithReturnTo(`/campagnes?demande_id=${filterDemandeId}`, returnTo))
   }
 
-  const goPreparation = () => {
-    if (demande?.reference) {
+  function goPreparation() {
+    if (demande?.reference && filterDemandeId) {
       navigate(buildPathWithReturnTo(`/preparations/${filterDemandeId}?ref=${encodeURIComponent(demande.reference)}`, returnTo))
     }
   }
 
+  const hasFilters = Boolean(search || statutFilter || mineOnly)
+  const backLabel = filterDemandeId ? '← Demande' : '← Demandes'
+
   return (
     <FichePageShell>
       <FicheTopbar
-        backLabel="← Retour"
+        backLabel={backLabel}
         onBack={() => navigate(returnTo)}
         eyebrow="Interventions"
         title={demande?.reference ? `Demande ${demande.reference}` : 'Liste des interventions'}
       >
         {filterDemandeId ? (
           <>
-            <button type="button" onClick={goDemande} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
-              Demande
-            </button>
-            <button type="button" onClick={goCampagnes} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
-              Campagnes
-            </button>
-            <button type="button" onClick={goPreparation} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
-              Préparation
-            </button>
+            <Button size="sm" onClick={goDemande}>Demande</Button>
+            <Button size="sm" onClick={goCampagnes}>Campagnes</Button>
+            <Button size="sm" onClick={goPreparation}>Préparation</Button>
           </>
         ) : null}
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]"
+        >
+          <RefreshCw size={14} />
+        </button>
       </FicheTopbar>
 
       <FicheMain>
@@ -157,51 +213,136 @@ export default function InterventionsPage() {
 
         <SectionCard
           title="Interventions"
-          subtitle={filterDemandeId ? 'Interventions rattachées à la demande' : 'Toutes les interventions'}
-          chip={demande?.priorite ? <FicheBadge s={demande.priorite} map={PRIO_CLS} /> : null}
+          subtitle="Double-clic sur une ligne pour ouvrir la fiche"
           actions={(
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-3 flex-wrap">
               <input
-                type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher…"
-                className="min-w-[180px] rounded-xl border border-[#dbe1ea] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#003170]"
+                placeholder="Référence, type, technicien, campagne…"
+                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]"
               />
               <select
                 value={statutFilter}
                 onChange={(e) => setStatutFilter(e.target.value)}
-                className="rounded-xl border border-[#dbe1ea] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#003170]"
+                className="text-xs py-1.5 px-2 border border-[#dbe1ea] rounded bg-white outline-none focus:border-[#003170]"
               >
                 <option value="">Tous statuts</option>
                 {statuts.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
-              <label className="inline-flex items-center gap-2 rounded-xl border border-[#dbe1ea] bg-white px-3 py-2 text-[13px] text-[#123]">
+              <label className="inline-flex items-center gap-2 text-xs text-[#123]">
                 <input
                   type="checkbox"
                   checked={mineOnly}
                   onChange={(e) => setMineOnly(e.target.checked)}
                 />
-                <span>Seulement mes attributions</span>
+                <span>Mes attributions</span>
               </label>
+              {hasFilters ? (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setStatutFilter(''); setMineOnly(false) }}
+                  className="text-xs text-[#69758a] hover:text-danger flex items-center gap-1"
+                >
+                  <X size={11} /> Effacer
+                </button>
+              ) : null}
+              <span className="text-xs text-[#69758a] ml-auto">
+                {filtered.length} intervention{filtered.length !== 1 ? 's' : ''}
+              </span>
             </div>
           )}
         >
-          {isLoading ? (
-            <div className="py-10 text-center text-[#69758a] text-[13px]">Chargement…</div>
-          ) : filtered.length === 0 ? (
-            <EmptyStateBox
-              icon="🔬"
-              title="Aucune intervention"
-              description={filterDemandeId ? 'Aucune intervention n’est rattachée à cette demande pour le moment.' : 'Aucune intervention ne correspond aux filtres.'}
-            />
-          ) : (
-            <div className="flex flex-col gap-3.5">
-              {filtered.map((row) => (
-                <InterventionCard key={row.uid} row={row} onOpen={openIntervention} />
-              ))}
+          <div className="overflow-hidden max-h-[66vh]">
+            <div className="overflow-x-scroll overflow-y-auto bg-surface">
+              {isLoading ? (
+                <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
+              ) : filtered.length === 0 ? (
+                <EmptyStateBox
+                  icon="🔬"
+                  title="Aucune intervention"
+                  description={filterDemandeId
+                    ? 'Aucune intervention n’est rattachée à cette demande pour le moment.'
+                    : 'Aucune intervention ne correspond aux filtres.'}
+                />
+              ) : (
+                <table
+                  className="border-collapse text-sm min-w-full [&_td]:whitespace-nowrap [&_td]:overflow-hidden [&_td]:text-ellipsis"
+                  style={{ width: Math.max(widths.reduce((sum, w) => sum + w, 0), 0), minWidth: '100%', tableLayout: 'fixed' }}
+                >
+                  <colgroup>
+                    {widths.map((w, i) => (
+                      <col key={i} style={{ width: w, minWidth: w, maxWidth: w }} />
+                    ))}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <Th col="reference" colIdx={0} label="Référence" />
+                      <Th col="type_label" colIdx={1} label="Type" />
+                      <Th col="statut" colIdx={2} label="Statut" />
+                      <Th col="date_label" colIdx={3} label="Date" />
+                      <Th col="technicien_label" colIdx={4} label="Technicien" />
+                      <Th col="campagne_label" colIdx={5} label="Campagne" />
+                      <Th col="demande_label" colIdx={6} label="Demande" />
+                      <Th col="chantier_label" colIdx={7} label="Chantier" />
+                      <Th col="lieu_label" colIdx={8} label="Lieu" />
+                      <th
+                        style={getColProps(9).style}
+                        className="relative overflow-hidden bg-bg px-3 py-1.5 text-center text-[11px] font-medium text-text-muted border-b border-border sticky top-0 z-10"
+                      >
+                        Ess.
+                        <span {...getColProps(9).resizerProps} />
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((row) => (
+                      <tr
+                        key={row.uid}
+                        onDoubleClick={() => openIntervention(row)}
+                        className="border-b border-border cursor-pointer transition-colors hover:bg-[#f8f8fc]"
+                      >
+                        <td className="px-3 py-1.5">
+                          <strong className="text-accent text-xs font-mono">{row.reference || `#${row.uid}`}</strong>
+                        </td>
+                        <td className="px-3 py-1.5 text-xs max-w-[180px] truncate" title={row.type_label}>
+                          {row.type_label || '—'}
+                        </td>
+                        <td className="px-3 py-1.5"><StatBadge s={row.statut} /></td>
+                        <td className="px-3 py-1.5 text-xs">
+                          {row.date_label ? formatDate(row.date_label) : '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs max-w-[140px] truncate" title={row.technicien_label}>
+                          {row.technicien_label || '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs max-w-[130px] truncate" title={row.campagne_label}>
+                          {row.campagne_label || '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs max-w-[130px] truncate" title={row.demande_label}>
+                          {row.demande_label || '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs max-w-[200px] truncate" title={row.chantier_label}>
+                          {row.chantier_label || '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-xs max-w-[120px] truncate" title={row.lieu_label}>
+                          {row.lieu_label || '—'}
+                        </td>
+                        <td className="px-3 py-1.5 text-center">
+                          {row.nb_essais > 0 ? (
+                            <span className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#e6f1fb] text-[#185fa5]">
+                              {row.nb_essais}
+                            </span>
+                          ) : (
+                            <span className="text-text-muted text-xs">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
+          </div>
         </SectionCard>
       </FicheMain>
     </FichePageShell>

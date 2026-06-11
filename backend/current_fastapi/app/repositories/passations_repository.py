@@ -9,6 +9,8 @@ from datetime import date, datetime
 from pathlib import Path
 
 from app.core.database import connect_db, ensure_ralab4_schema, get_db_path
+from app.repositories.reference_affaires_repository import ReferenceAffairesRepository
+from app.repositories.reference_etudes_repository import ReferenceEtudesRepository
 from app.models.passation import (
     PassationActionRecord,
     PassationActionSchema,
@@ -36,6 +38,8 @@ from app.models.passation import (
 class PassationsRepository:
     def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or get_db_path()
+        self._reference_affaires_repo = ReferenceAffairesRepository()
+        self._reference_etudes_repo = ReferenceEtudesRepository()
         ensure_ralab4_schema(self.db_path)
 
     def _connect(self):
@@ -111,6 +115,19 @@ class PassationsRepository:
             return record
 
     def filters(self) -> dict:
+        def should_keep_person_name(value: object) -> bool:
+            text = str(value or "").strip()
+            if not text:
+                return False
+            normalized = text.casefold()
+            if normalized.startswith("import"):
+                return False
+            if normalized.replace("?", "").strip() == "":
+                return False
+            if not re.search(r"[a-zA-ZÀ-ÖØ-öø-ÿ]", text):
+                return False
+            return True
+
         with self._connect() as conn:
             sources = [
                 row[0]
@@ -126,7 +143,41 @@ class PassationsRepository:
                 ).fetchall()
                 if row[0]
             ]
-        return {"sources": sources, "operation_types": types_}
+            responsable_candidates: set[str] = set()
+
+            # Primary source: Affaires NGE reference rows.
+            try:
+                for row in self._reference_affaires_repo.all(limit=5000):
+                    value = row.get("responsable", "")
+                    if should_keep_person_name(value):
+                        responsable_candidates.add(str(value).strip())
+            except Exception:
+                pass
+
+            # Primary source: Etudes reference rows.
+            try:
+                for row in self._reference_etudes_repo.list_rows(limit=5000):
+                    value = row.get("responsable", "")
+                    if should_keep_person_name(value):
+                        responsable_candidates.add(str(value).strip())
+            except Exception:
+                pass
+
+            # Secondary source: current operational affaires + existing passations.
+            for row in conn.execute("SELECT DISTINCT responsable FROM affaires_rst WHERE responsable != '' ORDER BY responsable").fetchall():
+                value = str(row[0] or "").strip()
+                if should_keep_person_name(value):
+                    responsable_candidates.add(value)
+
+            for row in conn.execute("SELECT DISTINCT responsable FROM passations WHERE responsable != '' ORDER BY responsable").fetchall():
+                value = str(row[0] or "").strip()
+                if should_keep_person_name(value):
+                    responsable_candidates.add(value)
+        return {
+            "sources": sources,
+            "operation_types": types_,
+            "responsable_passation_options": sorted(responsable_candidates, key=lambda item: item.casefold()),
+        }
 
     def next_reference(self) -> str:
         year = datetime.now().year
@@ -893,3 +944,4 @@ class PassationsRepository:
             except ValueError:
                 continue
         return None
+

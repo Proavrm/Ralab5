@@ -40,6 +40,10 @@ function loadDemandeUiState(uid) {
   }
 }
 
+function isPersistedCampaignUid(value) {
+  return /^\d+$/.test(String(value ?? '').trim())
+}
+
 function persistDemandeUiState(uid, nextState) {
   if (typeof window === 'undefined') return
   try {
@@ -1282,9 +1286,18 @@ export default function DemandePage() {
     : null
   const urgCls = urgDate !== null ? (urgDate < 0 ? 'text-danger font-bold' : urgDate <= 7 ? 'text-warn font-bold' : '') : ''
 
-  function openNewCampaignModal() {
+  function openCampaignConfiguration(campaign = {}) {
     if (!uid) return
-    interventionCampaignsApi.create({ demande_id: Number(uid), label: 'Campagne' })
+    const campaignUid = campaign?.uid
+    if (isPersistedCampaignUid(campaignUid)) {
+      navigate(buildPathWithReturnTo(`/campagnes/${campaignUid}`, detailReturnTo))
+      return
+    }
+    interventionCampaignsApi.create({
+      demande_id: Number(uid),
+      label: campaign?.label || 'Campagne principale',
+      designation: campaign?.designation || '',
+    })
       .then((saved) => {
         if (!saved?.uid) return
         qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
@@ -1295,10 +1308,12 @@ export default function DemandePage() {
       })
   }
 
+  function openNewCampaignModal() {
+    openCampaignConfiguration({ label: 'Campagne' })
+  }
+
   function openEditCampaignModal(campaign) {
-    const campaignUid = campaign?.uid
-    if (!campaignUid) return
-    navigate(buildPathWithReturnTo(`/campagnes/${campaignUid}`, detailReturnTo))
+    openCampaignConfiguration(campaign)
   }
 
   function openInterventionTypeModal(basePath, campaign = null) {

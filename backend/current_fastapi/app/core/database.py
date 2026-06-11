@@ -170,6 +170,16 @@ CREATE TABLE IF NOT EXISTS passation_demande_preparation_items (
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS passation_generated_demandes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
+    module_code TEXT NOT NULL DEFAULT '',
+    signature_hash TEXT NOT NULL DEFAULT '',
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(passation_id, module_code, signature_hash)
+);
+
 CREATE INDEX IF NOT EXISTS idx_passations_affaire ON passations(affaire_rst_id);
 CREATE INDEX IF NOT EXISTS idx_passations_date ON passations(date_passation);
 CREATE INDEX IF NOT EXISTS idx_passation_documents_passation ON passation_documents(passation_id);
@@ -181,6 +191,8 @@ CREATE INDEX IF NOT EXISTS idx_passation_responsibility_items_passation ON passa
 CREATE INDEX IF NOT EXISTS idx_passation_startup_items_passation ON passation_startup_items(passation_id);
 CREATE INDEX IF NOT EXISTS idx_passation_structured_needs_passation ON passation_structured_needs(passation_id);
 CREATE INDEX IF NOT EXISTS idx_passation_demande_preparation_items_passation ON passation_demande_preparation_items(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_generated_demandes_passation ON passation_generated_demandes(passation_id);
+CREATE INDEX IF NOT EXISTS idx_passation_generated_demandes_demande ON passation_generated_demandes(demande_id);
 """
 
 DEMANDE_CONFIGURATION_DDL = """
@@ -1047,6 +1059,8 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "demandes", "service_interne", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demandes", "societe_interne", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demandes", "urgence_source", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demandes", "passation_source_id", "INTEGER REFERENCES passations(id) ON DELETE SET NULL")
+        _ensure_column(conn, "demandes", "passation_module_code", "TEXT NOT NULL DEFAULT ''")
 
         _ensure_column(conn, "qualite_equipment", "m_tare", "REAL")
         _ensure_column(conn, "qualite_equipment", "volume_cm3", "REAL")
@@ -1117,12 +1131,15 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_prelevements_sondage_couche_id ON prelevements(sondage_couche_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_pmt_essais_import_uid ON pmt_essais(import_uid)")
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_pmt_essais_import_source_sheet ON pmt_essais(import_source_file, import_source_sheet)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_demandes_passation_source_id ON demandes(passation_source_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_participants_passation ON passation_participants(passation_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_perimeter_items_passation ON passation_perimeter_items(passation_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_responsibility_items_passation ON passation_responsibility_items(passation_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_startup_items_passation ON passation_startup_items(passation_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_structured_needs_passation ON passation_structured_needs(passation_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_demande_preparation_items_passation ON passation_demande_preparation_items(passation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_generated_demandes_passation ON passation_generated_demandes(passation_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_passation_generated_demandes_demande ON passation_generated_demandes(demande_id)")
 
         _ensure_historical_sondage_prelevement_links(conn)
 

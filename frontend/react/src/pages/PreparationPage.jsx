@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api } from '@/services/api'
+import { api, authApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { applyInterventionTypeToPath, buildInterventionTypeOptions } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
@@ -190,6 +190,19 @@ export default function PreparationPage() {
     enabled: !!demandeUid,
   })
 
+  const { data: authUsers = [] } = useQuery({
+    queryKey: ['auth-active-users-preparation'],
+    queryFn: async () => {
+      try {
+        return await authApi.users()
+      } catch {
+        return []
+      }
+    },
+    retry: false,
+    enabled: !!demandeUid,
+  })
+
   const originalPrep = nav?.preparation || {}
   const modules = nav?.modules || []
   const familyCatalog = catalog?.families || nav?.family_catalog || []
@@ -285,6 +298,21 @@ export default function PreparationPage() {
     () => derivedTechnicalModuleCodes.map((code) => moduleCatalog.find((item) => item.module_code === code)?.label || code),
     [derivedTechnicalModuleCodes, moduleCatalog]
   )
+
+  const userOptions = useMemo(() => {
+    const values = new Set()
+    ;(authUsers || []).forEach((item) => {
+      const displayName = String(item?.display_name || '').trim()
+      const email = String(item?.email || '').trim()
+      if (displayName) values.add(displayName)
+      if (email) values.add(email)
+    })
+    const referent = String(form.responsable_referent || '').trim()
+    const assignee = String(form.attribue_a || '').trim()
+    if (referent) values.add(referent)
+    if (assignee) values.add(assignee)
+    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+  }, [authUsers, form.responsable_referent, form.attribue_a])
 
   const saveMutation = useMutation({
     mutationFn: async ({ preparation, enabledModulesPayload }) => {
@@ -482,6 +510,42 @@ export default function PreparationPage() {
                 </div>
               </Section>
 
+              <Section title="Plan opérationnel interventions & essais">
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Date prévisionnelle de démarrage">
+                    <Input type="date" value={form.date_prevue || ''} onChange={(event) => setField('date_prevue', event.target.value)} />
+                  </Field>
+                  <Field label="Nombre de points / unités prévus">
+                    <Input value={form.nb_points_prevus || ''} onChange={(event) => setField('nb_points_prevus', event.target.value)} placeholder="ex: 12" />
+                  </Field>
+                  <Field label="Qui pilote (référent)">
+                    <Input
+                      value={form.responsable_referent}
+                      onChange={(event) => setField('responsable_referent', event.target.value)}
+                      list="preparation-user-options"
+                      placeholder="Responsable technique"
+                    />
+                  </Field>
+                  <Field label="Qui réalise (attribué à)">
+                    <Input
+                      value={form.attribue_a}
+                      onChange={(event) => setField('attribue_a', event.target.value)}
+                      list="preparation-user-options"
+                      placeholder="Technicien / opérateur"
+                    />
+                  </Field>
+                  <Field label="Types d'essais prévus" full>
+                    <Textarea value={form.types_essais_prevus || ''} onChange={(value) => setField('types_essais_prevus', value)} rows={2} placeholder="Labo, in situ, externes..." />
+                  </Field>
+                  <Field label="Critères de conformité" full>
+                    <Textarea value={form.criteres_conformite || ''} onChange={(value) => setField('criteres_conformite', value)} rows={2} placeholder="Seuils d'acceptation, normes internes..." />
+                  </Field>
+                  <Field label="Livrables attendus" full>
+                    <Textarea value={form.livrables_attendus || ''} onChange={(value) => setField('livrables_attendus', value)} rows={2} placeholder="PV, rapports, synthèses labo..." />
+                  </Field>
+                </div>
+              </Section>
+
               <Section title="Contraintes et vigilance">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Contexte operationnel" full>
@@ -505,10 +569,10 @@ export default function PreparationPage() {
               <Section title="Organisation">
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Responsable / referent">
-                    <Input value={form.responsable_referent} onChange={(event) => setField('responsable_referent', event.target.value)} />
+                    <Input value={form.responsable_referent} onChange={(event) => setField('responsable_referent', event.target.value)} list="preparation-user-options" />
                   </Field>
                   <Field label="Attribue a">
-                    <Input value={form.attribue_a} onChange={(event) => setField('attribue_a', event.target.value)} />
+                    <Input value={form.attribue_a} onChange={(event) => setField('attribue_a', event.target.value)} list="preparation-user-options" />
                   </Field>
                   <Field label="Priorite">
                     <Select value={form.priorite} onChange={(event) => setField('priorite', event.target.value)}>
@@ -547,6 +611,9 @@ export default function PreparationPage() {
                 <InfoLine label="Phase" value={form.phase_operation} />
                 <InfoLine label="Familles prevues" value={selectedFamilies.map((code) => familyMap[code]?.label || code).join(', ')} />
                 <InfoLine label="Finalite" value={form.finalite} />
+                <InfoLine label="Date prévue" value={form.date_prevue} />
+                <InfoLine label="Points prévus" value={form.nb_points_prevus} />
+                <InfoLine label="Essais prévus" value={form.types_essais_prevus} />
                 <InfoLine label="Zone" value={form.zone_localisation} />
                 <InfoLine label="Responsable" value={form.responsable_referent} />
                 <InfoLine label="Attribue a" value={form.attribue_a} />
@@ -581,6 +648,12 @@ export default function PreparationPage() {
             </div>
           </div>
         )}
+
+        <datalist id="preparation-user-options">
+          {userOptions.map((value) => (
+            <option key={value} value={value} />
+          ))}
+        </datalist>
       </FicheMain>
 
       <InterventionTypeModal

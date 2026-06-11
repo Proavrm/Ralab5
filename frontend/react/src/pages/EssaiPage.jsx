@@ -28,6 +28,7 @@ import { api, feuillesTerrainApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import { createTerrainFeuilleForIntervention, isFeuilleTerrainEssaiCode } from '@/lib/terrainFeuilleFromIntervention'
 import SondageCarotteCoupe from './SondageCarotteCoupe'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -4616,6 +4617,17 @@ const ESSAI_FORMS = {
   'SC':  SondageCarotteCoupe,
 }
 
+// Essais labo rattachés uniquement à un échantillon ; les autres peuvent naître d'une intervention.
+const LAB_ECHANTILLON_ONLY_CODES = new Set([
+  'WE', 'GR', 'EL', 'VBS', 'BM', 'MB', 'MBF', 'LCP', 'PN', 'IPI', 'IM', 'CBRI', 'CBR', 'ID', 'MVA',
+])
+
+function allowsInterventionParentForEssai(essaiCode, hasInterventionId) {
+  if (!hasInterventionId) return false
+  const normalizedCode = String(essaiCode || '').trim().toUpperCase()
+  return !LAB_ECHANTILLON_ONLY_CODES.has(normalizedCode)
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4637,9 +4649,15 @@ export default function EssaiPage() {
   const initialSourceLabel = searchParams.get('source_label') || ''
   const initialTypeEssai = searchParams.get('type_essai') || ''
   const normalizedInitialCode = String(initialEssaiCode || '').trim().toUpperCase()
-  const normalizedInitialType = String(initialTypeEssai || '').trim().toUpperCase()
-  const allowsInterventionParent = ['SC', 'SO'].includes(normalizedInitialCode) || ['SC', 'SO'].includes(normalizedInitialType)
+  const allowsInterventionParent = allowsInterventionParentForEssai(normalizedInitialCode, !!linkedInterventionId)
   const effectiveInterventionId = allowsInterventionParent ? linkedInterventionId : null
+  const shouldRedirectToFeuille = (
+    isNew
+    && !isModelo
+    && !linkedEchantillonId
+    && !!effectiveInterventionId
+    && isFeuilleTerrainEssaiCode(normalizedInitialCode)
+  )
 
   const initResultats = searchParams.get('init_resultats') || '{}'
   const initMeta = {
@@ -4654,6 +4672,7 @@ export default function EssaiPage() {
   const [modeloSearchQ,       setModeloSearchQ]       = useState('')
   const [modeloSearchLoading, setModeloSearchLoading] = useState(false)
   const [modeloSearchMsg,     setModeloSearchMsg]     = useState(null)
+  const [redirectingToFeuille, setRedirectingToFeuille] = useState(false)
   function setMeta(k, v) {
     setMetaForm(f => {
       const next = { ...f, [k]: v }
@@ -4690,6 +4709,47 @@ export default function EssaiPage() {
     queryFn:  () => api.get('/essais/meta'),
     staleTime: Infinity,
   })
+
+  useEffect(() => {
+    if (!shouldRedirectToFeuille || !linkedIntervention) return
+
+    let cancelled = false
+    setRedirectingToFeuille(true)
+
+    async function redirectToTerrainFeuille() {
+      try {
+        const { openPath } = await createTerrainFeuilleForIntervention({
+          interventionId: effectiveInterventionId,
+          code: normalizedInitialCode,
+          label: initialTypeEssai || initialEssaiCode,
+          dateFeuille: linkedIntervention?.date_intervention || '',
+          operateur: linkedIntervention?.technicien || '',
+        })
+        if (!cancelled) {
+          navigateWithReturnTo(
+            navigate,
+            openPath,
+            resolveReturnTo(searchParams, `/interventions/${effectiveInterventionId}`),
+            { replace: true }
+          )
+        }
+      } catch {
+        if (!cancelled) setRedirectingToFeuille(false)
+      }
+    }
+
+    redirectToTerrainFeuille()
+    return () => { cancelled = true }
+  }, [
+    shouldRedirectToFeuille,
+    linkedIntervention,
+    effectiveInterventionId,
+    normalizedInitialCode,
+    initialTypeEssai,
+    initialEssaiCode,
+    navigate,
+    searchParams,
+  ])
 
   const saveMut = useMutation({
     mutationFn: (d) => isNew
@@ -4811,8 +4871,12 @@ export default function EssaiPage() {
     </div>
   )
 
-  if (isNew && (isLinkedEchantillonLoading || isLinkedInterventionLoading)) {
-    return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+  if (isNew && (isLinkedEchantillonLoading || isLinkedInterventionLoading || redirectingToFeuille || shouldRedirectToFeuille)) {
+    return (
+      <div className="text-xs text-text-muted text-center py-16">
+        {shouldRedirectToFeuille ? 'Ouverture de la feuille terrain…' : 'Chargement…'}
+      </div>
+    )
   }
 
   if (isNew && linkedEchantillonId && (isLinkedEchantillonError || !linkedEchantillon)) return (

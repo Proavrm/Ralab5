@@ -1,1651 +1,1287 @@
 /**
- * PassationPage.jsx — fidèle à passation.html
- * 7 sections A–G + tables documents/actions éditables inline
+ * PassationPage.jsx
+ * Chemin projet non confirmé : remplacer le fichier PassationPage.jsx existant à son emplacement réel.
+ * Fiche de passation RST avec prestations structurées, documents et actions.
  */
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, affairesApi } from '@/services/api'
+import { api, authApi, affairesApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate } from '@/lib/utils'
-import { useAuth } from '@/hooks/useAuth'
-import { hasRole } from '@/lib/permissions'
-import {
-  FieldCard,
-  FichePageShell,
-  MetricCard,
-  SectionCard,
-} from '@/components/layout/FicheLayout'
+import { FichePageShell, MetricCard, SectionCard } from '@/components/layout/FicheLayout'
 
 const today = () => new Date().toISOString().split('T')[0]
 
 function normalizeEtudeKey(value) {
-  return String(value || '').trim().toLowerCase()
+    return String(value || '')
+        .trim()
+        .toLowerCase()
 }
 
 function normalizeAffaireKey(value) {
-  return String(value || '')
-    .replaceAll('*', '')
-    .toUpperCase()
-    .replace(/[\s\-_/\.]+/g, '')
-    .trim()
+    return String(value || '')
+        .replaceAll('*', '')
+        .toUpperCase()
+        .replace(/[\s\-_/\.]+/g, '')
+        .trim()
 }
 
 function getNgeFullCode(row) {
-  return String(row?.numero_affaire_complet || row?.numero_affaire || '').trim()
-}
-
-function optionToValue(option) {
-  if (option == null) return ''
-  if (typeof option === 'string' || typeof option === 'number') return String(option).trim()
-  if (typeof option === 'object') {
-    return String(option.value ?? option.label ?? '').trim()
-  }
-  return ''
-}
-
-function buildSelectOptions(baseOptions, selectedValue) {
-  const values = new Set((baseOptions || []).map(optionToValue).filter(Boolean))
-  const selected = String(selectedValue || '').trim()
-  if (selected) values.add(selected)
-  return [...values]
+    return String(row?.numero_affaire_complet || row?.numero_affaire || '').trim()
 }
 
 function FG({ label, children, full }) {
-  return (
-    <div className={full ? 'col-span-2 flex flex-col gap-1' : 'flex flex-col gap-1'}>
-      {label && <label className="text-[10px] font-medium text-text-muted">{label}</label>}
-      {children}
-    </div>
-  )
+    return (
+        <div className={full ? 'col-span-2 flex flex-col gap-1' : 'flex flex-col gap-1'}>
+            {label && <label className="text-[10px] font-medium text-text-muted">{label}</label>}
+            {children}
+        </div>
+    )
 }
 function TA({ value, onChange, rows = 3, placeholder }) {
-  return (
-    <textarea value={value ?? ''} onChange={e => onChange(e.target.value)} rows={rows}
-      placeholder={placeholder}
-      className="w-full px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-  )
-}
-
-function ReadText({ value, empty = '—' }) {
-  const text = String(value || '').trim()
-  return <div className="text-[13px] leading-relaxed text-[#172033] whitespace-pre-wrap">{text || empty}</div>
-}
-
-function cleanText(value) {
-  const text = String(value || '').trim()
-  return text || ''
-}
-
-function normalizeWorkflowText(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace('é', 'e')
-    .replace('è', 'e')
-    .replace('ê', 'e')
-}
-
-function buildAffaireSyncPatch(form, affaire) {
-  if (!affaire) return null
-  const patch = {}
-
-  const candidates = [
-    ['affaire_nge', cleanText(form.numero_affaire_nge)],
-    ['numero_etude', cleanText(form.numero_etude)],
-    ['chantier', cleanText(form.chantier)],
-    ['client', cleanText(form.client)],
-    ['titulaire', cleanText(form.entreprise_responsable)],
-    ['responsable', cleanText(form.responsable)],
-  ]
-
-  candidates.forEach(([key, next]) => {
-    if (!next) return
-    const current = cleanText(affaire?.[key])
-    if (next !== current) patch[key] = next
-  })
-
-  return Object.keys(patch).length > 0 ? patch : null
+    return (
+        <textarea
+            value={value ?? ''}
+            onChange={(e) => onChange(e.target.value)}
+            rows={rows}
+            placeholder={placeholder}
+            className="w-full px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+        />
+    )
 }
 
 const EMPTY = {
-  affaire_rst_id: '',
-  date_passation: today(),
-  source: '',
-  operation_type: '',
-  phase_operation: '',
-  numero_etude: '',
-  numero_affaire_nge: '',
-  chantier: '',
-  client: '',
-  entreprise_responsable: '',
-  agence: '',
-  responsable: '',
-  description_generale: '',
-  contexte_marche: '',
-  interlocuteurs_principaux: '',
-  points_sensibles: '',
-  besoins_laboratoire: '',
-  besoins_terrain: '',
-  besoins_etude: '',
-  besoins_g3: '',
-  besoins_essais_externes: '',
-  besoins_equipements_specifiques: '',
-  besoins_ressources_humaines: '',
-  workflow_status: 'Brouillon',
-  workflow_decision: 'À décider',
-  workflow_decision_comment: '',
-  workflow_decided_by: '',
-  workflow_decided_at: '',
-  synthese: '',
-  notes: '',
+    affaire_rst_id: '',
+    date_passation: today(),
+    source: '',
+    operation_type: '',
+    phase_operation: '',
+    numero_etude: '',
+    numero_affaire_nge: '',
+    chantier: '',
+    client: '',
+    entreprise_responsable: '',
+    agence: '',
+    responsable: '',
+    description_generale: '',
+    contexte_marche: '',
+    interlocuteurs_principaux: '',
+    points_sensibles: '',
+    besoins_laboratoire: '',
+    besoins_terrain: '',
+    besoins_etude: '',
+    besoins_g3: '',
+    besoins_essais_externes: '',
+    besoins_equipements_specifiques: '',
+    besoins_ressources_humaines: '',
+    synthese: '',
+    notes: '',
 }
 
-const PHASE_EXAMPLES = [
-  'Études / Conception',
-  'Préparation de chantier',
-  'Installation / Mobilisation',
-  'Exécution',
-  'Contrôles / Essais',
-  'Réception',
-  'Clôture',
+const RST_PRESTATION_TEMPLATES = [
+    {
+        key: 'intervention_terrain',
+        need_code: 'INTERVENTION_TERRAIN',
+        domain_code: 'TERRAIN',
+        need_label: 'Intervention terrain',
+        legacy_field: 'besoins_terrain',
+        legacy_default: true,
+    },
+    {
+        key: 'essais_terrain',
+        need_code: 'ESSAIS_TERRAIN',
+        domain_code: 'TERRAIN',
+        need_label: 'Essais terrain',
+        legacy_field: 'besoins_terrain',
+    },
+    {
+        key: 'prelevements_echantillons',
+        need_code: 'PRELEVEMENTS_ECHANTILLONS',
+        domain_code: 'PRELEVEMENTS',
+        need_label: 'Prélèvements / échantillons',
+        legacy_field: 'besoins_laboratoire',
+    },
+    {
+        key: 'essais_laboratoire',
+        need_code: 'ESSAIS_LABO',
+        domain_code: 'LABORATOIRE',
+        need_label: 'Essais laboratoire',
+        legacy_field: 'besoins_laboratoire',
+        legacy_default: true,
+    },
+    {
+        key: 'etude_technique',
+        need_code: 'ETUDE_TECHNIQUE',
+        domain_code: 'ETUDE',
+        need_label: 'Étude technique',
+        legacy_field: 'besoins_etude',
+    },
+    {
+        key: 'mission_g3',
+        need_code: 'MISSION_G3',
+        domain_code: 'G3',
+        need_label: 'Mission G3',
+        legacy_field: 'besoins_g3',
+    },
+    {
+        key: 'essais_externes',
+        need_code: 'ESSAIS_EXTERNES',
+        domain_code: 'EXTERNE',
+        need_label: 'Essais externes',
+        legacy_field: 'besoins_essais_externes',
+    },
+    {
+        key: 'equipements_specifiques',
+        need_code: 'EQUIPEMENTS_SPECIFIQUES',
+        domain_code: 'MOYENS',
+        need_label: 'Équipements spécifiques',
+        legacy_field: 'besoins_equipements_specifiques',
+    },
+    {
+        key: 'ressources_humaines',
+        need_code: 'RESSOURCES_HUMAINES',
+        domain_code: 'RESSOURCES',
+        need_label: 'Ressources humaines',
+        legacy_field: 'besoins_ressources_humaines',
+    },
 ]
 
-const ROLE_LABELS = {
-  INTERVENTION_PLANNER: 'Planificateur des interventions',
-  TECHNICIAN_ASSIGNER: 'Affectateur technicien',
-  FIELD_COORDINATOR: 'Coordinateur terrain',
-  LAB_COORDINATOR: 'Coordinateur laboratoire',
-  EXTERNAL_TESTS_OWNER: 'Responsable essais externes',
+const RST_NEED_STATUS_OPTIONS = ['À confirmer', 'Requis', 'Optionnel', 'Hors périmètre', 'Annulé']
+
+function createClientKey() {
+    return `rst-need-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function formatRoleLabel(roleCode) {
-  const code = String(roleCode || '').trim()
-  if (!code) return '—'
-  const label = ROLE_LABELS[code]
-  return label ? `${label} (${code})` : code
+function createStructuredNeed(template = {}) {
+    return {
+        client_key: createClientKey(),
+        need_code: template.need_code || '',
+        domain_code: template.domain_code || '',
+        need_label: template.need_label || '',
+        description: '',
+        quantity: '',
+        request_status: 'À confirmer',
+        create_demande: true,
+        notes: '',
+    }
+}
+
+function normalizeStructuredNeed(item = {}) {
+    return {
+        ...createStructuredNeed(),
+        ...item,
+        client_key: item.client_key || createClientKey(),
+        create_demande: item.create_demande !== false,
+    }
+}
+
+function structuredNeedsFromLegacy(formValue) {
+    const legacyFields = [...new Set(RST_PRESTATION_TEMPLATES.map((template) => template.legacy_field))]
+
+    return legacyFields.flatMap((legacyField) => {
+        const value = String(formValue?.[legacyField] || '').trim()
+        if (!value) return []
+
+        const matchingTemplates = RST_PRESTATION_TEMPLATES.filter((template) => template.legacy_field === legacyField)
+        const template = matchingTemplates.find((entry) => entry.legacy_default) || matchingTemplates[0]
+        if (!template) return []
+
+        return [
+            {
+                ...createStructuredNeed(template),
+                legacy_field: legacyField,
+                description: value,
+                request_status: 'À confirmer',
+            },
+        ]
+    })
+}
+
+function summarizeStructuredNeed(item) {
+    const parts = []
+    const label = String(item.need_label || '').trim()
+    const description = String(item.description || '').trim()
+    const quantity = String(item.quantity || '').trim()
+
+    if (label) parts.push(label)
+    if (description) parts.push(description)
+    if (quantity) parts.push(`Volume estimé : ${quantity}`)
+
+    return parts.join(' — ')
+}
+
+function buildLegacyNeedsPatch(items) {
+    const patch = {
+        besoins_laboratoire: '',
+        besoins_terrain: '',
+        besoins_etude: '',
+        besoins_g3: '',
+        besoins_essais_externes: '',
+        besoins_equipements_specifiques: '',
+        besoins_ressources_humaines: '',
+    }
+
+    const grouped = Object.fromEntries(Object.keys(patch).map((key) => [key, []]))
+
+    items.forEach((item) => {
+        const template = RST_PRESTATION_TEMPLATES.find((entry) => entry.need_code === item.need_code)
+        const legacyField = item.legacy_field || template?.legacy_field
+        if (!legacyField || !grouped[legacyField]) return
+
+        const summary = summarizeStructuredNeed(item)
+        if (summary) grouped[legacyField].push(summary)
+    })
+
+    Object.keys(patch).forEach((key) => {
+        patch[key] = grouped[key].join('\n')
+    })
+
+    return patch
+}
+
+function serializeStructuredNeeds(items) {
+    return items
+        .filter(
+            (item) =>
+                String(item.need_code || '').trim() ||
+                String(item.need_label || '').trim() ||
+                String(item.description || '').trim()
+        )
+        .map(({ client_key, ...item }) => ({ ...item }))
+}
+
+function RstPrestationCard({ item, onChange, onRemove }) {
+    function set(k, v) {
+        onChange({ ...item, [k]: v })
+    }
+
+    return (
+        <div className="rounded-2xl border border-[#dbe1ea] bg-white overflow-hidden">
+            <div className="flex flex-wrap items-center gap-2 border-b border-[#e5eaf1] bg-[#f8fafc] px-4 py-3">
+                <span className="inline-flex rounded-full bg-[#003170] px-2.5 py-1 text-[10px] font-black tracking-[.08em] text-white">
+                    {item.domain_code || 'RST'}
+                </span>
+                <input
+                    value={item.need_label ?? ''}
+                    onChange={(e) => set('need_label', e.target.value)}
+                    placeholder="Prestation / objectif"
+                    className="min-w-[220px] flex-1 border-0 bg-transparent px-1 py-1 text-[13px] font-black text-[#172033] outline-none"
+                />
+                <select
+                    value={item.request_status ?? 'À confirmer'}
+                    onChange={(e) => set('request_status', e.target.value)}
+                    className="rounded-xl border border-[#cfd7e4] bg-white px-2.5 py-1.5 text-xs font-bold text-[#334155] outline-none focus:border-accent"
+                >
+                    {RST_NEED_STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>
+                            {status}
+                        </option>
+                    ))}
+                </select>
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    className="rounded-lg px-2 py-1 text-xs font-black text-danger hover:bg-[#fcebeb]"
+                    title="Supprimer la prestation"
+                >
+                    ✕
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 p-4 lg:grid-cols-4">
+                <div className="lg:col-span-4">
+                    <label className="mb-1 block text-[10px] font-medium text-text-muted">
+                        Description / résultat attendu (haut niveau)
+                    </label>
+                    <TA
+                        value={item.description}
+                        onChange={(v) => set('description', v)}
+                        rows={2}
+                        placeholder="Décrire le besoin global. Les détails techniques et l'affectation seront traités en Préparation."
+                    />
+                </div>
+
+                <FG label="Volume estimé">
+                    <Input value={item.quantity ?? ''} onChange={(e) => set('quantity', e.target.value)} />
+                </FG>
+                <div className="lg:col-span-3 flex items-end">
+                    <label className="flex w-full items-center gap-2 rounded-xl border border-[#dbe1ea] bg-[#f8fafc] px-3 py-2.5 text-xs font-bold text-[#334155]">
+                        <input
+                            type="checkbox"
+                            checked={item.create_demande !== false}
+                            onChange={(e) => set('create_demande', e.target.checked)}
+                            className="h-4 w-4 accent-accent"
+                        />
+                        Préparer une demande
+                    </label>
+                </div>
+
+                <div className="lg:col-span-4">
+                    <label className="mb-1 block text-[10px] font-medium text-text-muted">
+                        Notes passation
+                    </label>
+                    <TA value={item.notes} onChange={(v) => set('notes', v)} rows={2} />
+                </div>
+            </div>
+        </div>
+    )
 }
 
 function DocRow({ doc, onChange, onRemove }) {
-  function set(k, v) { onChange({ ...doc, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <input value={doc.document_type ?? ''} onChange={e => set('document_type', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5 text-center">
-        <input type="checkbox" checked={!!doc.is_received} onChange={e => set('is_received', e.target.checked)}
-          className="w-4 h-4 accent-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <input value={doc.version ?? ''} onChange={e => set('version', e.target.value)}
-          className="w-20 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="date" value={doc.document_date ?? ''} onChange={e => set('document_date', e.target.value || null)}
-          className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <input value={doc.comment ?? ''} onChange={e => set('comment', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button>
-      </td>
-    </tr>
-  )
+    function set(k, v) {
+        onChange({ ...doc, [k]: v })
+    }
+    return (
+        <tr className="border-b border-border">
+            <td className="px-2 py-1.5">
+                <input
+                    value={doc.document_type ?? ''}
+                    onChange={(e) => set('document_type', e.target.value)}
+                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5 text-center">
+                <input
+                    type="checkbox"
+                    checked={!!doc.is_received}
+                    onChange={(e) => set('is_received', e.target.checked)}
+                    className="w-4 h-4 accent-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <input
+                    value={doc.version ?? ''}
+                    onChange={(e) => set('version', e.target.value)}
+                    className="w-20 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <input
+                    type="date"
+                    value={doc.document_date ?? ''}
+                    onChange={(e) => set('document_date', e.target.value || null)}
+                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <input
+                    value={doc.comment ?? ''}
+                    onChange={(e) => set('comment', e.target.value)}
+                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <button onClick={onRemove} className="text-danger text-xs hover:opacity-70">
+                    ✕
+                </button>
+            </td>
+        </tr>
+    )
 }
 
 function ActionRow({ action, onChange, onRemove, priorites, statuts }) {
-  function set(k, v) { onChange({ ...action, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <input value={action.action_label ?? ''} onChange={e => set('action_label', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <input value={action.responsable ?? ''} onChange={e => set('responsable', e.target.value)}
-          className="w-28 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="date" value={action.echeance ?? ''} onChange={e => set('echeance', e.target.value || null)}
-          className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <select value={action.priorite ?? 'Normale'} onChange={e => set('priorite', e.target.value)}
-          className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          {(priorites || ['Basse','Normale','Haute','Critique']).map(p => <option key={p}>{p}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <select value={action.statut ?? 'À lancer'} onChange={e => set('statut', e.target.value)}
-          className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          {(statuts || ['À lancer','En cours','Fait','Annulé']).map(s => <option key={s}>{s}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <input value={action.commentaire ?? ''} onChange={e => set('commentaire', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" />
-      </td>
-      <td className="px-2 py-1.5">
-        <button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button>
-      </td>
-    </tr>
-  )
-}
-
-function RoleAssignmentRow({ item, onChange, onRemove, roleCodes, statusOptions }) {
-  function set(k, v) { onChange({ ...item, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <select
-          value={item.role_code ?? ''}
-          onChange={e => set('role_code', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-        >
-          <option value="">— Rôle —</option>
-          {(roleCodes || []).map((roleCode) => <option key={roleCode} value={roleCode}>{formatRoleLabel(roleCode)}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <input
-          value={item.assignee ?? ''}
-          onChange={e => set('assignee', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-        />
-      </td>
-      <td className="px-2 py-1.5">
-        <select
-          value={item.assignment_status ?? 'À confirmer'}
-          onChange={e => set('assignment_status', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-        >
-          {(statusOptions || ['À confirmer', 'Confirmé', 'Refusé', 'Non applicable']).map((status) => (
-            <option key={status} value={status}>{status}</option>
-          ))}
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <input
-          value={item.comment ?? ''}
-          onChange={e => set('comment', e.target.value)}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-        />
-      </td>
-      <td className="px-2 py-1.5">
-        <button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button>
-      </td>
-    </tr>
-  )
-}
-
-function ParticipantRow({ item, onChange, onRemove, roleOptions }) {
-  function set(k, v) { onChange({ ...item, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <select value={item.participant_role ?? ''} onChange={e => set('participant_role', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Rôle —</option>
-          {(roleOptions || []).map((roleCode) => <option key={roleCode} value={roleCode}>{roleCode}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5"><input value={item.full_name ?? ''} onChange={e => set('full_name', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.organisation ?? ''} onChange={e => set('organisation', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.email ?? ''} onChange={e => set('email', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.phone ?? ''} onChange={e => set('phone', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.comment ?? ''} onChange={e => set('comment', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
-    </tr>
-  )
-}
-
-function PerimeterRow({ item, onChange, onRemove, statusOptions }) {
-  function set(k, v) { onChange({ ...item, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5"><input value={item.scope_category ?? ''} onChange={e => set('scope_category', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.scope_label ?? ''} onChange={e => set('scope_label', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5">
-        <select value={item.request_status ?? 'Demandé'} onChange={e => set('request_status', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          {(statusOptions || ['Demandé', 'Accepté', 'Exclu']).map((status) => <option key={status} value={status}>{status}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
-    </tr>
-  )
-}
-
-function ResponsibilityRow({ item, onChange, onRemove, workstreamOptions, roleCodes }) {
-  function set(k, v) { onChange({ ...item, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <select value={item.workstream_code ?? ''} onChange={e => set('workstream_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Flux —</option>
-          {(workstreamOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <select value={item.accountable_role_code ?? ''} onChange={e => set('accountable_role_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Accountable —</option>
-          {(roleCodes || []).map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <select value={item.responsible_role_code ?? ''} onChange={e => set('responsible_role_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Responsible —</option>
-          {(roleCodes || []).map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5"><input value={item.consulted_roles ?? ''} onChange={e => set('consulted_roles', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.informed_roles ?? ''} onChange={e => set('informed_roles', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
-    </tr>
-  )
-}
-
-function StartupRow({ item, onChange, onRemove, itemCodeOptions, roleCodes, statusOptions }) {
-  function set(k, v) { onChange({ ...item, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <select value={item.item_code ?? ''} onChange={e => set('item_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Élément —</option>
-          {(itemCodeOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5">
-        <select value={item.owner_role_code ?? ''} onChange={e => set('owner_role_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Rôle —</option>
-          {(roleCodes || []).map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5"><input value={item.owner_name ?? ''} onChange={e => set('owner_name', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5">
-        <select value={item.status ?? 'À confirmer'} onChange={e => set('status', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          {(statusOptions || ['À confirmer', 'Confirmé', 'Refusé', 'Non applicable']).map((status) => <option key={status} value={status}>{status}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5"><input type="date" value={item.due_date ?? ''} onChange={e => set('due_date', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
-    </tr>
-  )
-}
-
-function StructuredNeedRow({ item, onChange, onRemove, needCodeOptions, statusOptions }) {
-  function set(k, v) { onChange({ ...item, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <select value={item.need_code ?? ''} onChange={e => set('need_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Besoin —</option>
-          {(needCodeOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5"><input value={item.need_label ?? ''} onChange={e => set('need_label', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5">
-        <select value={item.request_status ?? 'Non évalué'} onChange={e => set('request_status', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          {(statusOptions || ['Non évalué', 'Requis', 'Optionnel', 'Hors périmètre']).map((status) => <option key={status} value={status}>{status}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5"><input value={item.quantity ?? ''} onChange={e => set('quantity', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
-    </tr>
-  )
-}
-
-function DemandePreparationRow({ item, onChange, onRemove, moduleCodeOptions }) {
-  function set(k, v) { onChange({ ...item, [k]: v }) }
-  return (
-    <tr className="border-b border-border">
-      <td className="px-2 py-1.5">
-        <select value={item.module_code ?? ''} onChange={e => set('module_code', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent">
-          <option value="">— Module —</option>
-          {(moduleCodeOptions || []).map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
-      </td>
-      <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={!!item.is_required} onChange={e => set('is_required', e.target.checked)} className="w-4 h-4 accent-accent" /></td>
-      <td className="px-2 py-1.5 text-center"><input type="checkbox" checked={!!item.is_ready} onChange={e => set('is_ready', e.target.checked)} className="w-4 h-4 accent-accent" /></td>
-      <td className="px-2 py-1.5"><input value={item.notes ?? ''} onChange={e => set('notes', e.target.value)} className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent" /></td>
-      <td className="px-2 py-1.5"><button onClick={onRemove} className="text-danger text-xs hover:opacity-70">✕</button></td>
-    </tr>
-  )
+    function set(k, v) {
+        onChange({ ...action, [k]: v })
+    }
+    return (
+        <tr className="border-b border-border">
+            <td className="px-2 py-1.5">
+                <input
+                    value={action.action_label ?? ''}
+                    onChange={(e) => set('action_label', e.target.value)}
+                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <input
+                    value={action.responsable ?? ''}
+                    onChange={(e) => set('responsable', e.target.value)}
+                    className="w-28 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <input
+                    type="date"
+                    value={action.echeance ?? ''}
+                    onChange={(e) => set('echeance', e.target.value || null)}
+                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <select
+                    value={action.priorite ?? 'Normale'}
+                    onChange={(e) => set('priorite', e.target.value)}
+                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                >
+                    {(priorites || ['Basse', 'Normale', 'Haute', 'Critique']).map((p) => (
+                        <option key={p}>{p}</option>
+                    ))}
+                </select>
+            </td>
+            <td className="px-2 py-1.5">
+                <select
+                    value={action.statut ?? 'À lancer'}
+                    onChange={(e) => set('statut', e.target.value)}
+                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                >
+                    {(statuts || ['À lancer', 'En cours', 'Fait', 'Annulé']).map((s) => (
+                        <option key={s}>{s}</option>
+                    ))}
+                </select>
+            </td>
+            <td className="px-2 py-1.5">
+                <input
+                    value={action.commentaire ?? ''}
+                    onChange={(e) => set('commentaire', e.target.value)}
+                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                />
+            </td>
+            <td className="px-2 py-1.5">
+                <button onClick={onRemove} className="text-danger text-xs hover:opacity-70">
+                    ✕
+                </button>
+            </td>
+        </tr>
+    )
 }
 
 export default function PassationPage() {
-  const { uid } = useParams()
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const qc = useQueryClient()
-  const { user } = useAuth()
-  const isAdmin = hasRole(user, ['admin'])
-  const isNew = !uid || uid === 'new'
+    const { uid } = useParams()
+    const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
+    const qc = useQueryClient()
+    const isNew = !uid || uid === 'new'
 
-  const [form, setForm] = useState(EMPTY)
-  const [documents, setDocuments] = useState([])
-  const [actions, setActions] = useState([])
-  const [roleAssignments, setRoleAssignments] = useState([])
-  const [participants, setParticipants] = useState([])
-  const [perimeterItems, setPerimeterItems] = useState([])
-  const [responsibilityItems, setResponsibilityItems] = useState([])
-  const [startupItems, setStartupItems] = useState([])
-  const [structuredNeeds, setStructuredNeeds] = useState([])
-  const [demandePreparationItems, setDemandePreparationItems] = useState([])
-  const [isEditing, setIsEditing] = useState(isNew)
-  const [saveInfo, setSaveInfo] = useState('')
+    const [form, setForm] = useState(EMPTY)
+    const [documents, setDocuments] = useState([])
+    const [actions, setActions] = useState([])
+    const [structuredNeeds, setStructuredNeeds] = useState([])
+    const [isEditing, setIsEditing] = useState(isNew)
 
-  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
-
-  // Load existing passation
-  const { data: passation, isLoading } = useQuery({
-    queryKey: ['passation', uid],
-    queryFn: () => api.get(`/passations/${uid}`),
-    enabled: !isNew,
-  })
-
-  // Load affaires for select
-  const { data: affaires = [] } = useQuery({
-    queryKey: ['affaires'],
-    queryFn: () => affairesApi.list(),
-  })
-
-  // Load filters (sources, types, phases)
-  const { data: filters = {} } = useQuery({
-    queryKey: ['passations-filters'],
-    queryFn: () => api.get('/passations/filters'),
-  })
-
-  const { data: etudesRows = [] } = useQuery({
-    queryKey: ['reference-etudes-passation'],
-    queryFn: () => api.get('/reference-etudes/rows?limit=2000'),
-  })
-
-  const { data: affairesNgeRows = [] } = useQuery({
-    queryKey: ['reference-affaires-passation'],
-    queryFn: () => api.get('/reference-affaires/rows?limit=2000'),
-  })
-
-  const { data: passationRows = [] } = useQuery({
-    queryKey: ['passation-phase-options'],
-    queryFn: () => api.get('/passations'),
-  })
-
-  const passationSourceValues = useMemo(
-    () => buildSelectOptions(passationRows.map((row) => row?.source), form.source),
-    [passationRows, form.source]
-  )
-
-  const passationOperationTypeValues = useMemo(
-    () => buildSelectOptions(passationRows.map((row) => row?.operation_type), form.operation_type),
-    [passationRows, form.operation_type]
-  )
-
-  // Bootstrap from affaire if ?affaire_id=X
-  const bootstrapAffaireId = searchParams.get('affaire_id')
-  const { data: bootstrap } = useQuery({
-    queryKey: ['passation-bootstrap', bootstrapAffaireId],
-    queryFn: () => api.get(`/passations/bootstrap/${bootstrapAffaireId}`),
-    enabled: isNew && !!bootstrapAffaireId,
-  })
-
-  // Init form
-  useEffect(() => {
-    if (!isNew && passation) {
-      const {
-        documents: docs,
-        actions: acts,
-        role_assignments: roles,
-        participants: part,
-        perimeter_items: perimeter,
-        responsibility_items: responsibility,
-        startup_items: startup,
-        structured_needs: needs,
-        demande_preparation_items: prepItems,
-        ...rest
-      } = passation
-      setForm({ ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') })
-      setDocuments(docs || [])
-      setActions(acts || [])
-      setRoleAssignments(roles || [])
-      setParticipants(part || [])
-      setPerimeterItems(perimeter || [])
-      setResponsibilityItems(responsibility || [])
-      setStartupItems(startup || [])
-      setStructuredNeeds(needs || [])
-      setDemandePreparationItems(prepItems || [])
+    function set(k, v) {
+        setForm((f) => ({ ...f, [k]: v }))
     }
-  }, [passation, isNew])
 
-  useEffect(() => {
-    if (isNew && bootstrap) {
-      setForm(f => ({ ...f, ...bootstrap, affaire_rst_id: String(bootstrapAffaireId) }))
-      if (bootstrap.documents?.length) setDocuments(bootstrap.documents)
-    }
-  }, [bootstrap])
+    // Load existing passation
+    const { data: passation, isLoading } = useQuery({
+        queryKey: ['passation', uid],
+        queryFn: () => api.get(`/passations/${uid}`),
+        enabled: !isNew,
+    })
 
-  useEffect(() => {
-    if (isNew && bootstrapAffaireId) {
-      setForm(f => ({ ...f, affaire_rst_id: String(bootstrapAffaireId) }))
-    }
-  }, [bootstrapAffaireId, isNew])
+    // Load affaires for select
+    const { data: affaires = [] } = useQuery({
+        queryKey: ['affaires'],
+        queryFn: () => affairesApi.list(),
+    })
 
-  // Seed default docs from filters
-  useEffect(() => {
-    if (isNew && documents.length === 0 && filters.document_type_options?.length) {
-      setDocuments(filters.document_type_options.map(t => ({
-        document_type: t, is_received: false, version: '', document_date: null, comment: ''
-      })))
-    }
-  }, [filters, isNew])
+    // Load filters (sources, types, phases)
+    const { data: filters = {} } = useQuery({
+        queryKey: ['passations-filters'],
+        queryFn: () => api.get('/passations/filters'),
+    })
 
-  const mutation = useMutation({
-    mutationFn: (payload) => isNew
-      ? api.post('/passations', payload)
-      : api.put(`/passations/${uid}`, payload),
-    onSuccess: async (saved, variables) => {
-      const affaireUid = Number(saved?.affaire_rst_id || variables?.affaire_rst_id || 0)
-      const affaire = affaires.find((a) => Number(a?.uid) === affaireUid)
-      const patch = buildAffaireSyncPatch(variables || form, affaire)
-      let affaireSynced = false
+    const { data: etudesRows = [] } = useQuery({
+        queryKey: ['reference-etudes-passation'],
+        queryFn: () => api.get('/reference-etudes/rows?limit=2000'),
+    })
 
-      if (affaireUid && patch) {
-        try {
-          await affairesApi.update(affaireUid, patch)
-          qc.invalidateQueries({ queryKey: ['affaire', affaireUid] })
-          qc.invalidateQueries({ queryKey: ['affaires'] })
-          affaireSynced = true
-        } catch {
-          // Keep passation save successful even if affaire sync fails.
+    const { data: affairesNgeRows = [] } = useQuery({
+        queryKey: ['reference-affaires-passation'],
+        queryFn: () => api.get('/reference-affaires/rows?limit=2000'),
+    })
+
+    const { data: authUsers = [] } = useQuery({
+        queryKey: ['auth-active-users-passation'],
+        queryFn: async () => {
+            try {
+                return await authApi.users()
+            } catch {
+                return []
+            }
+        },
+        retry: false,
+    })
+
+    // Bootstrap from affaire if ?affaire_id=X
+    const bootstrapAffaireId = searchParams.get('affaire_id')
+    const { data: bootstrap } = useQuery({
+        queryKey: ['passation-bootstrap', bootstrapAffaireId],
+        queryFn: () => api.get(`/passations/bootstrap/${bootstrapAffaireId}`),
+        enabled: isNew && !!bootstrapAffaireId,
+    })
+
+    // Init form
+    useEffect(() => {
+        if (!isNew && passation) {
+            const { documents: docs, actions: acts, structured_needs: needs, ...rest } = passation
+            const nextForm = { ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') }
+            setForm(nextForm)
+            setDocuments(docs || [])
+            setActions(acts || [])
+            setStructuredNeeds(
+                Array.isArray(needs) && needs.length > 0
+                    ? needs.map(normalizeStructuredNeed)
+                    : structuredNeedsFromLegacy(nextForm)
+            )
         }
-      }
+    }, [passation, isNew])
 
-      setSaveInfo(affaireSynced ? 'Affaire RST mise à jour' : 'Passation enregistrée')
-      qc.invalidateQueries({ queryKey: ['passations'] })
-      if (isNew) navigate(`/passations/${saved.uid}`, { replace: true })
-      else {
-        qc.setQueryData(['passation', uid], saved)
+    useEffect(() => {
+        if (isNew && bootstrap) {
+            const nextForm = { ...EMPTY, ...bootstrap, affaire_rst_id: String(bootstrapAffaireId) }
+            setForm(nextForm)
+            if (bootstrap.documents?.length) setDocuments(bootstrap.documents)
+            if (bootstrap.structured_needs?.length) {
+                setStructuredNeeds(bootstrap.structured_needs.map(normalizeStructuredNeed))
+            } else {
+                setStructuredNeeds(structuredNeedsFromLegacy(nextForm))
+            }
+        }
+    }, [bootstrap])
+
+    useEffect(() => {
+        if (isNew && bootstrapAffaireId) {
+            setForm((f) => ({ ...f, affaire_rst_id: String(bootstrapAffaireId) }))
+        }
+    }, [bootstrapAffaireId, isNew])
+
+    // Seed default docs from filters
+    useEffect(() => {
+        if (isNew && documents.length === 0 && filters.document_type_options?.length) {
+            setDocuments(
+                filters.document_type_options.map((t) => ({
+                    document_type: t,
+                    is_received: false,
+                    version: '',
+                    document_date: null,
+                    comment: '',
+                }))
+            )
+        }
+    }, [filters, isNew])
+
+    const mutation = useMutation({
+        mutationFn: (payload) => (isNew ? api.post('/passations', payload) : api.put(`/passations/${uid}`, payload)),
+        onSuccess: (saved) => {
+            qc.invalidateQueries({ queryKey: ['passations'] })
+            if (isNew) navigate(`/passations/${saved.uid}`, { replace: true })
+            else {
+                qc.setQueryData(['passation', uid], saved)
+                setIsEditing(false)
+            }
+        },
+    })
+
+    useEffect(() => {
+        setIsEditing(isNew)
+    }, [isNew, uid])
+
+    function handleSave() {
+        if (!form.affaire_rst_id) return
+
+        const legacyNeedsPatch = buildLegacyNeedsPatch(structuredNeeds)
+
+        mutation.mutate({
+            ...form,
+            ...legacyNeedsPatch,
+            affaire_rst_id: parseInt(form.affaire_rst_id),
+            documents: documents.filter((d) => d.document_type || d.comment || d.is_received),
+            actions: actions.filter((a) => a.action_label || a.responsable),
+            structured_needs: serializeStructuredNeeds(structuredNeeds),
+        })
+    }
+
+    function handleStartEdit() {
+        if (isNew) return
+        setIsEditing(true)
+    }
+
+    function handleCancelEdit() {
+        if (isNew) return
+        if (passation) {
+            const { documents: docs, actions: acts, structured_needs: needs, ...rest } = passation
+            const nextForm = { ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') }
+            setForm(nextForm)
+            setDocuments(docs || [])
+            setActions(acts || [])
+            setStructuredNeeds(
+                Array.isArray(needs) && needs.length > 0
+                    ? needs.map(normalizeStructuredNeed)
+                    : structuredNeedsFromLegacy(nextForm)
+            )
+        }
         setIsEditing(false)
-      }
-    },
-  })
-
-  useEffect(() => {
-    setIsEditing(isNew)
-  }, [isNew, uid])
-
-  function handleSave() {
-    if (!form.affaire_rst_id) return
-    mutation.mutate({
-      ...form,
-      affaire_rst_id: parseInt(form.affaire_rst_id),
-      workflow_decided_at: form.workflow_decided_at || null,
-      documents: documents.filter(d => d.document_type || d.comment || d.is_received),
-      actions: actions.filter(a => a.action_label || a.responsable),
-      role_assignments: roleAssignments.filter((r) => r.role_code || r.assignee),
-      participants: participants.filter((p) => p.participant_role || p.full_name),
-      perimeter_items: perimeterItems.filter((p) => p.scope_label || p.scope_category),
-      responsibility_items: responsibilityItems.filter((r) => r.workstream_code || r.accountable_role_code || r.responsible_role_code),
-      startup_items: startupItems.filter((s) => s.item_code || s.owner_role_code || s.owner_name),
-      structured_needs: structuredNeeds.filter((n) => n.need_code || n.need_label),
-      demande_preparation_items: demandePreparationItems.filter((d) => d.module_code),
-    })
-  }
-
-  function handleStartEdit() {
-    if (isNew) return
-    setSaveInfo('')
-    setIsEditing(true)
-  }
-
-  function handleCancelEdit() {
-    if (isNew) return
-    if (passation) {
-      const {
-        documents: docs,
-        actions: acts,
-        role_assignments: roles,
-        participants: part,
-        perimeter_items: perimeter,
-        responsibility_items: responsibility,
-        startup_items: startup,
-        structured_needs: needs,
-        demande_preparation_items: prepItems,
-        ...rest
-      } = passation
-      setForm({ ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') })
-      setDocuments(docs || [])
-      setActions(acts || [])
-      setRoleAssignments(roles || [])
-      setParticipants(part || [])
-      setPerimeterItems(perimeter || [])
-      setResponsibilityItems(responsibility || [])
-      setStartupItems(startup || [])
-      setStructuredNeeds(needs || [])
-      setDemandePreparationItems(prepItems || [])
-    }
-    setSaveInfo('')
-    setIsEditing(false)
-  }
-
-  function addDoc() {
-    setDocuments(d => [...d, { document_type: '', is_received: false, version: '', document_date: null, comment: '' }])
-  }
-  function updateDoc(i, doc) { setDocuments(d => d.map((x, j) => j === i ? doc : x)) }
-  function removeDoc(i) { setDocuments(d => d.filter((_, j) => j !== i)) }
-
-  function addAction() {
-    setActions(a => [...a, { action_label: '', responsable: '', echeance: '', priorite: 'Normale', statut: 'À lancer', commentaire: '' }])
-  }
-  function updateAction(i, act) { setActions(a => a.map((x, j) => j === i ? act : x)) }
-  function removeAction(i) { setActions(a => a.filter((_, j) => j !== i)) }
-
-  function addRoleAssignment() {
-    setRoleAssignments((items) => [...items, { role_code: '', assignee: '', assignment_status: 'À confirmer', comment: '' }])
-  }
-  function updateRoleAssignment(i, item) { setRoleAssignments((items) => items.map((x, j) => (j === i ? item : x))) }
-  function removeRoleAssignment(i) { setRoleAssignments((items) => items.filter((_, j) => j !== i)) }
-
-  function addParticipant() {
-    setParticipants((items) => [...items, { participant_role: '', full_name: '', organisation: '', email: '', phone: '', comment: '' }])
-  }
-  function updateParticipant(i, item) { setParticipants((items) => items.map((x, j) => (j === i ? item : x))) }
-  function removeParticipant(i) { setParticipants((items) => items.filter((_, j) => j !== i)) }
-
-  function addPerimeterItem() {
-    setPerimeterItems((items) => [...items, { scope_category: '', scope_label: '', request_status: 'Demandé', notes: '' }])
-  }
-  function updatePerimeterItem(i, item) { setPerimeterItems((items) => items.map((x, j) => (j === i ? item : x))) }
-  function removePerimeterItem(i) { setPerimeterItems((items) => items.filter((_, j) => j !== i)) }
-
-  function addResponsibilityItem() {
-    setResponsibilityItems((items) => [...items, {
-      workstream_code: '', accountable_role_code: '', responsible_role_code: '', consulted_roles: '', informed_roles: '', notes: ''
-    }])
-  }
-  function updateResponsibilityItem(i, item) { setResponsibilityItems((items) => items.map((x, j) => (j === i ? item : x))) }
-  function removeResponsibilityItem(i) { setResponsibilityItems((items) => items.filter((_, j) => j !== i)) }
-
-  function addStartupItem() {
-    setStartupItems((items) => [...items, { item_code: '', owner_role_code: '', owner_name: '', status: 'À confirmer', due_date: '', notes: '' }])
-  }
-  function updateStartupItem(i, item) { setStartupItems((items) => items.map((x, j) => (j === i ? item : x))) }
-  function removeStartupItem(i) { setStartupItems((items) => items.filter((_, j) => j !== i)) }
-
-  function addStructuredNeed() {
-    setStructuredNeeds((items) => [...items, { need_code: '', need_label: '', request_status: 'Non évalué', quantity: '', notes: '' }])
-  }
-  function updateStructuredNeed(i, item) { setStructuredNeeds((items) => items.map((x, j) => (j === i ? item : x))) }
-  function removeStructuredNeed(i) { setStructuredNeeds((items) => items.filter((_, j) => j !== i)) }
-
-  function addDemandePreparationItem() {
-    setDemandePreparationItems((items) => [...items, { module_code: '', is_required: false, is_ready: false, notes: '' }])
-  }
-  function updateDemandePreparationItem(i, item) { setDemandePreparationItems((items) => items.map((x, j) => (j === i ? item : x))) }
-  function removeDemandePreparationItem(i) { setDemandePreparationItems((items) => items.filter((_, j) => j !== i)) }
-
-  const etudeRowsByNumero = useMemo(() => {
-    const map = new Map()
-    etudesRows.forEach((row) => {
-      const key = normalizeEtudeKey(row?.numero_etude)
-      if (!key || map.has(key)) return
-      map.set(key, row)
-    })
-    return map
-  }, [etudesRows])
-
-  const ngeRowsByCode = useMemo(() => {
-    const map = new Map()
-    affairesNgeRows.forEach((row) => {
-      const key = normalizeAffaireKey(getNgeFullCode(row))
-      if (!key || map.has(key)) return
-      map.set(key, row)
-    })
-    return map
-  }, [affairesNgeRows])
-
-  const etudeNumberOptions = useMemo(() => {
-    const values = new Set()
-    etudesRows.forEach((row) => {
-      const value = String(row?.numero_etude || '').trim()
-      if (value) values.add(value)
-    })
-    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
-  }, [etudesRows])
-
-  const ngeCodeOptions = useMemo(() => {
-    const values = new Set()
-    affairesNgeRows.forEach((row) => {
-      const value = getNgeFullCode(row)
-      if (value) values.add(value)
-    })
-    return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
-  }, [affairesNgeRows])
-
-  function handleNumeroEtudeInput(nextValue) {
-    set('numero_etude', nextValue)
-    const match = etudeRowsByNumero.get(normalizeEtudeKey(nextValue))
-    if (!match) return
-    const chantier = String(match?.nom_affaire || '').trim()
-    const client = String(match?.maitre_ouvrage || '').trim()
-    const entreprise = String(match?.filiale || '').trim()
-    const responsable = String(match?.responsable_etude || '').trim()
-    setForm((f) => ({
-      ...f,
-      numero_etude: String(match?.numero_etude || nextValue || '').trim(),
-      chantier: chantier || f.chantier,
-      client: client || f.client,
-      entreprise_responsable: entreprise || f.entreprise_responsable,
-      responsable: responsable || f.responsable,
-    }))
-  }
-
-  function handleNumeroAffaireNgeInput(nextValue) {
-    set('numero_affaire_nge', nextValue)
-    const match = ngeRowsByCode.get(normalizeAffaireKey(nextValue))
-    if (!match) return
-    const fullCode = getNgeFullCode(match)
-    const chantier = String(match?.libelle || '').trim()
-    const entreprise = String(match?.filiales_toutes || match?.filiale_principale || match?.filiales_resume || '').trim()
-    const responsable = String(match?.responsable || '').trim()
-    const numeroEtude = String(match?.numero_etude || '').trim()
-    setForm((f) => ({
-      ...f,
-      numero_affaire_nge: fullCode || nextValue,
-      numero_etude: numeroEtude || f.numero_etude,
-      chantier: chantier || f.chantier,
-      entreprise_responsable: entreprise || f.entreprise_responsable,
-      responsable: responsable || f.responsable,
-    }))
-  }
-
-  const title = isNew ? 'Nouvelle passation' : (passation?.reference || `Passation #${uid}`)
-  const sources = useMemo(
-    () => buildSelectOptions([...(filters.source_options || filters.sources || []), ...passationSourceValues], form.source),
-    [filters.source_options, filters.sources, passationSourceValues, form.source]
-  )
-  const opTypes = useMemo(
-    () => buildSelectOptions([...(filters.operation_type_options || filters.operation_types || []), ...passationOperationTypeValues], form.operation_type),
-    [filters.operation_type_options, filters.operation_types, passationOperationTypeValues, form.operation_type]
-  )
-  const phases = useMemo(
-    () => buildSelectOptions([
-      ...(filters.phase_operation_options || filters.phase_operations || []),
-      ...passationRows.map((row) => row?.phase_operation),
-      ...PHASE_EXAMPLES,
-    ], form.phase_operation),
-    [filters.phase_operation_options, filters.phase_operations, passationRows, form.phase_operation]
-  )
-  const priorites = filters.action_priorite_options || ['Basse','Normale','Haute','Critique']
-  const actStatuts = filters.action_statut_options || ['À lancer','En cours','Fait','Annulé']
-  const linkedAffaire = form.affaire_rst_id
-    ? affaires.find(a => String(a.uid) === String(form.affaire_rst_id))
-    : null
-  const canEditAffaireLink = isNew && !linkedAffaire
-  const backTarget = linkedAffaire ? `/affaires/${linkedAffaire.uid}` : '/passations'
-  const canEdit = isNew || isEditing
-
-  const metrics = {
-    docs: documents.filter(d => d.document_type).length,
-    actions: actions.filter(a => a.action_label).length,
-    roles: roleAssignments.filter((r) => r.role_code).length,
-    source: form.source || '—',
-    phase: form.phase_operation || '—',
-  }
-
-  const roleCodes = filters.role_code_options || []
-  const roleAssignmentStatusOptions = filters.role_assignment_status_options || ['À confirmer', 'Confirmé', 'Refusé', 'Non applicable']
-  const participantRoleOptions = filters.participant_role_options || []
-  const perimeterStatusOptions = filters.perimeter_status_options || ['Demandé', 'Accepté', 'Exclu']
-  const workstreamCodeOptions = filters.workstream_code_options || []
-  const startupItemCodeOptions = filters.startup_item_code_options || []
-  const structuredNeedCodeOptions = filters.structured_need_code_options || []
-  const structuredNeedStatusOptions = filters.structured_need_status_options || ['Non évalué', 'Requis', 'Optionnel', 'Hors périmètre']
-  const demandeModuleCodeOptions = filters.demande_module_code_options || []
-  const workflowStatusOptions = filters.workflow_status_options || ['Brouillon', 'En revue', 'Prête', 'Bloquée', 'Annulée']
-  const workflowDecisionOptions = filters.workflow_decision_options || ['À décider', 'Valider', 'Revoir', 'Annuler']
-  const roleRows = useMemo(
-    () => roleAssignments.filter((item) => String(item?.role_code || '').trim()),
-    [roleAssignments]
-  )
-  const requiredRoleCodes = useMemo(() => {
-    const required = []
-    if (cleanText(form.besoins_terrain)) {
-      required.push('INTERVENTION_PLANNER', 'TECHNICIAN_ASSIGNER', 'FIELD_COORDINATOR')
-    }
-    if (cleanText(form.besoins_laboratoire)) {
-      required.push('LAB_COORDINATOR')
-    }
-    if (cleanText(form.besoins_essais_externes)) {
-      required.push('EXTERNAL_TESTS_OWNER')
-    }
-    return [...new Set(required)]
-  }, [form.besoins_terrain, form.besoins_laboratoire, form.besoins_essais_externes])
-  const confirmedRoleCodes = useMemo(
-    () => new Set(roleRows.filter((item) => normalizeWorkflowText(item.assignment_status) === 'confirme').map((item) => item.role_code)),
-    [roleRows]
-  )
-
-  const actionRows = useMemo(
-    () => actions.filter((a) => String(a?.action_label || '').trim()),
-    [actions]
-  )
-
-  const openActionRows = useMemo(
-    () => actionRows.filter((a) => {
-      const status = normalizeWorkflowText(a?.statut)
-      return status !== 'fait' && status !== 'annule'
-    }),
-    [actionRows]
-  )
-
-  const overdueActions = useMemo(() => {
-    const todayIso = today()
-    return openActionRows.filter((a) => {
-      const due = String(a?.echeance || '').trim()
-      return due && due < todayIso
-    })
-  }, [openActionRows])
-
-  const documentsRows = useMemo(
-    () => documents.filter((d) => String(d?.document_type || '').trim()),
-    [documents]
-  )
-
-  const documentsReceived = useMemo(
-    () => documentsRows.filter((d) => Boolean(d?.is_received)),
-    [documentsRows]
-  )
-
-  const readinessBlocks = useMemo(() => {
-    const blocks = []
-    if (!form.affaire_rst_id) blocks.push('Affaire liée non sélectionnée')
-    if (!cleanText(form.responsable)) blocks.push('Responsable / pilote non renseigné')
-    if (!cleanText(form.synthese)) blocks.push('Synthèse de cadrage non renseignée')
-
-    const actionWithoutOwner = openActionRows.find((a) => !cleanText(a?.responsable))
-    if (actionWithoutOwner) {
-      blocks.push(`Action ouverte sans responsable: ${cleanText(actionWithoutOwner.action_label) || 'Action sans titre'}`)
     }
 
-    const needsTerrain = Boolean(cleanText(form.besoins_terrain))
-    const needsLab = Boolean(cleanText(form.besoins_laboratoire))
-    if ((needsTerrain || needsLab) && openActionRows.length === 0) {
-      blocks.push('Besoins RST identifiés sans actions ouvertes de préparation')
+    function addDoc() {
+        setDocuments((d) => [
+            ...d,
+            { document_type: '', is_received: false, version: '', document_date: null, comment: '' },
+        ])
+    }
+    function updateDoc(i, doc) {
+        setDocuments((d) => d.map((x, j) => (j === i ? doc : x)))
+    }
+    function removeDoc(i) {
+        setDocuments((d) => d.filter((_, j) => j !== i))
     }
 
-    requiredRoleCodes.forEach((roleCode) => {
-      if (!confirmedRoleCodes.has(roleCode)) {
-        blocks.push(`Rôle requis non confirmé: ${formatRoleLabel(roleCode)}`)
-      }
-    })
-
-    if (documentsRows.length > 0 && documentsReceived.length === 0) {
-      blocks.push('Aucun document marqué comme reçu')
+    function addAction() {
+        setActions((a) => [
+            ...a,
+            {
+                action_label: '',
+                responsable: '',
+                echeance: '',
+                priorite: 'Normale',
+                statut: 'À lancer',
+                commentaire: '',
+            },
+        ])
+    }
+    function updateAction(i, act) {
+        setActions((a) => a.map((x, j) => (j === i ? act : x)))
+    }
+    function removeAction(i) {
+        setActions((a) => a.filter((_, j) => j !== i))
     }
 
-    return blocks
-  }, [
-    form.affaire_rst_id,
-    form.responsable,
-    form.synthese,
-    form.besoins_terrain,
-    form.besoins_laboratoire,
-    openActionRows,
-    documentsRows.length,
-    documentsReceived.length,
-    requiredRoleCodes,
-    confirmedRoleCodes,
-  ])
+    function addStructuredNeed(template) {
+        setStructuredNeeds((items) => [...items, createStructuredNeed(template)])
+    }
 
-  const readyToProcess = readinessBlocks.length === 0
+    function updateStructuredNeed(index, item) {
+        setStructuredNeeds((items) => items.map((current, currentIndex) => (currentIndex === index ? item : current)))
+    }
 
-  function openDemandesPreparation() {
-    const params = new URLSearchParams()
-    if (uid) params.set('passation_uid', String(uid))
-    params.set('create', '1')
-    if (linkedAffaire?.uid) params.set('affaire_id', String(linkedAffaire.uid))
-    navigate(`/demandes?${params.toString()}`)
-  }
+    function removeStructuredNeed(index) {
+        setStructuredNeeds((items) => items.filter((_, currentIndex) => currentIndex !== index))
+    }
 
-  if (!isNew && isLoading) {
-    return (
-      <FichePageShell>
-        <div
-          className="sticky top-0 z-10 border-b border-[#dbe1ea]"
-          style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
-        >
-          <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-          <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-            <button
-              type="button"
-              onClick={() => navigate('/passations')}
-              className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-            >
-              ← Affaires RST
-            </button>
-            <div className="flex-1 min-w-[220px]">
-              <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche passation</div>
-              <div className="text-[15px] font-black">{title}</div>
-            </div>
-          </div>
-        </div>
-        <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
-          <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
-        </div>
-      </FichePageShell>
+    const etudeRowsByNumero = useMemo(() => {
+        const map = new Map()
+        etudesRows.forEach((row) => {
+            const key = normalizeEtudeKey(row?.numero_etude)
+            if (!key || map.has(key)) return
+            map.set(key, row)
+        })
+        return map
+    }, [etudesRows])
+
+    const ngeRowsByCode = useMemo(() => {
+        const map = new Map()
+        affairesNgeRows.forEach((row) => {
+            const key = normalizeAffaireKey(getNgeFullCode(row))
+            if (!key || map.has(key)) return
+            map.set(key, row)
+        })
+        return map
+    }, [affairesNgeRows])
+
+    const etudeNumberOptions = useMemo(() => {
+        const values = new Set()
+        etudesRows.forEach((row) => {
+            const value = String(row?.numero_etude || '').trim()
+            if (value) values.add(value)
+        })
+        return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+    }, [etudesRows])
+
+    const ngeCodeOptions = useMemo(() => {
+        const values = new Set()
+        affairesNgeRows.forEach((row) => {
+            const value = getNgeFullCode(row)
+            if (value) values.add(value)
+        })
+        return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+    }, [affairesNgeRows])
+
+    function handleNumeroEtudeInput(nextValue) {
+        set('numero_etude', nextValue)
+        const match = etudeRowsByNumero.get(normalizeEtudeKey(nextValue))
+        if (!match) return
+        const chantier = String(match?.nom_affaire || '').trim()
+        const client = String(match?.maitre_ouvrage || '').trim()
+        const entreprise = String(match?.filiale || '').trim()
+        const responsable = String(match?.responsable_etude || '').trim()
+        setForm((f) => ({
+            ...f,
+            numero_etude: String(match?.numero_etude || nextValue || '').trim(),
+            chantier: chantier || f.chantier,
+            client: client || f.client,
+            entreprise_responsable: entreprise || f.entreprise_responsable,
+            responsable: responsable || f.responsable,
+        }))
+    }
+
+    function handleNumeroAffaireNgeInput(nextValue) {
+        set('numero_affaire_nge', nextValue)
+        const match = ngeRowsByCode.get(normalizeAffaireKey(nextValue))
+        if (!match) return
+        const fullCode = getNgeFullCode(match)
+        const chantier = String(match?.libelle || '').trim()
+        const entreprise = String(
+            match?.filiales_toutes || match?.filiale_principale || match?.filiales_resume || ''
+        ).trim()
+        const responsable = String(match?.responsable || '').trim()
+        const numeroEtude = String(match?.numero_etude || '').trim()
+        setForm((f) => ({
+            ...f,
+            numero_affaire_nge: fullCode || nextValue,
+            numero_etude: numeroEtude || f.numero_etude,
+            chantier: chantier || f.chantier,
+            entreprise_responsable: entreprise || f.entreprise_responsable,
+            responsable: responsable || f.responsable,
+        }))
+    }
+
+    const title = isNew ? 'Nouvelle passation' : passation?.reference || `Passation #${uid}`
+    const sources = filters.source_options || filters.sources || []
+    const opTypes = filters.operation_type_options || filters.operation_types || []
+    const phases = filters.phase_operation_options || filters.phase_operations || []
+    const responsableOptions = useMemo(() => {
+        const values = new Set()
+
+        ;(filters.responsable_passation_options || []).forEach((value) => {
+            const text = String(value || '').trim()
+            if (text) values.add(text)
+        })
+
+        ;(authUsers || []).forEach((row) => {
+            const name = String(row?.display_name || '').trim()
+            const email = String(row?.email || '').trim()
+            if (name) values.add(name)
+            if (email) values.add(email)
+        })
+
+        const selected = String(form.responsable || '').trim()
+        if (selected) values.add(selected)
+
+        return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
+    }, [filters.responsable_passation_options, authUsers, form.responsable])
+    const priorites = filters.action_priorite_options || ['Basse', 'Normale', 'Haute', 'Critique']
+    const actStatuts = filters.action_statut_options || ['À lancer', 'En cours', 'Fait', 'Annulé']
+    const linkedAffaire = form.affaire_rst_id
+        ? affaires.find((a) => String(a.uid) === String(form.affaire_rst_id))
+        : null
+    const backTarget = linkedAffaire ? `/affaires/${linkedAffaire.uid}` : '/passations'
+    const canEdit = isNew || isEditing
+
+    const metrics = {
+        docs: documents.filter((d) => d.document_type).length,
+        actions: actions.filter((a) => a.action_label).length,
+        source: form.source || '—',
+        phase: form.phase_operation || '—',
+    }
+
+    const rstNeedsSummary = useMemo(
+        () => ({
+            total: structuredNeeds.length,
+            demandes: structuredNeeds.filter(
+                (item) =>
+                    item.create_demande !== false &&
+                    item.request_status !== 'Annulé' &&
+                    item.request_status !== 'Hors périmètre'
+            ).length,
+            toConfirm: structuredNeeds.filter((item) => item.request_status === 'À confirmer').length,
+        }),
+        [structuredNeeds]
     )
-  }
 
-  return (
-    <FichePageShell>
-      <div
-        className="sticky top-0 z-10 border-b border-[#dbe1ea]"
-        style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
-      >
-        <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-        <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-          <button
-            type="button"
-            onClick={() => navigate(backTarget)}
-            className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-          >
-            ← Affaires RST
-          </button>
-          <div className="flex-1 min-w-[220px]">
-            <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche passation</div>
-            <div className="text-[15px] font-black">{title}</div>
-          </div>
+    if (!isNew && isLoading) {
+        return (
+            <FichePageShell>
+                <div
+                    className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+                    style={{
+                        background: 'rgba(255,255,255,0.96)',
+                        boxShadow: '0 6px 24px rgba(0,49,112,0.08)',
+                        backdropFilter: 'blur(12px)',
+                    }}
+                >
+                    <div
+                        style={{
+                            height: '4px',
+                            background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)',
+                        }}
+                    />
+                    <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+                        <button
+                            type="button"
+                            onClick={() => navigate('/passations')}
+                            className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+                        >
+                            ← Affaires RST
+                        </button>
+                        <div className="flex-1 min-w-[220px]">
+                            <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">
+                                Fiche passation
+                            </div>
+                            <div className="text-[15px] font-black">{title}</div>
+                        </div>
+                    </div>
+                </div>
+                <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+                    <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+                </div>
+            </FichePageShell>
+        )
+    }
 
-          {linkedAffaire ? (
-            <Button size="sm" onClick={() => navigate(`/affaires/${linkedAffaire.uid}`)}>Affaire</Button>
-          ) : null}
-          {linkedAffaire ? (
-            <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${linkedAffaire.uid}`)}>Demandes</Button>
-          ) : null}
-          {!isNew && !isEditing ? (
-            <Button size="sm" variant="primary" onClick={handleStartEdit}>Modifier</Button>
-          ) : (
-            <>
-              <Button size="sm" onClick={isNew ? () => navigate('/passations') : handleCancelEdit}>Annuler</Button>
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={handleSave}
-                disabled={!form.affaire_rst_id || mutation.isPending}
-              >
-                {mutation.isPending ? 'Enregistrement…' : (isNew ? '✓ Créer' : '✓ Enregistrer')}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
-        {saveInfo && (
-          <div className="px-4 py-2 rounded border border-[#b8e3c7] bg-[#eaf8ef] text-[#1b6f43] text-xs font-medium">
-            {saveInfo}
-          </div>
-        )}
-        {linkedAffaire ? (
-          <section
-            className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
-            style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
-          >
+    return (
+        <FichePageShell>
             <div
-              className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
-              style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+                className="sticky top-0 z-10 border-b border-[#dbe1ea]"
+                style={{
+                    background: 'rgba(255,255,255,0.96)',
+                    boxShadow: '0 6px 24px rgba(0,49,112,0.08)',
+                    backdropFilter: 'blur(12px)',
+                }}
             >
-              <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+                <div
+                    style={{
+                        height: '4px',
+                        background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)',
+                    }}
+                />
+                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+                    <button
+                        type="button"
+                        onClick={() => navigate(backTarget)}
+                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+                    >
+                        ← Affaires RST
+                    </button>
+                    <div className="flex-1 min-w-[220px]">
+                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">
+                            Fiche passation
+                        </div>
+                        <div className="text-[15px] font-black">{title}</div>
+                    </div>
 
-              <div>
-                <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
-                  <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
-                  RaLab 5 · Passation RST
+                    {linkedAffaire ? (
+                        <Button size="sm" onClick={() => navigate(`/affaires/${linkedAffaire.uid}`)}>
+                            Affaire
+                        </Button>
+                    ) : null}
+                    {linkedAffaire ? (
+                        <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${linkedAffaire.uid}`)}>
+                            Demandes
+                        </Button>
+                    ) : null}
+                    {!isNew && !isEditing ? (
+                        <Button size="sm" variant="primary" onClick={handleStartEdit}>
+                            Modifier
+                        </Button>
+                    ) : (
+                        <>
+                            <Button size="sm" onClick={isNew ? () => navigate('/passations') : handleCancelEdit}>
+                                Annuler
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={handleSave}
+                                disabled={!form.affaire_rst_id || mutation.isPending}
+                            >
+                                {mutation.isPending ? 'Enregistrement…' : isNew ? '✓ Créer' : '✓ Enregistrer'}
+                            </Button>
+                        </>
+                    )}
                 </div>
-                <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{title}</h1>
-                <div className="mt-3 text-[20px] font-black">{linkedAffaire.chantier || '—'}</div>
-                <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
-                  {linkedAffaire.client ? <span>Client : <strong className="text-white">{linkedAffaire.client}</strong></span> : null}
-                  {linkedAffaire.site ? <span>Site : <strong className="text-white">{linkedAffaire.site}</strong></span> : null}
-                  {linkedAffaire.responsable ? <span>Responsable : <strong className="text-white">{linkedAffaire.responsable}</strong></span> : null}
-                </div>
-              </div>
-
-              <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
-                <div className="flex flex-wrap justify-end gap-2">
-                  <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                    {linkedAffaire.statut === 'En cours' ? 'Affaire active' : (linkedAffaire.statut || '—')}
-                  </span>
-                  {linkedAffaire.titulaire ? (
-                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                      {linkedAffaire.titulaire}
-                    </span>
-                  ) : null}
-                  {linkedAffaire.filiale ? (
-                    <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                      {linkedAffaire.filiale}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Demandes</div>
-                <div className="mt-1.5 text-[13px] font-black">
-                  {linkedAffaire.nb_demandes_actives ?? 0} active{(linkedAffaire.nb_demandes_actives ?? 0) !== 1 ? 's' : ''} / {linkedAffaire.nb_demandes ?? 0}
-                </div>
-                {linkedAffaire.date_ouverture ? (
-                  <div className="mt-2 text-[12px] font-black text-white/70">Ouverture {formatDate(linkedAffaire.date_ouverture)}</div>
-                ) : null}
-              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
-              <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
-              <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
-              <MetricCard label="Rôles" value={metrics.roles} detail="Organisation" />
-              <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
-              <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
+            <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+                {linkedAffaire ? (
+                    <section
+                        className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+                        style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
+                    >
+                        <div
+                            className="relative flex flex-wrap justify-between gap-6 text-white px-[30px] pt-[30px] pb-7"
+                            style={{ background: 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)' }}
+                        >
+                            <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+
+                            <div>
+                                <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
+                                    <span
+                                        className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]"
+                                        style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }}
+                                    />
+                                    RaLab 5 · Passation RST
+                                </div>
+                                <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{title}</h1>
+                                <div className="mt-3 text-[20px] font-black">{linkedAffaire.chantier || '—'}</div>
+                                <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
+                                    {linkedAffaire.client ? (
+                                        <span>
+                                            Client : <strong className="text-white">{linkedAffaire.client}</strong>
+                                        </span>
+                                    ) : null}
+                                    {linkedAffaire.site ? (
+                                        <span>
+                                            Site : <strong className="text-white">{linkedAffaire.site}</strong>
+                                        </span>
+                                    ) : null}
+                                    {linkedAffaire.responsable ? (
+                                        <span>
+                                            Responsable :{' '}
+                                            <strong className="text-white">{linkedAffaire.responsable}</strong>
+                                        </span>
+                                    ) : null}
+                                </div>
+                            </div>
+
+                            <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
+                                <div className="flex flex-wrap justify-end gap-2">
+                                    <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                                        {linkedAffaire.statut === 'En cours'
+                                            ? 'Affaire active'
+                                            : linkedAffaire.statut || '—'}
+                                    </span>
+                                    {linkedAffaire.titulaire ? (
+                                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                                            {linkedAffaire.titulaire}
+                                        </span>
+                                    ) : null}
+                                    {linkedAffaire.filiale ? (
+                                        <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+                                            {linkedAffaire.filiale}
+                                        </span>
+                                    ) : null}
+                                </div>
+                                <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">
+                                    Demandes
+                                </div>
+                                <div className="mt-1.5 text-[13px] font-black">
+                                    {linkedAffaire.nb_demandes_actives ?? 0} active
+                                    {(linkedAffaire.nb_demandes_actives ?? 0) !== 1 ? 's' : ''} /{' '}
+                                    {linkedAffaire.nb_demandes ?? 0}
+                                </div>
+                                {linkedAffaire.date_ouverture ? (
+                                    <div className="mt-2 text-[12px] font-black text-white/70">
+                                        Ouverture {formatDate(linkedAffaire.date_ouverture)}
+                                    </div>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-[#f8fafc] p-5">
+                            <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
+                            <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
+                            <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
+                            <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
+                        </div>
+                    </section>
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                        <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
+                        <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
+                        <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
+                        <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
+                    </div>
+                )}
+
+                {mutation.error && (
+                    <div className="px-4 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded text-xs text-danger">
+                        {mutation.error.message}
+                    </div>
+                )}
+
+                <fieldset disabled={!canEdit} className="contents">
+                    <SectionCard title="A - Identité" subtitle="Rattachement affaire et informations de cadrage">
+                        <div className="grid grid-cols-2 gap-3.5">
+                            <FG label="Affaire liée *" full>
+                                <Select
+                                    value={form.affaire_rst_id}
+                                    onChange={(e) => set('affaire_rst_id', e.target.value)}
+                                    className="w-full"
+                                >
+                                    <option value="">— Sélectionner —</option>
+                                    {affaires.map((a) => (
+                                        <option key={a.uid} value={a.uid}>
+                                            {a.reference} — {a.chantier || a.client}
+                                        </option>
+                                    ))}
+                                </Select>
+                            </FG>
+                            <FG label="Date de passation">
+                                <Input
+                                    type="date"
+                                    value={form.date_passation ?? ''}
+                                    onChange={(e) => set('date_passation', e.target.value)}
+                                />
+                            </FG>
+                            <FG label="N° étude">
+                                <Input
+                                    value={form.numero_etude}
+                                    onChange={(e) => handleNumeroEtudeInput(e.target.value)}
+                                    list="passation-etudes-options"
+                                />
+                            </FG>
+                            <FG label="N° affaire NGE">
+                                <Input
+                                    value={form.numero_affaire_nge}
+                                    onChange={(e) => handleNumeroAffaireNgeInput(e.target.value)}
+                                    list="passation-nge-options"
+                                />
+                            </FG>
+                            <FG label="Chantier">
+                                <Input value={form.chantier} onChange={(e) => set('chantier', e.target.value)} />
+                            </FG>
+                            <FG label="Client">
+                                <Input value={form.client} onChange={(e) => set('client', e.target.value)} />
+                            </FG>
+                            <FG label="Entreprise responsable">
+                                <Input
+                                    value={form.entreprise_responsable}
+                                    onChange={(e) => set('entreprise_responsable', e.target.value)}
+                                />
+                            </FG>
+                            <FG label="Agence">
+                                <Input value={form.agence} onChange={(e) => set('agence', e.target.value)} />
+                            </FG>
+                            <FG label="Responsable / pilote" full>
+                                <Input
+                                    value={form.responsable}
+                                    onChange={(e) => set('responsable', e.target.value)}
+                                    list="passation-responsable-options"
+                                />
+                            </FG>
+                        </div>
+                    </SectionCard>
+
+                    <SectionCard title="B - Contexte & origine" subtitle="Source, type d'opération et contexte marché">
+                        <div className="grid grid-cols-2 gap-3.5">
+                            <FG label="Origine de la passation">
+                                <Select
+                                    value={form.source ?? ''}
+                                    onChange={(e) => set('source', e.target.value)}
+                                    className="w-full"
+                                >
+                                    <option value="">—</option>
+                                    {sources.map((s) => (
+                                        <option key={s}>{s}</option>
+                                    ))}
+                                </Select>
+                            </FG>
+                            <FG label="Type d'opération">
+                                <Select
+                                    value={form.operation_type ?? ''}
+                                    onChange={(e) => set('operation_type', e.target.value)}
+                                    className="w-full"
+                                >
+                                    <option value="">—</option>
+                                    {opTypes.map((t) => (
+                                        <option key={t}>{t}</option>
+                                    ))}
+                                </Select>
+                            </FG>
+                            <FG label="Phase chantier">
+                                <Select
+                                    value={form.phase_operation ?? ''}
+                                    onChange={(e) => set('phase_operation', e.target.value)}
+                                    className="w-full"
+                                >
+                                    <option value="">—</option>
+                                    {phases.map((p) => (
+                                        <option key={p}>{p}</option>
+                                    ))}
+                                </Select>
+                            </FG>
+                            <div />
+                            <FG label="Interlocuteurs principaux" full>
+                                <TA
+                                    value={form.interlocuteurs_principaux}
+                                    onChange={(v) => set('interlocuteurs_principaux', v)}
+                                    rows={3}
+                                />
+                            </FG>
+                            <FG label="Description générale" full>
+                                <TA
+                                    value={form.description_generale}
+                                    onChange={(v) => set('description_generale', v)}
+                                    rows={4}
+                                />
+                            </FG>
+                            <FG label="Contexte marché" full>
+                                <TA value={form.contexte_marche} onChange={(v) => set('contexte_marche', v)} rows={3} />
+                            </FG>
+                        </div>
+                    </SectionCard>
+
+                    <datalist id="passation-etudes-options">
+                        {etudeNumberOptions.map((value) => (
+                            <option key={value} value={value} />
+                        ))}
+                    </datalist>
+                    <datalist id="passation-nge-options">
+                        {ngeCodeOptions.map((value) => (
+                            <option key={value} value={value} />
+                        ))}
+                    </datalist>
+                    <datalist id="passation-responsable-options">
+                        {responsableOptions.map((value) => (
+                            <option key={value} value={value} />
+                        ))}
+                    </datalist>
+
+                    <SectionCard title="C - Documents reçus / attendus" subtitle="Pièces nécessaires pour le lancement">
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse text-xs mb-3">
+                                <thead>
+                                    <tr className="border-b border-border">
+                                        {['Document', 'Reçu', 'Version', 'Date', 'Commentaire', ''].map((h) => (
+                                            <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">
+                                                {h}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {documents.map((doc, i) => (
+                                        <DocRow
+                                            key={i}
+                                            doc={doc}
+                                            onChange={(d) => updateDoc(i, d)}
+                                            onRemove={() => removeDoc(i)}
+                                        />
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <Button size="sm" onClick={addDoc}>
+                            + Ajouter document
+                        </Button>
+                    </SectionCard>
+
+                    <SectionCard title="D - Points de vigilance / contraintes" subtitle="Risques et points de suivi">
+                        <TA value={form.points_sensibles} onChange={(v) => set('points_sensibles', v)} rows={5} />
+                    </SectionCard>
+
+                    <SectionCard
+                        title="E - Prestations RST à prévoir"
+                        subtitle="Identifier le travail nécessaire. Les responsabilités sont désignées séparément dans l’organisation de l’affaire."
+                    >
+                        <div className="flex flex-col gap-4">
+                            <div className="rounded-2xl border border-[#dbe1ea] bg-[#f8fafc] p-4">
+                                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                                    <div>
+                                        <div className="text-[12px] font-black text-[#172033]">
+                                            Ajouter une famille de prestation
+                                        </div>
+                                        <div className="mt-0.5 text-[11px] text-text-muted">
+                                            Ici: cadrage passation uniquement. Le détail technique et l'affectation sont gérés dans Préparation.
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+                                        <span className="rounded-full border border-[#dbe1ea] bg-white px-2.5 py-1">
+                                            {rstNeedsSummary.total} prestation{rstNeedsSummary.total !== 1 ? 's' : ''}
+                                        </span>
+                                        <span className="rounded-full border border-[#dbe1ea] bg-white px-2.5 py-1">
+                                            {rstNeedsSummary.demandes} demande
+                                            {rstNeedsSummary.demandes !== 1 ? 's' : ''} à préparer
+                                        </span>
+                                        <span className="rounded-full border border-[#f1d77a] bg-[#fff9df] px-2.5 py-1 text-[#6f5700]">
+                                            {rstNeedsSummary.toConfirm} à confirmer
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {RST_PRESTATION_TEMPLATES.map((template) => (
+                                        <button
+                                            key={template.key}
+                                            type="button"
+                                            onClick={() => addStructuredNeed(template)}
+                                            className="rounded-xl border border-[#cfd7e4] bg-white px-3 py-2 text-xs font-black text-[#003170] transition-colors hover:border-[#003170] hover:bg-[#eef4fb]"
+                                        >
+                                            + {template.need_label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {structuredNeeds.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-[#cfd7e4] bg-white px-5 py-8 text-center">
+                                    <div className="text-[13px] font-black text-[#334155]">
+                                        Aucune prestation RST identifiée
+                                    </div>
+                                    <div className="mt-1 text-xs text-text-muted">
+                                        Ajoute uniquement les prestations réellement nécessaires. Le choix des
+                                        responsables se fera dans la section d’organisation.
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-3">
+                                    {structuredNeeds.map((item, index) => (
+                                        <RstPrestationCard
+                                            key={item.uid || item.id || item.client_key || index}
+                                            item={item}
+                                            onChange={(nextItem) => updateStructuredNeed(index, nextItem)}
+                                            onRemove={() => removeStructuredNeed(index)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </SectionCard>
+
+                    <SectionCard title="F - Actions à lancer" subtitle="Plan d'actions opérationnel">
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse text-xs mb-3">
+                                <thead>
+                                    <tr className="border-b border-border">
+                                        {[
+                                            'Action',
+                                            'Responsable',
+                                            'Échéance',
+                                            'Priorité',
+                                            'Statut',
+                                            'Commentaire',
+                                            '',
+                                        ].map((h) => (
+                                            <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">
+                                                {h}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {actions.map((act, i) => (
+                                        <ActionRow
+                                            key={i}
+                                            action={act}
+                                            onChange={(a) => updateAction(i, a)}
+                                            onRemove={() => removeAction(i)}
+                                            priorites={priorites}
+                                            statuts={actStatuts}
+                                        />
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <Button size="sm" onClick={addAction}>
+                            + Ajouter action
+                        </Button>
+                    </SectionCard>
+
+                    <SectionCard title="G - Synthèse & notes" subtitle="Conclusion et éléments complémentaires">
+                        <div className="flex flex-col gap-4">
+                            <FG label="Synthèse">
+                                <TA value={form.synthese} onChange={(v) => set('synthese', v)} rows={4} />
+                            </FG>
+                            <FG label="Notes complémentaires">
+                                <TA value={form.notes} onChange={(v) => set('notes', v)} rows={4} />
+                            </FG>
+                        </div>
+                    </SectionCard>
+                </fieldset>
             </div>
-          </section>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            <MetricCard label="Documents" value={metrics.docs} detail="Pièces renseignées" />
-            <MetricCard label="Actions" value={metrics.actions} detail="Actions renseignées" />
-            <MetricCard label="Rôles" value={metrics.roles} detail="Organisation" />
-            <MetricCard label="Contexte" value={metrics.source} detail="Origine" />
-            <MetricCard label="Phase" value={metrics.phase} detail="Chantier" />
-          </div>
-        )}
-
-        <SectionCard
-          title="Pilotage opérationnel"
-          subtitle="Lecture rapide des blocages et raccourcis pour préparer l'exécution"
-          actions={(
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={openDemandesPreparation}>Préparer les demandes</Button>
-              {linkedAffaire ? <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${linkedAffaire.uid}`)}>Voir les demandes</Button> : null}
-              {linkedAffaire ? <Button size="sm" onClick={() => navigate('/interventions')}>Voir les interventions</Button> : null}
-            </div>
-          )}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            <MetricCard label="Readiness" value={readyToProcess ? 'OK' : 'Bloquée'} detail={readyToProcess ? 'Passation exploitable' : `${readinessBlocks.length} blocage(s)`} />
-            <MetricCard label="Actions ouvertes" value={openActionRows.length} detail={`${overdueActions.length} en retard`} />
-            <MetricCard label="Rôles confirmés" value={`${requiredRoleCodes.filter((code) => confirmedRoleCodes.has(code)).length}/${requiredRoleCodes.length || 0}`} detail="Rôles requis" />
-            <MetricCard label="Documents reçus" value={`${documentsReceived.length}/${documentsRows.length}`} detail="Suivi documentaire" />
-            <MetricCard label="Synthèse" value={cleanText(form.synthese) ? 'Renseignée' : 'À faire'} detail="Décision métier" />
-          </div>
-
-          {readinessBlocks.length > 0 ? (
-            <div className="mt-4 rounded-xl border border-[#f0a0a0] bg-[#fcebeb] p-3">
-              <div className="text-[12px] font-black uppercase tracking-[.08em] text-[#8c2626]">Blocages opérationnels</div>
-              <ul className="mt-2 text-[13px] text-[#8c2626] list-disc pl-5 space-y-1">
-                {readinessBlocks.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <div className="mt-4 rounded-xl border border-[#b8e3c7] bg-[#eaf8ef] p-3 text-[13px] text-[#1b6f43]">
-              Aucun blocage détecté pour le cadrage actuel.
-            </div>
-          )}
-        </SectionCard>
-
-      {mutation.error && (
-        <div className="px-4 py-2 bg-[#fcebeb] border border-[#f0a0a0] rounded text-xs text-danger">
-          {mutation.error.message}
-        </div>
-      )}
-
-        {canEdit ? (
-          <>
-            <SectionCard title="A - Identité" subtitle="Rattachement affaire et informations de cadrage" >
-              <div className="grid grid-cols-2 gap-3.5">
-                <FG label="Affaire liée *" full>
-                  {canEditAffaireLink ? (
-                    <Select value={form.affaire_rst_id} onChange={e => set('affaire_rst_id', e.target.value)} className="w-full">
-                      <option value="">— Sélectionner —</option>
-                      {affaires.map(a => (
-                        <option key={a.uid} value={a.uid}>{a.reference} — {a.chantier || a.client}</option>
-                      ))}
-                    </Select>
-                  ) : (
-                    <FieldCard
-                      label="Affaire liée"
-                      value={linkedAffaire?.reference || '—'}
-                      highlight
-                    />
-                  )}
-                </FG>
-                <FG label="Date de passation">
-                  <Input type="date" value={form.date_passation ?? ''} onChange={e => set('date_passation', e.target.value)} />
-                </FG>
-                <FG label="N° étude">
-                  <Input
-                    value={form.numero_etude}
-                    onChange={e => handleNumeroEtudeInput(e.target.value)}
-                    list="passation-etudes-options"
-                  />
-                </FG>
-                <FG label="N° affaire NGE">
-                  <Input
-                    value={form.numero_affaire_nge}
-                    onChange={e => handleNumeroAffaireNgeInput(e.target.value)}
-                    list="passation-nge-options"
-                  />
-                </FG>
-                <FG label="Chantier">
-                  <Input value={form.chantier} onChange={e => set('chantier', e.target.value)} />
-                </FG>
-                <FG label="Client">
-                  <Input value={form.client} onChange={e => set('client', e.target.value)} />
-                </FG>
-                <FG label="Entreprise responsable">
-                  <Input value={form.entreprise_responsable} onChange={e => set('entreprise_responsable', e.target.value)} />
-                </FG>
-                <FG label="Agence">
-                  <Input value={form.agence} onChange={e => set('agence', e.target.value)} />
-                </FG>
-                <FG label="Responsable / pilote" full>
-                  <Input value={form.responsable} onChange={e => set('responsable', e.target.value)} />
-                </FG>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="B - Contexte & origine" subtitle="Source, type d'opération et contexte marché" >
-              <div className="grid grid-cols-2 gap-3.5">
-                <FG label="Origine de la passation">
-                  <Input value={form.source ?? ''} onChange={e => set('source', e.target.value)} list="passation-source-options" placeholder="Écris ou choisis une origine" />
-                </FG>
-                <FG label="Type d'opération">
-                  <Input value={form.operation_type ?? ''} onChange={e => set('operation_type', e.target.value)} list="passation-operation-type-options" placeholder="Écris ou choisis un type" />
-                </FG>
-                <FG label="Phase chantier">
-                  <Input value={form.phase_operation ?? ''} onChange={e => set('phase_operation', e.target.value)} list="passation-phase-options" placeholder="Écris ou choisis une phase" />
-                </FG>
-                <div />
-                <FG label="Interlocuteurs principaux" full>
-                  <TA value={form.interlocuteurs_principaux} onChange={v => set('interlocuteurs_principaux', v)} rows={3} />
-                </FG>
-                <FG label="Description générale" full>
-                  <TA value={form.description_generale} onChange={v => set('description_generale', v)} rows={4} />
-                </FG>
-                <FG label="Contexte marché" full>
-                  <TA value={form.contexte_marche} onChange={v => set('contexte_marche', v)} rows={3} />
-                </FG>
-              </div>
-            </SectionCard>
-          </>
-        ) : (
-          <>
-            <SectionCard title="A - Identité" subtitle="Rattachement affaire et informations de cadrage" >
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <FieldCard label="Affaire liée" value={linkedAffaire?.reference || ''} highlight />
-                <FieldCard label="Date de passation" value={formatDate(form.date_passation)} />
-                <FieldCard label="N° étude" value={form.numero_etude} />
-                <FieldCard label="N° affaire NGE" value={form.numero_affaire_nge} />
-                <FieldCard label="Client" value={form.client} />
-                <FieldCard label="Chantier" value={form.chantier} className="sm:col-span-2" />
-                <FieldCard label="Entreprise responsable" value={form.entreprise_responsable} />
-                <FieldCard label="Agence" value={form.agence} />
-                <FieldCard label="Responsable / pilote" value={form.responsable} />
-              </div>
-            </SectionCard>
-
-            <SectionCard title="B - Contexte & origine" subtitle="Source, type d'opération et contexte marché" >
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <FieldCard label="Origine" value={form.source} />
-                <FieldCard label="Type d'opération" value={form.operation_type} />
-                <FieldCard label="Phase chantier" value={form.phase_operation} />
-              </div>
-              <div className="grid grid-cols-1 gap-4 mt-4">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Interlocuteurs principaux</div>
-                  <ReadText value={form.interlocuteurs_principaux} />
-                </div>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Description générale</div>
-                  <ReadText value={form.description_generale} />
-                </div>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Contexte marché</div>
-                  <ReadText value={form.contexte_marche} />
-                </div>
-              </div>
-            </SectionCard>
-          </>
-        )}
-
-        <datalist id="passation-etudes-options">
-          {etudeNumberOptions.map((value) => <option key={value} value={value} />)}
-        </datalist>
-        <datalist id="passation-nge-options">
-          {ngeCodeOptions.map((value) => <option key={value} value={value} />)}
-        </datalist>
-        <datalist id="passation-source-options">
-          {sources.map((value) => <option key={value} value={value} />)}
-        </datalist>
-        <datalist id="passation-operation-type-options">
-          {opTypes.map((value) => <option key={value} value={value} />)}
-        </datalist>
-        <datalist id="passation-phase-options">
-          {phases.map((value) => <option key={value} value={value} />)}
-        </datalist>
-
-        <SectionCard title="C - Documents reçus / attendus" subtitle="Pièces nécessaires pour le lancement" >
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Document','Reçu','Version','Date','Commentaire',''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  documents.map((doc, i) => (
-                    <DocRow key={i} doc={doc} onChange={d => updateDoc(i, d)} onRemove={() => removeDoc(i)} />
-                  ))
-                ) : (
-                  documents.map((doc, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{doc.document_type || '—'}</td>
-                      <td className="px-2 py-1.5 text-center">{doc.is_received ? 'Oui' : 'Non'}</td>
-                      <td className="px-2 py-1.5">{doc.version || '—'}</td>
-                      <td className="px-2 py-1.5">{doc.document_date ? formatDate(doc.document_date) : '—'}</td>
-                      <td className="px-2 py-1.5">{doc.comment || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addDoc}>+ Ajouter document</Button> : null}
-        </SectionCard>
-
-        <SectionCard title="D - Points de vigilance / contraintes" subtitle="Risques et points de suivi" >
-          {canEdit
-            ? <TA value={form.points_sensibles} onChange={v => set('points_sensibles', v)} rows={5} />
-            : <ReadText value={form.points_sensibles} />}
-        </SectionCard>
-
-        <SectionCard title="E - Besoins RST" subtitle="Ressources et besoins techniques" >
-          {canEdit ? (
-            <div className="grid grid-cols-2 gap-3.5">
-              <FG label="Besoins laboratoire">
-                <TA value={form.besoins_laboratoire} onChange={v => set('besoins_laboratoire', v)} rows={3} />
-              </FG>
-              <FG label="Besoins terrain">
-                <TA value={form.besoins_terrain} onChange={v => set('besoins_terrain', v)} rows={3} />
-              </FG>
-              <FG label="Besoins étude">
-                <TA value={form.besoins_etude} onChange={v => set('besoins_etude', v)} rows={3} />
-              </FG>
-              <FG label="Besoins G3">
-                <TA value={form.besoins_g3} onChange={v => set('besoins_g3', v)} rows={3} />
-              </FG>
-              <FG label="Besoins essais externes">
-                <TA value={form.besoins_essais_externes} onChange={v => set('besoins_essais_externes', v)} rows={3} />
-              </FG>
-              <FG label="Besoins équipements spécifiques">
-                <TA value={form.besoins_equipements_specifiques} onChange={v => set('besoins_equipements_specifiques', v)} rows={3} />
-              </FG>
-              <FG label="Besoins ressources humaines" full>
-                <TA value={form.besoins_ressources_humaines} onChange={v => set('besoins_ressources_humaines', v)} rows={3} />
-              </FG>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <FieldCard label="Besoins laboratoire" value={form.besoins_laboratoire} />
-              <FieldCard label="Besoins terrain" value={form.besoins_terrain} />
-              <FieldCard label="Besoins étude" value={form.besoins_etude} />
-              <FieldCard label="Besoins G3" value={form.besoins_g3} />
-              <FieldCard label="Besoins essais externes" value={form.besoins_essais_externes} />
-              <FieldCard label="Besoins équipements spécifiques" value={form.besoins_equipements_specifiques} />
-              <FieldCard label="Besoins ressources humaines" value={form.besoins_ressources_humaines} className="sm:col-span-2" />
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard title="E bis - Organisation & rôles" subtitle="Responsabilités à confirmer pour démarrage" >
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Rôle', 'Personne / contact', 'Statut', 'Commentaire', ''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  roleAssignments.map((item, i) => (
-                    <RoleAssignmentRow
-                      key={i}
-                      item={item}
-                      onChange={(nextItem) => updateRoleAssignment(i, nextItem)}
-                      onRemove={() => removeRoleAssignment(i)}
-                      roleCodes={roleCodes}
-                      statusOptions={roleAssignmentStatusOptions}
-                    />
-                  ))
-                ) : (
-                  roleRows.map((item, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{formatRoleLabel(item.role_code)}</td>
-                      <td className="px-2 py-1.5">{item.assignee || '—'}</td>
-                      <td className="px-2 py-1.5">{item.assignment_status || '—'}</td>
-                      <td className="px-2 py-1.5">{item.comment || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addRoleAssignment}>+ Ajouter rôle</Button> : null}
-        </SectionCard>
-
-        <SectionCard title="F - Participants structurés" subtitle="Acteurs clés de la passation" >
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Rôle', 'Nom', 'Organisation', 'Email', 'Téléphone', 'Commentaire', ''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  participants.map((item, i) => (
-                    <ParticipantRow key={i} item={item} onChange={(nextItem) => updateParticipant(i, nextItem)} onRemove={() => removeParticipant(i)} roleOptions={participantRoleOptions} />
-                  ))
-                ) : (
-                  participants.filter((item) => String(item?.participant_role || item?.full_name || '').trim()).map((item, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{item.participant_role || '—'}</td>
-                      <td className="px-2 py-1.5">{item.full_name || '—'}</td>
-                      <td className="px-2 py-1.5">{item.organisation || '—'}</td>
-                      <td className="px-2 py-1.5">{item.email || '—'}</td>
-                      <td className="px-2 py-1.5">{item.phone || '—'}</td>
-                      <td className="px-2 py-1.5">{item.comment || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addParticipant}>+ Ajouter participant</Button> : null}
-        </SectionCard>
-
-        <SectionCard title="G - Périmètre demandé / accepté / exclu" subtitle="Cadre contractuel et limites d'exécution" >
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Catégorie', 'Élément', 'Statut', 'Notes', ''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  perimeterItems.map((item, i) => (
-                    <PerimeterRow key={i} item={item} onChange={(nextItem) => updatePerimeterItem(i, nextItem)} onRemove={() => removePerimeterItem(i)} statusOptions={perimeterStatusOptions} />
-                  ))
-                ) : (
-                  perimeterItems.filter((item) => String(item?.scope_label || item?.scope_category || '').trim()).map((item, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{item.scope_category || '—'}</td>
-                      <td className="px-2 py-1.5">{item.scope_label || '—'}</td>
-                      <td className="px-2 py-1.5">{item.request_status || '—'}</td>
-                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addPerimeterItem}>+ Ajouter élément</Button> : null}
-        </SectionCard>
-
-        <SectionCard title="H - Matrice des responsabilités" subtitle="RACI opérationnelle par flux" >
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Flux', 'Accountable', 'Responsible', 'Consulted', 'Informed', 'Notes', ''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  responsibilityItems.map((item, i) => (
-                    <ResponsibilityRow key={i} item={item} onChange={(nextItem) => updateResponsibilityItem(i, nextItem)} onRemove={() => removeResponsibilityItem(i)} workstreamOptions={workstreamCodeOptions} roleCodes={roleCodes} />
-                  ))
-                ) : (
-                  responsibilityItems.filter((item) => String(item?.workstream_code || item?.accountable_role_code || item?.responsible_role_code || '').trim()).map((item, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{item.workstream_code || '—'}</td>
-                      <td className="px-2 py-1.5">{item.accountable_role_code || '—'}</td>
-                      <td className="px-2 py-1.5">{item.responsible_role_code || '—'}</td>
-                      <td className="px-2 py-1.5">{item.consulted_roles || '—'}</td>
-                      <td className="px-2 py-1.5">{item.informed_roles || '—'}</td>
-                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addResponsibilityItem}>+ Ajouter ligne RACI</Button> : null}
-        </SectionCard>
-
-        <SectionCard title="I - Préparation de démarrage" subtitle="CCTP, plan de contrôle, visite initiale et modules de demande" >
-          <div className="overflow-x-auto">
-            <div className="text-[11px] font-black uppercase tracking-[.09em] text-[#69758a] mb-2">Éléments de démarrage</div>
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Élément', 'Rôle propriétaire', 'Nom propriétaire', 'Statut', 'Échéance', 'Notes', ''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  startupItems.map((item, i) => (
-                    <StartupRow key={i} item={item} onChange={(nextItem) => updateStartupItem(i, nextItem)} onRemove={() => removeStartupItem(i)} itemCodeOptions={startupItemCodeOptions} roleCodes={roleCodes} statusOptions={roleAssignmentStatusOptions} />
-                  ))
-                ) : (
-                  startupItems.filter((item) => String(item?.item_code || item?.owner_name || '').trim()).map((item, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{item.item_code || '—'}</td>
-                      <td className="px-2 py-1.5">{item.owner_role_code || '—'}</td>
-                      <td className="px-2 py-1.5">{item.owner_name || '—'}</td>
-                      <td className="px-2 py-1.5">{item.status || '—'}</td>
-                      <td className="px-2 py-1.5">{item.due_date ? formatDate(item.due_date) : '—'}</td>
-                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addStartupItem}>+ Ajouter élément de démarrage</Button> : null}
-
-          <div className="overflow-x-auto mt-4">
-            <div className="text-[11px] font-black uppercase tracking-[.09em] text-[#69758a] mb-2">Besoins structurés</div>
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Besoin', 'Libellé', 'Statut', 'Quantité', 'Notes', ''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  structuredNeeds.map((item, i) => (
-                    <StructuredNeedRow key={i} item={item} onChange={(nextItem) => updateStructuredNeed(i, nextItem)} onRemove={() => removeStructuredNeed(i)} needCodeOptions={structuredNeedCodeOptions} statusOptions={structuredNeedStatusOptions} />
-                  ))
-                ) : (
-                  structuredNeeds.filter((item) => String(item?.need_code || item?.need_label || '').trim()).map((item, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{item.need_code || '—'}</td>
-                      <td className="px-2 py-1.5">{item.need_label || '—'}</td>
-                      <td className="px-2 py-1.5">{item.request_status || '—'}</td>
-                      <td className="px-2 py-1.5">{item.quantity || '—'}</td>
-                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addStructuredNeed}>+ Ajouter besoin structuré</Button> : null}
-
-          <div className="overflow-x-auto mt-4">
-            <div className="text-[11px] font-black uppercase tracking-[.09em] text-[#69758a] mb-2">Préparation des demandes</div>
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Module', 'Requis', 'Prêt', 'Notes', ''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  demandePreparationItems.map((item, i) => (
-                    <DemandePreparationRow key={i} item={item} onChange={(nextItem) => updateDemandePreparationItem(i, nextItem)} onRemove={() => removeDemandePreparationItem(i)} moduleCodeOptions={demandeModuleCodeOptions} />
-                  ))
-                ) : (
-                  demandePreparationItems.filter((item) => String(item?.module_code || '').trim()).map((item, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{item.module_code || '—'}</td>
-                      <td className="px-2 py-1.5 text-center">{item.is_required ? 'Oui' : 'Non'}</td>
-                      <td className="px-2 py-1.5 text-center">{item.is_ready ? 'Oui' : 'Non'}</td>
-                      <td className="px-2 py-1.5">{item.notes || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addDemandePreparationItem}>+ Ajouter module demande</Button> : null}
-        </SectionCard>
-
-        <SectionCard title="J - Actions à lancer" subtitle="Plan d'actions opérationnel" >
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-xs mb-3">
-              <thead>
-                <tr className="border-b border-border">
-                  {['Action','Responsable','Échéance','Priorité','Statut','Commentaire',''].map(h => (
-                    <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {canEdit ? (
-                  actions.map((act, i) => (
-                    <ActionRow key={i} action={act}
-                      onChange={a => updateAction(i, a)}
-                      onRemove={() => removeAction(i)}
-                      priorites={priorites} statuts={actStatuts} />
-                  ))
-                ) : (
-                  actions.map((act, i) => (
-                    <tr key={i} className="border-b border-border">
-                      <td className="px-2 py-1.5">{act.action_label || '—'}</td>
-                      <td className="px-2 py-1.5">{act.responsable || '—'}</td>
-                      <td className="px-2 py-1.5">{act.echeance ? formatDate(act.echeance) : '—'}</td>
-                      <td className="px-2 py-1.5">{act.priorite || '—'}</td>
-                      <td className="px-2 py-1.5">{act.statut || '—'}</td>
-                      <td className="px-2 py-1.5">{act.commentaire || '—'}</td>
-                      <td className="px-2 py-1.5">—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-          {canEdit ? <Button size="sm" onClick={addAction}>+ Ajouter action</Button> : null}
-        </SectionCard>
-
-        <SectionCard title="K - Workflow, synthèse & notes" subtitle="Décision de workflow et conclusion" >
-          {canEdit ? (
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FG label="Statut workflow">
-                  <Select value={form.workflow_status || ''} onChange={e => set('workflow_status', e.target.value)}>
-                    {workflowStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
-                  </Select>
-                </FG>
-                <FG label="Décision">
-                  <Select value={form.workflow_decision || ''} onChange={e => set('workflow_decision', e.target.value)}>
-                    {workflowDecisionOptions.map((decision) => <option key={decision} value={decision}>{decision}</option>)}
-                  </Select>
-                </FG>
-                <FG label="Décidé par">
-                  <Input value={form.workflow_decided_by || ''} onChange={e => set('workflow_decided_by', e.target.value)} />
-                </FG>
-                <FG label="Date décision">
-                  <Input type="date" value={form.workflow_decided_at || ''} onChange={e => set('workflow_decided_at', e.target.value)} />
-                </FG>
-              </div>
-              <FG label="Commentaire décision">
-                <TA value={form.workflow_decision_comment} onChange={v => set('workflow_decision_comment', v)} rows={3} />
-              </FG>
-              <FG label="Synthèse">
-                <TA value={form.synthese} onChange={v => set('synthese', v)} rows={4} />
-              </FG>
-              <FG label="Notes complémentaires">
-                <TA value={form.notes} onChange={v => set('notes', v)} rows={4} />
-              </FG>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <FieldCard label="Statut workflow" value={form.workflow_status} />
-                <FieldCard label="Décision" value={form.workflow_decision} />
-                <FieldCard label="Décidé par" value={form.workflow_decided_by} />
-                <FieldCard label="Date décision" value={formatDate(form.workflow_decided_at)} />
-              </div>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Commentaire décision</div>
-                <ReadText value={form.workflow_decision_comment} />
-              </div>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Synthèse</div>
-                <ReadText value={form.synthese} />
-              </div>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Notes complémentaires</div>
-                <ReadText value={form.notes} />
-              </div>
-            </div>
-          )}
-        </SectionCard>
-
-      </div>
-    </FichePageShell>
-  )
+        </FichePageShell>
+    )
 }
