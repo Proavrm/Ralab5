@@ -39,6 +39,20 @@ class InterventionCampaignCreate(BaseModel):
     attribue_a: str = Field("")
     criteres_controle: str = Field("")
     livrables_attendus: str = Field("")
+    zone_type: str = Field("")
+    comparison_group: str = Field("")
+    pk_debut: str = Field("")
+    pk_fin: str = Field("")
+    voie: str = Field("")
+    sens: str = Field("")
+    cote: str = Field("")
+    planche: str = Field("")
+    longueur_ml: str = Field("")
+    zone_transition: str = Field("")
+    responsable_innovation: str = Field("")
+    responsable_travaux: str = Field("")
+    responsable_controle: str = Field("")
+    responsable_suivi: str = Field("")
 
 
 class InterventionCampaignUpdate(BaseModel):
@@ -59,6 +73,20 @@ class InterventionCampaignUpdate(BaseModel):
     attribue_a: Optional[str] = None
     criteres_controle: Optional[str] = None
     livrables_attendus: Optional[str] = None
+    zone_type: Optional[str] = None
+    comparison_group: Optional[str] = None
+    pk_debut: Optional[str] = None
+    pk_fin: Optional[str] = None
+    voie: Optional[str] = None
+    sens: Optional[str] = None
+    cote: Optional[str] = None
+    planche: Optional[str] = None
+    longueur_ml: Optional[str] = None
+    zone_transition: Optional[str] = None
+    responsable_innovation: Optional[str] = None
+    responsable_travaux: Optional[str] = None
+    responsable_controle: Optional[str] = None
+    responsable_suivi: Optional[str] = None
 
 
 def _conn():
@@ -105,8 +133,11 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
                 zone_scope, temporalite, programme_specifique, nb_points_prevus,
                 types_essais_prevus, date_debut_prevue, date_fin_prevue, priorite,
                 responsable_technique, attribue_a, criteres_controle,
-                livrables_attendus, workflow_label, statut, notes, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                livrables_attendus, zone_type, comparison_group, pk_debut, pk_fin,
+                voie, sens, cote, planche, longueur_ml, zone_transition,
+                responsable_innovation, responsable_travaux, responsable_controle,
+                responsable_suivi, workflow_label, statut, notes, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 body.demande_id,
@@ -127,6 +158,20 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
                 body.attribue_a,
                 body.criteres_controle,
                 body.livrables_attendus,
+                body.zone_type,
+                body.comparison_group,
+                body.pk_debut,
+                body.pk_fin,
+                body.voie,
+                body.sens,
+                body.cote,
+                body.planche,
+                body.longueur_ml,
+                body.zone_transition,
+                body.responsable_innovation,
+                body.responsable_travaux,
+                body.responsable_controle,
+                body.responsable_suivi,
                 'Affaire -> Demande -> Campagne -> Intervention',
                 body.statut,
                 body.notes,

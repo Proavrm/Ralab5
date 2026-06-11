@@ -167,6 +167,20 @@ def _campagne_to_dict(conn, demande: sqlite3.Row, campagne: sqlite3.Row) -> dict
         "attribue_a": _str(campagne_data.get("attribue_a", "")),
         "criteres_controle": _str(campagne_data.get("criteres_controle", "")),
         "livrables_attendus": _str(campagne_data.get("livrables_attendus", "")),
+        "zone_type": _str(campagne_data.get("zone_type", "")),
+        "comparison_group": _str(campagne_data.get("comparison_group", "")),
+        "pk_debut": _str(campagne_data.get("pk_debut", "")),
+        "pk_fin": _str(campagne_data.get("pk_fin", "")),
+        "voie": _str(campagne_data.get("voie", "")),
+        "sens": _str(campagne_data.get("sens", "")),
+        "cote": _str(campagne_data.get("cote", "")),
+        "planche": _str(campagne_data.get("planche", "")),
+        "longueur_ml": _str(campagne_data.get("longueur_ml", "")),
+        "zone_transition": _str(campagne_data.get("zone_transition", "")),
+        "responsable_innovation": _str(campagne_data.get("responsable_innovation", "")),
+        "responsable_travaux": _str(campagne_data.get("responsable_travaux", "")),
+        "responsable_controle": _str(campagne_data.get("responsable_controle", "")),
+        "responsable_suivi": _str(campagne_data.get("responsable_suivi", "")),
         "notes": _str(campagne_data.get("notes", "")),
         "statut": _str(campagne_data.get("statut", "")),
         "workflow_label": _str(campagne_data.get("workflow_label", "")),
@@ -220,6 +234,20 @@ def create_campaign(
     attribue_a: object = "",
     criteres_controle: object = "",
     livrables_attendus: object = "",
+    zone_type: object = "",
+    comparison_group: object = "",
+    pk_debut: object = "",
+    pk_fin: object = "",
+    voie: object = "",
+    sens: object = "",
+    cote: object = "",
+    planche: object = "",
+    longueur_ml: object = "",
+    zone_transition: object = "",
+    responsable_innovation: object = "",
+    responsable_travaux: object = "",
+    responsable_controle: object = "",
+    responsable_suivi: object = "",
 ) -> dict[str, Any]:
     with _conn() as conn:
         demande = _load_demande(conn, demande_id)
@@ -235,8 +263,11 @@ def create_campaign(
                 demande_id, reference, label, type_campagne, code, designation,
                 zone_scope, temporalite, programme_specifique, nb_points_prevus, types_essais_prevus,
                 date_debut_prevue, date_fin_prevue, priorite, responsable_technique, attribue_a,
-                criteres_controle, livrables_attendus, notes, statut, workflow_label, created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                criteres_controle, livrables_attendus, zone_type, comparison_group, pk_debut, pk_fin,
+                voie, sens, cote, planche, longueur_ml, zone_transition,
+                responsable_innovation, responsable_travaux, responsable_controle, responsable_suivi,
+                notes, statut, workflow_label, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 int(demande_id),
@@ -257,6 +288,20 @@ def create_campaign(
                 _str(attribue_a),
                 _str(criteres_controle),
                 _str(livrables_attendus),
+                _str(zone_type),
+                _str(comparison_group),
+                _str(pk_debut),
+                _str(pk_fin),
+                _str(voie),
+                _str(sens),
+                _str(cote),
+                _str(planche),
+                _str(longueur_ml),
+                _str(zone_transition),
+                _str(responsable_innovation),
+                _str(responsable_travaux),
+                _str(responsable_controle),
+                _str(responsable_suivi),
                 _str(notes),
                 _str(statut) or "\u00c0 cadrer",
                 GENERIC_WORKFLOW_LABEL,
@@ -291,6 +336,20 @@ def update_campaign(
     attribue_a: object | None = None,
     criteres_controle: object | None = None,
     livrables_attendus: object | None = None,
+    zone_type: object | None = None,
+    comparison_group: object | None = None,
+    pk_debut: object | None = None,
+    pk_fin: object | None = None,
+    voie: object | None = None,
+    sens: object | None = None,
+    cote: object | None = None,
+    planche: object | None = None,
+    longueur_ml: object | None = None,
+    zone_transition: object | None = None,
+    responsable_innovation: object | None = None,
+    responsable_travaux: object | None = None,
+    responsable_controle: object | None = None,
+    responsable_suivi: object | None = None,
 ) -> dict[str, Any]:
     with _conn() as conn:
         campagne = _load_campagne(conn, campaign_id)
@@ -340,6 +399,34 @@ def update_campaign(
             updates["criteres_controle"] = _str(criteres_controle)
         if livrables_attendus is not None:
             updates["livrables_attendus"] = _str(livrables_attendus)
+        if zone_type is not None:
+            updates["zone_type"] = _str(zone_type)
+        if comparison_group is not None:
+            updates["comparison_group"] = _str(comparison_group)
+        if pk_debut is not None:
+            updates["pk_debut"] = _str(pk_debut)
+        if pk_fin is not None:
+            updates["pk_fin"] = _str(pk_fin)
+        if voie is not None:
+            updates["voie"] = _str(voie)
+        if sens is not None:
+            updates["sens"] = _str(sens)
+        if cote is not None:
+            updates["cote"] = _str(cote)
+        if planche is not None:
+            updates["planche"] = _str(planche)
+        if longueur_ml is not None:
+            updates["longueur_ml"] = _str(longueur_ml)
+        if zone_transition is not None:
+            updates["zone_transition"] = _str(zone_transition)
+        if responsable_innovation is not None:
+            updates["responsable_innovation"] = _str(responsable_innovation)
+        if responsable_travaux is not None:
+            updates["responsable_travaux"] = _str(responsable_travaux)
+        if responsable_controle is not None:
+            updates["responsable_controle"] = _str(responsable_controle)
+        if responsable_suivi is not None:
+            updates["responsable_suivi"] = _str(responsable_suivi)
 
         if not updates:
             return _campagne_to_dict(conn, demande, campagne)

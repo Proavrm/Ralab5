@@ -78,6 +78,11 @@ const DEFAULT_FORM = {
   ressources_notes: '',
   commentaires: '',
   remarques: '',
+  comparison_group: '',
+  responsable_innovation: '',
+  responsable_travaux: '',
+  responsable_controle: '',
+  responsable_suivi: '',
 }
 
 function Section({ title, children, right, technical }) {
@@ -253,6 +258,11 @@ export default function PreparationPage() {
       ressources_notes: originalPrep.ressources_notes || '',
       commentaires: originalPrep.commentaires || '',
       remarques: originalPrep.remarques || '',
+      comparison_group: originalPrep.comparison_group || '',
+      responsable_innovation: originalPrep.responsable_innovation || '',
+      responsable_travaux: originalPrep.responsable_travaux || '',
+      responsable_controle: originalPrep.responsable_controle || '',
+      responsable_suivi: originalPrep.responsable_suivi || '',
     })
   }, [
     originalPrep.phase_operation,
@@ -276,6 +286,11 @@ export default function PreparationPage() {
     originalPrep.ressources_notes,
     originalPrep.commentaires,
     originalPrep.remarques,
+    originalPrep.comparison_group,
+    originalPrep.responsable_innovation,
+    originalPrep.responsable_travaux,
+    originalPrep.responsable_controle,
+    originalPrep.responsable_suivi,
   ])
 
   const familyMap = useMemo(() => Object.fromEntries(familyCatalog.map((item) => [item.family_code, item])), [familyCatalog])
@@ -586,6 +601,21 @@ export default function PreparationPage() {
                   </Field>
                   <Field label="Commentaires" full>
                     <Textarea value={form.commentaires} onChange={(value) => setField('commentaires', value)} rows={2} />
+                  </Field>
+                  <Field label="Groupe de comparaison" full>
+                    <Input value={form.comparison_group} onChange={(event) => setField('comparison_group', event.target.value)} placeholder="Ex. CIRR-RARX-VIENNE — lie les campagnes comparables" />
+                  </Field>
+                  <Field label="Responsable innovation / produit">
+                    <Input value={form.responsable_innovation} onChange={(event) => setField('responsable_innovation', event.target.value)} list="preparation-user-options" />
+                  </Field>
+                  <Field label="Responsable travaux">
+                    <Input value={form.responsable_travaux} onChange={(event) => setField('responsable_travaux', event.target.value)} list="preparation-user-options" />
+                  </Field>
+                  <Field label="Responsable controles">
+                    <Input value={form.responsable_controle} onChange={(event) => setField('responsable_controle', event.target.value)} list="preparation-user-options" />
+                  </Field>
+                  <Field label="Responsable suivi">
+                    <Input value={form.responsable_suivi} onChange={(event) => setField('responsable_suivi', event.target.value)} list="preparation-user-options" />
                   </Field>
                   <Field label="Remarques preparation" full>
                     <Textarea value={form.remarques} onChange={(value) => setField('remarques', value)} rows={3} placeholder="Elements de synthese utiles avant de cadrer les campagnes." />

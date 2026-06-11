@@ -1297,6 +1297,16 @@ export default function DemandePage() {
       demande_id: Number(uid),
       label: campaign?.label || 'Campagne principale',
       designation: campaign?.designation || '',
+      comparison_group: campaign?.comparison_group || preparation?.comparison_group || '',
+      zone_scope: campaign?.zone_scope || preparation?.zone_localisation || '',
+      types_essais_prevus: campaign?.types_essais_prevus || preparation?.types_essais_prevus || '',
+      nb_points_prevus: campaign?.nb_points_prevus || preparation?.nb_points_prevus || '',
+      responsable_technique: campaign?.responsable_technique || preparation?.responsable_referent || '',
+      attribue_a: campaign?.attribue_a || preparation?.attribue_a || '',
+      responsable_innovation: preparation?.responsable_innovation || '',
+      responsable_travaux: preparation?.responsable_travaux || '',
+      responsable_controle: preparation?.responsable_controle || '',
+      responsable_suivi: preparation?.responsable_suivi || '',
     })
       .then((saved) => {
         if (!saved?.uid) return

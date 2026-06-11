@@ -15,6 +15,8 @@ import {
     createTerrainFeuilleForIntervention,
     isFeuilleTerrainEssaiCode,
 } from '@/lib/terrainFeuilleFromIntervention'
+import { buildInterventionPrefillFromCampaignQuery } from '@/lib/campaignStructuredFields'
+import { DIRECT_ESSAI_TEMPLATES, DIRECT_ESSAI_TEMPLATE_BY_CODE } from '@/lib/directEssaiTemplates'
 import { formatDate } from '@/lib/utils'
 import {
   DEMANDE_STAT_CLS,
@@ -88,28 +90,20 @@ const HISTORICAL_COLUMN_LABELS = {
     granulometrie_passants_percent: 'Granulométrie (%)',
 }
 
-const DIRECT_ESSAI_TEMPLATES = [
-    { code: 'GEN', label: 'Essai générique', typeEssai: 'Essai générique', norme: '' },
-    { code: 'DE', label: 'Densité enrobés', typeEssai: 'Densité enrobés in situ', norme: '' },
-    { code: 'DF', label: 'Déflexions', typeEssai: 'Déflexions', norme: '' },
-    { code: 'PLD', label: 'Portances dynaplaque', typeEssai: 'Portances dynaplaque', norme: '' },
-    { code: 'PL', label: 'Portances à la plaque', typeEssai: 'Portances à la plaque', norme: '' },
-    { code: 'DS', label: 'Densité sols in situ', typeEssai: 'Densité sols in situ', norme: '' },
-    { code: 'QS', label: 'Contrôle de compactage', typeEssai: 'Contrôle compactage GTR', norme: '' },
-    { code: 'PA', label: 'Pénétromètre', typeEssai: 'Pénétromètre / PANDA', norme: '' },
-    { code: 'SO', label: 'Coupe de sondage', typeEssai: 'Coupe de sondage', norme: '' },
-    { code: 'SC', label: 'Coupe de sondage carotté', typeEssai: 'Coupe de sondage carotté', norme: '' },
-    { code: 'EAU', label: 'Essai d’eau ou d’infiltration', typeEssai: 'Essai d’eau / infiltration', norme: '' },
-    { code: 'PER', label: 'Percolation', typeEssai: 'Percolation', norme: '' },
-    { code: 'INF', label: 'Infiltration / perméabilité', typeEssai: 'Infiltration / perméabilité', norme: '' },
-    { code: 'EE', label: 'Étanchéité à l’eau', typeEssai: 'Étanchéité à l’eau', norme: '' },
-    { code: 'EA', label: 'Étanchéité à l’air', typeEssai: 'Étanchéité à l’air', norme: '' },
-]
-
-const DIRECT_ESSAI_TEMPLATE_BY_CODE = DIRECT_ESSAI_TEMPLATES.reduce((accumulator, item) => {
-    accumulator[item.code] = item
-    return accumulator
-}, {})
+const DIRECT_ESSAIS_BY_HISTORICAL_CODE = {
+    DF: ['DF', 'FWD'],
+    FWD: ['FWD', 'DF'],
+    PLD: ['PLD'],
+    DE: ['DE'],
+    SO: ['SO'],
+    SC: ['SC'],
+    PMT: ['PMT'],
+    ADH: ['ADH'],
+    HAP: ['HAP'],
+    AMI: ['AMI'],
+    CFE: ['CFE'],
+    ACO: ['ACO'],
+}
 
 const INTERVENTION_TYPE_SUGGESTED_FINALITY = {
     'Visite chantier': 'Suivi d\'exécution',
@@ -146,14 +140,6 @@ const DIRECT_ESSAIS_BY_INTERVENTION_TYPE = {
     'Pose de matériel': [],
     'Relevé de matériel': [],
     'Autre': ['GEN'],
-}
-
-const DIRECT_ESSAIS_BY_HISTORICAL_CODE = {
-    DF: ['DF'],
-    PLD: ['PLD'],
-    DE: ['DE'],
-    SO: ['SO'],
-    SC: ['SC'],
 }
 
 function getInterventionEssaiMismatchWarning(interventionType, essaiCode) {
@@ -977,6 +963,16 @@ function buildObservationsPayload(form, baseObservations = {}) {
         sortie_alerte_desc:      form.sortie_alerte_desc || '',
         sortie_info_demandeur:   form.sortie_info_demandeur || '',
         sortie_synthese:         form.sortie_synthese || '',
+        campaign_zone_type: form.campaign_zone_type || '',
+        campaign_comparison_group: form.campaign_comparison_group || '',
+        campaign_pk_debut: form.campaign_pk_debut || '',
+        campaign_pk_fin: form.campaign_pk_fin || '',
+        campaign_voie: form.campaign_voie || '',
+        campaign_sens: form.campaign_sens || '',
+        campaign_cote: form.campaign_cote || '',
+        campaign_planche: form.campaign_planche || '',
+        campaign_longueur_ml: form.campaign_longueur_ml || '',
+        campaign_zone_transition: form.campaign_zone_transition || '',
     })
 }
 
@@ -1037,10 +1033,21 @@ function mergeFormFromIntervention(data) {
         sortie_alerte_desc:     observations.sortie_alerte_desc || '',
         sortie_info_demandeur:  observations.sortie_info_demandeur || '',
         sortie_synthese:        observations.sortie_synthese || '',
+        campaign_zone_type: observations.campaign_zone_type || '',
+        campaign_comparison_group: observations.campaign_comparison_group || '',
+        campaign_pk_debut: observations.campaign_pk_debut || '',
+        campaign_pk_fin: observations.campaign_pk_fin || '',
+        campaign_voie: observations.campaign_voie || '',
+        campaign_sens: observations.campaign_sens || '',
+        campaign_cote: observations.campaign_cote || '',
+        campaign_planche: observations.campaign_planche || '',
+        campaign_longueur_ml: observations.campaign_longueur_ml || '',
+        campaign_zone_transition: observations.campaign_zone_transition || '',
     }
 }
 
 function prefillFromQuery(searchParams) {
+    const campaignPrefill = buildInterventionPrefillFromCampaignQuery(searchParams)
     return {
         demande_id: searchParams.get('demande_id') || '',
         type_intervention: searchParams.get('type_intervention') || '',
@@ -1049,20 +1056,32 @@ function prefillFromQuery(searchParams) {
         heure_debut: '',
         heure_fin: '',
         technicien: '',
-        zone_intervention: searchParams.get('zone') || '',
+        zone_intervention: campaignPrefill.zone_intervention || searchParams.get('zone') || '',
         nature_materiau: searchParams.get('materiau') || '',
-        objectif_intervention: searchParams.get('objectif') || '',
+        objectif_intervention: campaignPrefill.objectif_intervention || searchParams.get('objectif') || '',
         notes_terrain: '',
         statut: 'Planifiée',
-        responsable_referent: searchParams.get('responsable') || '',
-        attribue_a: searchParams.get('attribue_a') || '',
-        prep_points_a_realiser: '', prep_essais_a_effectuer: '', prep_prelevements_prevus: '',
+        responsable_referent: campaignPrefill.responsable_referent || searchParams.get('responsable') || '',
+        attribue_a: campaignPrefill.attribue_a || searchParams.get('attribue_a') || '',
+        prep_points_a_realiser: campaignPrefill.prep_points_a_realiser || '',
+        prep_essais_a_effectuer: campaignPrefill.prep_essais_a_effectuer || '',
+        prep_prelevements_prevus: '',
         prep_materiels_requis: '', prep_metrologie_ok: '', prep_consommables_epi: '',
         prep_contact_chantier: '', prep_plan_prevention: '', prep_contraintes_acces: '',
         prep_preparation_complete: '', prep_point_bloquant: '', prep_point_bloquant_desc: '',
         suite_nb_essais_prevus: '',
         suite_essais_prevus: [],
         suite_essais_realises: [],
+        campaign_zone_type: campaignPrefill.campaign_zone_type || '',
+        campaign_comparison_group: campaignPrefill.campaign_comparison_group || '',
+        campaign_pk_debut: campaignPrefill.campaign_pk_debut || '',
+        campaign_pk_fin: campaignPrefill.campaign_pk_fin || '',
+        campaign_voie: campaignPrefill.campaign_voie || '',
+        campaign_sens: campaignPrefill.campaign_sens || '',
+        campaign_cote: campaignPrefill.campaign_cote || '',
+        campaign_planche: campaignPrefill.campaign_planche || '',
+        campaign_longueur_ml: campaignPrefill.campaign_longueur_ml || '',
+        campaign_zone_transition: campaignPrefill.campaign_zone_transition || '',
         cond_meteo: '', cond_etat_site: '', cond_ecarts: '', cond_materiel_utilise: '',
         real_nb_points_prevus: '', real_nb_points_realises: '', real_points_non_realises_motif: '',
         real_incidents: '', real_non_conformites: '', real_adaptations: '', real_decision_immediate: '',

@@ -55,6 +55,7 @@ const FeuilleTerrainPage = lazy(() => import('@/pages/FeuilleTerrainPage'))
 const FeuilleDeRuntimePage = lazy(() => import('@/pages/FeuilleDeRuntimePage'))
 const ModelePMTPage = lazy(() => import('@/pages/modeles/ModelePMTPage'))
 const ModeleSCPage = lazy(() => import('@/pages/modeles/ModeleSCPage'))
+const ModeleEssaiBasePage = lazy(() => import('@/pages/modeles/ModeleEssaiBasePage'))
 const ValiderRapportsPage = lazy(() => import('@/pages/modeles/valider_rapports_page'))
 
 
@@ -117,6 +118,7 @@ export default function App() {
                 <Route path="work/de" element={<Navigate to="/tools" replace />} />
                 <Route path="modeles/pmt" element={<P><ModelePMTPage /></P>} />
                 <Route path="modeles/sc" element={<P><ModeleSCPage /></P>} />
+                <Route path="modeles/essai/:code" element={<P><ModeleEssaiBasePage /></P>} />
                 <Route path="work/pmt" element={<Navigate to="/tools" replace />} />
                 <Route path="tools" element={<P><ToolsPage /></P>} />
                 <Route path="rapports/validation" element={<P><ValiderRapportsPage /></P>} />

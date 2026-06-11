@@ -46,6 +46,11 @@ _PREP_FIELDS = [
     "livrables_attendus",
     "remarques",
     "familles_prevues",
+    "comparison_group",
+    "responsable_innovation",
+    "responsable_travaux",
+    "responsable_controle",
+    "responsable_suivi",
 ]
 
 
@@ -216,6 +221,11 @@ class DemandePreparationRepository:
             livrables_attendus=record.livrables_attendus,
             remarques=record.remarques,
             familles_prevues=list(record.familles_prevues),
+            comparison_group=record.comparison_group,
+            responsable_innovation=record.responsable_innovation,
+            responsable_travaux=record.responsable_travaux,
+            responsable_controle=record.responsable_controle,
+            responsable_suivi=record.responsable_suivi,
             created_at=record.created_at,
             updated_at=record.updated_at,
         )
@@ -269,6 +279,11 @@ class DemandePreparationRepository:
             livrables_attendus=g("livrables_attendus"),
             remarques=g("remarques"),
             familles_prevues=list(families or []),
+            comparison_group=g("comparison_group"),
+            responsable_innovation=g("responsable_innovation"),
+            responsable_travaux=g("responsable_travaux"),
+            responsable_controle=g("responsable_controle"),
+            responsable_suivi=g("responsable_suivi"),
             created_at=g("created_at"),
             updated_at=g("updated_at"),
         )

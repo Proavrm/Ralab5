@@ -113,6 +113,11 @@ class DemandePreparationRecord:
     livrables_attendus: str
     remarques: str
     familles_prevues: list[str] = field(default_factory=list)
+    comparison_group: str = ""
+    responsable_innovation: str = ""
+    responsable_travaux: str = ""
+    responsable_controle: str = ""
+    responsable_suivi: str = ""
     created_at: str = ""
     updated_at: str = ""
 
@@ -156,6 +161,11 @@ class DemandePreparationUpdateSchema(BaseModel):
     livrables_attendus: Optional[str] = Field(None)
     remarques: Optional[str] = Field(None)
     familles_prevues: Optional[list[str]] = Field(None)
+    comparison_group: Optional[str] = Field(None)
+    responsable_innovation: Optional[str] = Field(None)
+    responsable_travaux: Optional[str] = Field(None)
+    responsable_controle: Optional[str] = Field(None)
+    responsable_suivi: Optional[str] = Field(None)
 
 
 class DemandePreparationResponseSchema(BaseModel):
@@ -187,6 +197,11 @@ class DemandePreparationResponseSchema(BaseModel):
     livrables_attendus: str
     remarques: str
     familles_prevues: list[str] = Field(default_factory=list)
+    comparison_group: str = ""
+    responsable_innovation: str = ""
+    responsable_travaux: str = ""
+    responsable_controle: str = ""
+    responsable_suivi: str = ""
     created_at: str
     updated_at: str
 

@@ -6,6 +6,12 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { demandesApi, interventionCampaignsApi } from '@/services/api'
 import { buildLocationTarget, buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import {
+  appendCampaignInterventionQueryParams,
+  buildZoneSummary,
+  pickCampagneStructuredFields,
+  ZONE_TYPE_OPTIONS,
+} from '@/lib/campaignStructuredFields'
 import { formatDate } from '@/lib/utils'
 import {
   EmptyStateBox,
@@ -164,6 +170,7 @@ export default function CampaignPage() {
       criteres_controle: normalizeNonEmpty(data.criteres_controle),
       livrables_attendus: normalizeNonEmpty(data.livrables_attendus),
       notes: normalizeNonEmpty(data.notes),
+      ...pickCampagneStructuredFields(data),
     })
   }, [data])
 
@@ -206,6 +213,7 @@ export default function CampaignPage() {
       criteres_controle: normalizeNonEmpty(form.criteres_controle),
       livrables_attendus: normalizeNonEmpty(form.livrables_attendus),
       notes: normalizeNonEmpty(form.notes),
+      ...pickCampagneStructuredFields(form),
     })
   }
 
@@ -215,16 +223,17 @@ export default function CampaignPage() {
     params.set('source', 'campagne')
     if (data?.uid != null && data.uid !== '') params.set('campaign_uid', String(data.uid))
     if (data?.reference) params.set('campaign_ref', String(data.reference))
-    if (data?.code) params.set('campaign_code', String(data.code))
-    if (data?.label) params.set('campaign_label', String(data.label))
-    if (data?.designation) params.set('campaign_designation', String(data.designation))
-    if (data?.programme_specifique) params.set('campaign_programme', String(data.programme_specifique))
-    if (data?.zone_scope) params.set('campaign_zone', String(data.zone_scope))
-    if (data?.temporalite) params.set('campaign_temporalite', String(data.temporalite))
-    if (data?.nb_points_prevus != null && data.nb_points_prevus !== '') params.set('campaign_nb_points', String(data.nb_points_prevus))
-    if (data?.types_essais_prevus) params.set('campaign_essais', String(data.types_essais_prevus))
-    if (data?.responsable_technique) params.set('campaign_responsable', String(data.responsable_technique))
-    if (data?.attribue_a) params.set('campaign_attribue_a', String(data.attribue_a))
+    if (form.code || data?.code) params.set('campaign_code', String(form.code || data.code))
+    if (form.label || data?.label) params.set('campaign_label', String(form.label || data.label))
+    if (form.designation || data?.designation) params.set('campaign_designation', String(form.designation || data.designation))
+    if (form.programme_specifique || data?.programme_specifique) params.set('campaign_programme', String(form.programme_specifique || data.programme_specifique))
+    if (form.zone_scope || data?.zone_scope) params.set('campaign_zone', String(form.zone_scope || data.zone_scope))
+    if (form.temporalite || data?.temporalite) params.set('campaign_temporalite', String(form.temporalite || data.temporalite))
+    if (form.nb_points_prevus != null && form.nb_points_prevus !== '') params.set('campaign_nb_points', String(form.nb_points_prevus))
+    if (form.types_essais_prevus || data?.types_essais_prevus) params.set('campaign_essais', String(form.types_essais_prevus || data.types_essais_prevus))
+    if (form.responsable_technique || data?.responsable_technique) params.set('campaign_responsable', String(form.responsable_technique || data.responsable_technique))
+    if (form.attribue_a || data?.attribue_a) params.set('campaign_attribue_a', String(form.attribue_a || data.attribue_a))
+    appendCampaignInterventionQueryParams(params, { ...data, ...form })
     const detailReturnTo = buildLocationTarget(location)
     navigate(buildPathWithReturnTo(`/interventions/new?${params.toString()}`, detailReturnTo))
   }
@@ -360,8 +369,33 @@ export default function CampaignPage() {
                   ))}
                 </Select>
               </Field>
-              <Field label="Responsable technique"><Input value={form.responsable_technique || ''} onChange={(e) => setField('responsable_technique', e.target.value)} /></Field>
+              <Field label="Responsable technique (RST)"><Input value={form.responsable_technique || ''} onChange={(e) => setField('responsable_technique', e.target.value)} /></Field>
               <Field label="Attribué à"><Input value={form.attribue_a || ''} onChange={(e) => setField('attribue_a', e.target.value)} /></Field>
+              <Field label="Type de zone">
+                <Select value={form.zone_type || ''} onChange={(e) => setField('zone_type', e.target.value)}>
+                  {ZONE_TYPE_OPTIONS.map((item) => (
+                    <option key={item.value || 'empty'} value={item.value}>{item.label}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Groupe de comparaison"><Input value={form.comparison_group || ''} onChange={(e) => setField('comparison_group', e.target.value)} placeholder="Ex. CIRR-RARX-VIENNE" /></Field>
+              <Field label="PK début"><Input value={form.pk_debut || ''} onChange={(e) => setField('pk_debut', e.target.value)} /></Field>
+              <Field label="PK fin"><Input value={form.pk_fin || ''} onChange={(e) => setField('pk_fin', e.target.value)} /></Field>
+              <Field label="Voie"><Input value={form.voie || ''} onChange={(e) => setField('voie', e.target.value)} /></Field>
+              <Field label="Sens"><Input value={form.sens || ''} onChange={(e) => setField('sens', e.target.value)} /></Field>
+              <Field label="Côté"><Input value={form.cote || ''} onChange={(e) => setField('cote', e.target.value)} /></Field>
+              <Field label="Planche"><Input value={form.planche || ''} onChange={(e) => setField('planche', e.target.value)} /></Field>
+              <Field label="Longueur (ml)"><Input value={form.longueur_ml || ''} onChange={(e) => setField('longueur_ml', e.target.value)} /></Field>
+              <Field label="Zone de transition" full><Textarea value={form.zone_transition} onChange={(value) => setField('zone_transition', value)} rows={2} placeholder="Zones exclues des mesures comparatives" /></Field>
+              {buildZoneSummary(form) ? (
+                <div className="md:col-span-2 rounded-[12px] border border-[#dbe1ea] bg-[#f8fafc] px-3 py-2 text-[12px] text-[#69758a]">
+                  Résumé géométrique : <strong className="text-[#172033]">{buildZoneSummary(form)}</strong>
+                </div>
+              ) : null}
+              <Field label="Responsable innovation / produit"><Input value={form.responsable_innovation || ''} onChange={(e) => setField('responsable_innovation', e.target.value)} /></Field>
+              <Field label="Responsable travaux"><Input value={form.responsable_travaux || ''} onChange={(e) => setField('responsable_travaux', e.target.value)} /></Field>
+              <Field label="Responsable contrôles"><Input value={form.responsable_controle || ''} onChange={(e) => setField('responsable_controle', e.target.value)} /></Field>
+              <Field label="Responsable suivi"><Input value={form.responsable_suivi || ''} onChange={(e) => setField('responsable_suivi', e.target.value)} /></Field>
               <Field label="Critères de contrôle" full><Textarea value={form.criteres_controle} onChange={(value) => setField('criteres_controle', value)} rows={2} /></Field>
               <Field label="Livrables attendus" full><Textarea value={form.livrables_attendus} onChange={(value) => setField('livrables_attendus', value)} rows={2} /></Field>
               <Field label="Notes" full><Textarea value={form.notes} onChange={(value) => setField('notes', value)} rows={3} /></Field>
