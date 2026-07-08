@@ -135,3 +135,105 @@ def infer_labo_code(passation) -> str:
     if agency_key == "auvergne":
         return "AUV"
     return "SP"
+
+
+def classify_affaire_demande_link(
+    *,
+    passation_uid: int,
+    demande_uid: int,
+    passation_source_id: int | None,
+    passation_module_code: str,
+) -> dict[str, object]:
+    module_code = str(passation_module_code or "").strip()
+    if passation_source_id and int(passation_source_id) == passation_uid:
+        link_kind = "linked"
+    elif passation_source_id:
+        link_kind = "other_passation"
+    else:
+        link_kind = "manual"
+    return {
+        "demande_uid": demande_uid,
+        "link_kind": link_kind,
+        "linked_to_this_passation": link_kind == "linked",
+        "passation_module_code": module_code,
+        "linkable": passation_source_id is None,
+    }
+
+
+PASSATION_DEMANDE_SLOT = "demande"
+
+
+def build_demande_payload_from_passation(passation) -> dict:
+    """Payload unique pour la demande générée depuis une passation."""
+    description_parts = [
+        normalize_text(getattr(passation, "synthese", "")),
+        normalize_text(getattr(passation, "description_generale", "")),
+        normalize_text(getattr(passation, "contexte_marche", "")),
+    ]
+    besoin_parts = [
+        normalize_text(getattr(passation, "besoins_terrain", "")),
+        normalize_text(getattr(passation, "besoins_laboratoire", "")),
+        normalize_text(getattr(passation, "besoins_etude", "")),
+        normalize_text(getattr(passation, "besoins_g3", "")),
+        normalize_text(getattr(passation, "besoins_essais_externes", "")),
+    ]
+    description = next((part for part in description_parts if part), "")
+    if not description:
+        description = "\n".join(part for part in besoin_parts if part)
+
+    nature = normalize_text(getattr(passation, "operation_type", "")) or normalize_text(
+        getattr(passation, "description_generale", "")
+    ) or "Mission RST"
+    chantier = normalize_text(getattr(passation, "chantier", ""))
+    if chantier and chantier.casefold() not in nature.casefold():
+        nature = f"{nature} — {chantier}"
+
+    return {
+        "affaire_rst_id": getattr(passation, "affaire_rst_id", None),
+        "labo_code": infer_labo_code(passation),
+        "numero_dst": normalize_text(getattr(passation, "numero_etude", "")),
+        "type_mission": "À définir",
+        "nature": nature,
+        "description": description,
+        "demandeur": normalize_text(getattr(passation, "responsable", "")),
+        "date_reception": getattr(passation, "date_passation", None),
+        "priorite": "Normale",
+        "statut": "À qualifier",
+    }
+
+
+def passation_demande_state(
+    *,
+    linked_demande_uid: int | None,
+    linked_demande_reference: str = "",
+) -> dict[str, object]:
+    """État d'édition : une passation → une demande liée."""
+    has_demande = linked_demande_uid is not None
+    if has_demande:
+        lock_reason = (
+            "Une demande est liée à cette passation. "
+            "Modifiez la demande directement — la passation reste en lecture seule."
+        )
+    else:
+        lock_reason = ""
+    return {
+        "is_editable": not has_demande,
+        "linked_demande_uid": linked_demande_uid,
+        "linked_demande_reference": linked_demande_reference,
+        "pending_demande_modules": [] if has_demande else [PASSATION_DEMANDE_SLOT],
+        "generated_demande_count": 1 if has_demande else 0,
+        "edit_lock_reason": lock_reason,
+    }
+
+
+def passation_edit_state(module_items: list[dict]) -> dict[str, object]:
+    """Compatibilité : dérive l'état depuis un item unique de demande."""
+    if not module_items:
+        return passation_demande_state(linked_demande_uid=None)
+    linked = next((item for item in module_items if item.get("already_generated")), None)
+    if linked:
+        return passation_demande_state(
+            linked_demande_uid=int(linked.get("existing_demande_uid") or 0) or None,
+            linked_demande_reference=str(linked.get("existing_demande_reference") or ""),
+        )
+    return passation_demande_state(linked_demande_uid=None)

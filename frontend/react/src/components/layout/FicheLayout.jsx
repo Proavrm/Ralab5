@@ -2,6 +2,7 @@
  * Composants visuels partagés — style fiche Demande / Campagnes
  */
 import { formatDate } from '@/lib/utils'
+import LabName from '@/components/laboratoire/LabName'
 
 export const PAGE_BG = 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)'
 
@@ -31,8 +32,6 @@ export const PRIO_CLS = {
   Critique: 'bg-[#fcebeb] text-[#a32d2d]',
   Urgente: 'bg-[#fcebeb] text-[#a32d2d]',
 }
-
-export const LABO_NOM = { SP: 'Saint-Priest', PDC: 'Pont-du-Château', CHB: 'Chambéry', CLM: 'Clermont' }
 
 export function computeUrgDate(demande) {
   if (!demande?.date_echeance || ['Fini', 'Envoyé - Perdu', 'Archivée'].includes(demande?.statut)) return null
@@ -91,7 +90,7 @@ export function SectionCard({ title, subtitle, chip, actions, children, technica
   )
 }
 
-export function FicheTopbar({ backLabel, onBack, eyebrow, title, children }) {
+export function FicheTopbar({ backLabel, onBack, eyebrow, title, subtitle, children }) {
   return (
     <div
       className="sticky top-0 z-10 border-b border-[#dbe1ea]"
@@ -111,6 +110,7 @@ export function FicheTopbar({ backLabel, onBack, eyebrow, title, children }) {
         <div className="flex-1 min-w-[220px] leading-tight">
           <div className="text-[#8a95a8] text-[9px] font-bold tracking-[.12em] uppercase truncate">{eyebrow}</div>
           <div className="text-[13px] font-black truncate">{title}</div>
+          {subtitle ? <div className="text-[11px] font-bold text-[#69758a] truncate">{subtitle}</div> : null}
         </div>
         {children}
       </div>
@@ -159,7 +159,7 @@ export function DemandeHero({ demande, badgeLabel = 'RaLab 5 · Demande RST' }) 
             <FicheBadge s={demande.priorite} map={PRIO_CLS} />
           </div>
           <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Laboratoire</div>
-          <div className="mt-1.5 text-[13px] font-black">{LABO_NOM[demande.labo_code] || demande.labo_code || '—'}</div>
+          <div className="mt-1.5 text-[13px] font-black"><LabName code={demande.labo_code} /></div>
           {urgDate !== null ? (
             <div className={`mt-2 text-[12px] font-black ${urgDate < 0 ? 'text-[#ff6b6b]' : urgDate <= 7 ? 'text-[#ffcc00]' : 'text-white/70'}`}>
               {urgDate < 0 ? `Échéance dépassée (${Math.abs(Math.round(urgDate))}j)` : `Échéance dans ${Math.round(urgDate)}j`}

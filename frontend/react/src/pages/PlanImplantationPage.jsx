@@ -36,6 +36,171 @@ function normalizeRect(rect) {
     return { x1, y1, x2, y2 }
 }
 
+function isStorageImagePath(rawPath) {
+    const path = normalizePlanImagePath(rawPath)
+    if (!path) return false
+    if (/\.(jpg|jpeg|png|webp|gif|bmp|tif|tiff)$/i.test(path)) return true
+    return path.toLowerCase().startsWith('plans/')
+}
+
+const CROQUIS_PALETTE = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899']
+
+function buildTypeColors(points) {
+    const typeColors = {}
+    let colorIdx = 0
+    points.forEach((point) => {
+        const pointType = point.type || point.point_type
+        if (pointType && !typeColors[pointType]) {
+            typeColors[pointType] = CROQUIS_PALETTE[colorIdx++ % CROQUIS_PALETTE.length]
+        }
+    })
+    return typeColors
+}
+
+function buildInterventionCroquisFrames(payload, feuilles = []) {
+    const frames = []
+    const seenImagePaths = new Set()
+    const feuilleLabelById = new Map(
+        feuilles.map((item) => [String(item.id), String(item.reference || '').trim() || `Feuille #${item.id}`]),
+    )
+
+    const canvasByFeuille = payload?.canvas_by_feuille && typeof payload.canvas_by_feuille === 'object'
+        ? payload.canvas_by_feuille
+        : {}
+
+    Object.entries(canvasByFeuille).forEach(([feuilleId, entry]) => {
+        if (!entry || typeof entry !== 'object') return
+        const imagePath = normalizePlanImagePath(entry.image_path || '')
+        if (!imagePath || !isStorageImagePath(imagePath)) return
+
+        const points = (Array.isArray(entry.points) ? entry.points : []).filter((point) => point?.x != null && point?.y != null)
+        const zoneRect = normalizeRect(entry.zone_rect)
+        frames.push({
+            key: `feuille-${feuilleId}`,
+            label: feuilleId === 'default'
+                ? "Plan d'intervention"
+                : (feuilleLabelById.get(feuilleId) || `Plan d'intervention · feuille #${feuilleId}`),
+            imagePath,
+            points,
+            zoneRects: zoneRect ? [zoneRect] : [],
+        })
+        seenImagePaths.add(imagePath)
+    })
+
+    const legacyCanvas = payload?.canvas && typeof payload.canvas === 'object' ? payload.canvas : null
+    if (legacyCanvas) {
+        const imagePath = normalizePlanImagePath(legacyCanvas.image_path || '')
+        if (imagePath && isStorageImagePath(imagePath) && !seenImagePaths.has(imagePath)) {
+            const points = (Array.isArray(legacyCanvas.points) ? legacyCanvas.points : []).filter((point) => point?.x != null && point?.y != null)
+            const zoneRect = normalizeRect(legacyCanvas.zone_rect)
+            frames.unshift({
+                key: 'legacy-canvas',
+                label: "Plan d'intervention",
+                imagePath,
+                points,
+                zoneRects: zoneRect ? [zoneRect] : [],
+            })
+        }
+    }
+
+    return frames
+}
+
+function CroquisFrame({ frame, maskId }) {
+    const imageUrl = buildStorageImageUrl(frame.imagePath)
+    if (!imageUrl) return null
+
+    const points = Array.isArray(frame.points) ? frame.points : []
+    const zoneRects = Array.isArray(frame.zoneRects) ? frame.zoneRects : []
+    const typeColors = buildTypeColors(points)
+
+    return (
+        <div className="flex flex-col gap-2">
+            {frame.label ? (
+                <div className="text-[12px] font-semibold text-text">{frame.label}</div>
+            ) : null}
+            <div className="relative w-full overflow-hidden border border-border rounded-lg bg-bg">
+                <img
+                    src={imageUrl}
+                    alt={frame.label || "Croquis d'implantation"}
+                    className="block w-full h-auto select-none pointer-events-none"
+                    draggable={false}
+                />
+                {points.length > 0 || zoneRects.length > 0 ? (
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none">
+                        {zoneRects.length > 0 ? (
+                            <defs>
+                                <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+                                    <rect x="0" y="0" width="100" height="100" fill="white" />
+                                    {zoneRects.map((rect, idx) => (
+                                        <rect
+                                            key={`zone-mask-${idx}`}
+                                            x={rect.x1}
+                                            y={rect.y1}
+                                            width={rect.x2 - rect.x1}
+                                            height={rect.y2 - rect.y1}
+                                            fill="black"
+                                        />
+                                    ))}
+                                </mask>
+                            </defs>
+                        ) : null}
+                        {zoneRects.length > 0 ? (
+                            <rect x="0" y="0" width="100" height="100" fill="rgba(15, 23, 42, 0.22)" mask={`url(#${maskId})`} />
+                        ) : null}
+                        {zoneRects.map((rect, idx) => {
+                            const zoneColor = CROQUIS_PALETTE[idx % CROQUIS_PALETTE.length]
+                            return (
+                                <rect
+                                    key={`zone-${idx}`}
+                                    x={rect.x1}
+                                    y={rect.y1}
+                                    width={rect.x2 - rect.x1}
+                                    height={rect.y2 - rect.y1}
+                                    fill="rgba(59,130,246,0.03)"
+                                    stroke={zoneColor}
+                                    strokeWidth="0.35"
+                                    strokeDasharray="1.1 0.7"
+                                />
+                            )
+                        })}
+                        {points.map((point) => {
+                            const color = typeColors[point.type || point.point_type] || '#6b7280'
+                            return (
+                                <g key={point.id || point.linked_uid || point.code}>
+                                    <circle cx={Number(point.x)} cy={Number(point.y)} r="0.85" fill={color} stroke="white" strokeWidth="0.3" opacity="0.95" />
+                                    <text x={Number(point.x) + 1.1} y={Number(point.y) + 0.45} fontSize="1.7" fill={color} fontFamily="sans-serif" fontWeight="700">{point.code}</text>
+                                </g>
+                            )
+                        })}
+                    </svg>
+                ) : null}
+            </div>
+            {points.length === 0 ? (
+                <p className="text-[11px] text-text-muted">Plan d&apos;intervention — aucun point implanté sur ce plan.</p>
+            ) : null}
+            {Object.keys(typeColors).length > 0 ? (
+                <div className="flex flex-wrap gap-3">
+                    {Object.entries(typeColors).map(([type, color]) => (
+                        <div key={type} className="flex items-center gap-1.5">
+                            <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: color }} />
+                            <span className="text-[11px] text-text-muted">{type}</span>
+                        </div>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    )
+}
+
+function resolvePointCoordinates(item, canvasPoint) {
+    return {
+        x: item?.x ?? item?.plan_canvas_x ?? canvasPoint?.geo_x ?? canvasPoint?.x ?? null,
+        y: item?.y ?? item?.plan_canvas_y ?? canvasPoint?.geo_y ?? canvasPoint?.y ?? null,
+        z: item?.z ?? canvasPoint?.z ?? null,
+    }
+}
+
 function Card({ title, children }) {
     return (
         <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
@@ -80,10 +245,14 @@ function Textarea({ value, onChange, rows = 3, placeholder = '' }) {
 }
 
 function buildDraftPrefill(searchParams) {
+    const interventionId = searchParams.get('intervention_id') || ''
+    const campagneId = searchParams.get('campagne_id') || ''
+    const defaultScope = searchParams.get('scope')
+        || (interventionId ? 'intervention' : (campagneId ? 'campagne' : 'demande'))
     return {
-        scope: searchParams.get('scope') || 'campagne',
-        intervention_id: searchParams.get('intervention_id') || '',
-        campagne_id: searchParams.get('campagne_id') || '',
+        scope: defaultScope,
+        intervention_id: interventionId,
+        campagne_id: campagneId,
         demande_id: searchParams.get('demande_id') || '',
         campagne_reference: searchParams.get('campagne_reference') || '',
         intervention_reference: searchParams.get('intervention_reference') || '',
@@ -127,8 +296,9 @@ export default function PlanImplantationPage() {
     const [searchParams] = useSearchParams()
     const queryClient = useQueryClient()
     const isNew = String(uid || '').trim().toLowerCase() === 'new'
+    const isConsultationMode = !isNew && String(searchParams.get('mode') || '').trim().toLowerCase() === 'consultation'
     const draftPrefill = useMemo(() => buildDraftPrefill(searchParams), [searchParams])
-    const [editing, setEditing] = useState(isNew)
+    const [editing, setEditing] = useState(isNew && !isConsultationMode)
     const [form, setForm] = useState(() => buildForm(null, draftPrefill))
     const childReturnTo = buildLocationTarget(location)
     const parentInterventionId = Number.parseInt(String(isNew ? form.intervention_id : ''), 10)
@@ -152,10 +322,13 @@ export default function PlanImplantationPage() {
             setForm(buildForm(null, draftPrefill))
             return
         }
+        if (isConsultationMode) {
+            setEditing(false)
+        }
         if (data) {
             setForm(buildForm(data))
         }
-    }, [isNew, draftPrefill, data])
+    }, [isNew, isConsultationMode, draftPrefill, data])
 
     const saveMutation = useMutation({
         mutationFn: (payload) => isNew ? plansImplantationApi.create(payload) : plansImplantationApi.update(uid, payload),
@@ -167,6 +340,13 @@ export default function PlanImplantationPage() {
             queryClient.setQueryData(['plan-implantation', uid], saved)
             setForm(buildForm(saved))
             setEditing(false)
+        },
+    })
+
+    const deleteMutation = useMutation({
+        mutationFn: () => plansImplantationApi.delete(uid),
+        onSuccess: () => {
+            navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)
         },
     })
 
@@ -230,6 +410,12 @@ export default function PlanImplantationPage() {
             if (!code) return
             const key = code.toUpperCase()
             const canvasPoint = canvasByCode.get(key)
+            const implanted = Boolean(
+                item.already_in_plan
+                || (item.plan_canvas_x != null && item.plan_canvas_y != null)
+                || (canvasPoint?.x != null && canvasPoint?.y != null),
+            )
+            const coords = resolvePointCoordinates(item, canvasPoint)
             byCode.set(key, {
                 uid: item.uid,
                 point_code: code,
@@ -238,11 +424,11 @@ export default function PlanImplantationPage() {
                 feuille_date_essai: item.feuille_date_essai || '',
                 axe: canvasPoint?.axe || '',
                 pk: canvasPoint?.pk || '',
-                x: canvasPoint?.x ?? null,
-                y: canvasPoint?.y ?? null,
-                z: canvasPoint?.z ?? null,
-                statut_implantation: item.already_in_plan || (canvasPoint?.x != null && canvasPoint?.y != null) ? 'Implanté' : 'À implanter',
-                already_in_plan: Boolean(item.already_in_plan || (canvasPoint?.x != null && canvasPoint?.y != null)),
+                x: coords.x,
+                y: coords.y,
+                z: coords.z,
+                statut_implantation: implanted ? 'Implanté' : 'À implanter',
+                already_in_plan: implanted,
             })
         })
 
@@ -251,6 +437,8 @@ export default function PlanImplantationPage() {
             if (!code) return
             const key = code.toUpperCase()
             if (byCode.has(key)) return
+            const implanted = point.x != null && point.y != null
+            const coords = resolvePointCoordinates(null, point)
             byCode.set(key, {
                 uid: point.linked_uid || point.id || key,
                 point_code: code,
@@ -259,11 +447,11 @@ export default function PlanImplantationPage() {
                 feuille_date_essai: point.feuille_date_essai || '',
                 axe: point.axe || '',
                 pk: point.pk || '',
-                x: point.x ?? null,
-                y: point.y ?? null,
-                z: point.z ?? null,
-                statut_implantation: point.x != null && point.y != null ? 'Implanté' : 'À implanter',
-                already_in_plan: point.x != null && point.y != null,
+                x: coords.x,
+                y: coords.y,
+                z: coords.z,
+                statut_implantation: implanted ? 'Implanté' : 'À implanter',
+                already_in_plan: implanted,
             })
         })
 
@@ -272,15 +460,44 @@ export default function PlanImplantationPage() {
         )
     }, [interventionPointsData?.points, canvasPoints])
 
-    const pointTypes = useMemo(() => {
-        const values = mergedPoints.map((item) => item.point_type).filter(Boolean)
-        return [...new Set(values)]
-    }, [mergedPoints])
+    const croquisFrames = useMemo(() => {
+        const payload = isNew ? {} : (data?.payload || {})
+        const feuilles = Array.isArray(interventionPointsData?.feuilles) ? interventionPointsData.feuilles : []
+        const frames = buildInterventionCroquisFrames(payload, feuilles)
 
-    const saveError = saveMutation.error?.message || ''
+        if (frames.length > 0) return frames
+
+        const fondPath = normalizePlanImagePath(
+            data?.fond_plan
+            || data?.payload?.fond_plan
+            || form.fond_plan
+            || '',
+        )
+        if (isStorageImagePath(fondPath)) {
+            return [{
+                key: 'fond-plan',
+                label: 'Plan sélectionné',
+                imagePath: fondPath,
+                points: [],
+                zoneRects: [],
+            }]
+        }
+
+        return []
+    }, [isNew, data, interventionPointsData, form.fond_plan])
+
+    const saveError = saveMutation.error?.message || deleteMutation.error?.message || ''
 
     function setField(key, value) {
         setForm((current) => ({ ...current, [key]: value }))
+    }
+
+    function handleDelete() {
+        const label = data?.reference || `PI #${uid}`
+        if (!window.confirm(
+            `Supprimer le plan d'implantation ${label} ?\n\nLe canevas et les implantations planimétriques seront supprimés. Les points terrain restent inchangés.`,
+        )) return
+        deleteMutation.mutate()
     }
 
     function handleSave() {
@@ -340,42 +557,27 @@ export default function PlanImplantationPage() {
         })[0]
         return latest ? Number(latest.id) : null
     })()
-    const imagePath = normalizePlanImagePath(
-        current?.payload?.canvas?.image_path
-        || canvasEntries.find((entry) => String(entry?.image_path || '').trim())?.image_path
-        || current?.fond_plan
-        || current?.payload?.fond_plan
-        || '',
-    )
-    const imageUrl = buildStorageImageUrl(imagePath)
-    const zoneRects = Array.from(
-        new Map(
-            canvasEntries
-                .map((entry) => normalizeRect(entry?.zone_rect))
-                .filter(Boolean)
-                .map((rect) => {
-                    const key = `${rect.x1.toFixed(4)}:${rect.y1.toFixed(4)}:${rect.x2.toFixed(4)}:${rect.y2.toFixed(4)}`
-                    return [key, rect]
-                }),
-        ).values(),
-    )
-    const croquisPoints = canvasPoints.filter((p) => p?.x != null && p?.y != null)
-    const outsideZonesMaskId = `pi-zones-mask-${uid || 'new'}`
+
+    const canvasPath = `/plans-implantation/${uid}/canvas${preferredCanvasFeuilleId != null ? `?feuille_id=${preferredCanvasFeuilleId}` : ''}`
+    const openCanvas = () => navigateWithReturnTo(navigate, canvasPath, childReturnTo)
+
+    const showEditForm = editing && !isConsultationMode
+    const implantedCount = mergedPoints.filter((item) => item.already_in_plan).length
 
     return (
         <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="max-w-3xl">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Fiche support de campagne</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Plan d&apos;implantation</p>
                     <h1 className="mt-2 text-3xl font-semibold tracking-tight text-text">{isNew ? "Nouveau plan d'implantation" : current.reference}</h1>
-                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
-                        Plan d’implantation des points terrain, repères et axes utilisés avant lancement des investigations.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-text-muted">
+                    {!isNew && current?.titre ? (
+                        <p className="mt-2 text-sm text-text-muted">{current.titre}</p>
+                    ) : null}
+                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
                         {(current?.demande_reference || form.demande_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Demande {current?.demande_reference || form.demande_reference}</span> : null}
                         {(current?.campagne_reference || form.campagne_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Campagne {current?.campagne_reference || form.campagne_reference}</span> : null}
                         {(current?.intervention_reference || form.intervention_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Intervention {current?.intervention_reference || form.intervention_reference}</span> : null}
-                        <span className="rounded-full border border-border bg-bg px-3 py-1">Scope {editing ? form.scope : (current?.ownership_scope || form.scope)}</span>
+                        {!isNew ? <span className="rounded-full border border-border bg-bg px-3 py-1">{implantedCount} point{implantedCount > 1 ? 's' : ''} implanté{implantedCount > 1 ? 's' : ''}</span> : null}
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -384,8 +586,8 @@ export default function PlanImplantationPage() {
                     {Number.isInteger(currentInterventionId) && currentInterventionId > 0 ? <Button variant="secondary" onClick={() => navigate(`/interventions/${currentInterventionId}`)}>Ouvrir l’intervention</Button> : null}
                     {!isNew ? (
                         <Button
-                            variant="secondary"
-                            onClick={() => navigate(`/plans-implantation/${uid}/canvas${preferredCanvasFeuilleId != null ? `?feuille_id=${preferredCanvasFeuilleId}` : ''}`)}
+                            variant={isConsultationMode ? 'primary' : 'secondary'}
+                            onClick={openCanvas}
                         >
                             🖼 Canevas
                         </Button>
@@ -395,11 +597,22 @@ export default function PlanImplantationPage() {
                             <Button variant="secondary" onClick={handleCancel}>Annuler</Button>
                             <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending || !form.demande_id}>{saveMutation.isPending ? '…' : 'Enregistrer'}</Button>
                         </>
-                    ) : (
-                        <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
-                    )}
+                    ) : !isConsultationMode ? (
+                        <>
+                            <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
+                            <Button variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
+                                {deleteMutation.isPending ? '…' : 'Supprimer'}
+                            </Button>
+                        </>
+                    ) : null}
                 </div>
             </div>
+
+            {isConsultationMode ? (
+                <div className="rounded-lg border border-[#cfe4f6] bg-[#eef6fd] px-4 py-3 text-sm text-[#185fa5]">
+                    Consultation seule du cadre — choisissez le fond de plan et implantez les points via le canevas.
+                </div>
+            ) : null}
 
             {isNew ? (
                 <div className="rounded-lg border border-[#cfe4f6] bg-[#eef6fd] px-4 py-3 text-sm text-[#185fa5]">
@@ -413,60 +626,42 @@ export default function PlanImplantationPage() {
                 </div>
             ) : null}
 
-            {editing ? (
+            {showEditForm ? (
                 <Card title="Cadre du plan d’implantation">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Field label="Scope">
-                            <select
-                                value={form.scope}
-                                onChange={(event) => setField('scope', event.target.value)}
-                                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
-                            >
-                                <option value="demande">Demande</option>
-                                <option value="campagne">Campagne</option>
-                                <option value="intervention">Intervention</option>
-                            </select>
-                        </Field>
                         <Field label="Titre"><Input value={form.titre} onChange={(event) => setField('titre', event.target.value)} /></Field>
                         <Field label="Date plan"><Input type="date" value={form.date_plan} onChange={(event) => setField('date_plan', event.target.value)} /></Field>
                         <Field label="Opérateur"><Input value={form.operateur} onChange={(event) => setField('operateur', event.target.value)} /></Field>
                         <Field label="Zone"><Input value={form.zone} onChange={(event) => setField('zone', event.target.value)} /></Field>
-                        <Field label="Fond de plan"><Input value={form.fond_plan} onChange={(event) => setField('fond_plan', event.target.value)} /></Field>
                         <Field label="Système de repérage"><Input value={form.systeme_reperage} onChange={(event) => setField('systeme_reperage', event.target.value)} /></Field>
                         <Field label="Repère de base"><Input value={form.repere_base} onChange={(event) => setField('repere_base', event.target.value)} /></Field>
-                        <Field label="Campagne"><Input value={form.campagne_reference || (form.campagne_id ? `#${form.campagne_id}` : '')} readOnly /></Field>
                         <Field label="Intervention"><Input value={form.intervention_reference || (form.intervention_id ? `#${form.intervention_id}` : '')} readOnly /></Field>
+                        <Field label="Campagne"><Input value={form.campagne_reference || (form.campagne_id ? `#${form.campagne_id}` : '')} readOnly /></Field>
                         <Field label="Observations" full><Textarea value={form.observations} onChange={(value) => setField('observations', value)} rows={4} /></Field>
+                    </div>
+                </Card>
+            ) : !isNew ? (
+                <Card title="Cadre">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Row label="Titre" value={current?.titre} />
+                        <Row label="Date plan" value={formatDate(current?.date_plan)} />
+                        <Row label="Opérateur" value={current?.operateur} />
+                        <Row label="Statut" value={current?.statut || ''} />
+                        <Row label="Zone" value={current?.zone} />
+                        <Row label="Système de repérage" value={current?.systeme_reperage} />
+                        <Row label="Repère de base" value={current?.repere_base || current?.payload?.repere_base} />
+                        <Row label="Intervention" value={current?.intervention_reference} />
+                        {current?.observations ? (
+                            <div className="md:col-span-2 flex flex-col gap-0.5">
+                                <span className="text-[10px] text-text-muted">Observations</span>
+                                <span className="text-[13px] whitespace-pre-wrap text-text">{current.observations}</span>
+                            </div>
+                        ) : null}
                     </div>
                 </Card>
             ) : null}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <Card title="Cadre">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Row label="Titre" value={editing ? form.titre : current?.titre} />
-                        <Row label="Date plan" value={formatDate(editing ? form.date_plan : current?.date_plan)} />
-                        <Row label="Opérateur" value={editing ? form.operateur : current?.operateur} />
-                        <Row label="Statut" value={current?.statut || (isNew ? 'Brouillon' : '')} />
-                        <Row label="Zone" value={editing ? form.zone : current?.zone} />
-                        <Row label="Fond de plan" value={editing ? form.fond_plan : (current?.fond_plan || current?.payload?.fond_plan)} />
-                        <Row label="Système de repérage" value={editing ? form.systeme_reperage : current?.systeme_reperage} />
-                        <Row label="Repère de base" value={editing ? form.repere_base : (current?.repere_base || current?.payload?.repere_base)} />
-                        <Row label="Scope" value={editing ? form.scope : (current?.ownership_scope || form.scope)} />
-                        <Row label="Origine" value={current?.ownership_origin_label || ''} />
-                    </div>
-                </Card>
-                <Card title="Synthèse">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Row label="Points implantés" value={String(mergedPoints.filter((item) => item.already_in_plan).length)} />
-                        <Row label="Familles de points" value={pointTypes.join(', ')} />
-                        <Row label="Intervention source" value={current?.intervention_subject || current?.type_intervention} />
-                        <Row label="Description" value={current?.payload?.description} />
-                    </div>
-                    <div className="mt-4 text-sm whitespace-pre-wrap text-text-muted">{editing ? (form.observations || '—') : (current?.observations || '—')}</div>
-                </Card>
-            </div>
-
+            {!isNew ? (
             <Card title="Points implantés">
                 {mergedPoints.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -504,96 +699,43 @@ export default function PlanImplantationPage() {
                         </table>
                     </div>
                 ) : (
-                    <div className="text-[13px] text-text-muted">{isNew ? 'Enregistre d’abord ce plan d’implantation pour ajouter ensuite des points.' : 'Aucun point détaillé dans ce plan d’implantation.'}</div>
+                    <div className="text-[13px] text-text-muted">Aucun point dans ce plan d’implantation. Utilisez le canevas pour implanter les points.</div>
                 )}
             </Card>
+            ) : null}
 
-            <Card title="Croquis d'implantation">
-                {(() => {
-                    if (!imageUrl) {
-                        return <div className="text-[13px] text-text-muted">Croquis non disponible (aucune image de plan liée).</div>
-                    }
-                    if (croquisPoints.length === 0) {
-                        return <div className="text-[13px] text-text-muted">Croquis non disponible (aucun point géoréférencé).</div>
-                    }
-                    const palette = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899']
-                    const typeColors = {}
-                    let colorIdx = 0
-                    croquisPoints.forEach((p) => {
-                        const pType = p.type || p.point_type
-                        if (pType && !typeColors[pType]) typeColors[pType] = palette[colorIdx++ % palette.length]
-                    })
-
-                    return (
-                        <div className="flex flex-col gap-3">
-                            <div className="relative w-full overflow-hidden border border-border rounded-lg bg-bg">
-                                <img src={imageUrl} alt="Croquis d'implantation" className="block w-full h-auto select-none pointer-events-none" draggable={false} />
-                                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full pointer-events-none">
-                                    {zoneRects.length > 0 ? (
-                                        <defs>
-                                            <mask id={outsideZonesMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
-                                                <rect x="0" y="0" width="100" height="100" fill="white" />
-                                                {zoneRects.map((rect, idx) => (
-                                                    <rect
-                                                        key={`zone-mask-${idx}`}
-                                                        x={rect.x1}
-                                                        y={rect.y1}
-                                                        width={rect.x2 - rect.x1}
-                                                        height={rect.y2 - rect.y1}
-                                                        fill="black"
-                                                    />
-                                                ))}
-                                            </mask>
-                                        </defs>
-                                    ) : null}
-                                    {zoneRects.length > 0 ? (
-                                        <rect x="0" y="0" width="100" height="100" fill="rgba(15, 23, 42, 0.22)" mask={`url(#${outsideZonesMaskId})`} />
-                                    ) : null}
-                                    {zoneRects.map((rect, idx) => {
-                                        const zoneColor = palette[idx % palette.length]
-                                        return (
-                                            <rect
-                                                key={`zone-${idx}`}
-                                                x={rect.x1}
-                                                y={rect.y1}
-                                                width={rect.x2 - rect.x1}
-                                                height={rect.y2 - rect.y1}
-                                                fill="rgba(59,130,246,0.03)"
-                                                stroke={zoneColor}
-                                                strokeWidth="0.35"
-                                                strokeDasharray="1.1 0.7"
-                                            />
-                                        )
-                                    })}
-                                    {croquisPoints.map((p) => {
-                                        const color = typeColors[p.type || p.point_type] || '#6b7280'
-                                        return (
-                                            <g key={p.id || p.linked_uid || p.code}>
-                                                <circle cx={Number(p.x)} cy={Number(p.y)} r="0.85" fill={color} stroke="white" strokeWidth="0.3" opacity="0.95" />
-                                                <text x={Number(p.x) + 1.1} y={Number(p.y) + 0.45} fontSize="1.7" fill={color} fontFamily="sans-serif" fontWeight="700">{p.code}</text>
-                                            </g>
-                                        )
-                                    })}
-                                </svg>
-                            </div>
-                            <p className="text-[11px] text-text-muted">Mode lecture seule: aperçu du canevas sur toutes les zones d’intervention disponibles.</p>
-                            {Object.keys(typeColors).length > 0 && (
-                                <div className="flex flex-wrap gap-3">
-                                    {Object.entries(typeColors).map(([type, color]) => (
-                                        <div key={type} className="flex items-center gap-1.5">
-                                            <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: color }} />
-                                            <span className="text-[11px] text-text-muted">{type}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+            {!isNew ? (
+            <Card title="Plans sélectionnés">
+                {croquisFrames.length > 0 ? (
+                    <div className="flex flex-col gap-5">
+                        {croquisFrames.map((frame) => (
+                            <CroquisFrame
+                                key={frame.key}
+                                frame={frame}
+                                maskId={`pi-zones-mask-${uid || 'new'}-${frame.key}`}
+                            />
+                        ))}
+                        <p className="text-[11px] text-text-muted">
+                            Uniquement les plans image choisis dans le canevas pour ce dossier PI.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        <div className="text-[13px] text-text-muted">
+                            Aucun plan image sélectionné. Ouvrez le canevas pour choisir le fond de plan à utiliser.
                         </div>
-                    )
-                })()}
+                        <div>
+                            <Button variant="primary" onClick={openCanvas}>
+                                Ouvrir le canevas
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Card>
+            ) : null}
 
+            {!isNew && Array.isArray(current?.rapports) && current.rapports.length > 0 ? (
             <Card title="Rapports liés">
-                {Array.isArray(current?.rapports) && current.rapports.length > 0 ? (
                     <div className="flex flex-col gap-2">
                         {current.rapports.map((rapport) => (
                             <div key={rapport.uid} className="rounded-lg border border-border bg-bg px-3 py-3">
@@ -605,10 +747,10 @@ export default function PlanImplantationPage() {
                             </div>
                         ))}
                     </div>
-                ) : (
-                    <div className="text-[13px] text-text-muted">Aucun rapport lié.</div>
-                )}
             </Card>
+            ) : null}
         </div>
     )
 }
+
+

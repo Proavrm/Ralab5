@@ -4,8 +4,27 @@
  * Current scope: Organiser + Agenda Demandes + Analyser.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { planningApi } from '@/services/api'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { buildPlanningLabFilterOptions } from '@/lib/laboratoireCatalog'
+import {
+  AGENDA_DEFAULT_DATA_ROW_HEIGHT,
+  AGENDA_HEADER_ROW_HEIGHT,
+  AGENDA_LABEL_COL_WIDTH,
+  agendaWeekEvents,
+  countOrganiserKindFilters,
+  filterDemandeAgendaItems,
+  filterLaboAgendaItems,
+  filterOrganiserItems,
+  ORGANISER_KIND_FILTERS,
+  planningAffaireRefLabel,
+  planningDistanceCaption,
+} from '@/lib/planningShared'
+import PlanningItemPopupActions from '@/components/planning/PlanningItemPopupActions'
+import AnalyserPlanningChip from '@/components/planning/AnalyserPlanningChip'
+import { missionFeuilleStatusMeta } from '@/lib/feuilleMissionJournee'
 import './planning.css'
 
 const D7 = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -19,7 +38,6 @@ const STATUS_META = {
     Termine: { dot: '#0f6e56', bg: '#E1F5EE', fg: '#0f6e56' },
     Annule: { dot: '#e24b4a', bg: '#fcebeb', fg: '#a32d2d' },
 }
-const LABS = ['', 'Saint-Priest', 'Pont-du-Ch.', 'Chambéry', 'Clermont']
 
 function itemKey(item) {
     return `${item.kind}:${item.uid}`
@@ -48,6 +66,17 @@ function normalizePlanningItem(row) {
         source_demande_id: row.source_demande_id ?? null,
         affaire_ref: row.affaire_ref || '',
         wbs: row.wbs || '',
+        distance_to_lab: row.distance_to_lab || null,
+        distance_to_lab_text: row.distance_to_lab_text || '',
+        technicien: row.technicien || '',
+        geotechnicien: row.geotechnicien || '',
+        programme_terrain: row.programme_terrain || '',
+        type_intervention: row.type_intervention || '',
+        is_demande_scope: row.is_demande_scope === true,
+        date_envoi: row.date_envoi || '',
+        mission_feuille_status: row.mission_feuille_status || 'none',
+        mission_feuille_generated_at: row.mission_feuille_generated_at || '',
+        mission_feuille_printed_at: row.mission_feuille_printed_at || '',
     }
     return {
         ...normalized,
@@ -240,7 +269,7 @@ function Sidebar({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, on
     )
 }
 
-function Popup({ item, anchor, onClose, onSave, onOpenItem }) {
+function Popup({ item, anchor, onClose, onSave, onOpenItem, onOpenPreparation }) {
     const [start, setStart] = useState(item?.start || '')
     const [ech, setEch] = useState(item?.ech || '')
 
@@ -254,9 +283,13 @@ function Popup({ item, anchor, onClose, onSave, onOpenItem }) {
     const style = anchor ? {
         top: `${Math.min(window.innerHeight - 290, anchor.bottom + 6)}px`,
         left: `${Math.min(window.innerWidth - 310, anchor.left)}px`,
-    } : undefined
+    } : {
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+    }
 
-    return (
+    return createPortal(
         <div className="item-popup open" style={style}>
             <div className="ip-hdr">
                 <div className="ip-ref">{item.kind_label} · {item.ref}</div>
@@ -265,6 +298,25 @@ function Popup({ item, anchor, onClose, onSave, onOpenItem }) {
             </div>
             <div className="ip-tit">{item.tit}</div>
             {item.subtitle ? <div className="ip-sub">{item.subtitle}</div> : null}
+            {planningDistanceCaption(item) ? (
+                <div className="ip-sub">{planningDistanceCaption(item)}</div>
+            ) : null}
+            {item.programme_terrain ? (
+                <div className="ip-sub ip-prog">À faire · {item.programme_terrain}</div>
+            ) : null}
+            {item.kind === 'intervention' && !item.is_demande_scope ? (
+                <div className="ip-sub ip-mission-status">
+                    Feuille mission ·{' '}
+                    <span className={`t4-chip-badge ${missionFeuilleStatusMeta(item.mission_feuille_status).className}`}>
+                        {missionFeuilleStatusMeta(item.mission_feuille_status).label}
+                    </span>
+                    {item.mission_feuille_printed_at ? (
+                        <span>{` · imprimée ${fmtShort(String(item.mission_feuille_printed_at).slice(0, 10))}`}</span>
+                    ) : item.mission_feuille_generated_at ? (
+                        <span>{` · générée ${fmtShort(String(item.mission_feuille_generated_at).slice(0, 10))}`}</span>
+                    ) : null}
+                </div>
+            ) : null}
             {item.wbs ? <div className="ip-sub ip-wbs">WBS: {item.wbs}</div> : null}
             {item.editable_start ? (
                 <div className="ip-row">
@@ -278,16 +330,18 @@ function Popup({ item, anchor, onClose, onSave, onOpenItem }) {
                     <input className="ip-input" type="date" value={ech} onChange={(e) => setEch(e.target.value)} />
                 </div>
             ) : null}
+            <PlanningItemPopupActions item={item} onOpenPreparation={onOpenPreparation} />
             <div className="ip-btns">
                 <button className="ip-btn" onClick={onClose}>Fermer</button>
                 <button className="ip-btn link" onClick={onOpenItem}>{item.open_label || 'Ouvrir'}</button>
                 <button className="ip-btn primary" onClick={() => onSave(item, { start, ech })}>Enregistrer</button>
             </div>
-        </div>
+        </div>,
+        document.body,
     )
 }
 
-function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, onNextMonth, popupOpen, onPopupOpen, onPopupClose, onPopupSave, onOpenItem }) {
+function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, onNextMonth, popupOpen, onPopupOpen, onPopupClose, onPopupSave, onOpenItem, onOpenPreparation }) {
     const [refDate, setRefDate] = useState(() => new Date())
     const dragRef = useRef(null)
     const gridRef = useRef(null)
@@ -304,9 +358,10 @@ function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onC
     const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(ws, i)), [ws])
     const wsStr = dateStr(ws)
     const weStr = dateStr(days[6])
-    const events = useMemo(() => data
-        .filter((d) => d.start && d.ech && d.ech >= wsStr && d.start <= weStr)
-        .sort((a, b) => a.key.localeCompare(b.key)), [data, wsStr, weStr])
+    const events = useMemo(
+        () => agendaWeekEvents(data, wsStr, weStr),
+        [data, wsStr, weStr],
+    )
 
     const weekNumber = useMemo(() => {
         const startOfYear = new Date(ws.getFullYear(), 0, 1)
@@ -323,7 +378,7 @@ function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onC
         ev.preventDefault()
         ev.stopPropagation()
         const rect = gridRef.current?.getBoundingClientRect()
-        const cellWidth = rect ? (rect.width - 92) / 7 : 110
+        const cellWidth = rect ? (rect.width - AGENDA_LABEL_COL_WIDTH) / 7 : 110
         dragRef.current = {
             key: item.key,
             mode,
@@ -387,7 +442,14 @@ function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onC
                     <button className="ag-tdb" onClick={() => setRefDate(new Date())}>Aujourd&apos;hui</button>
                 </div>
                 <div className="ag-grid-wrap">
-                    <div className="ag-grid" ref={gridRef} style={{ gridTemplateColumns: '92px repeat(7, minmax(90px, 1fr))', gridTemplateRows: `32px repeat(${Math.max(events.length, 1)}, 34px) 1fr` }}>
+                    <div
+                        className="ag-grid"
+                        ref={gridRef}
+                        style={{
+                            gridTemplateColumns: `${AGENDA_LABEL_COL_WIDTH}px repeat(7, minmax(100px, 1fr))`,
+                            gridTemplateRows: `${AGENDA_HEADER_ROW_HEIGHT}px repeat(${Math.max(events.length, 1)}, ${AGENDA_DEFAULT_DATA_ROW_HEIGHT}px) 1fr`,
+                        }}
+                    >
                         <div className="ag-corner" />
                         {days.map((day, idx) => {
                             const today = new Date()
@@ -422,6 +484,9 @@ function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onC
                             return [
                                 <div key={`lab-${ev.key}`} className="ag-label" style={{ gridRow: ri + 2, gridColumn: 1 }} onClick={() => onOpenItem(ev)} title={ev.open_label || 'Ouvrir'}>
                                     <div className="ag-lref" style={{ color: colors.border }}>{ev.ref}</div>
+                                    {planningAffaireRefLabel(ev) ? (
+                                        <div className="ag-laffaire">{planningAffaireRefLabel(ev)}</div>
+                                    ) : null}
                                     <div className="ag-llabo">{ev.kind_label}{ev.labo ? ` · ${ev.labo}` : ''}</div>
                                 </div>,
                                 <div key={`bar-wrap-${ev.key}`} style={{ gridRow: ri + 2, gridColumn: `${colS}/${colE}`, position: 'relative', borderBottom: '0.5px solid var(--border)' }}>
@@ -442,16 +507,14 @@ function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onC
                                             onPopupOpen(ev, e.currentTarget.getBoundingClientRect())
                                         }}
                                     >
-                                        <span className="ag-bar-ref">{ev.ref}</span>
                                         {ev.urg === 'late' ? <span className="ag-urg">🔴</span> : ev.urg === 'soon' ? <span className="ag-urg">🟡</span> : null}
                                         <span className="ag-bar-tit">{ev.tit}</span>
                                         <span className="ag-bar-dates">{fmtShort(ev.start)} → {fmtShort(ev.ech)}</span>
                                         <span className="bd neutral">{ev.kind_label}</span>
-                                        {ev.affaire_ref ? <span className="bd neutral">{ev.affaire_ref}</span> : null}
                                         {ev.dst ? <span className="bd bn">DST</span> : null}
                                         {ev.editable_ech ? <div className="ag-rh" style={{ background: `${colors.border}55` }} onMouseDown={(e) => beginDrag(e, ev, 'resize')} /> : null}
                                     </div>
-                                    {activePopup ? <Popup item={ev} anchor={popupOpen.anchor} onClose={onPopupClose} onSave={onPopupSave} onOpenItem={() => onOpenItem(ev)} /> : null}
+                                    {activePopup ? <Popup item={ev} anchor={popupOpen.anchor} onClose={onPopupClose} onSave={onPopupSave} onOpenItem={() => onOpenItem(ev)} onOpenPreparation={onOpenPreparation} /> : null}
                                 </div>,
                             ]
                         })}
@@ -463,11 +526,89 @@ function AgendaPlanning({ title, emptyText, data, calYear, calMonth, calSel, onC
     )
 }
 
-function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, onNextMonth, popupOpen, onPopupOpen, onPopupClose, onPopupSave, onOpenItem }) {
+function OrganiserColumnFilter({
+  search,
+  kind,
+  kindCounts,
+  onSearchChange,
+  onKindChange,
+  visibleCount,
+  totalCount,
+}) {
+  const hasFilter = Boolean(String(search || '').trim() || kind)
+
+  return (
+    <div className="org-col-filter">
+      <input
+        type="search"
+        className="org-col-filter-search"
+        value={search}
+        onChange={(event) => onSearchChange(event.target.value)}
+        placeholder="Filtrer cette colonne…"
+      />
+      <select
+        className="org-col-filter-kind"
+        value={kind}
+        onChange={(event) => onKindChange(event.target.value)}
+      >
+        {ORGANISER_KIND_FILTERS.map((option) => {
+          const count = kindCounts[option.id] ?? 0
+          if (option.id && count === 0) return null
+          return (
+            <option key={option.id || 'all'} value={option.id}>
+              {option.label}{count ? ` (${count})` : ''}
+            </option>
+          )
+        })}
+      </select>
+      {hasFilter ? (
+        <div className="org-col-filter-meta">{visibleCount}/{totalCount}</div>
+      ) : null}
+    </div>
+  )
+}
+
+function emptyColumnFilters() {
+  return ACTIVE.reduce((acc, status) => {
+    acc[status] = { search: '', kind: '' }
+    return acc
+  }, {})
+}
+
+function emptyArchiveFilters() {
+  return ARCHIVED.reduce((acc, status) => {
+    acc[status] = { search: '', kind: '' }
+    return acc
+  }, {})
+}
+
+function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, onNextMonth, popupOpen, onPopupOpen, onPopupClose, onPopupSave, onOpenItem, onOpenPreparation }) {
     const [dragUid, setDragUid] = useState(null)
     const [archivesOpen, setArchivesOpen] = useState(false)
+    const [columnFilters, setColumnFilters] = useState(emptyColumnFilters)
+    const [archiveFilters, setArchiveFilters] = useState(emptyArchiveFilters)
+
     const activeData = useMemo(() => data.filter((d) => ACTIVE.includes(d.stat)), [data])
     const archivedData = useMemo(() => data.filter((d) => ARCHIVED.includes(d.stat)), [data])
+
+    function updateColumnFilter(status, patch) {
+        setColumnFilters((prev) => ({
+            ...prev,
+            [status]: { ...prev[status], ...patch },
+        }))
+    }
+
+    function updateArchiveFilter(status, patch) {
+        setArchiveFilters((prev) => ({
+            ...prev,
+            [status]: { ...prev[status], ...patch },
+        }))
+    }
+
+    function cardsForColumn(items, status, filters) {
+        const columnItems = items.filter((d) => d.stat === status)
+        return filterOrganiserItems(columnItems, filters)
+    }
 
     return (
         <div className="view-body">
@@ -484,7 +625,10 @@ function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, 
             <div className="t1-shell">
                 <div className="t1-board">
                     {ACTIVE.map((status) => {
-                        const cards = activeData.filter((d) => d.stat === status)
+                        const columnItems = activeData.filter((d) => d.stat === status)
+                        const filters = columnFilters[status] || { search: '', kind: '' }
+                        const cards = cardsForColumn(activeData, status, filters)
+                        const kindCounts = countOrganiserKindFilters(columnItems)
                         const matched = calSel ? new Set(cards.filter((d) => d.ech && parseDate(d.ech)?.getDate() === calSel && parseDate(d.ech)?.getMonth() === calMonth && parseDate(d.ech)?.getFullYear() === calYear).map((d) => d.uid)) : new Set()
                         return (
                             <div
@@ -502,6 +646,15 @@ function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, 
                                     <span className="t1-cname">{status}</span>
                                     <span className={`t1-ccnt${calSel && matched.size ? ' m' : ''}`}>{calSel ? `${matched.size}/${cards.length}` : cards.length}</span>
                                 </div>
+                                <OrganiserColumnFilter
+                                    search={filters.search}
+                                    kind={filters.kind}
+                                    kindCounts={kindCounts}
+                                    visibleCount={cards.length}
+                                    totalCount={columnItems.length}
+                                    onSearchChange={(value) => updateColumnFilter(status, { search: value })}
+                                    onKindChange={(value) => updateColumnFilter(status, { kind: value })}
+                                />
                                 <div className="t1-cbody">
                                     {cards.map((item) => {
                                         const isMatch = matched.has(item.uid)
@@ -520,10 +673,17 @@ function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, 
                                                     {item.labo ? <span className="bd neutral">{item.labo}</span> : null}
                                                 </div>
                                                 {item.subtitle ? <div className="t1-csub">{item.subtitle}</div> : null}
-                                                {isPopup ? <Popup item={item} anchor={popupOpen.anchor} onClose={onPopupClose} onSave={onPopupSave} onOpenItem={() => onOpenItem(item)} /> : null}
+                                                {planningDistanceCaption(item) ? (
+                                                    <div className="t1-csub t1-cdist">{planningDistanceCaption(item)}</div>
+                                                ) : null}
+                                                {item.programme_terrain ? (
+                                                    <div className="t1-cprog">À faire · {item.programme_terrain}</div>
+                                                ) : null}
+                                                {isPopup ? <Popup item={item} anchor={popupOpen.anchor} onClose={onPopupClose} onSave={onPopupSave} onOpenItem={() => onOpenItem(item)} onOpenPreparation={onOpenPreparation} /> : null}
                                             </div>
                                         )
                                     })}
+                                    {!cards.length ? <div className="t1-empty-drop">{columnItems.length ? 'Aucun élément pour ce filtre' : 'Déposer ici'}</div> : null}
                                 </div>
                             </div>
                         )
@@ -537,7 +697,10 @@ function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, 
                     {archivesOpen ? (
                         <div className="t1-archives-grid">
                             {ARCHIVED.map((status) => {
-                                const cards = archivedData.filter((d) => d.stat === status)
+                                const columnItems = archivedData.filter((d) => d.stat === status)
+                                const filters = archiveFilters[status] || { search: '', kind: '' }
+                                const cards = cardsForColumn(archivedData, status, filters)
+                                const kindCounts = countOrganiserKindFilters(columnItems)
                                 return (
                                     <div key={status} className="t1-arch-col" onDragOver={(e) => e.preventDefault()} onDrop={async () => {
                                         if (!dragUid) return
@@ -545,9 +708,18 @@ function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, 
                                         setDragUid(null)
                                     }}>
                                         <div className="t1-chdr"><div className="t1-cdot" style={{ background: STATUS_META[status].dot }} /><span className="t1-cname">{status}</span><span className="t1-ccnt">{cards.length}</span></div>
+                                        <OrganiserColumnFilter
+                                            search={filters.search}
+                                            kind={filters.kind}
+                                            kindCounts={kindCounts}
+                                            visibleCount={cards.length}
+                                            totalCount={columnItems.length}
+                                            onSearchChange={(value) => updateArchiveFilter(status, { search: value })}
+                                            onKindChange={(value) => updateArchiveFilter(status, { kind: value })}
+                                        />
                                         <div className="t1-cbody mini">
                                             {cards.map((item) => <div key={item.key} className="t1-card compact" style={{ borderLeftColor: itemBorderColor(item), cursor: item.editable_stat ? 'grab' : 'pointer' }} draggable={item.editable_stat} onDragStart={() => item.editable_stat && setDragUid(item)} onDragEnd={() => setDragUid(null)} onClick={(e) => onPopupOpen(item, e.currentTarget.getBoundingClientRect())}><div className="t1-cref">{item.ref}</div><div className="t1-ctit">{item.tit}</div><div className="t1-csub">{item.kind_label}</div></div>)}
-                                            {!cards.length ? <div className="t1-empty-drop">Déposer ici</div> : null}
+                                            {!cards.length ? <div className="t1-empty-drop">{columnItems.length ? 'Aucun élément pour ce filtre' : 'Déposer ici'}</div> : null}
                                         </div>
                                     </div>
                                 )
@@ -560,11 +732,11 @@ function Organiser({ data, calYear, calMonth, calSel, onCalSelect, onPrevMonth, 
     )
 }
 
-function Analyser({ data }) {
+function Analyser({ data, labFilterOptions = [], onItemClick }) {
     const [zoom, setZoom] = useState('month')
     const [refDate, setRefDate] = useState(() => new Date())
 
-    const labs = useMemo(() => [...LABS.filter(Boolean), 'À définir'], [])
+    const labs = useMemo(() => [...labFilterOptions.filter(Boolean), 'À définir'], [labFilterOptions])
     const late = useMemo(() => data.filter((item) => item.urg === 'late').length, [data])
     const soon = useMemo(() => data.filter((item) => item.urg === 'soon').length, [data])
     const ok = useMemo(() => data.filter((item) => item.urg === 'ok').length, [data])
@@ -614,7 +786,12 @@ function Analyser({ data }) {
                     cells.push(
                         <div key={`wk-${labo}-${dateStr(day)}`} className={`t4-wc ${className}${todayClass}`}>
                             {itemsForCell.slice(0, 3).map((item) => (
-                                <div key={item.uid} className={`t4-wchip ${item.urg}`}>{item.ref}</div>
+                                <AnalyserPlanningChip
+                                    key={item.key}
+                                    item={item}
+                                    variant="week"
+                                    onItemClick={onItemClick}
+                                />
                             ))}
                             {itemsForCell.length > 3 ? <div className="t4-mmore">+{itemsForCell.length - 3}</div> : null}
                         </div>,
@@ -653,7 +830,12 @@ function Analyser({ data }) {
                     <div key={`mo-${dayNumber}`} className={`t4-mc ${className}${todayClass}`}>
                         <div className="t4-mcn">{dayNumber}</div>
                         {itemsForCell.slice(0, 2).map((item) => (
-                            <div key={item.uid} className={`t4-mevt ${item.urg}`}>{item.ref}</div>
+                            <AnalyserPlanningChip
+                                key={item.key}
+                                item={item}
+                                variant="month"
+                                onItemClick={onItemClick}
+                            />
                         ))}
                         {itemsForCell.length > 2 ? <div className="t4-mmore">+{itemsForCell.length - 2}</div> : null}
                     </div>,
@@ -716,7 +898,7 @@ function Analyser({ data }) {
                 </div>
             ),
         }
-    }, [data, labs, refDate, zoom])
+    }, [data, labs, refDate, zoom, onItemClick])
 
     return (
         <div className="view-body">
@@ -774,6 +956,7 @@ function Analyser({ data }) {
 export default function PlanningPage() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
+    const { catalog } = useLaboratoireCatalog()
     const [tab, setTab] = useState(1)
     const [items, setItems] = useState([])
     const [loading, setLoading] = useState(true)
@@ -811,7 +994,7 @@ export default function PlanningPage() {
 
     useEffect(() => {
         function onDocClick(ev) {
-            if (ev.target.closest('.item-popup') || ev.target.closest('.t1-card') || ev.target.closest('.ag-bar')) return
+            if (ev.target.closest('.item-popup') || ev.target.closest('.t1-card') || ev.target.closest('.ag-bar') || ev.target.closest('.t4-chip-clickable')) return
             setPopupOpen(null)
         }
         document.addEventListener('mousedown', onDocClick)
@@ -830,8 +1013,14 @@ export default function PlanningPage() {
     }, [items, demandeContextId, globalFilter, laboFilter])
 
     const organiserItems = useMemo(() => filtered.filter((item) => item.views.includes('organiser')), [filtered])
-    const terrainItems = useMemo(() => filtered.filter((item) => item.views.includes('terrain')), [filtered])
-    const laboItems = useMemo(() => filtered.filter((item) => item.views.includes('labo')), [filtered])
+    const demandeAgendaItems = useMemo(
+        () => filterDemandeAgendaItems(filtered),
+        [filtered],
+    )
+    const laboAgendaItems = useMemo(
+        () => filterLaboAgendaItems(filtered),
+        [filtered],
+    )
     const analyserItems = useMemo(() => filtered.filter((item) => item.views.includes('analyser')), [filtered])
 
     const counts = useMemo(() => ({
@@ -840,6 +1029,11 @@ export default function PlanningPage() {
         soon: filtered.filter((d) => d.urg === 'soon' || d.urg === 'late').length,
         dst: filtered.filter((d) => d.dst).length,
     }), [filtered])
+
+    const labFilterOptions = useMemo(
+        () => buildPlanningLabFilterOptions(items, catalog),
+        [items, catalog],
+    )
 
     async function patchItem(target, patch, closeAfter) {
         const current = typeof target === 'object' ? target : target
@@ -868,13 +1062,24 @@ export default function PlanningPage() {
     }
 
     function openPopup(item, anchor) {
-        setPopupOpen({ key: item.key, anchor })
+        setPopupOpen({ key: item.key, anchor: anchor || null })
     }
 
     function openItem(item) {
         if (!item?.route) return
         navigate(item.route)
     }
+
+    function openPreparation(demandeUid) {
+        const id = String(demandeUid || '').trim()
+        if (!id) return
+        navigate(`/preparations/${id}`)
+    }
+
+    const popupItem = useMemo(() => {
+        if (!popupOpen?.key) return null
+        return items.find((entry) => entry.key === popupOpen.key) || null
+    }, [popupOpen, items])
 
     const currentContext = demandeContextId ? filtered.find((d) => d.kind === 'demande' && String(d.uid) === String(demandeContextId)) : null
 
@@ -889,7 +1094,7 @@ export default function PlanningPage() {
                 </div>
                 <div className="tb-right">
                     <select className="tb-fsel" value={laboFilter} onChange={(e) => setLaboFilter(e.target.value)}>
-                        {LABS.map((lab) => <option key={lab || 'all'} value={lab}>{lab || 'Tous labos'}</option>)}
+                        {labFilterOptions.map((lab) => <option key={lab || 'all'} value={lab}>{lab || 'Tous labos'}</option>)}
                     </select>
                     <button className={`tb-stat ${globalFilter === 'all' ? 'on' : ''}`} onClick={() => setGlobalFilter('all')}><div className="tb-sn">{counts.all}</div><div className="tb-sl">Tous</div></button>
                     <button className={`tb-stat ${globalFilter === 'late' ? 'on' : ''}`} onClick={() => setGlobalFilter('late')}><div className="tb-sn">{counts.late}</div><div className="tb-sl">Retard</div></button>
@@ -906,6 +1111,7 @@ export default function PlanningPage() {
                     </div>
                     <div className="ctx-actions">
                         <button className="ctx-btn" onClick={() => navigate('/planning')}>Voir tout</button>
+                        <button className="ctx-btn" onClick={() => openPreparation(demandeContextId)}>Préparation</button>
                         <button className="ctx-btn" onClick={() => currentContext && openItem(currentContext)}>Ouvrir la demande</button>
                     </div>
                 </div>
@@ -944,14 +1150,15 @@ export default function PlanningPage() {
                     onPopupClose={() => setPopupOpen(null)}
                     onPopupSave={patchItem}
                     onOpenItem={openItem}
+                    onOpenPreparation={openPreparation}
                 />
             ) : null}
 
             {!loading && tab === 2 ? (
                 <AgendaPlanning
-                    title="Agenda Terrain"
-                    emptyText="Aucun élément terrain cette semaine"
-                    data={terrainItems}
+                    title="Agenda Demandes"
+                    emptyText="Aucune demande planifiée cette semaine"
+                    data={demandeAgendaItems}
                     calYear={calYear}
                     calMonth={calMonth}
                     calSel={calSel}
@@ -979,14 +1186,15 @@ export default function PlanningPage() {
                     onPopupClose={() => setPopupOpen(null)}
                     onPopupSave={patchItem}
                     onOpenItem={openItem}
+                    onOpenPreparation={openPreparation}
                 />
             ) : null}
 
             {!loading && tab === 3 ? (
                 <AgendaPlanning
                     title="Agenda Labo"
-                    emptyText="Aucun élément labo cette semaine"
-                    data={laboItems}
+                    emptyText="Aucune campagne, intervention ou essai labo cette semaine"
+                    data={laboAgendaItems}
                     calYear={calYear}
                     calMonth={calMonth}
                     calSel={calSel}
@@ -1014,10 +1222,28 @@ export default function PlanningPage() {
                     onPopupClose={() => setPopupOpen(null)}
                     onPopupSave={patchItem}
                     onOpenItem={openItem}
+                    onOpenPreparation={openPreparation}
                 />
             ) : null}
 
-            {!loading && tab === 4 ? <Analyser data={analyserItems} /> : null}
+            {!loading && tab === 4 ? (
+                <Analyser
+                    data={analyserItems}
+                    labFilterOptions={labFilterOptions}
+                    onItemClick={(item, anchor) => openPopup(item, anchor)}
+                />
+            ) : null}
+
+            {!loading && tab === 4 && popupItem ? (
+                <Popup
+                    item={popupItem}
+                    anchor={popupOpen?.anchor}
+                    onClose={() => setPopupOpen(null)}
+                    onSave={patchItem}
+                    onOpenItem={() => openItem(popupItem)}
+                    onOpenPreparation={openPreparation}
+                />
+            ) : null}
         </div>
     )
 }

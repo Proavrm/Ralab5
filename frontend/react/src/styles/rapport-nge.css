@@ -499,6 +499,14 @@
         page-break-after: always;
     }
 
+    body.rapport-fmt-active .rapport-page {
+        min-height: 0 !important;
+        page-break-before: avoid !important;
+        page-break-after: avoid !important;
+        break-before: avoid !important;
+        break-after: avoid !important;
+    }
+
     .rapport-page-a4 {
         padding: var(--rapport-page-margin-top) var(--rapport-page-margin-right) var(--rapport-page-margin-bottom) var(--rapport-page-margin-left);
     }

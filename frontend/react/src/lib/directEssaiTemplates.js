@@ -1,6 +1,7 @@
 /** Catalogues d'essais directs — partagé InterventionPage / EssaiPage. */
 
 export const DIRECT_ESSAI_TEMPLATES = [
+  { code: 'VC', label: 'Feuille de visite chantier', typeEssai: 'Visite chantier', norme: '' },
   { code: 'GEN', label: 'Essai générique', typeEssai: 'Essai générique', norme: '' },
   { code: 'SC', label: 'Sondage carotté / carottage chaussée', typeEssai: 'Coupe de sondage carotté', norme: '' },
   { code: 'SO', label: 'Coupe de sondage', typeEssai: 'Coupe de sondage', norme: '' },

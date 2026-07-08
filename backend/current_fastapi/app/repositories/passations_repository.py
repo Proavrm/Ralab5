@@ -9,6 +9,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from app.core.database import connect_db, ensure_ralab4_schema, get_db_path
+from app.services.demande_document_storage_service import delete_affaire_document, normalize_stored_path
 from app.repositories.reference_affaires_repository import ReferenceAffairesRepository
 from app.repositories.reference_etudes_repository import ReferenceEtudesRepository
 from app.models.passation import (
@@ -32,6 +33,7 @@ from app.models.passation import (
     PassationStartupItemSchema,
     PassationStructuredNeedRecord,
     PassationStructuredNeedSchema,
+    PHASE_OPERATION_OPTIONS,
 )
 
 
@@ -176,6 +178,8 @@ class PassationsRepository:
         return {
             "sources": sources,
             "operation_types": types_,
+            "phase_operation_options": list(PHASE_OPERATION_OPTIONS),
+            "phase_operations": list(PHASE_OPERATION_OPTIONS),
             "responsable_passation_options": sorted(responsable_candidates, key=lambda item: item.casefold()),
         }
 
@@ -201,21 +205,24 @@ class PassationsRepository:
             conn.execute(
                 """
                 INSERT INTO passations (
-                    reference, affaire_rst_id, date_passation, source, operation_type, phase_operation,
-                    numero_etude, numero_affaire_nge, chantier, client, entreprise_responsable,
+                    reference, affaire_rst_id, date_passation, date_debut_travaux_prevue, source, operation_type, phase_operation,
+                    numero_etude, numero_affaire_nge, chantier, client, maitre_ouvrage, maitre_oeuvre,
+                    entreprise_responsable,
                     agence, responsable, description_generale, contexte_marche,
                     interlocuteurs_principaux, points_sensibles, besoins_laboratoire,
                     besoins_terrain, besoins_etude, besoins_g3, besoins_essais_externes,
                     besoins_equipements_specifiques, besoins_ressources_humaines,
                     workflow_status, workflow_decision, workflow_decision_comment,
                     workflow_decided_by, workflow_decided_at,
-                    synthese, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    synthese, notes, types_essais_prevus, livrables_attendus, criteres_conformite,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     reference,
                     body.affaire_rst_id,
                     self._fmt_date(body.date_passation),
+                    self._fmt_date(body.date_debut_travaux_prevue),
                     body.source,
                     body.operation_type,
                     body.phase_operation,
@@ -223,6 +230,8 @@ class PassationsRepository:
                     body.numero_affaire_nge,
                     body.chantier,
                     body.client,
+                    body.maitre_ouvrage,
+                    body.maitre_oeuvre,
                     body.entreprise_responsable,
                     body.agence,
                     body.responsable,
@@ -244,6 +253,9 @@ class PassationsRepository:
                     self._fmt_date(body.workflow_decided_at),
                     body.synthese,
                     body.notes,
+                    body.types_essais_prevus,
+                    body.livrables_attendus,
+                    body.criteres_conformite,
                     now,
                     now,
                 ),
@@ -273,7 +285,10 @@ class PassationsRepository:
             "structured_needs",
             "demande_preparation_items",
         }
-        fields = {k: v for k, v in body.model_dump().items() if v is not None and k not in collection_fields}
+        fields = {
+            k: v for k, v in body.model_dump(exclude_unset=True).items()
+            if k not in collection_fields and (v is not None or k == "date_debut_travaux_prevue")
+        }
         if fields:
             fields = {k: self._prepare_value(k, v) for k, v in fields.items()}
             fields["updated_at"] = self._now()
@@ -339,6 +354,7 @@ class PassationsRepository:
             affaire_rst_id=record.affaire_rst_id,
             affaire_ref=record.affaire_ref,
             date_passation=record.date_passation,
+            date_debut_travaux_prevue=record.date_debut_travaux_prevue,
             source=record.source,
             operation_type=record.operation_type,
             phase_operation=record.phase_operation,
@@ -346,6 +362,8 @@ class PassationsRepository:
             numero_affaire_nge=record.numero_affaire_nge,
             chantier=record.chantier,
             client=record.client,
+            maitre_ouvrage=record.maitre_ouvrage,
+            maitre_oeuvre=record.maitre_oeuvre,
             entreprise_responsable=record.entreprise_responsable,
             agence=record.agence,
             responsable=record.responsable,
@@ -367,6 +385,11 @@ class PassationsRepository:
             workflow_decided_at=record.workflow_decided_at,
             synthese=record.synthese,
             notes=record.notes,
+            types_essais_prevus=record.types_essais_prevus,
+            livrables_attendus=record.livrables_attendus,
+            criteres_conformite=record.criteres_conformite,
+            demande_destinataire_email=record.demande_destinataire_email,
+            demande_destinataire_name=record.demande_destinataire_name,
             nb_documents=record.nb_documents,
             nb_actions=record.nb_actions,
             created_at=record.created_at,
@@ -397,6 +420,16 @@ class PassationsRepository:
         return [self._action_row(row) for row in rows]
 
     def _replace_documents(self, conn, passation_id: int, items) -> None:
+        old_rows = conn.execute(
+            "SELECT stored_path FROM passation_documents WHERE passation_id = ?",
+            (passation_id,),
+        ).fetchall()
+        old_paths = {
+            normalize_stored_path(row["stored_path"])
+            for row in old_rows
+            if row["stored_path"]
+        }
+
         conn.execute("DELETE FROM passation_documents WHERE passation_id = ?", (passation_id,))
         now = self._now()
         for item in items or []:
@@ -405,8 +438,8 @@ class PassationsRepository:
                 """
                 INSERT INTO passation_documents (
                     passation_id, document_type, is_received, version, document_date,
-                    comment, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    comment, stored_path, uploaded_at, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     passation_id,
@@ -415,10 +448,24 @@ class PassationsRepository:
                     (payload.get("version") or "").strip(),
                     self._fmt_date(payload.get("document_date")),
                     (payload.get("comment") or "").strip(),
+                    (payload.get("stored_path") or "").strip(),
+                    self._fmt_date(payload.get("uploaded_at")),
                     now,
                     now,
                 ),
             )
+
+        new_paths = set()
+        for item in items or []:
+            payload = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            path = normalize_stored_path(str(payload.get("stored_path") or ""))
+            if path:
+                new_paths.add(path)
+        for path in old_paths - new_paths:
+            try:
+                delete_affaire_document(path)
+            except (FileNotFoundError, ValueError):
+                pass
 
     def _replace_actions(self, conn, passation_id: int, items) -> None:
         conn.execute("DELETE FROM passation_actions WHERE passation_id = ?", (passation_id,))
@@ -612,13 +659,14 @@ class PassationsRepository:
             conn.execute(
                 """
                 INSERT INTO passation_structured_needs (
-                    passation_id, need_code, need_label, request_status, quantity, notes, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    passation_id, need_code, need_label, description, request_status, quantity, notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     passation_id,
                     (payload.get("need_code") or "").strip(),
                     (payload.get("need_label") or "").strip(),
+                    (payload.get("description") or "").strip(),
                     (payload.get("request_status") or "Non évalué").strip(),
                     (payload.get("quantity") or "").strip(),
                     (payload.get("notes") or "").strip(),
@@ -663,6 +711,7 @@ class PassationsRepository:
             reference=row["reference"],
             affaire_rst_id=int(row["affaire_rst_id"]),
             date_passation=self._parse_date(row["date_passation"]) or date.today(),
+            date_debut_travaux_prevue=self._parse_date(row["date_debut_travaux_prevue"]) if "date_debut_travaux_prevue" in keys else None,
             source=row["source"] or "",
             operation_type=row["operation_type"] or "",
             phase_operation=row["phase_operation"] or "",
@@ -670,6 +719,8 @@ class PassationsRepository:
             numero_affaire_nge=row["numero_affaire_nge"] or "",
             chantier=row["chantier"] or "",
             client=row["client"] or "",
+            maitre_ouvrage=(row["maitre_ouvrage"] or "") if "maitre_ouvrage" in keys else "",
+            maitre_oeuvre=(row["maitre_oeuvre"] or "") if "maitre_oeuvre" in keys else "",
             entreprise_responsable=row["entreprise_responsable"] or "",
             agence=row["agence"] or "",
             responsable=row["responsable"] or "",
@@ -691,6 +742,11 @@ class PassationsRepository:
             workflow_decided_at=self._parse_date(row["workflow_decided_at"]),
             synthese=row["synthese"] or "",
             notes=row["notes"] or "",
+            types_essais_prevus=row["types_essais_prevus"] if "types_essais_prevus" in keys else "",
+            livrables_attendus=row["livrables_attendus"] if "livrables_attendus" in keys else "",
+            criteres_conformite=row["criteres_conformite"] if "criteres_conformite" in keys else "",
+            demande_destinataire_email=row["demande_destinataire_email"] if "demande_destinataire_email" in keys else "",
+            demande_destinataire_name=row["demande_destinataire_name"] if "demande_destinataire_name" in keys else "",
             affaire_ref=row["affaire_ref"] if "affaire_ref" in keys else "",
             nb_documents=int(row["nb_documents"]) if "nb_documents" in keys else 0,
             nb_actions=int(row["nb_actions"]) if "nb_actions" in keys else 0,
@@ -699,6 +755,7 @@ class PassationsRepository:
         )
 
     def _document_row(self, row) -> PassationDocumentRecord:
+        keys = row.keys()
         return PassationDocumentRecord(
             uid=int(row["id"]),
             passation_id=int(row["passation_id"]),
@@ -707,6 +764,8 @@ class PassationsRepository:
             version=row["version"] or "",
             document_date=self._parse_date(row["document_date"]),
             comment=row["comment"] or "",
+            stored_path=normalize_stored_path(row["stored_path"] or "" if "stored_path" in keys else ""),
+            uploaded_at=self._parse_date(row["uploaded_at"]) if "uploaded_at" in keys else None,
             created_at=row["created_at"] or "",
             updated_at=row["updated_at"] or "",
         )
@@ -797,6 +856,7 @@ class PassationsRepository:
             passation_id=int(row["passation_id"]),
             need_code=row["need_code"] or "",
             need_label=row["need_label"] or "",
+            description=row["description"] or "" if "description" in row.keys() else "",
             request_status=row["request_status"] or "Non évalué",
             quantity=row["quantity"] or "",
             notes=row["notes"] or "",
@@ -825,6 +885,8 @@ class PassationsRepository:
             version=record.version,
             document_date=record.document_date,
             comment=record.comment,
+            stored_path=record.stored_path,
+            uploaded_at=record.uploaded_at,
         )
 
     @staticmethod
@@ -901,6 +963,7 @@ class PassationsRepository:
             uid=record.uid,
             need_code=record.need_code,
             need_label=record.need_label,
+            description=record.description,
             request_status=record.request_status,
             quantity=record.quantity,
             notes=record.notes,
@@ -930,8 +993,11 @@ class PassationsRepository:
 
     @staticmethod
     def _prepare_value(key: str, value):
-        if key in {"date_passation"} and isinstance(value, date):
-            return value.strftime("%Y-%m-%d")
+        if key in {"date_passation", "date_debut_travaux_prevue", "workflow_decided_at"}:
+            if value in (None, ""):
+                return None
+            if isinstance(value, date):
+                return value.strftime("%Y-%m-%d")
         return value
 
     @staticmethod

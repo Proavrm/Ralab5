@@ -104,7 +104,7 @@ function formatDateDisplay(value) {
   if (!normalized) return null
   const [year, month, day] = normalized.split('-')
   if (!year || !month || !day) return normalized
-  return `${day}/${month}/${year}`
+  return `${day}-${month}-${year}`
 }
 
 function buildMetaFromEssai(essaiLike, fallback = {}) {

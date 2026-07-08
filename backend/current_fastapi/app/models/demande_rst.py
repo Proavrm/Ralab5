@@ -19,9 +19,6 @@ STATUTS_DEMANDE = [
 
 PRIORITES = ["Basse", "Normale", "Haute", "Critique"]
 
-LABO_CODES = ["SP", "AUV", "CHB", "CLM", "RST"]
-
-
 @dataclass(slots=True)
 class DemandeRstRecord:
     uid:                    int
@@ -65,8 +62,11 @@ class DemandeRstRecord:
     # Champs joints (depuis affaire)
     affaire_ref:            str = ""
     client:                 str = ""
+    maitre_ouvrage:         str = ""
+    maitre_oeuvre:          str = ""
     chantier:               str = ""
     site:                   str = ""
+    adresse_ouvrage:        str = ""
     numero_etude:           str = ""
     affaire_nge:            str = ""
     filiale:                str = ""
@@ -157,8 +157,11 @@ class DemandeRstResponseSchema(BaseModel):
 
     affaire_ref:            str = ""
     client:                 str = ""
+    maitre_ouvrage:         str = ""
+    maitre_oeuvre:          str = ""
     chantier:               str = ""
     site:                   str = ""
+    adresse_ouvrage:        str = ""
     numero_etude:           str = ""
     affaire_nge:            str = ""
     filiale:                str = ""

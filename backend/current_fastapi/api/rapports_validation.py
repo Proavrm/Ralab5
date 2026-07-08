@@ -14,6 +14,8 @@ from app.services.dossier_emails_service import collect_dossier_emails
 
 router = APIRouter(tags=["Rapports validation"])
 DB_PATH = get_db_path()
+VALIDATED_FEUILLE_CODES = ("DE", "SC", "SO", "VC")
+VALIDATED_FEUILLE_CODES_SQL = ", ".join(f"'{code}'" for code in VALIDATED_FEUILLE_CODES)
 
 
 def _conn() -> sqlite3.Connection:
@@ -263,10 +265,16 @@ def _sc_report_pages(
     return 1
 
 
-def _point_uid_from_reference(reference: str, payload: dict[str, Any], fallback_uid: str) -> str:
+def _point_uid_from_reference(
+    reference: str,
+    payload: dict[str, Any],
+    fallback_uid: str,
+    point_prefix: str = "SC",
+) -> str:
     text = _clean(reference).upper()
-    match = re.search(r"SC(\d+)$", text)
-    wanted_code = f"SC{int(match.group(1))}" if match else ""
+    prefix = _clean(point_prefix).upper() or "SC"
+    match = re.search(rf"{re.escape(prefix)}(\d+)$", text)
+    wanted_code = f"{prefix}{int(match.group(1))}" if match else ""
     points = payload.get("points")
     if isinstance(points, list) and wanted_code:
         for point in points:
@@ -293,7 +301,7 @@ def list_validation_reports(
     with _conn() as conn:
         if search:
             terrain_rows = conn.execute(
-                """
+                f"""
                 SELECT
                     ft.id,
                     ft.code_feuille,
@@ -319,7 +327,7 @@ def list_validation_reports(
                 LEFT JOIN demandes d ON d.id = ft.demande_id
                 LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
                 LEFT JOIN interventions i ON i.id = ft.intervention_id
-                WHERE UPPER(COALESCE(ft.code_feuille, '')) IN ('DE', 'SC')
+                WHERE UPPER(COALESCE(ft.code_feuille, '')) IN ({VALIDATED_FEUILLE_CODES_SQL})
                   AND UPPER(COALESCE(ft.reference, '')) LIKE ?
                 ORDER BY ft.updated_at DESC, ft.id DESC
                 LIMIT ?
@@ -328,7 +336,7 @@ def list_validation_reports(
             ).fetchall()
         else:
             terrain_rows = conn.execute(
-                """
+                f"""
                 SELECT
                     ft.id,
                     ft.code_feuille,
@@ -354,7 +362,7 @@ def list_validation_reports(
                 LEFT JOIN demandes d ON d.id = ft.demande_id
                 LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
                 LEFT JOIN interventions i ON i.id = ft.intervention_id
-                WHERE UPPER(COALESCE(ft.code_feuille, '')) IN ('DE', 'SC')
+                WHERE UPPER(COALESCE(ft.code_feuille, '')) IN ({VALIDATED_FEUILLE_CODES_SQL})
                 ORDER BY ft.updated_at DESC, ft.id DESC
                 LIMIT ?
                 """,
@@ -366,13 +374,25 @@ def list_validation_reports(
             ref = _clean(row["reference"])
             payload = _parse_json_dict(row["resultats_json"])
             uid = _clean(row["id"])
-            sc_point_uid = _point_uid_from_reference(ref, payload, _clean(row["sc_point_uid"])) if code == "SC" else ""
+            sc_point_uid = (
+                _point_uid_from_reference(ref, payload, _clean(row["sc_point_uid"]), code)
+                if code in {"SC", "SO"}
+                else ""
+            )
+            contexte = payload.get("contexte") if isinstance(payload.get("contexte"), dict) else {}
+            title = "Compte rendu visite chantier" if code == "VC" else f"Rapport {code}"
+            site = _clean(
+                contexte.get("zone")
+                or payload.get("site")
+                or payload.get("chantier")
+                or row["intervention_label"]
+            )
             items.append(
                 {
                     "id": ref or f"{code}-{uid}",
                     "uid": f"{code}:{uid}",
                     "type": code,
-                    "title": f"Rapport {code}",
+                    "title": title,
                     "status": _status_from_payload(payload),
                     "author": _clean(payload.get("author") or payload.get("redacteur")),
                     "date": _clean(payload.get("date_rapport") or row["updated_at"] or row["created_at"]),
@@ -385,7 +405,7 @@ def list_validation_reports(
                     "model": _clean(payload.get("model_version") or payload.get("template_version")),
                     "affair": _clean(row["affaire_reference"]),
                     "client": _clean(row["affaire_client"]),
-                    "site": _clean(payload.get("site") or payload.get("chantier") or row["intervention_label"]),
+                    "site": site,
                     "source_uid": uid,
                     "source_id": ref,
                     "essai_reference": ref,
@@ -481,7 +501,7 @@ def list_validation_reports(
                 }
             )
 
-    # Unified ordering across types (DE/SC/PMT): most recent first.
+    # Unified ordering across types (DE/SC/SO/VC/PMT): most recent first.
     # Keep exact-match reference pinned first when a search term is provided.
     if search:
         items.sort(
@@ -521,7 +541,7 @@ def update_report_status(report_id: str, body: UpdateStatusBody):
             maybe_id = _clean(raw_id.split(":", 1)[1])
             if maybe_id.isdigit():
                 persisted = _persist_pmt_validation(conn, int(maybe_id), body, next_status)
-        elif upper_id.startswith("SC:") or upper_id.startswith("DE:"):
+        elif any(upper_id.startswith(f"{code}:") for code in VALIDATED_FEUILLE_CODES):
             feuille_id = _clean(raw_id.split(":", 1)[1])
             if feuille_id.isdigit():
                 persisted = _persist_feuille_validation(conn, int(feuille_id), body, next_status)

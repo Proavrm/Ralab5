@@ -1955,7 +1955,7 @@ def insert_case_geo_full_01(conn: sqlite3.Connection) -> InsertSummary:
         },
     ]
     for spec in prelevement_specs:
-        prelevement_ref = next_prefixed_reference(conn, "prelevements", f"{year}-{labo_code}-P", width=4)
+        prelevement_ref = next_prefixed_reference(conn, "prelevements", f"{year}-{labo_code}-PRL", width=4)
         conn.execute(
             """
             INSERT INTO prelevements (

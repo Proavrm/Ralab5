@@ -175,7 +175,7 @@ LEFT JOIN interventions i ON i.demande_id = d.id
 GROUP BY d.id;
 """
 
-LABOS = [("SP","Saint-Priest","RA"),("PDC","Pont-du-Château","RA"),("CHB","Chambéry","RA"),("CLM","Clermont","AUV")]
+LABOS = [("SP","Saint-Priest","RA"),("PDC","Pont-du-Château","AUV")]
 
 STATUT_AFF = {
     "À qualifier":"À qualifier","Demande":"À qualifier",

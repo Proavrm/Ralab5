@@ -1,5 +1,11 @@
 export const CORRECTION_REQUESTED_STATUS = 'Correction demandée'
 
+export const FEUILLE_RAPPORT_LOCKED_STATUSES = [
+    'Validé technique',
+    'Émis',
+    'Refusé',
+]
+
 export const CORRECTION_REASON_LABELS = {
     wrong_calculations: 'Valeurs / calculs erronés',
     data_entry_error: 'Erreur de saisie',
@@ -24,6 +30,22 @@ export function normalizeValidationStatus(status) {
 
 export function isCorrectionRequested(status) {
     return normalizeValidationStatus(status) === CORRECTION_REQUESTED_STATUS
+}
+
+export function getRapportStatusLabel(status) {
+    return normalizeValidationStatus(status) || 'Brouillon'
+}
+
+export function isFeuilleRapportLocked(validationInfo) {
+    if (!validationInfo) return false
+    if (validationInfo.isCorrection) return false
+
+    const status = getRapportStatusLabel(validationInfo.status)
+    if (!status || status === 'Brouillon' || status === 'À valider') {
+        return false
+    }
+
+    return FEUILLE_RAPPORT_LOCKED_STATUSES.includes(status)
 }
 
 export function formatCorrectionReasons(reasonIds = []) {
@@ -106,7 +128,7 @@ export function buildEssaiTarget(report) {
         return `/modeles/sc?${params.toString()}`
     }
     if (type === 'DE' && sourceUid) {
-        return `/feuilles-terrain/de/${encodeURIComponent(sourceUid)}/runtime`
+        return `/modeles/de/${encodeURIComponent(sourceUid)}`
     }
     if (type === 'PMT' && pmtEssaiId) {
         const params = new URLSearchParams()
@@ -118,6 +140,9 @@ export function buildEssaiTarget(report) {
         if (pointUid) params.set('point', pointUid)
         params.set('edit', '1')
         return `/feuilles-terrain/${encodeURIComponent(sourceUid)}?${params.toString()}`
+    }
+    if (type === 'VC' && sourceUid) {
+        return `/feuilles-terrain/vc/${encodeURIComponent(sourceUid)}`
     }
     return ''
 }

@@ -513,6 +513,8 @@ def list_users(request: Request):
             "service_code": row["service_code"],
             "employment_level_code": row["employment_level_code"],
             "employment_level_label": row["employment_level_label"],
+            "phone": str(row["phone"] or "").strip(),
+            "signature_display_name": str(row["signature_display_name"] or "").strip(),
         }
         for row in rows
     ]

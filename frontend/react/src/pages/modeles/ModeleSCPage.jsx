@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import Button from "@/components/ui/Button"
 import EssaiCorrectionBanner from "@/components/essais/EssaiCorrectionBanner"
 import { getFeuilleValidationInfo } from "@/lib/essaiValidation"
-import { feuillesTerrainApi } from "@/services/api"
+import { feuillesTerrainApi, interventionsApi, qualiteApi } from "@/services/api"
+import { formatDate } from "@/lib/utils"
+import { applyOperatorSondeurCrossFill, mergeInheritedScPointFields } from "@/lib/sc/pointInheritance"
 import {
     ScPointDetailView,
+    ScSheetToolbar,
     scBuildPointForm,
     scBuildCoucheForm,
     scToPointPayload,
@@ -30,6 +33,26 @@ function buildListSearchParams(searchParams, sourceUid) {
     return p
 }
 
+const NEW_POINT_PARAM = "new"
+
+function normalizeSearchText(value) {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+}
+
+function buildDraftPoint() {
+    return {
+        uid: null,
+        point_type: "SONDAGE_CAROTTE",
+        point_code: "",
+        couches: [],
+        prelevements: [],
+    }
+}
+
 export default function ModeleSCPage() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
@@ -40,6 +63,7 @@ export default function ModeleSCPage() {
 
     const listHref = `/modeles/sc?${buildListSearchParams(searchParams, sourceUid).toString()}`
     const detailReturnTo = listHref
+    const isDraftPoint = pointParam === NEW_POINT_PARAM
 
     const { data, isLoading, error } = useQuery({
         queryKey: ["feuille-terrain", sourceUid],
@@ -49,15 +73,31 @@ export default function ModeleSCPage() {
         refetchOnMount: "always",
     })
 
+    const interventionId = data?.intervention_id
+    const { data: interventionData } = useQuery({
+        queryKey: ["intervention", interventionId],
+        queryFn: () => interventionsApi.get(interventionId),
+        enabled: Boolean(interventionId),
+        staleTime: 60_000,
+    })
+
     const points = useMemo(() => (Array.isArray(data?.points) ? data.points : []), [data?.points])
     const validationInfo = useMemo(() => getFeuilleValidationInfo(data), [data])
     const selectedPoint = useMemo(
-        () => points.find((item) => String(item.uid) === String(pointParam)) || null,
-        [points, pointParam],
+        () => (isDraftPoint ? null : points.find((item) => String(item.uid) === String(pointParam)) || null),
+        [points, pointParam, isDraftPoint],
     )
+    const draftPoint = useMemo(() => buildDraftPoint(), [])
+    const activePoint = isDraftPoint ? draftPoint : selectedPoint
 
     const [pointEditing, setPointEditing] = useState(true)
-    const [pointForm, setPointForm] = useState(scBuildPointForm())
+    const [pointForm, setPointForm] = useState(() => scBuildPointForm(null, 'SC'))
+    const pointFormRef = useRef(pointForm)
+    const loadedPointUidRef = useRef(null)
+
+    useEffect(() => {
+        pointFormRef.current = pointForm
+    }, [pointForm])
     const [editingCoucheId, setEditingCoucheId] = useState(null)
     const [coucheForm, setCoucheFormState] = useState(scBuildCoucheForm())
     const [addingCouche, setAddingCouche] = useState(false)
@@ -67,10 +107,14 @@ export default function ModeleSCPage() {
     const [newCoucheRow, setNewCoucheRow] = useState(null)
     const [editingCellValue, setEditingCellValue] = useState("")
     const [prelevForm, setPrelevForm] = useState({ profondeur: "", quantite: "" })
+    const [equipmentOptions, setEquipmentOptions] = useState([])
+    const [equipmentLoading, setEquipmentLoading] = useState(false)
+    const [equipmentError, setEquipmentError] = useState("")
 
     useEffect(() => {
-        if (!selectedPoint) {
-            setPointForm(scBuildPointForm())
+        if (!activePoint) {
+            loadedPointUidRef.current = null
+            setPointForm(scBuildPointForm(null, data?.code_feuille))
             setEditingCoucheId(null)
             setCoucheFormState(scBuildCoucheForm())
             setAddingCouche(false)
@@ -82,12 +126,44 @@ export default function ModeleSCPage() {
             setNewCoucheRow(null)
             return
         }
-        const newForm = scBuildPointForm(selectedPoint)
-        if (!Array.isArray(newForm.carotte_coupes) || !newForm.carotte_coupes.length) {
-            const pointCouches = Array.isArray(selectedPoint?.couches) ? selectedPoint.couches : []
-            newForm.carotte_coupes = [scBuildDefaultScCoupe({ pointForm: newForm, selectedPhoto: null, couches: pointCouches, title: "Coupe 1" })]
+        if (isDraftPoint) {
+            setPointForm((current) => {
+                const merged = mergeInheritedScPointFields(
+                    scBuildPointForm({ point_type: "SONDAGE_CAROTTE", ...current }, data?.code_feuille),
+                    data,
+                    interventionData,
+                )
+                if (!Array.isArray(merged.carotte_coupes) || !merged.carotte_coupes.length) {
+                    merged.carotte_coupes = [
+                        scBuildDefaultScCoupe({
+                            pointForm: merged,
+                            selectedPhoto: null,
+                            couches: [],
+                            title: "Coupe 1",
+                        }),
+                    ]
+                }
+                return merged
+            })
+        } else {
+            const newForm = scBuildPointForm(activePoint, data?.code_feuille)
+            if (!Array.isArray(newForm.carotte_coupes) || !newForm.carotte_coupes.length) {
+                const pointCouches = Array.isArray(activePoint?.couches) ? activePoint.couches : []
+                newForm.carotte_coupes = [
+                    scBuildDefaultScCoupe({
+                        pointForm: newForm,
+                        selectedPhoto: null,
+                        couches: pointCouches,
+                        title: "Coupe 1",
+                    }),
+                ]
+            }
+            const pointUid = String(activePoint.uid || '')
+            if (loadedPointUidRef.current !== pointUid) {
+                loadedPointUidRef.current = pointUid
+                setPointForm(newForm)
+            }
         }
-        setPointForm(newForm)
         setPointEditing(true)
         setEditingCoucheId(null)
         setCoucheFormState(scBuildCoucheForm())
@@ -98,7 +174,61 @@ export default function ModeleSCPage() {
         setEditingCellValue("")
         setSelectedCoucheRow(null)
         setNewCoucheRow(null)
-    }, [selectedPoint])
+    }, [activePoint, isDraftPoint, data, interventionData])
+
+    useEffect(() => {
+        let cancelled = false
+        ;(async () => {
+            setEquipmentLoading(true)
+            setEquipmentError("")
+            try {
+                const rows = await qualiteApi.equipmentOptions.list({ usage: "sondage_carotte_sc" })
+                const usageRows = Array.isArray(rows) ? rows : []
+                const carotteTerms = ["carotte", "carotier", "carottage", "foreuse", "couronne", "sondage", "sondeuse", "perceuse"]
+                const equipmentRows = await qualiteApi.equipment.list().catch(() => [])
+                const terrainRows = (Array.isArray(equipmentRows) ? equipmentRows : [])
+                    .filter((item) => String(item?.category || "").trim() === "Terrain")
+                    .filter((item) => String(item?.status || "").trim() === "En service")
+                    .filter((item) => {
+                        const searchable = normalizeSearchText([
+                            item?.code,
+                            item?.label,
+                            item?.domain,
+                            item?.serial_number,
+                            item?.notes,
+                        ].filter(Boolean).join(" "))
+                        return carotteTerms.some((term) => searchable.includes(term))
+                    })
+                    .map((item) => {
+                        const code = String(item?.code || "").trim()
+                        const label = String(item?.label || "").trim()
+                        const serial = String(item?.serial_number || "").trim()
+                        return {
+                            value: code || label || String(item?.uid || ""),
+                            label: code && label ? `${code} - ${label}${serial ? ` (${serial})` : ""}` : label || code || String(item?.uid || ""),
+                            equipment_id: item?.uid || null,
+                            domain: String(item?.domain || "").trim(),
+                            equipment_label: label,
+                        }
+                    })
+                const mergedByValue = new Map()
+                for (const item of [...usageRows, ...terrainRows]) {
+                    const key = String(item?.value || "").trim().toUpperCase()
+                    if (!key) continue
+                    if (!mergedByValue.has(key)) mergedByValue.set(key, item)
+                }
+                if (!cancelled) setEquipmentOptions(Array.from(mergedByValue.values()))
+            } catch (error) {
+                if (!cancelled) {
+                    setEquipmentOptions([])
+                    setEquipmentError(error?.message || "Chargement des équipements impossible.")
+                }
+            } finally {
+                if (!cancelled) setEquipmentLoading(false)
+            }
+        })()
+        return () => { cancelled = true }
+    }, [])
 
     function setCoucheField(key, value) {
         if (key === "__reset__") {
@@ -109,13 +239,44 @@ export default function ModeleSCPage() {
     }
 
     function setPointField(key, value) {
-        setPointForm((current) => ({ ...current, [key]: value }))
+        setPointForm((current) => {
+            const resolved = typeof value === 'function' ? value(current[key]) : value
+            const next = { ...current, [key]: resolved }
+            if (key === "operateur" || key === "sondeur") {
+                return applyOperatorSondeurCrossFill(next)
+            }
+            return next
+        })
+    }
+
+    function patchPointForm(patch) {
+        setPointForm((current) => applyOperatorSondeurCrossFill({ ...current, ...patch }))
     }
 
     const updatePointMutation = useMutation({
-        mutationFn: (payload) => feuillesTerrainApi.updatePoint(sourceUid, selectedPoint.uid, payload),
+        mutationFn: (payload) => {
+            const pointUid = selectedPoint?.uid
+            if (!pointUid) throw new Error("Point introuvable")
+            return feuillesTerrainApi.updatePoint(sourceUid, pointUid, payload)
+        },
         onSuccess: (saved) => {
             queryClient.setQueryData(["feuille-terrain", sourceUid], saved)
+        },
+    })
+
+    const createPointMutation = useMutation({
+        mutationFn: (payload) => feuillesTerrainApi.createPoint(sourceUid, payload),
+        onSuccess: (saved) => {
+            queryClient.setQueryData(["feuille-terrain", sourceUid], saved)
+            const previousIds = new Set(points.map((item) => item.uid))
+            const createdPoint = (Array.isArray(saved?.points) ? saved.points : []).find((item) => !previousIds.has(item.uid))
+                || (Array.isArray(saved?.points) ? saved.points[saved.points.length - 1] : null)
+            if (createdPoint?.uid) {
+                const params = buildListSearchParams(searchParams, sourceUid)
+                params.set("point", String(createdPoint.uid))
+                params.set("edit", "1")
+                navigate(`/modeles/sc?${params.toString()}`)
+            }
         },
     })
 
@@ -178,10 +339,17 @@ export default function ModeleSCPage() {
         },
     })
 
+    const savePointPending = updatePointMutation.isPending || createPointMutation.isPending
+
     const deleteErrorMessage =
         deletePointMutation.error?.message ||
         deleteCoucheMutation.error?.message ||
         deletePrelevementMutation.error?.message ||
+        ""
+
+    const savePointErrorMessage =
+        createPointMutation.error?.message ||
+        updatePointMutation.error?.message ||
         ""
 
     function startEditCell(coucheUid, field, currentValue) {
@@ -225,8 +393,25 @@ export default function ModeleSCPage() {
     }
 
     function handleSavePoint() {
-        if (!selectedPoint) return
-        updatePointMutation.mutate(scToPointPayload(pointForm))
+        if (!activePoint) return
+        const payload = scToPointPayload(pointForm, data?.code_feuille)
+        if (isDraftPoint) {
+            createPointMutation.mutate(payload)
+            return
+        }
+        updatePointMutation.mutate(payload)
+    }
+
+    async function persistPointPhotos(nextCoupes) {
+        if (isDraftPoint || !activePoint?.uid) return
+        const payload = scToPointPayload(
+            {
+                ...pointFormRef.current,
+                carotte_coupes: Array.isArray(nextCoupes) ? nextCoupes : pointFormRef.current.carotte_coupes,
+            },
+            data?.code_feuille,
+        )
+        await updatePointMutation.mutateAsync(payload)
     }
 
     function handleCreateCouche(inlineForm) {
@@ -253,6 +438,26 @@ export default function ModeleSCPage() {
         deleteCoucheMutation.mutate(coucheUid)
     }
 
+    function startCreatePoint() {
+        const params = buildListSearchParams(searchParams, sourceUid)
+        params.set("point", NEW_POINT_PARAM)
+        params.set("edit", "1")
+        navigate(`/modeles/sc?${params.toString()}`)
+    }
+
+    function handleDiscardDraftPoint(skipConfirm = false) {
+        if (!skipConfirm && !window.confirm("Abandonner ce sondage non enregistré ?")) return
+        navigate(listHref)
+    }
+
+    function handleBackToCoupeList() {
+        if (isDraftPoint) {
+            handleDiscardDraftPoint()
+            return
+        }
+        navigate(listHref)
+    }
+
     if (pointParam && sourceUid) {
         if (isLoading) {
             return <div className="py-12 text-center text-sm text-text-muted">Chargement du sondage…</div>
@@ -266,7 +471,7 @@ export default function ModeleSCPage() {
                 </div>
             )
         }
-        if (!selectedPoint) {
+        if (!activePoint) {
             return (
                 <div className="mx-auto max-w-[980px] p-6 flex flex-col gap-4">
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -291,40 +496,44 @@ export default function ModeleSCPage() {
                         Intervention
                     </Button>
                 ) : null}
-                <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                        const ref = encodeURIComponent(String(data?.reference || selectedPoint?.point_code || selectedPoint?.uid || 'view'))
-                        const params = new URLSearchParams()
-                        params.set('embed', '1')
-                        params.set('source_family', 'terrain')
-                        if (data?.uid || sourceUid) params.set('source_uid', String(data?.uid || sourceUid))
-                        if (selectedPoint?.uid || selectedPoint?.point_code) params.set('point', String(selectedPoint.uid || selectedPoint.point_code))
-                        navigate(`/rapports/sc/${ref}?${params.toString()}`)
-                    }}
-                >
-                    Imprimer / Ouvrir rapport
-                </Button>
+                {!isDraftPoint ? (
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                            const ref = encodeURIComponent(String(data?.reference || activePoint?.point_code || activePoint?.uid || "view"))
+                            const params = new URLSearchParams()
+                            params.set("embed", "1")
+                            params.set("source_family", "terrain")
+                            if (data?.uid || sourceUid) params.set("source_uid", String(data?.uid || sourceUid))
+                            if (activePoint?.uid || activePoint?.point_code) params.set("point", String(activePoint.uid || activePoint.point_code))
+                            navigate(`/rapports/sc/${ref}?${params.toString()}`)
+                        }}
+                    >
+                        Imprimer / Ouvrir rapport
+                    </Button>
+                ) : null}
             </>
         )
 
         return (
-            <div className="flex flex-col gap-4">
-                <div className="mx-auto w-full max-w-[1400px] px-6 pt-4">
-                    <EssaiCorrectionBanner validation={validationInfo} essaiLabel="sondage SC" />
-                </div>
             <ScPointDetailView
                 data={data}
-                point={selectedPoint}
+                point={activePoint}
+                interventionData={interventionData}
+                isDraftPoint={isDraftPoint}
+                topBanner={<EssaiCorrectionBanner validation={validationInfo} essaiLabel="sondage SC" />}
                 detailReturnTo={detailReturnTo}
                 navigate={navigate}
                 pointEditing={pointEditing}
                 setPointEditing={setPointEditing}
                 pointForm={pointForm}
                 setPointField={setPointField}
+                patchPointForm={patchPointForm}
                 handleSavePoint={handleSavePoint}
-                updatePointPending={updatePointMutation.isPending}
+                persistPointPhotos={persistPointPhotos}
+                updatePointPending={savePointPending}
+                savePointErrorMessage={savePointErrorMessage}
                 addingCouche={addingCouche}
                 setAddingCouche={setAddingCouche}
                 editingCoucheId={editingCoucheId}
@@ -337,7 +546,7 @@ export default function ModeleSCPage() {
                 updateCouchePending={updateCoucheMutation.isPending}
                 handleDeleteCouche={handleDeleteCouche}
                 deleteCouchePending={deleteCoucheMutation.isPending}
-                onBackToCoupe={() => navigate(listHref)}
+                onBackToCoupe={handleBackToCoupeList}
                 prelevCoucheId={prelevCoucheId}
                 setPrelevCoucheId={setPrelevCoucheId}
                 prelevForm={prelevForm}
@@ -350,7 +559,13 @@ export default function ModeleSCPage() {
                     if (!window.confirm("Supprimer ce prélèvement ?")) return
                     deletePrelevementMutation.mutate(prelevUid)
                 }}
-                handleDeletePoint={(pointUid) => deletePointMutation.mutate(pointUid)}
+                handleDeletePoint={(pointUid) => {
+                    if (isDraftPoint) {
+                        handleDiscardDraftPoint(true)
+                        return
+                    }
+                    deletePointMutation.mutate(pointUid)
+                }}
                 deleteErrorMessage={deleteErrorMessage}
                 editingCell={editingCell}
                 setEditingCell={setEditingCell}
@@ -365,8 +580,10 @@ export default function ModeleSCPage() {
                 handleAddCouche={handleAddCouche}
                 handleInsertCouche={handleInsertCouche}
                 sheetToolbarActions={sheetToolbarActions}
+                equipmentOptions={equipmentOptions}
+                equipmentLoading={equipmentLoading}
+                equipmentError={equipmentError}
             />
-            </div>
         )
     }
 
@@ -399,34 +616,26 @@ export default function ModeleSCPage() {
 
     return (
         <div
-            className="flex flex-col h-full -m-6 overflow-y-auto"
+            className="flex flex-col h-full -mx-6 -mb-6"
             style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
         >
             {/* ═══ Topbar ═══ */}
-            <div
-                className="sticky top-0 z-10 border-b border-[#dbe1ea]"
-                style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
-            >
-                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-                    <button
-                        onClick={() => navigate(returnTo || "/tools")}
-                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-                    >
-                        ← Retour
-                    </button>
-                    <div className="flex-1 min-w-[220px]">
-                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Feuille SC · Coupe de sondages</div>
-                        <div className="text-[15px] font-black">{data?.reference || sourceUid}</div>
-                    </div>
-                    {data?.demande_id ? (
-                        <Button size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button>
-                    ) : null}
-                    {data?.intervention_id ? (
-                        <Button size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button>
-                    ) : null}
-                </div>
-            </div>
+            <ScSheetToolbar
+                backLabel="← Retour"
+                onBack={() => navigate(returnTo || "/tools")}
+                title={data?.reference || sourceUid}
+                subtitle="Feuille SC · Coupe de sondages"
+                actions={(
+                    <>
+                        {data?.demande_id ? (
+                            <Button size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button>
+                        ) : null}
+                        {data?.intervention_id ? (
+                            <Button size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button>
+                        ) : null}
+                    </>
+                )}
+            />
 
             {/* ═══ Main ═══ */}
             <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
@@ -467,7 +676,7 @@ export default function ModeleSCPage() {
                             ) : null}
                             {data.date_feuille ? (
                                 <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">
-                                    {data.date_feuille}
+                                    {formatDate(data.date_feuille)}
                                 </span>
                             ) : null}
                         </div>
@@ -499,11 +708,16 @@ export default function ModeleSCPage() {
                     className="rounded-[22px] border border-[#dbe1ea] bg-white overflow-hidden"
                     style={{ boxShadow: '0 4px 18px rgba(0,49,112,0.06)' }}
                 >
-                    <div className="px-5 py-4 border-b border-[#e4e9f1] bg-[#fbfcfe] flex items-center justify-between gap-3">
+                    <div className="px-5 py-4 border-b border-[#e4e9f1] bg-[#fbfcfe] flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">Sondages de la coupe</div>
-                            <div className="mt-0.5 text-[12px] text-[#69758a]">{points.length} point(s) enregistrés</div>
+                            <div className="mt-0.5 text-[12px] text-[#69758a]">
+                                {points.length} point(s) enregistrés · clique sur une ligne ou « Feuille essai » pour saisir les coupes
+                            </div>
                         </div>
+                        <Button variant="primary" size="sm" onClick={startCreatePoint}>
+                            Créer un sondage
+                        </Button>
                     </div>
                     <div className="p-4">
                         {points.length ? (
@@ -555,7 +769,9 @@ export default function ModeleSCPage() {
                             </div>
                         ) : (
                             <div className="rounded-[14px] border border-dashed border-[#dbe1ea] px-4 py-8 text-[13px] text-[#69758a] text-center">
-                                Aucun sondage SC disponible sur cette feuille.
+                                Aucun sondage SC sur cette feuille.
+                                <br />
+                                Cliquez sur <strong className="text-[#003170]">Créer un sondage</strong> pour ouvrir la fiche essai (coupe, photo, couches).
                             </div>
                         )}
                     </div>

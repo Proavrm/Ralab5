@@ -14,10 +14,23 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.core.database import ensure_ralab4_schema, get_db_path
-from app.services.intervention_campaign_service import list_campaigns_for_demande
+from app.repositories.campaign_type_catalog_repository import CampaignTypeCatalogRepository
+from app.services.intervention_campaign_service import (
+    archive_campaign,
+    delete_campaign,
+    list_campaigns_for_demande,
+)
 
 router = APIRouter()
 DB_PATH = get_db_path()
+_catalog_repo = CampaignTypeCatalogRepository()
+
+
+class CampaignTypeCatalogCreate(BaseModel):
+    code: str = Field(..., min_length=2, max_length=32)
+    label: str = Field(..., min_length=2, max_length=120)
+    description: str = Field("")
+    category: str = Field("")
 
 
 class InterventionCampaignCreate(BaseModel):
@@ -53,6 +66,7 @@ class InterventionCampaignCreate(BaseModel):
     responsable_travaux: str = Field("")
     responsable_controle: str = Field("")
     responsable_suivi: str = Field("")
+    intervention_plan: str = Field("")
 
 
 class InterventionCampaignUpdate(BaseModel):
@@ -87,6 +101,7 @@ class InterventionCampaignUpdate(BaseModel):
     responsable_travaux: Optional[str] = None
     responsable_controle: Optional[str] = None
     responsable_suivi: Optional[str] = None
+    intervention_plan: Optional[str] = None
 
 
 def _conn():
@@ -118,6 +133,29 @@ def _to_dict(row: sqlite3.Row) -> dict:
     return data
 
 
+def _default_date_debut_prevue(conn: sqlite3.Connection, demande_id: int, provided: str = "") -> str:
+    if str(provided or "").strip():
+        return str(provided).strip()[:10]
+    row = conn.execute(
+        """
+        SELECT a.date_debut_travaux_prevue, dp.date_prevue
+        FROM demandes d
+        LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
+        LEFT JOIN demande_preparations dp ON dp.demande_id = d.id
+        WHERE d.id = ?
+        LIMIT 1
+        """,
+        (demande_id,),
+    ).fetchone()
+    if not row:
+        return ""
+    for key in ("date_debut_travaux_prevue", "date_prevue"):
+        value = str(row[key] or "").strip()[:10]
+        if value:
+            return value
+    return ""
+
+
 @router.post("", status_code=201)
 def create_intervention_campaign(body: InterventionCampaignCreate):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -126,6 +164,7 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
         if not demande:
             raise HTTPException(404, f"Demande #{body.demande_id} introuvable")
         reference = _next_reference(conn, body.demande_id)
+        date_debut_prevue = _default_date_debut_prevue(conn, body.demande_id, body.date_debut_prevue)
         conn.execute(
             """
             INSERT INTO campagnes (
@@ -136,8 +175,8 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
                 livrables_attendus, zone_type, comparison_group, pk_debut, pk_fin,
                 voie, sens, cote, planche, longueur_ml, zone_transition,
                 responsable_innovation, responsable_travaux, responsable_controle,
-                responsable_suivi, workflow_label, statut, notes, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                responsable_suivi, workflow_label, statut, notes, intervention_plan, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 body.demande_id,
@@ -151,7 +190,7 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
                 body.programme_specifique,
                 body.nb_points_prevus,
                 body.types_essais_prevus,
-                body.date_debut_prevue,
+                date_debut_prevue,
                 body.date_fin_prevue,
                 body.priorite,
                 body.responsable_technique,
@@ -175,6 +214,7 @@ def create_intervention_campaign(body: InterventionCampaignCreate):
                 'Affaire -> Demande -> Campagne -> Intervention',
                 body.statut,
                 body.notes,
+                body.intervention_plan,
                 now,
             ),
         )
@@ -231,6 +271,26 @@ def list_intervention_campaigns(demande_id: Optional[int] = Query(None)):
     ]
 
 
+@router.get("/catalog/types")
+def list_campaign_type_catalog():
+    return _catalog_repo.list_active()
+
+
+@router.post("/catalog/types", status_code=201)
+def create_campaign_type_catalog(body: CampaignTypeCatalogCreate):
+    try:
+        return _catalog_repo.create(
+            code=body.code,
+            label=body.label,
+            description=body.description,
+            category=body.category,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status = 409 if "existe déjà" in message else 400
+        raise HTTPException(status, message) from exc
+
+
 @router.get("/{uid}")
 def get_intervention_campaign(uid: int):
     with _conn() as conn:
@@ -274,9 +334,29 @@ def get_intervention_campaign(uid: int):
     return payload
 
 
+@router.delete("/{uid}")
+def delete_intervention_campaign(uid: int):
+    try:
+        return delete_campaign(uid)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/{uid}/archive")
+def archive_intervention_campaign(uid: int):
+    try:
+        return archive_campaign(uid)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
 @router.patch("/{uid}")
 def patch_intervention_campaign(uid: int, body: InterventionCampaignUpdate):
     fields = {key: value for key, value in body.model_dump(exclude_unset=True).items() if value is not None}
+    if "code" in fields:
+        fields["type_campagne"] = fields["code"]
     if not fields:
         with _conn() as conn:
             row = conn.execute("SELECT * FROM campagnes WHERE id = ?", (uid,)).fetchone()

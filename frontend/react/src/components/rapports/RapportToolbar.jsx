@@ -1,10 +1,17 @@
 import { useNavigate } from "react-router-dom";
 
-export default function RapportToolbar({ reportReference = "" }) {
+export default function RapportToolbar({ reportReference = "", feuilleTarget = "" }) {
     const navigate = useNavigate();
 
     function handlePrint() {
         window.print();
+    }
+
+    function handleOpenFeuille() {
+        const target = String(feuilleTarget || "").trim();
+        if (target) {
+            navigate(target);
+        }
     }
 
     function handleValidate() {
@@ -20,6 +27,9 @@ export default function RapportToolbar({ reportReference = "" }) {
 
     return (
         <div className="rapport-toolbar no-print">
+            {feuilleTarget ? (
+                <button type="button" onClick={handleOpenFeuille}>Feuille essai</button>
+            ) : null}
             <button type="button" onClick={handlePrint}>Imprimer</button>
             <button type="button" disabled title="Bientôt disponible">Exporter PDF</button>
             <button type="button" disabled title="Bientôt disponible">Envoyer en relecture</button>

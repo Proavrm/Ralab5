@@ -3,13 +3,17 @@
  * Fiche détail d'une affaire RST — layout wide avec hero, métriques, grid 2 colonnes.
  */
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, affairesApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
 import { buildPathWithReturnTo } from '@/lib/detailNavigation'
+import { buildDistanceToLabCaption } from '@/lib/labGeo'
+import { useAuth } from '@/hooks/useAuth'
+import { isRegionalRstUser, ORG_REGION_ARS, resolveLabCodesForScope } from '@/lib/userOrgScope'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { formatLabOrgLine } from '@/lib/laboratoireCatalog'
 import Button from '@/components/ui/Button'
-import Modal from '@/components/ui/Modal'
 import Input, { Select } from '@/components/ui/Input'
 import { MetricCard } from '@/components/layout/FicheLayout'
 
@@ -50,20 +54,26 @@ function Badge({ s, map }) {
   )
 }
 
-function FG({ label, children }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-text-muted">{label}</label>
-      {children}
-    </div>
-  )
-}
-
 function FieldCard({ label, value, highlight, className = '' }) {
   return (
     <div className={`min-w-0 rounded-[14px] px-3 py-2.5 ${highlight ? 'border border-[#efd36b] bg-gradient-to-b from-[#fffdf2] to-[#fbfcfe]' : 'border border-[#e4e9f1] bg-[#fbfcfe]'} ${className}`}>
       <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">{label}</div>
       <div className="mt-1.5 min-h-[22px] text-[13px] font-black text-[#172033] break-all">{value || '—'}</div>
+    </div>
+  )
+}
+
+const INLINE_INPUT_CLS = 'w-full px-2.5 py-1.5 border border-[#dbe1ea] rounded-lg text-[13px] font-semibold text-[#172033] bg-white outline-none focus:border-accent'
+
+function EditableFieldCard({ label, editing, displayValue, highlight, className = '', children }) {
+  return (
+    <div className={`min-w-0 rounded-[14px] px-3 py-2.5 ${highlight ? 'border border-[#efd36b] bg-gradient-to-b from-[#fffdf2] to-[#fbfcfe]' : 'border border-[#e4e9f1] bg-[#fbfcfe]'} ${className}`}>
+      <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">{label}</div>
+      <div className="mt-1.5 min-h-[22px]">
+        {editing ? children : (
+          <div className="text-[13px] font-black text-[#172033] break-all">{displayValue ?? '—'}</div>
+        )}
+      </div>
     </div>
   )
 }
@@ -105,19 +115,49 @@ function normalizeAffaireKey(value) {
     .trim()
 }
 
+function buildEditForm(affaire) {
+  if (!affaire) return {}
+  return {
+    client: affaire.client ?? '',
+    maitre_ouvrage: affaire.maitre_ouvrage ?? '',
+    maitre_oeuvre: affaire.maitre_oeuvre ?? '',
+    chantier: affaire.chantier ?? '',
+    site: affaire.site ?? '',
+    adresse_ouvrage: affaire.adresse_ouvrage ?? '',
+    filiale: affaire.filiale ?? '',
+    numero_etude: affaire.numero_etude ?? '',
+    affaire_nge: affaire.affaire_nge ?? '',
+    autre_reference: affaire.autre_reference ?? '',
+    dossier_nom: affaire.dossier_nom ?? '',
+    titulaire: affaire.titulaire ?? '',
+    responsable: affaire.responsable ?? '',
+    statut: affaire.statut ?? 'À qualifier',
+    date_ouverture: affaire.date_ouverture ?? '',
+    date_debut_travaux_prevue: affaire.date_debut_travaux_prevue ?? '',
+  }
+}
+
 export default function AffairePage() {
   const { uid }  = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const qc       = useQueryClient()
+  const { user } = useAuth()
+  const viewerIsRegionalRst = isRegionalRstUser(user)
+  const { orgRegions, catalog } = useLaboratoireCatalog()
+  const arsLabCodes = useMemo(
+    () => resolveLabCodesForScope(ORG_REGION_ARS, orgRegions),
+    [orgRegions],
+  )
   const detailReturnTo = `/affaires/${uid}`
-  const [editOpen, setEditOpen] = useState(false)
-  const [form, setForm]         = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editForm, setEditForm] = useState({})
   const [refEditOpen, setRefEditOpen] = useState(false)
   const [refEditVal, setRefEditVal] = useState('')
 
   useEffect(() => {
-    setForm(null)
-    setEditOpen(false)
+    setEditForm({})
+    setIsEditing(false)
   }, [uid])
 
   const { data: affaire, isLoading, isError } = useQuery({
@@ -153,11 +193,14 @@ export default function AffairePage() {
   })
 
   const mutation = useMutation({
-    mutationFn: (data) => affairesApi.update(uid, data),
+    mutationFn: (data) => affairesApi.update(uid, {
+      ...data,
+      date_debut_travaux_prevue: data.date_debut_travaux_prevue || null,
+    }),
     onSuccess: (saved) => {
       qc.setQueryData(['affaire', uid], saved)
       qc.invalidateQueries({ queryKey: ['affaires'] })
-      setEditOpen(false)
+      setIsEditing(false)
     },
   })
 
@@ -203,26 +246,34 @@ export default function AffairePage() {
     }
   }
 
-  function openEdit() {
+  function startEditing() {
     if (!affaire) return
-    setForm({
-      client:         affaire.client         ?? '',
-      chantier:       affaire.chantier       ?? '',
-      site:           affaire.site           ?? '',
-      filiale:        affaire.filiale        ?? '',
-      numero_etude:   affaire.numero_etude   ?? '',
-      affaire_nge:    affaire.affaire_nge    ?? '',
-      autre_reference: affaire.autre_reference ?? '',
-      dossier_nom:    affaire.dossier_nom    ?? '',
-      titulaire:      affaire.titulaire      ?? '',
-      responsable:    affaire.responsable    ?? '',
-      statut:         affaire.statut         ?? 'À qualifier',
-      date_ouverture: affaire.date_ouverture ?? '',
-    })
-    setEditOpen(true)
+    setEditForm(buildEditForm(affaire))
+    setIsEditing(true)
   }
 
-  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+  function cancelEditing() {
+    setIsEditing(false)
+    mutation.reset()
+  }
+
+  function handleSaveEditing() {
+    mutation.mutate({
+      ...editForm,
+      date_debut_travaux_prevue: editForm.date_debut_travaux_prevue || null,
+    })
+  }
+
+  function patchEditField(key, value) {
+    setEditForm((current) => ({ ...current, [key]: value }))
+  }
+
+  useEffect(() => {
+    if (!location.state?.startEditing || !affaire) return
+    setEditForm(buildEditForm(affaire))
+    setIsEditing(true)
+    window.history.replaceState({}, '')
+  }, [affaire, location.state?.startEditing])
 
   const metrics = useMemo(() => {
     const totalEch = demandes.reduce((s, d) => s + (d.nb_echantillons || 0), 0)
@@ -233,19 +284,6 @@ export default function AffairePage() {
     const detail = [sc > 0 && `SC: ${sc}`, so > 0 && `SO: ${so}`, de > 0 && `DE: ${de}`].filter(Boolean).join(' · ')
     return { totalEch, totalInt, detail }
   }, [demandes])
-
-  const chronoItems = useMemo(() => {
-    if (!affaire) return []
-    const items = []
-    if (affaire.date_ouverture)
-      items.push({ date: affaire.date_ouverture, title: 'Ouverture affaire', text: 'Création de la fiche et rattachement chantier.' })
-    const latest = demandes.reduce((best, d) => (!best || (d.updated_at && d.updated_at > best.updated_at)) ? d : best, null)
-    if (latest?.updated_at)
-      items.push({ date: latest.updated_at, title: 'Dernière activité demandes', text: `Demande ${latest.reference || '—'} mise à jour.` })
-    if (affaire.date_cloture)
-      items.push({ date: affaire.date_cloture, title: 'Clôture affaire', text: 'Affaire marquée comme terminée.' })
-    return items
-  }, [affaire, demandes])
 
   const operationalView = useMemo(() => {
     const latestActivity = demandes.reduce((best, d) => {
@@ -287,10 +325,10 @@ export default function AffairePage() {
     })
     const currentAffaire = String(affaire?.titulaire ?? '').trim()
     if (currentAffaire) values.add(currentAffaire)
-    const currentForm = String(form?.titulaire ?? '').trim()
+    const currentForm = String(editForm?.titulaire ?? '').trim()
     if (currentForm) values.add(currentForm)
     return [...values].sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }))
-  }, [allAffaires, affairesNgeRows, etudesRows, affaire?.titulaire, form?.titulaire])
+  }, [allAffaires, affairesNgeRows, etudesRows, affaire?.titulaire, editForm?.titulaire])
 
   const ngeTitulaireByKey = useMemo(() => {
     const byKey = new Map()
@@ -325,17 +363,19 @@ export default function AffairePage() {
   }, [etudesRows])
 
   const suggestedTitulaire = useMemo(() => {
-    if (!form) return ''
-    if (String(form.titulaire || '').trim()) return ''
+    if (!isEditing) return ''
+    if (String(editForm.titulaire || '').trim()) return ''
 
-    const ngeKey = normalizeAffaireKey(form.affaire_nge)
+    const ngeKey = normalizeAffaireKey(editForm.affaire_nge)
     if (ngeKey) return ngeTitulaireByKey.get(ngeKey) || ''
 
-    const etudeKey = normalizeAffaireKey(form.numero_etude)
+    const etudeKey = normalizeAffaireKey(editForm.numero_etude)
     if (etudeKey) return etudeFilialeByKey.get(etudeKey) || ''
 
     return ''
-  }, [form, ngeTitulaireByKey, etudeFilialeByKey])
+  }, [isEditing, editForm, ngeTitulaireByKey, etudeFilialeByKey])
+
+  const dossierNomHero = String(affaire?.dossier_nom || '').trim() || affaire?.reference || ''
 
   if (isLoading) return <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
   if (isError || !affaire) return (
@@ -348,7 +388,8 @@ export default function AffairePage() {
   const a = affaire
   const dossierStatusLabel = DOSSIER_STATUS_LABELS[a.dossier_status] || a.dossier_status || '—'
   const dossierModeLabel   = DOSSIER_MODE_LABELS[a.dossier_mode] || a.dossier_mode || '—'
-  const dossierNomPrevu    = a.dossier_nom_prevu || a.reference
+  const distanceCaption = buildDistanceToLabCaption(a.site_geo?.distance_to_lab)
+  const hasHighPriority = demandes.some((d) => d.priorite === 'Haute')
 
   return (
     <div
@@ -372,22 +413,34 @@ export default function AffairePage() {
             <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche affaire</div>
             <div className="text-[15px] font-black">{a.reference}</div>
           </div>
-          <Button size="sm" variant="primary" onClick={openEdit}>Modifier</Button>
-          <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Demandes</Button>
-          <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Passations</Button>
-          <button
-            onClick={() => navigate(`/demandes?affaire_id=${uid}&create=1`)}
-            className="rounded-[11px] border border-[#e7b800] bg-[#ffcc00] text-[#003170] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-105 transition"
-          >
-            + Demande
-          </button>
-          <Button size="sm" onClick={() => navigate(`/passations/new?affaire_id=${uid}`)}>+ Passation</Button>
-          <button
-            onClick={handleDelete}
-            className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
-          >
-            Supprimer
-          </button>
+          {isEditing ? (
+            <>
+              <Button size="sm" onClick={cancelEditing}>Annuler</Button>
+              <Button size="sm" variant="primary" onClick={handleSaveEditing} disabled={mutation.isPending}>
+                {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="primary" onClick={startEditing}>Modifier</Button>
+              <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Demandes</Button>
+              <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Passations</Button>
+              <Button size="sm" onClick={() => navigate(`/contacts?affaire_id=${uid}`)}>Contacts</Button>
+              <button
+                onClick={() => navigate(`/demandes?affaire_id=${uid}&create=1`)}
+                className="rounded-[11px] border border-[#e7b800] bg-[#ffcc00] text-[#003170] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-105 transition"
+              >
+                + Demande
+              </button>
+              <Button size="sm" onClick={() => navigate(`/passations/new?affaire_id=${uid}`)}>+ Passation</Button>
+              <button
+                onClick={handleDelete}
+                className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
+              >
+                Supprimer
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -405,7 +458,7 @@ export default function AffairePage() {
           >
             <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
 
-            <div>
+            <div className="min-w-0 flex-1 basis-[280px]">
               <div className="inline-flex items-center gap-2 mb-3.5 rounded-full border border-[rgba(255,204,0,0.55)] bg-[rgba(255,204,0,0.12)] px-2.5 py-1.5 text-[11px] font-black tracking-[.12em] uppercase">
                 <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
                 RaLab 5 · Affaire RST
@@ -419,32 +472,44 @@ export default function AffairePage() {
                   Modifier réf.
                 </button>
               </div>
-              <div className="mt-3 text-[20px] font-black">{a.chantier || '—'}</div>
+              <div className="mt-3 text-[20px] font-black">{(isEditing ? editForm.chantier : a.chantier) || '—'}</div>
               <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
-                {a.client && <span>Client : <strong className="text-white">{a.client}</strong></span>}
-                {a.site && <span>Site : <strong className="text-white">{a.site}</strong></span>}
-                {a.responsable && <span>Responsable : <strong className="text-white">{a.responsable}</strong></span>}
+                {(isEditing ? editForm.client : a.client) && <span>Client : <strong className="text-white">{isEditing ? editForm.client : a.client}</strong></span>}
+                {(isEditing ? editForm.site : a.site) && <span>Site : <strong className="text-white">{isEditing ? editForm.site : a.site}</strong></span>}
+                {(isEditing ? editForm.responsable : a.responsable) && <span>Responsable : <strong className="text-white">{isEditing ? editForm.responsable : a.responsable}</strong></span>}
+                {!isEditing && hasHighPriority ? <span>Priorité : <strong className="text-white">Haute</strong></span> : null}
+                {operationalView.nextEcheance !== '—' ? (
+                  <span>Prochaine échéance : <strong className="text-white">{operationalView.nextEcheance}</strong></span>
+                ) : null}
+                {distanceCaption ? (
+                  <span>{distanceCaption}</span>
+                ) : null}
               </div>
             </div>
 
-            <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
+            <div className="w-full min-w-[320px] flex-[1.15] max-w-[820px] shrink-0 rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
               <div className="flex flex-wrap justify-end gap-2">
                 <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                  {a.statut === 'En cours' ? 'Affaire active' : a.statut || '—'}
+                  {(isEditing ? editForm.statut : a.statut) === 'En cours' ? 'Affaire active' : (isEditing ? editForm.statut : a.statut) || '—'}
                 </span>
-                {a.titulaire && (
+                {(isEditing ? editForm.titulaire : a.titulaire) && (
                   <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                    {a.titulaire}
+                    {isEditing ? editForm.titulaire : a.titulaire}
                   </span>
                 )}
-                {a.filiale && (
+                {(isEditing ? editForm.filiale : a.filiale) && (
                   <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                    {a.filiale}
+                    {isEditing ? editForm.filiale : a.filiale}
                   </span>
                 )}
               </div>
-              <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Nom dossier prévu</div>
-              <div className="mt-1.5 text-[13px] font-black">{dossierNomPrevu}</div>
+              <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Nom dossier</div>
+              <div
+                className="mt-1.5 text-[13px] font-black whitespace-nowrap overflow-hidden text-ellipsis"
+                title={dossierNomHero}
+              >
+                {dossierNomHero}
+              </div>
             </div>
           </div>
 
@@ -457,7 +522,7 @@ export default function AffairePage() {
           </div>
         </section>
 
-        {/* ── Two-column grid ── */}
+        {/* ── Two-column grid (lecture + édition, même layout) ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
 
           {/* Left column */}
@@ -469,65 +534,133 @@ export default function AffairePage() {
             >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <FieldCard label="Référence RST" value={a.reference} highlight />
-                <FieldCard label="Statut" value={<Badge s={a.statut} map={STAT_AFF} />} />
-                <FieldCard label="Titulaire" value={a.titulaire || '— Non défini —'} />
-                <FieldCard label="Client" value={a.client} />
-                <FieldCard label="Chantier" value={a.chantier} className="sm:col-span-2" />
-                <FieldCard label="Site" value={a.site} className="sm:col-span-2" />
-                <FieldCard label="Filiale" value={a.filiale} />
-                <FieldCard label="Responsable affaire NGE" value={a.responsable} />
-                <FieldCard label="Date ouverture" value={formatDate(a.date_ouverture)} />
+                <EditableFieldCard label="Statut" editing={isEditing} displayValue={<Badge s={a.statut} map={STAT_AFF} />}>
+                  <Select value={editForm.statut || ''} onChange={e => patchEditField('statut', e.target.value)} className={`${INLINE_INPUT_CLS} w-full`}>
+                    {STATUTS.map(s => <option key={s}>{s}</option>)}
+                  </Select>
+                </EditableFieldCard>
+                <EditableFieldCard label="Titulaire" editing={isEditing} displayValue={a.titulaire || '— Non défini —'}>
+                  <Select value={editForm.titulaire || ''} onChange={e => patchEditField('titulaire', e.target.value)} className={`${INLINE_INPUT_CLS} w-full`}>
+                    {suggestedTitulaire ? <option value={suggestedTitulaire}>Suggestion source: {suggestedTitulaire}</option> : null}
+                    <option value="">— Non défini —</option>
+                    {titulaireOptions.filter(t => t !== suggestedTitulaire).map(t => <option key={t} value={t}>{t}</option>)}
+                  </Select>
+                </EditableFieldCard>
+                <EditableFieldCard label="Client" editing={isEditing} displayValue={a.client}>
+                  <Input value={editForm.client || ''} onChange={e => patchEditField('client', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Maître d'ouvrage" editing={isEditing} displayValue={a.maitre_ouvrage}>
+                  <Input value={editForm.maitre_ouvrage || ''} onChange={e => patchEditField('maitre_ouvrage', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Maître d'œuvre" editing={isEditing} displayValue={a.maitre_oeuvre}>
+                  <Input value={editForm.maitre_oeuvre || ''} onChange={e => patchEditField('maitre_oeuvre', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Chantier" editing={isEditing} displayValue={a.chantier} className="sm:col-span-2">
+                  <Input value={editForm.chantier || ''} onChange={e => patchEditField('chantier', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Site" editing={isEditing} displayValue={a.site} className="sm:col-span-2">
+                  <Input value={editForm.site || ''} onChange={e => patchEditField('site', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Adresse ouvrage" editing={isEditing} displayValue={a.adresse_ouvrage} className="sm:col-span-2">
+                  <textarea
+                    value={editForm.adresse_ouvrage || ''}
+                    onChange={e => patchEditField('adresse_ouvrage', e.target.value)}
+                    rows={2}
+                    placeholder="Rue, numéro, commune — plan de situation"
+                    className={`${INLINE_INPUT_CLS} font-normal`}
+                  />
+                </EditableFieldCard>
+                <EditableFieldCard label="Filiale" editing={isEditing} displayValue={a.filiale}>
+                  <Input value={editForm.filiale || ''} onChange={e => patchEditField('filiale', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Responsable affaire NGE" editing={isEditing} displayValue={a.responsable}>
+                  <Input value={editForm.responsable || ''} onChange={e => patchEditField('responsable', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Date ouverture" editing={isEditing} displayValue={formatDate(a.date_ouverture)}>
+                  <Input type="date" value={editForm.date_ouverture || ''} onChange={e => patchEditField('date_ouverture', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Date prévue début travaux" editing={isEditing} displayValue={a.date_debut_travaux_prevue ? formatDate(a.date_debut_travaux_prevue) : '—'}>
+                  <Input type="date" value={editForm.date_debut_travaux_prevue || ''} onChange={e => patchEditField('date_debut_travaux_prevue', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
                 <FieldCard label="Date clôture" value={a.date_cloture ? formatDate(a.date_cloture) : 'En cours'} />
               </div>
             </SectionCard>
 
             <SectionCard title="Références" subtitle="Numéros externes, étude, affaire NGE et référence manuelle">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <FieldCard label="N° étude" value={a.numero_etude} />
-                <FieldCard label="N° affaire NGE" value={a.affaire_nge} highlight />
-                <FieldCard label="Autre référence" value={a.autre_reference} />
-                <FieldCard label="Nom dossier manuel" value={a.dossier_nom} className="sm:col-span-3" />
+                <EditableFieldCard label="N° étude" editing={isEditing} displayValue={a.numero_etude}>
+                  <Input value={editForm.numero_etude || ''} onChange={e => patchEditField('numero_etude', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="N° affaire NGE" editing={isEditing} displayValue={a.affaire_nge} highlight>
+                  <Input value={editForm.affaire_nge || ''} onChange={e => patchEditField('affaire_nge', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Autre référence" editing={isEditing} displayValue={a.autre_reference}>
+                  <Input value={editForm.autre_reference || ''} onChange={e => patchEditField('autre_reference', e.target.value)} placeholder="Si pas aff. NGE / étude" className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Nom dossier manuel" editing={isEditing} displayValue={a.dossier_nom} className="sm:col-span-3">
+                  <Input value={editForm.dossier_nom || ''} onChange={e => patchEditField('dossier_nom', e.target.value)} placeholder="Laisser vide pour conserver le nom automatique" className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
               </div>
-              <div className="mt-4 rounded-2xl border border-[#eed06a] bg-[#fff9de] px-4 py-3 text-[12px] leading-relaxed text-[#4d4213]">
-                Le nom automatique reste piloté par les références affaire / étude quand elles existent.
-                Le champ manuel sert uniquement à forcer un nom de dossier spécifique lorsque c'est nécessaire.
-              </div>
+              {isEditing ? (
+                <div className="mt-4 grid grid-cols-1 gap-2 text-xs leading-5 text-text-muted">
+                  <p>Laisser « Nom dossier manuel » vide si le dossier doit continuer à suivre le nom prévu automatiquement.</p>
+                  <p>Remplir « Autre référence » uniquement si l'affaire n'a ni n° affaire NGE ni n° étude.</p>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-2xl border border-[#eed06a] bg-[#fff9de] px-4 py-3 text-[12px] leading-relaxed text-[#4d4213]">
+                  Nom automatique : Référence — N° étude / NGE — Site — Client_Chantier
+                  (Client prioritaire, sinon maître d&apos;ouvrage ; sans titulaire ni maître d&apos;œuvre).
+                  Le champ manuel sert uniquement à forcer un nom spécifique.
+                </div>
+              )}
             </SectionCard>
           </div>
 
-          {/* Right column */}
           <div className="flex flex-col gap-5">
             <SectionCard
               title="Vue opérationnelle"
-              subtitle="Ce qu'il faut voir en premier quand on ouvre l'affaire"
-              chip={<Badge s={a.statut} map={STAT_AFF} />}
+              subtitle="Synthèse rapide"
+              chip={<Badge s={isEditing ? editForm.statut : a.statut} map={STAT_AFF} />}
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FieldCard label="Statut actuel" value={a.statut} highlight />
-                <FieldCard label="Priorité" value={demandes.some(d => d.priorite === 'Haute') ? 'Haute' : 'Normale'} />
+                <FieldCard label="Priorité" value={hasHighPriority ? 'Haute' : 'Normale'} />
                 <FieldCard label="Dernière activité" value={operationalView.latestActivity} />
                 <FieldCard label="Prochaine échéance" value={operationalView.nextEcheance} />
                 <FieldCard label="Familles actives" value={operationalView.families} className="sm:col-span-2" />
               </div>
             </SectionCard>
 
-            <SectionCard title="Chronologie" subtitle="Historique court de l'affaire">
-              <div className="grid gap-3">
-                {chronoItems.length === 0 ? (
-                  <div className="text-xs text-[#69758a] text-center py-4">Aucun événement</div>
-                ) : chronoItems.map((item, i) => (
-                  <div key={i} className="grid grid-cols-[92px_1fr] gap-3 rounded-2xl border border-[#e4e9f1] bg-[#fbfcfe] p-3">
-                    <div className="text-[12px] font-black text-[#003170]">{formatDate(item.date)}</div>
-                    <div>
-                      <div className="text-[13px] font-black">{item.title}</div>
-                      <div className="mt-0.5 text-[11px] text-[#69758a]">{item.text}</div>
-                    </div>
+            <SectionCard
+              title="Organisation ARS"
+              subtitle="Référent RST régional vs responsables labo locaux"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-[#c7d2fe] bg-[#eeeffe] px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wide text-[#1e3a8a] font-semibold">RST · région ARS</div>
+                  <div className="mt-1 font-medium text-[#1e3a8a]">Référent Scientifique et Technique</div>
+                  <div className="mt-1 text-xs text-[#334155] leading-relaxed">
+                    Périmètre régional — affaires, passations et arbitrages sur SP + PDC.
+                    {viewerIsRegionalRst ? ' (votre rattachement)' : ''}
                   </div>
-                ))}
+                </div>
+                <div className="rounded-xl border border-border bg-bg px-4 py-3">
+                  <div className="text-[10px] uppercase tracking-wide text-text-muted font-semibold">Labos locaux</div>
+                  <ul className="mt-2 space-y-1.5 text-xs text-text-muted">
+                    {arsLabCodes.map((code) => (
+                      <li key={code} className="text-text">{formatLabOrgLine(code, catalog)}</li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </SectionCard>
           </div>
         </div>
+
+        {isEditing && mutation.error && (
+          <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2">
+            {mutation.error.message}
+          </p>
+        )}
 
         {/* ── Delete error ── */}
         {deleteError && (
@@ -660,86 +793,6 @@ export default function AffairePage() {
       </div>
 
       {/* ═══ Modals ═══ */}
-      {form && (
-        <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Modifier l'affaire RST" size="md">
-          <div className="grid grid-cols-2 gap-3">
-            <FG label="Statut">
-              <Select value={form.statut} onChange={e => set('statut', e.target.value)} className="w-full">
-                {STATUTS.map(s => <option key={s}>{s}</option>)}
-              </Select>
-            </FG>
-            <FG label="Client">
-              <Input value={form.client} onChange={e => set('client', e.target.value)} />
-            </FG>
-            <FG label="Chantier">
-              <Input value={form.chantier} onChange={e => set('chantier', e.target.value)} />
-            </FG>
-            <FG label="Site">
-              <Input value={form.site} onChange={e => set('site', e.target.value)} />
-            </FG>
-            <FG label="Filiale">
-              <Input value={form.filiale} onChange={e => set('filiale', e.target.value)} />
-            </FG>
-            <FG label="N° étude">
-              <Input value={form.numero_etude} onChange={e => set('numero_etude', e.target.value)} />
-            </FG>
-            <FG label="N° Affaire NGE">
-              <Input value={form.affaire_nge} onChange={e => set('affaire_nge', e.target.value)} />
-            </FG>
-            <div className="col-span-2">
-              <FG label="Nom dossier souhaité / manuel">
-                <Input
-                  value={form.dossier_nom}
-                  onChange={e => set('dossier_nom', e.target.value)}
-                  placeholder="Laisser vide pour conserver le nom automatique"
-                />
-                <p className="text-xs leading-5 text-text-muted">
-                  Laisser vide si le dossier doit continuer à suivre le nom prévu automatiquement. Renseigner une valeur pour forcer un nom manuel.
-                </p>
-              </FG>
-            </div>
-            <div className="col-span-2">
-              <FG label="Autre (si pas aff. NGE / étude)">
-                <Input
-                  value={form.autre_reference}
-                  onChange={e => set('autre_reference', e.target.value)}
-                  placeholder="Valeur manuelle à utiliser seulement s'il n'y a ni aff. NGE ni étude"
-                />
-                <p className="text-xs leading-5 text-text-muted">
-                  Remplir uniquement si l'affaire n'a ni n° affaire NGE ni n° étude. Laisser vide dès qu'un de ces deux champs est renseigné.
-                </p>
-              </FG>
-            </div>
-            <FG label="Titulaire">
-              <Select value={form.titulaire} onChange={e => set('titulaire', e.target.value)} className="w-full">
-                {suggestedTitulaire ? <option value={suggestedTitulaire}>Suggestion source: {suggestedTitulaire}</option> : null}
-                <option value="">— Non défini —</option>
-                {titulaireOptions.filter(t => t !== suggestedTitulaire).map(t => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FG>
-            <FG label="Responsable affaire NGE">
-              <Input value={form.responsable} onChange={e => set('responsable', e.target.value)} />
-            </FG>
-            <FG label="Date ouverture">
-              <Input type="date" value={form.date_ouverture} onChange={e => set('date_ouverture', e.target.value)} />
-            </FG>
-          </div>
-
-          {mutation.error && (
-            <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mt-3">
-              {mutation.error.message}
-            </p>
-          )}
-
-          <div className="flex justify-end gap-2 pt-4">
-            <Button onClick={() => setEditOpen(false)} variant="secondary">Annuler</Button>
-            <Button onClick={() => mutation.mutate(form)} variant="primary" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
-            </Button>
-          </div>
-        </Modal>
-      )}
-
       {refEditOpen && a && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-surface border border-border rounded-xl w-[400px] p-6 shadow-2xl">

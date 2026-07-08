@@ -65,6 +65,18 @@ const FEUILLE_TYPE_REGISTRY = {
             supportsCarottePhoto: false,
         },
     },
+    VC: {
+        code: 'VC',
+        family: 'visit-form',
+        renderer: 'visit-chantier',
+        title: 'Feuille de visite chantier',
+        flags: {
+            usesPointDetailView: false,
+            supportsPointDepthIntervalCm: false,
+            supportsCarottePhoto: false,
+            hasRapport: true,
+        },
+    },
 }
 
 const DEFAULT_FEUILLE_TYPE = {

@@ -149,7 +149,7 @@ def _resolve_report_context(conn: sqlite3.Connection, report_id: str) -> dict[st
         ).fetchone()
         return dict(row) if row else None
 
-    if upper_id.startswith("SC:") or upper_id.startswith("DE:"):
+    if upper_id.startswith("SC:") or upper_id.startswith("SO:") or upper_id.startswith("DE:") or upper_id.startswith("VC:"):
         feuille_id = _clean(raw_id.split(":", 1)[1])
         if not feuille_id.isdigit():
             return None

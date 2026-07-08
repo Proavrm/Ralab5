@@ -3,7 +3,7 @@
  * Style aligné sur DemandePage (fiche demande)
  */
 import { useRef, useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { demandesApi, interventionCampaignsApi } from '@/services/api'
 import Button from '@/components/ui/Button'
@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/Input'
 import { buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
 import { RefreshCw, X } from 'lucide-react'
+import LabName from '@/components/laboratoire/LabName'
 
 const STATUTS = ['À cadrer', 'En cours', 'Terminée', 'Archivée']
 
@@ -32,8 +33,6 @@ const PRIO_CLS = {
   Haute: 'bg-[#faeeda] text-[#854f0b]',
   Critique: 'bg-[#fcebeb] text-[#a32d2d]',
 }
-
-const LABO_NOM = { SP: 'Saint-Priest', PDC: 'Pont-du-Château', CHB: 'Chambéry', CLM: 'Clermont' }
 
 const PAGE_BG = 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)'
 
@@ -150,7 +149,6 @@ export default function CampagnesPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const qc = useQueryClient()
   const filterDemandeId = searchParams.get('demande_id') || null
   const detailReturnTo = `${location.pathname}${location.search || ''}`
   const explicitReturnTo = resolveReturnTo(searchParams, '')
@@ -175,28 +173,15 @@ export default function CampagnesPage() {
     },
   })
 
-  const createMutation = useMutation({
-    mutationFn: () => interventionCampaignsApi.create({ demande_id: Number(filterDemandeId), label: 'Campagne' }),
-    onSuccess: (saved) => {
-      qc.invalidateQueries({ queryKey: ['campagnes'] })
-      if (saved?.uid) {
-        navigate(buildPathWithReturnTo(`/campagnes/${saved.uid}`, listReturnTo))
-      }
-    },
-    onError: (error) => alert(error.message || 'Création impossible.'),
-  })
-
   function onSearchChange(value) {
     clearTimeout(timer.current)
     timer.current = setTimeout(() => setSearch(value), 300)
   }
 
-  function openCreate() {
-    if (!filterDemandeId) {
-      alert('Sélectionnez une demande pour créer une campagne.')
-      return
-    }
-    createMutation.mutate()
+  function openPreparationForCreate() {
+    if (!filterDemandeId) return
+    const refParam = demande?.reference ? `?ref=${encodeURIComponent(demande.reference)}` : ''
+    navigate(buildPathWithReturnTo(`/preparations/${filterDemandeId}${refParam}`, listReturnTo))
   }
 
   function handleBackNavigation() {
@@ -272,14 +257,11 @@ export default function CampagnesPage() {
               </Button>
             </>
           ) : null}
-          <button
-            type="button"
-            onClick={openCreate}
-            disabled={!filterDemandeId || createMutation.isPending}
-            className="rounded-[11px] border border-[#e7b800] bg-[#ffcc00] text-[#003170] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-105 transition disabled:opacity-50"
-          >
-            {createMutation.isPending ? 'Création…' : '+ Campagne'}
-          </button>
+          {filterDemandeId ? (
+            <Button size="sm" variant="primary" onClick={openPreparationForCreate}>
+              Créer via la préparation
+            </Button>
+          ) : null}
           <button
             type="button"
             onClick={() => refetch()}
@@ -321,7 +303,7 @@ export default function CampagnesPage() {
                   <Badge s={d.priorite} map={PRIO_CLS} />
                 </div>
                 <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Laboratoire</div>
-                <div className="mt-1.5 text-[13px] font-black">{LABO_NOM[d.labo_code] || d.labo_code || '—'}</div>
+                <div className="mt-1.5 text-[13px] font-black"><LabName code={d.labo_code} /></div>
                 {urgDate !== null ? (
                   <div className={`mt-2 text-[12px] font-black ${urgDate < 0 ? 'text-[#ff6b6b]' : urgDate <= 7 ? 'text-[#ffcc00]' : 'text-white/70'}`}>
                     {urgDate < 0 ? `Échéance dépassée (${Math.abs(Math.round(urgDate))}j)` : `Échéance dans ${Math.round(urgDate)}j`}
@@ -394,12 +376,12 @@ export default function CampagnesPage() {
               <div className="text-[15px] font-black text-[#172033]">Aucune campagne</div>
               <div className="text-[13px] text-[#69758a] max-w-[480px] leading-6">
                 {filterDemandeId
-                  ? 'Commencer par créer une campagne explicite, puis rattacher les interventions à ce cadre au fur et à mesure de l\'exécution.'
+                  ? 'Créez les campagnes depuis la préparation (DIAG-CH, Témoin, RARx, Suivi…).'
                   : 'Aucune campagne ne correspond aux filtres sélectionnés.'}
               </div>
               {filterDemandeId ? (
-                <Button size="sm" variant="primary" onClick={openCreate} disabled={createMutation.isPending}>
-                  {createMutation.isPending ? 'Création…' : 'Nouvelle campagne'}
+                <Button size="sm" variant="primary" onClick={openPreparationForCreate}>
+                  Ouvrir la préparation
                 </Button>
               ) : null}
             </div>

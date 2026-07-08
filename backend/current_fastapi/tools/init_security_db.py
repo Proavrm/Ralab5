@@ -90,6 +90,7 @@ def create_schema(connection: sqlite3.Connection) -> None:
         standard_referent TEXT,
         standard_update_impact TEXT,
         trainer_name TEXT,
+        rst_code TEXT,
         is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

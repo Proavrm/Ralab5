@@ -113,6 +113,7 @@ PASSATION_ROLE_CODES = [
 DEFAULT_DOCUMENT_TYPES = [
     "CCTP",
     "Plans",
+    "Plan de situation",
     "Planning travaux",
     "Mémoire technique",
     "Programme essais",
@@ -132,6 +133,8 @@ class PassationDocumentRecord:
     version: str
     document_date: Optional[date]
     comment: str
+    stored_path: str = ""
+    uploaded_at: Optional[date] = None
     created_at: str = ""
     updated_at: str = ""
 
@@ -220,6 +223,7 @@ class PassationStructuredNeedRecord:
     passation_id: int
     need_code: str
     need_label: str
+    description: str
     request_status: str
     quantity: str
     notes: str
@@ -272,6 +276,14 @@ class PassationRecord:
     workflow_decided_at: Optional[date]
     synthese: str
     notes: str
+    maitre_ouvrage: str = ""
+    maitre_oeuvre: str = ""
+    types_essais_prevus: str = ""
+    livrables_attendus: str = ""
+    criteres_conformite: str = ""
+    demande_destinataire_email: str = ""
+    demande_destinataire_name: str = ""
+    date_debut_travaux_prevue: Optional[date] = None
     affaire_ref: str = ""
     nb_documents: int = 0
     nb_actions: int = 0
@@ -294,6 +306,8 @@ class PassationDocumentSchema(BaseModel):
     version: str = Field("")
     document_date: Optional[date] = Field(None)
     comment: str = Field("")
+    stored_path: str = Field("")
+    uploaded_at: Optional[date] = Field(None)
 
 class PassationActionSchema(BaseModel):
     uid: int | None = None
@@ -354,6 +368,7 @@ class PassationStructuredNeedSchema(BaseModel):
     uid: int | None = None
     need_code: str = Field("")
     need_label: str = Field("")
+    description: str = Field("")
     request_status: str = Field("Non évalué")
     quantity: str = Field("")
     notes: str = Field("")
@@ -369,6 +384,7 @@ class PassationDemandePreparationItemSchema(BaseModel):
 class PassationCreateSchema(BaseModel):
     affaire_rst_id: int = Field(...)
     date_passation: date = Field(default_factory=date.today)
+    date_debut_travaux_prevue: Optional[date] = Field(None)
     source: str = Field("")
     operation_type: str = Field("")
     phase_operation: str = Field("")
@@ -376,6 +392,8 @@ class PassationCreateSchema(BaseModel):
     numero_affaire_nge: str = Field("")
     chantier: str = Field("")
     client: str = Field("")
+    maitre_ouvrage: str = Field("")
+    maitre_oeuvre: str = Field("")
     entreprise_responsable: str = Field("")
     agence: str = Field("")
     responsable: str = Field("")
@@ -397,6 +415,11 @@ class PassationCreateSchema(BaseModel):
     workflow_decided_at: Optional[date] = Field(None)
     synthese: str = Field("")
     notes: str = Field("")
+    types_essais_prevus: str = Field("")
+    livrables_attendus: str = Field("")
+    criteres_conformite: str = Field("")
+    demande_destinataire_email: str = Field("")
+    demande_destinataire_name: str = Field("")
     documents: list[PassationDocumentSchema] = Field(default_factory=list)
     actions: list[PassationActionSchema] = Field(default_factory=list)
     role_assignments: list[PassationRoleAssignmentSchema] = Field(default_factory=list)
@@ -407,9 +430,15 @@ class PassationCreateSchema(BaseModel):
     structured_needs: list[PassationStructuredNeedSchema] = Field(default_factory=list)
     demande_preparation_items: list[PassationDemandePreparationItemSchema] = Field(default_factory=list)
 
+class PassationLinkDemandeSchema(BaseModel):
+    demande_uid: int
+    module_code: str = ""
+
+
 class PassationUpdateSchema(BaseModel):
     affaire_rst_id: Optional[int] = None
     date_passation: Optional[date] = None
+    date_debut_travaux_prevue: Optional[date] = None
     source: Optional[str] = None
     operation_type: Optional[str] = None
     phase_operation: Optional[str] = None
@@ -417,6 +446,8 @@ class PassationUpdateSchema(BaseModel):
     numero_affaire_nge: Optional[str] = None
     chantier: Optional[str] = None
     client: Optional[str] = None
+    maitre_ouvrage: Optional[str] = None
+    maitre_oeuvre: Optional[str] = None
     entreprise_responsable: Optional[str] = None
     agence: Optional[str] = None
     responsable: Optional[str] = None
@@ -438,6 +469,11 @@ class PassationUpdateSchema(BaseModel):
     workflow_decided_at: Optional[date] = None
     synthese: Optional[str] = None
     notes: Optional[str] = None
+    types_essais_prevus: Optional[str] = None
+    livrables_attendus: Optional[str] = None
+    criteres_conformite: Optional[str] = None
+    demande_destinataire_email: Optional[str] = None
+    demande_destinataire_name: Optional[str] = None
     documents: Optional[list[PassationDocumentSchema]] = None
     actions: Optional[list[PassationActionSchema]] = None
     role_assignments: Optional[list[PassationRoleAssignmentSchema]] = None
@@ -454,6 +490,7 @@ class PassationResponseSchema(BaseModel):
     affaire_rst_id: int
     affaire_ref: str = ""
     date_passation: date
+    date_debut_travaux_prevue: Optional[date] = None
     source: str
     operation_type: str
     phase_operation: str
@@ -461,6 +498,8 @@ class PassationResponseSchema(BaseModel):
     numero_affaire_nge: str
     chantier: str
     client: str
+    maitre_ouvrage: str = ""
+    maitre_oeuvre: str = ""
     entreprise_responsable: str
     agence: str
     responsable: str
@@ -482,6 +521,17 @@ class PassationResponseSchema(BaseModel):
     workflow_decided_at: Optional[date]
     synthese: str
     notes: str
+    types_essais_prevus: str = ""
+    livrables_attendus: str = ""
+    criteres_conformite: str = ""
+    demande_destinataire_email: str = ""
+    demande_destinataire_name: str = ""
+    affaire_date_debut_travaux_prevue: Optional[date] = None
+    date_debut_travaux_locked: bool = False
+    is_editable: bool = True
+    pending_demande_modules: list[str] = Field(default_factory=list)
+    generated_demande_count: int = 0
+    edit_lock_reason: str = ""
     nb_documents: int = 0
     nb_actions: int = 0
     created_at: str = ""

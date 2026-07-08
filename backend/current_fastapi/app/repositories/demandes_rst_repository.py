@@ -51,7 +51,8 @@ class DemandesRstRepository:
         a_revoir=None,
     ) -> list[DemandeRstRecord]:
         sql = """
-            SELECT d.*, a.reference AS affaire_ref, a.client, a.chantier, a.site,
+            SELECT d.*, a.reference AS affaire_ref, a.client, a.maitre_ouvrage, a.maitre_oeuvre,
+                   a.chantier, a.site, a.adresse_ouvrage,
                    a.numero_etude, a.affaire_nge, a.filiale, a.titulaire,
                    a.responsable AS responsable_affaire,
                    a.statut AS statut_affaire,
@@ -96,7 +97,8 @@ class DemandesRstRepository:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT d.*, a.reference AS affaire_ref, a.client, a.chantier, a.site,
+                SELECT d.*, a.reference AS affaire_ref, a.client, a.maitre_ouvrage, a.maitre_oeuvre,
+                   a.chantier, a.site, a.adresse_ouvrage,
                        a.numero_etude, a.affaire_nge, a.filiale, a.titulaire,
                        a.responsable AS responsable_affaire,
                        a.statut AS statut_affaire,
@@ -124,6 +126,9 @@ class DemandesRstRepository:
                     i.date_intervention,
                     i.type_intervention,
                     i.sujet,
+                    i.zone,
+                    i.finalite,
+                    i.observations,
                     i.geotechnicien,
                     i.technicien,
                     i.niveau_alerte,
@@ -745,8 +750,11 @@ class DemandesRstRepository:
             affaire_rst_id=r.affaire_rst_id,
             affaire_ref=r.affaire_ref,
             client=r.client,
+            maitre_ouvrage=r.maitre_ouvrage,
+            maitre_oeuvre=r.maitre_oeuvre,
             chantier=r.chantier,
             site=r.site,
+            adresse_ouvrage=r.adresse_ouvrage,
             numero_etude=r.numero_etude,
             affaire_nge=r.affaire_nge,
             filiale=r.filiale,
@@ -843,8 +851,11 @@ class DemandesRstRepository:
             updated_at=row['updated_at'] or '',
             affaire_ref=(row['affaire_ref'] or '') if 'affaire_ref' in keys else '',
             client=(row['client'] or '') if 'client' in keys else '',
+            maitre_ouvrage=(row['maitre_ouvrage'] or '') if 'maitre_ouvrage' in keys else '',
+            maitre_oeuvre=(row['maitre_oeuvre'] or '') if 'maitre_oeuvre' in keys else '',
             chantier=(row['chantier'] or '') if 'chantier' in keys else '',
             site=(row['site'] or '') if 'site' in keys else '',
+            adresse_ouvrage=(row['adresse_ouvrage'] or '') if 'adresse_ouvrage' in keys else '',
             numero_etude=(row['numero_etude'] or '') if 'numero_etude' in keys else '',
             affaire_nge=(row['affaire_nge'] or '') if 'affaire_nge' in keys else '',
             filiale=(row['filiale'] or '') if 'filiale' in keys else '',

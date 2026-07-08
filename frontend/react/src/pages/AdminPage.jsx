@@ -1,14 +1,17 @@
 /**
- * AdminPage.jsx — fidèle à admin.html legacy
- * 2 tabs: Utilisateurs + Rôles & Permissions
+ * AdminPage.jsx — Administration RaLab (onglets)
+ * Utilisateurs · Laboratoires · Rôles & permissions
  */
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi, api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import UserProfileModal from '@/components/admin/UserProfileModal'
+import LaboratoireGeoModal from '@/components/admin/LaboratoireGeoModal'
+import OrgAdminPanel from '@/components/admin/OrgAdminPanel'
 
 const ROLES = ['admin', 'labo', 'etudes', 'consult']
 const ROLE_LABEL = { admin: 'Administrateur', labo: 'Laboratoire', etudes: 'Études', consult: 'Consultation' }
@@ -85,9 +88,9 @@ function UserModal({ open, onClose, editUser, employmentLevels }) {
             {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}
           </Select>
         </FG>
-        <FG label="Service / Code labo">
+        <FG label="Service / Code labo" hint="Code depuis Administration → Laboratoires (région, agence ou labo).">
           <Input value={form.service_code} onChange={e => set('service_code', e.target.value)}
-            placeholder="SP, PDC, CHB…" />
+            placeholder="SP, PDC, SVV, ARS…" />
         </FG>
         <FG label="Emploi / niveau" hint="Patamar professionnel utilisé para tri e futura ficha de compétences">
           <Select value={form.employment_level_code} onChange={e => set('employment_level_code', e.target.value)} className="w-full">
@@ -121,11 +124,22 @@ function UserModal({ open, onClose, editUser, employmentLevels }) {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────
+const ADMIN_TABS = [
+  ['users', '👤 Utilisateurs'],
+  ['labs', '🏭 Laboratoires'],
+  ['roles', '🔑 Rôles & permissions'],
+]
+
 export default function AdminPage() {
   const qc = useQueryClient()
-  const [tab, setTab] = useState('users')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = ADMIN_TABS.some(([key]) => key === searchParams.get('tab'))
+    ? searchParams.get('tab')
+    : 'users'
+  const [tab, setTab] = useState(initialTab)
   const [userModalOpen, setUserModalOpen] = useState(false)
   const [profileUserEmail, setProfileUserEmail] = useState('')
+  const [selectedLab, setSelectedLab] = useState(null)
   const [matrixDirty, setMatrixDirty] = useState({}) // { role_code: Set<perm> }
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
@@ -150,6 +164,13 @@ export default function AdminPage() {
     enabled: tab === 'roles',
   })
 
+  const { data: labsPayload, isLoading: labsLoading } = useQuery({
+    queryKey: ['admin-labs'],
+    queryFn: () => adminApi.labs.list(),
+    enabled: tab === 'labs',
+  })
+  const labs = labsPayload?.laboratoires ?? []
+
   const toggleActiveMutation = useMutation({
     mutationFn: ({ email, active }) => adminApi.users.toggleActive(email, active),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
@@ -161,6 +182,18 @@ export default function AdminPage() {
   })
 
   const selectedUser = users.find((candidate) => candidate.email === profileUserEmail) || null
+
+  useEffect(() => {
+    const requested = searchParams.get('tab')
+    if (requested && ADMIN_TABS.some(([key]) => key === requested) && requested !== tab) {
+      setTab(requested)
+    }
+  }, [searchParams, tab])
+
+  function selectTab(nextTab) {
+    setTab(nextTab)
+    setSearchParams(nextTab === 'users' ? {} : { tab: nextTab }, { replace: true })
+  }
 
   function openCreate() { setUserModalOpen(true) }
   function openEdit(u) { setProfileUserEmail(u.email) }
@@ -198,9 +231,14 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-[1000px] mx-auto py-2">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">⚙️ Utilisateurs & Droits</h1>
+    <div className="flex flex-col gap-5 max-w-[1100px] mx-auto py-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-semibold">⚙️ Administration</h1>
+          <p className="mt-1 text-[12px] text-text-muted leading-relaxed">
+            Référentiels et droits — utilisateurs, laboratoires RST, permissions.
+          </p>
+        </div>
         {tab === 'users' && (
           <Button variant="primary" onClick={openCreate}>+ Nouvel utilisateur</Button>
         )}
@@ -214,10 +252,10 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* Tabs */}
+      {/* Onglets */}
       <div className="flex gap-0 border-b border-border">
-        {[['users','👤 Utilisateurs'],['roles','🔑 Rôles & Permissions']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
+        {ADMIN_TABS.map(([key, label]) => (
+          <button key={key} onClick={() => selectTab(key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === key ? 'border-accent text-accent' : 'border-transparent text-text-muted hover:text-text'
             }`}>
@@ -287,6 +325,69 @@ export default function AdminPage() {
         </div>
       )}
 
+      {tab === 'labs' && (
+        <div className="bg-surface border border-border rounded-xl overflow-hidden">
+          <div className="border-b border-border px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-[12px] leading-relaxed text-text-muted">
+              Référentiel central des laboratoires — lu par toute l&apos;application (demandes, planning, rapports…).
+            </div>
+            <Button size="sm" variant="primary" onClick={() => setSelectedLab({ isNew: true })}>
+              + Créer laboratoire
+            </Button>
+          </div>
+          <OrgAdminPanel />
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                {['Code', 'Nom', 'Région', 'Agence', 'Équipe', 'Équip.', 'Coords', 'Statut', ''].map((heading) => (
+                  <th key={heading || 'actions'} className="bg-bg px-4 py-2.5 text-left text-[11px] font-medium text-text-muted border-b border-border">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {labsLoading ? (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-xs text-text-muted">Chargement…</td></tr>
+              ) : labs.length === 0 ? (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-xs text-text-muted">Aucun laboratoire</td></tr>
+              ) : labs.map((lab) => (
+                <tr key={lab.code} className="border-b border-border hover:bg-bg transition-colors">
+                  <td className="px-4 py-3 text-xs font-semibold">{lab.code}</td>
+                  <td className="px-4 py-3 text-xs">{lab.name}</td>
+                  <td className="px-4 py-3 text-xs">{lab.region_label || lab.region || '—'}</td>
+                  <td className="px-4 py-3 text-xs">{lab.agence_label || lab.agence_code || '—'}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {lab.staff_active_count ?? 0} actif{(lab.staff_active_count ?? 0) > 1 ? 's' : ''}
+                    {lab.responsable_email ? (
+                      <div className="text-[10px] text-text-muted truncate max-w-[140px]" title={lab.responsable_email}>
+                        Resp. {lab.responsable?.display_name || lab.responsable_email}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {lab.equipment?.linked ? (lab.equipment.total ?? 0) : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-xs font-mono">
+                    {lab.has_coords ? `${lab.lat}, ${lab.lon}` : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                      lab.is_active ? 'bg-[#eaf3de] text-[#3b6d11]' : 'bg-[#f1efe8] text-[#5f5e5a]'
+                    }`}>
+                      {lab.is_active ? 'Actif' : 'Inactif'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button size="sm" onClick={() => setSelectedLab(lab)}>✏️</Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Tab: Rôles & Permissions */}
       {tab === 'roles' && (
         <div className="bg-surface border border-border rounded-xl overflow-x-auto">
@@ -340,6 +441,17 @@ export default function AdminPage() {
         onClose={() => setProfileUserEmail('')}
         user={selectedUser}
         employmentLevels={employmentLevels}
+      />
+
+      <LaboratoireGeoModal
+        open={Boolean(selectedLab)}
+        onClose={() => setSelectedLab(null)}
+        lab={selectedLab}
+        onOpenUser={(email) => {
+          setSelectedLab(null)
+          selectTab('users')
+          setProfileUserEmail(email)
+        }}
       />
     </div>
   )

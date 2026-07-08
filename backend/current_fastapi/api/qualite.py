@@ -405,6 +405,11 @@ EQUIPMENT_USAGE_DEFAULTS: dict[str, dict[str, Any]] = {
         "status": "En service",
         "terms": ["gamma", "gammadens", "densim", "pqi", "troxler", "nucléaire", "nucleaire"],
     },
+    "sondage_carotte_sc": {
+        "category": "Terrain",
+        "status": "En service",
+        "terms": ["carotte", "carotier", "carottage", "foreuse", "couronne", "sondage", "sondeuse", "perceuse"],
+    },
 }
 
 
@@ -491,8 +496,9 @@ def list_equipment(
     search:   Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     status:   Optional[str] = Query(None),
+    labo_code: Optional[str] = Query(None),
 ):
-    return [EquipmentResponseSchema(**_to_dict(r)) for r in _eq.all(search, category, status)]
+    return [EquipmentResponseSchema(**_to_dict(r)) for r in _eq.all(search, category, status, labo_code)]
 
 
 @router.get("/equipment-options", response_model=list[EquipmentOptionSchema])

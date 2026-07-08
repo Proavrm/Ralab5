@@ -44,11 +44,11 @@ storage/
 
 ## 4. Domaine métier
 
-**Laboratoire géotechnique NGE** — 4 laboratoires :
-- `SP` = Saint-Priest (région RA)
-- `PDC` = Pont-du-Château (région AUV)
-- `CHB` = Chambéry (région RA)
-- `CLM` = Clermont-Ferrand (région AUV)
+**Laboratoire géotechnique NGE** — référentiel central (Admin → Laboratoires) :
+- Région **ARS** (Auvergne-Rhône-Saône)
+- Agences **RA** (Rhône-Ain), **AUV** (Auvergne)
+- Labos **SP** (Saint-Priest, RA), **PDC** (Pont-du-Château, AUV)
+- Éditable en base — pas de liste figée dans le code
 
 ### Flux principal
 ```

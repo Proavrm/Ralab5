@@ -1,7 +1,9 @@
 /**
  * Catalogue des modèles JSX terrain/labo.
- * PMT et SC ont des pages dédiées ; les autres codes utilisent ModeleEssaiBasePage.
+ * PMT et SC ont des pages dédiées ; FWD/DE/ADH/ACO utilisent TerrainEssaiPage.
  */
+
+import { getTerrainEssaiConfig, getTerrainEssaiRoute } from './terrainEssaiConfigs'
 
 export const ESSAI_MODELE_CATALOG = {
   PMT: {
@@ -35,14 +37,18 @@ export const ESSAI_MODELE_CATALOG = {
   ADH: {
     code: 'ADH',
     label: 'Adhérence',
-    fields: ['point', 'localisation', 'support', 'valeur_mpa', 'methode', 'observations'],
-    status: 'base',
+    route: '/modeles/terrain/adh',
+    terrain: true,
+    status: 'active',
+    summary: 'Feuille terrain adhérence avec rapport.',
   },
   ACO: {
     code: 'ACO',
     label: 'Mesure acoustique',
-    fields: ['point', 'localisation', 'valeur_db', 'methode', 'observations'],
-    status: 'base',
+    route: '/modeles/terrain/aco',
+    terrain: true,
+    status: 'active',
+    summary: 'Feuille terrain acoustique avec rapport.',
   },
   CFE: {
     code: 'CFE',
@@ -53,8 +59,10 @@ export const ESSAI_MODELE_CATALOG = {
   DE: {
     code: 'DE',
     label: 'Densité enrobés',
-    fields: ['point', 'localisation', 'densite', 'compacite', 'vides', 'observations'],
-    status: 'base',
+    route: '/modeles/de',
+    dedicated: true,
+    status: 'active',
+    summary: 'Feuille DE dédiée avec saisie terrain et rapport.',
   },
   DF: {
     code: 'DF',
@@ -65,8 +73,10 @@ export const ESSAI_MODELE_CATALOG = {
   FWD: {
     code: 'FWD',
     label: 'FWD',
-    fields: ['point', 'localisation', 'deflexion_mm', 'temperature_c', 'observations'],
-    status: 'base',
+    route: '/modeles/terrain/fwd',
+    terrain: true,
+    status: 'active',
+    summary: 'Feuille terrain FWD avec rapport.',
   },
   EXT: {
     code: 'EXT',
@@ -125,6 +135,8 @@ export function getEssaiModeleDefinition(code) {
 export function resolveEssaiModeleRoute(code) {
   const def = getEssaiModeleDefinition(code)
   if (def.dedicated && def.route) return def.route
+  if (def.terrain && def.route) return def.route
+  if (getTerrainEssaiConfig(code)) return getTerrainEssaiRoute(code)
   if (!def.code || def.code === 'GEN') return null
   return `/modeles/essai/${encodeURIComponent(def.code)}`
 }

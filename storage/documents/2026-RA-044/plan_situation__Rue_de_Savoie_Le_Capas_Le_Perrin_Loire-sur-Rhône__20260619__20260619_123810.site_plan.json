@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "address_query": "Rue de Savoie, LOIRE-SUR-RHÔNE (69), France",
+  "address_label": "Rue de Savoie, Le Capas, Le Perrin, Loire-sur-Rhône, Lyon, Rhône, Auvergne-Rhône-Alpes, France métropolitaine, 69700, France",
+  "lat": 45.5620195,
+  "lon": 4.8138275,
+  "map_center_lat": 45.5620195,
+  "map_center_lon": 4.8138275,
+  "zoom": 16,
+  "image_width": 1050,
+  "image_height": 1486,
+  "orientation": "portrait",
+  "zones": [],
+  "pins": [
+    {
+      "id": "pin-mqksoz2i-5hrhu",
+      "x": 48.286379218602576,
+      "y": 40.78970565485201,
+      "comment": "stationemente"
+    }
+  ],
+  "show_itinerary": false,
+  "itinerary_route": [],
+  "source": "map_capture",
+  "stored_path": "documents/2026-RA-044/plan_situation__Rue_de_Savoie_Le_Capas_Le_Perrin_Loire-sur-Rhône__20260619__20260619_123810.png"
+}

@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.core.database import ensure_ralab4_schema, get_db_path
+from app.services.prelevement_reference_service import next_prelevement_reference
 from app.services.work_assignment_service import sync_prelevement_reception_assignment
 
 router = APIRouter()
@@ -86,22 +87,6 @@ def _conn() -> sqlite3.Connection:
 
 def _now_sql() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def _next_prelevement_reference(conn: sqlite3.Connection, demande_id: int) -> str:
-    row = conn.execute("SELECT annee, labo_code FROM demandes WHERE id = ?", (demande_id,)).fetchone()
-    annee = row["annee"] if row else datetime.now().year
-    labo = row["labo_code"] if row else "SP"
-    prefix = f"{annee}-{labo}-P"
-    rows = conn.execute("SELECT reference FROM prelevements WHERE reference LIKE ?", (f"{prefix}%",)).fetchall()
-    numbers = []
-    for row in rows:
-        ref = str(row["reference"] or "")
-        if ref.startswith(prefix):
-            suffix = ref[len(prefix):]
-            if suffix.isdigit():
-                numbers.append(int(suffix))
-    return f"{prefix}{max(numbers, default=0) + 1:04d}"
 
 
 def _prelevement_select_sql(where_clause: str = "WHERE 1=1") -> str:
@@ -379,7 +364,7 @@ def create_prelevement(payload: CreatePrelevementPayload) -> dict:
         if not first:
             raise HTTPException(404, "Intervention source introuvable")
         demande_id = int(first["demande_id"]) if first["demande_id"] is not None else None
-        reference = _next_prelevement_reference(conn, demande_id or 0)
+        reference = next_prelevement_reference(conn, demande_id=demande_id or 0)
         now = _now_sql()
         conn.execute(
             """

@@ -4,10 +4,11 @@
  * API: GET /demandes_rst/{uid}  + GET /demandes_rst/{uid}/navigation
  * 2 modaux: configuration préparation/modules + référence (admin)
  */
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, demandesApi, interventionCampaignsApi } from '@/services/api'
+import { api, demandesApi, affairesApi, plansImplantationApi, nivellementsApi } from '@/services/api'
+import PlanImagesConsultSection from '@/components/plans/PlanImagesConsultSection'
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { applyInterventionTypeToPath } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
@@ -17,9 +18,57 @@ import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { hasRole } from '@/lib/permissions'
 import { MetricCard } from '@/components/layout/FicheLayout'
+import LabName from '@/components/laboratoire/LabName'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { buildLaboSelectOptions, resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
+import DocumentTrackingTable from '@/components/demande/DocumentTrackingTable'
+import { DEFAULT_DOCUMENT_DROP_TYPES } from '@/lib/documentDropCatalog'
+import { validateDemandeSitePlan, ensureSiteCaptureDocumentRows } from '@/lib/sitePlanRequirements'
+import { A4_ORIENTATION_LANDSCAPE, A4_ORIENTATION_PORTRAIT } from '@/lib/sitePlanImageCoords'
+import PassationPrestationsSummary from '@/components/demande/PassationPrestationsSummary'
+import DemandePrestationsEditor from '@/components/demande/DemandePrestationsEditor'
+import PreparationEssaisTable from '@/components/demande/PreparationEssaisTable'
+import { buildDistanceToLabCaption } from '@/lib/labGeo'
+import { buildG3NotesTechniquesPath } from '@/lib/modeleNTContent'
+import { isNoteTechniqueIntervention } from '@/lib/noteTechniqueIntervention'
 
 
 const DEMANDE_UI_STORAGE_PREFIX = 'ralab5:demande-ui:'
+
+function NoteTechniqueDemandeCard({ note, demandeUid, detailReturnTo, navigate }) {
+  return (
+    <div className="rounded-[10px] border border-[#dbe1ea] bg-[#f8fafc] px-4 py-3 flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12px] font-semibold text-[#003170]">{note.reference || 'Note technique'}</span>
+          <span className="text-[11px] text-text-muted">{formatDate(note.date_intervention) || 'Date à préciser'}</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-bg text-[11px] font-medium text-text-muted">
+            {note.statut || '—'}
+          </span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-[#dbe1ea] bg-white text-[10px] font-semibold uppercase tracking-[.04em] text-[#69758a]">
+            Scope demande
+          </span>
+        </div>
+        <div className="mt-1 text-[13px] text-text line-clamp-2">{note.sujet || note.type_intervention || '—'}</div>
+        <div className="mt-1 text-[11px] text-text-muted">
+          Rattachée à la demande — pas à une campagne terrain.
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2 shrink-0">
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={() => navigate(buildPathWithReturnTo(
+            buildG3NotesTechniquesPath({ demandeUid, interventionUid: note.uid, returnTo: detailReturnTo }),
+            detailReturnTo,
+          ))}
+        >
+          Ouvrir la note
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 function getDemandeUiStorageKey(uid) {
   return `${DEMANDE_UI_STORAGE_PREFIX}${uid || 'unknown'}`
@@ -92,8 +141,6 @@ function getRelatedNodeTone(level = 0) {
 
 
 const STATUTS   = ['À qualifier','Demande','En Cours','Répondu','Fini','Envoyé - Perdu']
-const LABOS     = ['SP','AUV','CHB','CLM','RST']
-const LABO_NOM  = { SP:'Saint-Priest', AUV:'Pont-du-Château', CHB:'Chambéry', CLM:'Clermont', RST:'RST / G3' }
 const MISSIONS  = ['À définir','Études G1','Études G2','Exploitation G3','Essais Labo','Avis Technique','Externe','Autre']
 const PRIORITES = ['Basse','Normale','Haute','Critique']
 
@@ -212,6 +259,22 @@ function FieldCard({ label, value, highlight, className = '' }) {
     <div className={`min-w-0 rounded-[14px] px-3 py-2.5 ${highlight ? 'border border-[#efd36b] bg-gradient-to-b from-[#fffdf2] to-[#fbfcfe]' : 'border border-[#e4e9f1] bg-[#fbfcfe]'} ${className}`}>
       <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">{label}</div>
       <div className="mt-1.5 min-h-[22px] text-[13px] font-black text-[#172033] break-all">{value || '—'}</div>
+    </div>
+  )
+}
+
+const INLINE_INPUT_CLS = 'w-full px-2.5 py-1.5 border border-[#dbe1ea] rounded-lg text-[13px] font-semibold text-[#172033] bg-white outline-none focus:border-accent'
+const INLINE_TEXTAREA_CLS = `${INLINE_INPUT_CLS} resize-y min-h-[72px]`
+
+function EditableFieldCard({ label, editing, displayValue, highlight, className = '', children }) {
+  return (
+    <div className={`min-w-0 rounded-[14px] px-3 py-2.5 ${highlight ? 'border border-[#efd36b] bg-gradient-to-b from-[#fffdf2] to-[#fbfcfe]' : 'border border-[#e4e9f1] bg-[#fbfcfe]'} ${className}`}>
+      <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a]">{label}</div>
+      <div className="mt-1.5 min-h-[22px]">
+        {editing ? children : (
+          <div className="text-[13px] font-black text-[#172033] break-all">{displayValue ?? '—'}</div>
+        )}
+      </div>
     </div>
   )
 }
@@ -363,7 +426,7 @@ function collectSupportObjectsByIntervention(interventions) {
 function openRelatedObject(navigate, item, detailReturnTo) {
   if (!item?.uid) return
   if (item.kind === 'plan_implantation') {
-    navigate(buildPathWithReturnTo(`/plans-implantation/${item.uid}`, detailReturnTo))
+    navigate(buildPathWithReturnTo(`/plans-implantation/${item.uid}?mode=consultation`, detailReturnTo))
     return
   }
   if (item.kind === 'nivellement') {
@@ -391,6 +454,18 @@ function openRelatedObject(navigate, item, detailReturnTo) {
   }
 }
 
+function isDeletableSupportObject(item) {
+  return ['plan_implantation', 'nivellement'].includes(item?.kind) && item?.uid
+}
+
+function getSupportDeleteConfirmMessage(item) {
+  const label = item?.reference || getInterventionObjectLabel(item)
+  if (item?.kind === 'nivellement') {
+    return `Supprimer le nivellement ${label} ?\n\nLa fiche NI sera supprimée. Les altitudes Z sur les points terrain restent inchangées.`
+  }
+  return `Supprimer le plan d'implantation ${label} ?\n\nLe canevas et les implantations planimétriques seront supprimés. Les points terrain restent inchangés.`
+}
+
 function RelatedObjectNode({
   item,
   navigate,
@@ -398,6 +473,8 @@ function RelatedObjectNode({
   level = 0,
   getExpandedState,
   setExpandedState,
+  onDeleteSupportObject = null,
+  deletingSupportKey = '',
 }) {
   const children = Array.isArray(item?.children) ? item.children : []
   const hasChildren = children.length > 0
@@ -405,6 +482,24 @@ function RelatedObjectNode({
   const nodeKey = getRelatedNodeKey(item)
   const isOpen = getExpandedState(nodeKey, false)
   const tone = getRelatedNodeTone(level)
+  const canDelete = isDeletableSupportObject(item) && typeof onDeleteSupportObject === 'function'
+  const deleteKey = canDelete ? `${item.kind}:${item.uid}` : ''
+  const isDeleting = Boolean(deletingSupportKey && deletingSupportKey === deleteKey)
+
+  const deleteButton = canDelete ? (
+    <Button
+      size="sm"
+      variant="danger"
+      disabled={isDeleting}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        onDeleteSupportObject(item)
+      }}
+    >
+      {isDeleting ? '…' : 'Supprimer'}
+    </Button>
+  ) : null
 
   const mainContent = (
     <>
@@ -436,17 +531,20 @@ function RelatedObjectNode({
   if (!hasChildren) {
     return (
       <div className={`rounded-lg border ${tone.shell}`} style={{ marginLeft: level > 0 ? `${level * 14}px` : 0 }}>
-        {isNavigable ? (
-          <button
-            type="button"
-            onClick={() => openRelatedObject(navigate, item, detailReturnTo)}
-            className="w-full px-3 py-2 text-left transition-colors hover:bg-white/40 rounded-lg"
-          >
-            {mainContent}
-          </button>
-        ) : (
-          <div className="px-3 py-2">{mainContent}</div>
-        )}
+        <div className="flex items-start gap-2 px-3 py-2">
+          {isNavigable ? (
+            <button
+              type="button"
+              onClick={() => openRelatedObject(navigate, item, detailReturnTo)}
+              className="min-w-0 flex-1 text-left transition-colors hover:bg-white/40 rounded-lg"
+            >
+              {mainContent}
+            </button>
+          ) : (
+            <div className="min-w-0 flex-1">{mainContent}</div>
+          )}
+          {deleteButton ? <div className="shrink-0 pt-0.5">{deleteButton}</div> : null}
+        </div>
       </div>
     )
   }
@@ -460,11 +558,12 @@ function RelatedObjectNode({
             if (isNavigable) openRelatedObject(navigate, item, detailReturnTo)
             else setExpandedState(nodeKey, !isOpen)
           }}
-          className="flex-1 text-left transition-colors hover:bg-white/30 rounded-lg px-1 py-0.5"
+          className="min-w-0 flex-1 text-left transition-colors hover:bg-white/30 rounded-lg px-1 py-0.5"
         >
           {mainContent}
         </button>
         <div className="flex items-center gap-2 pt-0.5 shrink-0">
+          {deleteButton}
           {isNavigable ? (
             <button
               type="button"
@@ -495,6 +594,8 @@ function RelatedObjectNode({
               level={level + 1}
               getExpandedState={getExpandedState}
               setExpandedState={setExpandedState}
+              onDeleteSupportObject={onDeleteSupportObject}
+              deletingSupportKey={deletingSupportKey}
             />
           ))}
         </div>
@@ -511,6 +612,8 @@ function InterventionRelatedObjectsList({
   onLoadedCount,
   getExpandedState,
   setExpandedState,
+  onDeleteSupportObject = null,
+  deletingSupportKey = '',
 }) {
   const relatedObjects = Array.isArray(intervention?.related_objects) ? intervention.related_objects : []
 
@@ -579,6 +682,8 @@ function InterventionRelatedObjectsList({
                   detailReturnTo={detailReturnTo}
                   getExpandedState={getExpandedState}
                   setExpandedState={setExpandedState}
+                  onDeleteSupportObject={onDeleteSupportObject}
+                  deletingSupportKey={deletingSupportKey}
                 />
               ))}
             </div>
@@ -595,6 +700,8 @@ function InterventionAccordion({
   navigate,
   getExpandedState,
   setExpandedState,
+  onDeleteSupportObject = null,
+  deletingSupportKey = '',
 }) {
   const [loadedEssaiCount, setLoadedEssaiCount] = useState(null)
   const accordionKey = `intervention:${intervention?.uid || 'unknown'}`
@@ -651,6 +758,8 @@ function InterventionAccordion({
           onLoadedCount={setLoadedEssaiCount}
           getExpandedState={getExpandedState}
           setExpandedState={setExpandedState}
+          onDeleteSupportObject={onDeleteSupportObject}
+          deletingSupportKey={deletingSupportKey}
         />
       </div>
     </details>
@@ -666,6 +775,8 @@ function CampaignAccordion({
   onEditCampaign,
   getExpandedState,
   setExpandedState,
+  onDeleteSupportObject = null,
+  deletingSupportKey = '',
 }) {
   const accordionKey = `campaign:${campaign?.uid || campaign?.reference || 'unknown'}`
   const isOpen = getExpandedState(accordionKey, false)
@@ -760,6 +871,8 @@ function CampaignAccordion({
                         detailReturnTo={detailReturnTo}
                         getExpandedState={getExpandedState}
                         setExpandedState={setExpandedState}
+                        onDeleteSupportObject={onDeleteSupportObject}
+                        deletingSupportKey={deletingSupportKey}
                       />
                     ))}
                   </div>
@@ -791,6 +904,8 @@ function CampaignAccordion({
                 navigate={navigate}
                 getExpandedState={getExpandedState}
                 setExpandedState={setExpandedState}
+                onDeleteSupportObject={onDeleteSupportObject}
+                deletingSupportKey={deletingSupportKey}
               />
             ))}
           </div>
@@ -838,6 +953,7 @@ function buildEditForm(demande) {
     rapport_envoye: !!demande.rapport_envoye,
     devis_ref: demande.devis_ref || '',
     facture_ref: demande.facture_ref || '',
+    adresse_ouvrage: demande.adresse_ouvrage || '',
   }
 }
 
@@ -847,110 +963,6 @@ function sanitizeDemandeUpdate(form) {
     if (payload[key] === '') payload[key] = null
   }
   return payload
-}
-
-// ── Formulaire édition inline ─────────────────────────────────────────────────
-function DemandeEditFields({ demande, form, onChange }) {
-  function set(k, v) { onChange((current) => ({ ...current, [k]: v })) }
-
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      <FG label="Référence">
-        <Input value={demande?.reference || ''} readOnly className="text-text-muted" />
-      </FG>
-      <FG label="Statut">
-        <Select value={form.statut || ''} onChange={e => set('statut', e.target.value)} className="w-full">
-          {STATUTS.map(s => <option key={s}>{s}</option>)}
-        </Select>
-      </FG>
-      <FG label="Laboratoire">
-        <Select value={form.labo_code || ''} onChange={e => set('labo_code', e.target.value)} className="w-full">
-          {LABOS.map(l => <option key={l}>{l}</option>)}
-        </Select>
-      </FG>
-      <FG label="Priorité">
-        <Select value={form.priorite || ''} onChange={e => set('priorite', e.target.value)} className="w-full">
-          {PRIORITES.map(p => <option key={p}>{p}</option>)}
-        </Select>
-      </FG>
-      <FG label="Type mission" full>
-        <Input value={form.type_mission || ''} onChange={e => set('type_mission', e.target.value)} placeholder="Texte libre" />
-      </FG>
-      <FG label="Nature">
-        <Input value={form.nature} onChange={e => set('nature', e.target.value)} />
-      </FG>
-      <FG label="N° DST">
-        <Input value={form.numero_dst} onChange={e => set('numero_dst', e.target.value)} placeholder="CET0001234" />
-      </FG>
-      <FG label="Domaine d'étude">
-        <Input value={form.domaine_etude} onChange={e => set('domaine_etude', e.target.value)} />
-      </FG>
-      <FG label="Type prestation attendue" full>
-        <Input value={form.type_prestation_attendue} onChange={e => set('type_prestation_attendue', e.target.value)} />
-      </FG>
-      <FG label="Urgence source">
-        <Input value={form.urgence_source} onChange={e => set('urgence_source', e.target.value)} />
-      </FG>
-      <FG label="Demandeur">
-        <Input value={form.demandeur} onChange={e => set('demandeur', e.target.value)} />
-      </FG>
-      <FG label="Service interne">
-        <Input value={form.service_interne} onChange={e => set('service_interne', e.target.value)} />
-      </FG>
-      <FG label="Société interne">
-        <Input value={form.societe_interne} onChange={e => set('societe_interne', e.target.value)} />
-      </FG>
-      <FG label="Date réception">
-        <Input type="date" value={form.date_reception} onChange={e => set('date_reception', e.target.value)} />
-      </FG>
-      <FG label="Échéance">
-        <Input type="date" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)} />
-      </FG>
-      <FG label="Date clôture">
-        <Input type="date" value={form.date_cloture} onChange={e => set('date_cloture', e.target.value)} />
-      </FG>
-      <FG label="Documents fournis" full>
-        <textarea value={form.documents_fournis} onChange={e => set('documents_fournis', e.target.value)} rows={2}
-          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-      </FG>
-      <FG label="Lien pièces jointes volumineuses" full>
-        <textarea value={form.lien_pieces_jointes} onChange={e => set('lien_pieces_jointes', e.target.value)} rows={2}
-          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-      </FG>
-      <FG label="Description" full>
-        <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
-          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-      </FG>
-      <FG label="Observations" full>
-        <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={2}
-          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-      </FG>
-      <div className="col-span-2 flex items-center gap-2">
-        <input type="checkbox" checked={form.a_revoir} onChange={e => set('a_revoir', e.target.checked)} className="w-4 h-4 accent-[#ef9f27]" />
-        <label className="text-sm cursor-pointer">⚠ À revoir</label>
-      </div>
-      <FG label="Note réconciliation" full>
-        <Input value={form.note_reconciliation} onChange={e => set('note_reconciliation', e.target.value)} />
-      </FG>
-      <FG label="Notes suivi" full>
-        <textarea value={form.suivi_notes} onChange={e => set('suivi_notes', e.target.value)} rows={2}
-          className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
-      </FG>
-      <FG label="Réf. rapport">
-        <Input value={form.rapport_ref} onChange={e => set('rapport_ref', e.target.value)} />
-      </FG>
-      <div className="flex items-center gap-2 mt-4">
-        <input type="checkbox" checked={form.rapport_envoye} onChange={e => set('rapport_envoye', e.target.checked)} className="w-4 h-4 accent-accent" />
-        <label className="text-sm cursor-pointer">Rapport envoyé</label>
-      </div>
-      <FG label="Réf. devis">
-        <Input value={form.devis_ref} onChange={e => set('devis_ref', e.target.value)} />
-      </FG>
-      <FG label="Réf. facture">
-        <Input value={form.facture_ref} onChange={e => set('facture_ref', e.target.value)} />
-      </FG>
-    </div>
-  )
 }
 
 // ── Modal Configuration ───────────────────────────────────────────────────────
@@ -1074,6 +1086,11 @@ export default function DemandePage() {
   const qc = useQueryClient()
   const { user } = useAuth()
   const isAdmin = hasRole(user, ['admin'])
+  const { catalog } = useLaboratoireCatalog()
+  const laboSelectOptions = useMemo(
+    () => buildLaboSelectOptions(catalog, ['RST']),
+    [catalog],
+  )
   const [isEditing, setIsEditing] = useState(false)
   const [editForm, setEditForm] = useState({})
   const [interventionCreateDraft, setInterventionCreateDraft] = useState(null)
@@ -1096,6 +1113,19 @@ export default function DemandePage() {
     enabled: !!uid,
   })
 
+  const { data: demandePlansImplantationFull = [] } = useQuery({
+    queryKey: ['plans-implantation', 'demande', uid],
+    queryFn: () => plansImplantationApi.list({ demande_id: Number(uid) }),
+    enabled: Boolean(uid),
+  })
+
+  const affaireUid = raw?.affaire_rst_id
+  const { data: demandePlanImagesData } = useQuery({
+    queryKey: ['affaire-plan-images', affaireUid],
+    queryFn: () => affairesApi.listPlanImages(affaireUid),
+    enabled: Boolean(affaireUid),
+  })
+
   useEffect(() => { if (raw) setDemande(raw) }, [raw])
 
   const saveMutation = useMutation({
@@ -1105,6 +1135,174 @@ export default function DemandePage() {
       qc.setQueryData(['demande', uid], saved)
       qc.invalidateQueries({ queryKey: ['demandes'] })
       setIsEditing(false)
+    },
+  })
+
+  const [prestationsForm, setPrestationsForm] = useState([])
+
+  useEffect(() => {
+    setPrestationsForm(nav?.demande_prestations || [])
+  }, [nav?.demande_prestations])
+
+  const prestationsMutation = useMutation({
+    mutationFn: (prestations) => api.put(`/demandes_rst/${uid}/prestations`, { prestations }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
+    },
+  })
+
+  const [deletingSupportKey, setDeletingSupportKey] = useState('')
+
+  const deleteSupportObjectMutation = useMutation({
+    mutationFn: async (item) => {
+      if (item.kind === 'plan_implantation') {
+        await plansImplantationApi.delete(item.uid)
+        return
+      }
+      if (item.kind === 'nivellement') {
+        await nivellementsApi.delete(item.uid)
+        return
+      }
+      throw new Error('Type non supporté')
+    },
+    onMutate: (item) => setDeletingSupportKey(`${item.kind}:${item.uid}`),
+    onSettled: () => setDeletingSupportKey(''),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['demande-nav', uid] }),
+        qc.invalidateQueries({ queryKey: ['plans-implantation', 'demande', uid] }),
+        qc.invalidateQueries({ queryKey: ['plans-implantation'] }),
+        qc.invalidateQueries({ queryKey: ['nivellements'] }),
+      ])
+    },
+  })
+
+  const handleDeleteSupportObject = useCallback((item) => {
+    if (!isDeletableSupportObject(item)) return
+    if (!window.confirm(getSupportDeleteConfirmMessage(item))) return
+    deleteSupportObjectMutation.mutate(item)
+  }, [deleteSupportObjectMutation])
+
+  const [documentsForm, setDocumentsForm] = useState([])
+
+  useEffect(() => {
+    const mapped = (nav?.documents || []).map((doc) => ({
+      uid: doc.uid,
+      document_type: doc.document_type || '',
+      is_received: !!doc.is_received,
+      version: doc.version || '',
+      document_date: doc.document_date || null,
+      uploaded_at: doc.uploaded_at || null,
+      comment: doc.comment || '',
+      stored_path: doc.stored_path || '',
+    }))
+    setDocumentsForm(ensureSiteCaptureDocumentRows(mapped))
+  }, [nav?.documents])
+
+  async function handleSaveDocuments(nextDocs) {
+    const docs = Array.isArray(nextDocs) ? nextDocs : documentsForm
+    const sitePlanErr = validateDemandeSitePlan({
+      adresseOuvrage: demande?.adresse_ouvrage || editForm.adresse_ouvrage || '',
+      documents: docs,
+      passationUid: nav?.passation_uid || null,
+    })
+    if (sitePlanErr) {
+      window.alert(sitePlanErr)
+      return
+    }
+    await documentsMutation.mutateAsync(docs)
+  }
+
+  const uploadAffaireDocument = useCallback(
+    (file, options = {}) => {
+      const affaireUid = demande?.affaire_rst_id
+      if (!affaireUid) {
+        return Promise.reject(new Error('Affaire liée introuvable'))
+      }
+      return affairesApi.uploadDocument(affaireUid, file, options)
+    },
+    [demande?.affaire_rst_id],
+  )
+
+  const deleteAffaireDocument = useCallback(
+    (storedPath) => {
+      const affaireUid = demande?.affaire_rst_id
+      if (!affaireUid) {
+        return Promise.reject(new Error('Affaire liée introuvable'))
+      }
+      return affairesApi.deleteDocument(affaireUid, storedPath)
+    },
+    [demande?.affaire_rst_id],
+  )
+
+  const sitePlanCapture = useMemo(() => {
+    const affaireUid = demande?.affaire_rst_id
+    const laboCode = (isEditing ? editForm.labo_code : demande?.labo_code) || 'SP'
+    if (!affaireUid) return null
+    return {
+      laboCode,
+      geocode: (address) => affairesApi.geocodeSitePlan(affaireUid, address, laboCode),
+      preview: ({ lat, lon, address, zoom, width, height }) => affairesApi.previewSitePlan(affaireUid, {
+        lat, lon, address, zoom, width, height,
+      }),
+      fetchItinerary: ({ lat, lon }) => affairesApi.getSitePlanItinerary(affaireUid, { lat, lon, laboCode }),
+      save: ({ address, lat, lon, mapCenterLat, mapCenterLon, addressLabel, zoom, zones, pins, replaceStoredPath, orientation }) => affairesApi.captureSitePlan(affaireUid, {
+        address,
+        lat,
+        lon,
+        map_center_lat: mapCenterLat,
+        map_center_lon: mapCenterLon,
+        address_label: addressLabel,
+        labo_code: laboCode,
+        zoom: zoom ?? 16,
+        zones: zones || [],
+        pins: pins || [],
+        replace_stored_path: replaceStoredPath || undefined,
+        capture_kind: 'plan',
+        orientation: orientation || A4_ORIENTATION_PORTRAIT,
+      }),
+      saveItinerary: ({ address, lat, lon, mapCenterLat, mapCenterLon, addressLabel, zoom, itineraryRoute, replaceStoredPath, orientation }) => affairesApi.captureSitePlan(affaireUid, {
+        address,
+        lat,
+        lon,
+        map_center_lat: mapCenterLat,
+        map_center_lon: mapCenterLon,
+        address_label: addressLabel,
+        labo_code: laboCode,
+        zoom: zoom ?? 13,
+        itinerary_route: itineraryRoute || [],
+        replace_stored_path: replaceStoredPath || undefined,
+        capture_kind: 'itinerary',
+        orientation: orientation || A4_ORIENTATION_LANDSCAPE,
+      }),
+      loadMeta: (storedPath) => affairesApi.getSitePlanMeta(affaireUid, storedPath),
+    }
+  }, [demande?.affaire_rst_id, demande?.labo_code, isEditing, editForm.labo_code])
+
+  const demandeLaboCode = (isEditing ? editForm.labo_code : demande?.labo_code) || 'SP'
+  const { data: linkedAffaire } = useQuery({
+    queryKey: ['affaire', String(demande?.affaire_rst_id), demandeLaboCode],
+    queryFn: () => affairesApi.get(demande.affaire_rst_id, { labo_code: demandeLaboCode }),
+    enabled: Boolean(demande?.affaire_rst_id),
+  })
+
+  const documentsMutation = useMutation({
+    mutationFn: (documents) => api.put(`/demandes_rst/${uid}/documents`, {
+      documents: documents.map(({ document_type, is_received, version, document_date, uploaded_at, comment, stored_path }) => ({
+        document_type,
+        is_received,
+        version,
+        document_date,
+        uploaded_at,
+        comment,
+        stored_path,
+      })),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
+      if (demande?.affaire_rst_id) {
+        qc.invalidateQueries({ queryKey: ['affaire', String(demande.affaire_rst_id)] })
+      }
     },
   })
 
@@ -1156,6 +1354,7 @@ export default function DemandePage() {
   )
 
   const d = demande
+  const distanceCaption = buildDistanceToLabCaption(linkedAffaire?.site_geo?.distance_to_lab)
   const detailReturnTo = buildLocationTarget(location)
   const explicitReturnTo = resolveReturnTo(searchParams, '')
   const defaultBackTarget = d?.affaire_rst_id ? `/affaires/${d.affaire_rst_id}` : '/demandes'
@@ -1194,17 +1393,29 @@ export default function DemandePage() {
   const counts = nav?.counts || {}
   const navigationInterventions = nav?.interventions || []
   const interventionsByUid = new Map(navigationInterventions.map((item) => [Number(item.uid), item]))
-  const campaigns = (nav?.campagnes || []).map((campaign) => ({
-    ...campaign,
-    interventions: (campaign?.interventions || []).map((item) => ({
-      ...item,
-      ...(interventionsByUid.get(Number(item.uid)) || {}),
-    })),
-  }))
+  const demandeNotesTechniques = (Array.isArray(nav?.notes_techniques) && nav.notes_techniques.length
+    ? nav.notes_techniques
+    : navigationInterventions.filter((item) => isNoteTechniqueIntervention(item) && !item.campagne_id))
+  const campaigns = (nav?.campagnes || []).map((campaign) => {
+    const interventions = (campaign?.interventions || [])
+      .filter((item) => !item?.is_demande_scope)
+      .map((item) => ({
+        ...item,
+        ...(interventionsByUid.get(Number(item.uid)) || {}),
+      }))
+    return {
+      ...campaign,
+      interventions,
+      intervention_count: interventions.length,
+      intervention_uids: interventions.map((item) => item.uid),
+    }
+  })
   const campaignInterventionUids = new Set(
     campaigns.flatMap((campaign) => (campaign?.interventions || []).map((item) => Number(item?.uid))).filter((value) => Number.isFinite(value))
   )
-  const standaloneInterventions = navigationInterventions.filter((item) => !campaignInterventionUids.has(Number(item?.uid)))
+  const standaloneInterventions = navigationInterventions.filter(
+    (item) => !campaignInterventionUids.has(Number(item?.uid)) && !isNoteTechniqueIntervention(item),
+  )
   const virtualCampaign = campaigns.length === 0 && standaloneInterventions.length > 0
     ? {
       uid: 'virtual-unassigned',
@@ -1227,16 +1438,8 @@ export default function DemandePage() {
     }
     : null
   const campaignsForDisplay = virtualCampaign ? [virtualCampaign] : campaigns
-  const demandeSupportCampaignGroups = campaignsForDisplay
-    .map((campaign) => ({
-      campaign,
-      interventionGroups: collectSupportObjectsByIntervention(campaign?.interventions || []),
-    }))
-    .filter((entry) => entry.interventionGroups.length > 0)
-  const demandeSupportCount = demandeSupportCampaignGroups.reduce(
-    (total, entry) => total + entry.interventionGroups.reduce((acc, group) => acc + group.objects.length, 0),
-    0
-  )
+  const demandePlansImplantation = demandePlansImplantationFull
+  const demandePlanImageFiles = Array.isArray(demandePlanImagesData?.files) ? demandePlanImagesData.files : []
   const preparation = nav?.preparation || {}
   const familyCatalog = nav?.family_catalog || []
   const familyLabelMap = Object.fromEntries(familyCatalog.map((item) => [item.family_code, item.label]))
@@ -1281,49 +1484,21 @@ export default function DemandePage() {
   const preparationRefParam = d.reference ? `?ref=${encodeURIComponent(d.reference)}` : ''
   const preparationPreviewHref = buildPathWithReturnTo(`/preparations/${uid}${preparationRefParam}`, detailReturnTo)
   const preparationEditHref = buildPathWithReturnTo(`/preparations/${uid}${preparationRefParam}`, detailReturnTo)
+  const passationUid = nav?.passation_uid || null
+  const passationHref = passationUid
+    ? buildPathWithReturnTo(`/passations/${passationUid}`, detailReturnTo)
+    : ''
   const urgDate = d.date_echeance && !['Fini','Envoyé - Perdu','Archivée'].includes(d.statut)
     ? (new Date(d.date_echeance) - new Date()) / 86400000
     : null
   const urgCls = urgDate !== null ? (urgDate < 0 ? 'text-danger font-bold' : urgDate <= 7 ? 'text-warn font-bold' : '') : ''
 
-  function openCampaignConfiguration(campaign = {}) {
+  function openCampaignFiche(campaign = {}) {
     if (!uid) return
     const campaignUid = campaign?.uid
     if (isPersistedCampaignUid(campaignUid)) {
       navigate(buildPathWithReturnTo(`/campagnes/${campaignUid}`, detailReturnTo))
-      return
     }
-    interventionCampaignsApi.create({
-      demande_id: Number(uid),
-      label: campaign?.label || 'Campagne principale',
-      designation: campaign?.designation || '',
-      comparison_group: campaign?.comparison_group || preparation?.comparison_group || '',
-      zone_scope: campaign?.zone_scope || preparation?.zone_localisation || '',
-      types_essais_prevus: campaign?.types_essais_prevus || preparation?.types_essais_prevus || '',
-      nb_points_prevus: campaign?.nb_points_prevus || preparation?.nb_points_prevus || '',
-      responsable_technique: campaign?.responsable_technique || preparation?.responsable_referent || '',
-      attribue_a: campaign?.attribue_a || preparation?.attribue_a || '',
-      responsable_innovation: preparation?.responsable_innovation || '',
-      responsable_travaux: preparation?.responsable_travaux || '',
-      responsable_controle: preparation?.responsable_controle || '',
-      responsable_suivi: preparation?.responsable_suivi || '',
-    })
-      .then((saved) => {
-        if (!saved?.uid) return
-        qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
-        navigate(buildPathWithReturnTo(`/campagnes/${saved.uid}`, detailReturnTo))
-      })
-      .catch(() => {
-        // Keep silent fallback to avoid blocking the page with an intrusive alert.
-      })
-  }
-
-  function openNewCampaignModal() {
-    openCampaignConfiguration({ label: 'Campagne' })
-  }
-
-  function openEditCampaignModal(campaign) {
-    openCampaignConfiguration(campaign)
   }
 
   function openInterventionTypeModal(basePath, campaign = null) {
@@ -1349,8 +1524,27 @@ export default function DemandePage() {
     saveMutation.reset()
   }
 
-  function handleSaveEditing() {
-    saveMutation.mutate(sanitizeDemandeUpdate(editForm))
+  async function handleSaveEditing() {
+    const affaireUid = d?.affaire_rst_id
+    const previousAdresse = String(d?.adresse_ouvrage || '').trim()
+    const nextAdresse = String(editForm.adresse_ouvrage || '').trim()
+    if (affaireUid && nextAdresse !== previousAdresse) {
+      try {
+        await affairesApi.update(affaireUid, { adresse_ouvrage: nextAdresse })
+        qc.invalidateQueries({ queryKey: ['demande', uid] })
+        qc.invalidateQueries({ queryKey: ['demande-nav', uid] })
+        qc.invalidateQueries({ queryKey: ['affaire', String(affaireUid)] })
+      } catch (error) {
+        window.alert(error?.message || 'Impossible d’enregistrer l’adresse de l’ouvrage.')
+        return
+      }
+    }
+    const { adresse_ouvrage: _ignored, ...demandePayload } = editForm
+    saveMutation.mutate(sanitizeDemandeUpdate(demandePayload))
+  }
+
+  function patchEditField(key, value) {
+    setEditForm((current) => ({ ...current, [key]: value }))
   }
 
   function openPreparationPage() {
@@ -1438,32 +1632,35 @@ export default function DemandePage() {
                   </button>
                 )}
               </div>
-              <div className="mt-3 text-[20px] font-black">{d.nature || d.type_mission || '—'}</div>
+              <div className="mt-3 text-[20px] font-black">{(isEditing ? editForm.nature : d.nature) || (isEditing ? editForm.type_mission : d.type_mission) || '—'}</div>
               <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
                 {d.affaire_ref && <span>Affaire : <strong className="text-white">{d.affaire_ref}</strong></span>}
                 {d.chantier && <span>Chantier : <strong className="text-white">{d.chantier}</strong></span>}
                 {d.client && <span>Client : <strong className="text-white">{d.client}</strong></span>}
                 {d.site && <span>Site : <strong className="text-white">{d.site}</strong></span>}
+                {distanceCaption ? <span>{distanceCaption}</span> : null}
               </div>
             </div>
 
             <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
               <div className="flex flex-wrap justify-end gap-2">
-                <span className={`inline-flex items-center rounded-full px-2.5 py-1.5 text-[11px] font-black leading-none ${STAT_CLS[d.statut] || 'bg-white/20 text-white'}`}>
-                  {d.statut || '—'}
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1.5 text-[11px] font-black leading-none ${STAT_CLS[(isEditing ? editForm.statut : d.statut)] || 'bg-white/20 text-white'}`}>
+                  {(isEditing ? editForm.statut : d.statut) || '—'}
                 </span>
-                <span className={`inline-flex items-center rounded-full px-2.5 py-1.5 text-[11px] font-black leading-none ${PRIO_CLS[d.priorite] || 'bg-white/20 text-white'}`}>
-                  {d.priorite || '—'}
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1.5 text-[11px] font-black leading-none ${PRIO_CLS[(isEditing ? editForm.priorite : d.priorite)] || 'bg-white/20 text-white'}`}>
+                  {(isEditing ? editForm.priorite : d.priorite) || '—'}
                 </span>
-                {d.a_revoir && (
+                {(isEditing ? editForm.a_revoir : d.a_revoir) && (
                   <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">⚠ À revoir</span>
                 )}
-                {d.numero_dst && (
-                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">DST {d.numero_dst}</span>
+                {(isEditing ? editForm.numero_dst : d.numero_dst) && (
+                  <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">DST {isEditing ? editForm.numero_dst : d.numero_dst}</span>
                 )}
               </div>
               <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Laboratoire</div>
-              <div className="mt-1.5 text-[13px] font-black">{LABO_NOM[d.labo_code] || d.labo_code || '—'}</div>
+              <div className="mt-1.5 text-[13px] font-black">
+                <LabName code={isEditing ? editForm.labo_code : d.labo_code} />
+              </div>
               {urgDate !== null && (
                 <div className={`mt-2 text-[12px] font-black ${urgDate < 0 ? 'text-[#ff6b6b]' : urgDate <= 7 ? 'text-[#ffcc00]' : 'text-white/70'}`}>
                   {urgDate < 0 ? `Échéance dépassée (${Math.abs(Math.round(urgDate))}j)` : `Échéance dans ${Math.round(urgDate)}j`}
@@ -1481,18 +1678,7 @@ export default function DemandePage() {
           </div>
         </section>
 
-        {/* ── Two-column grid / édition inline ── */}
-        {isEditing ? (
-          <SectionCard
-            title="Modification de la demande"
-            subtitle="Édition inline — la référence se modifie séparément (admin)"
-          >
-            <DemandeEditFields demande={d} form={editForm} onChange={setEditForm} />
-            {saveMutation.error && (
-              <p className="text-danger text-xs mt-3">{saveMutation.error.message}</p>
-            )}
-          </SectionCard>
-        ) : (
+        {/* ── Two-column grid (lecture + édition inline, même layout) ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
 
           {/* Left column */}
@@ -1500,41 +1686,116 @@ export default function DemandePage() {
             <SectionCard
               title="Identité demande"
               subtitle="Affaire rattachée et contexte du projet"
-              chip={<span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">{d.labo_code || 'RST'}</span>}
+              chip={<span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">{(isEditing ? editForm.labo_code : d.labo_code) || 'RST'}</span>}
             >
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <FieldCard label="Référence" value={d.reference} highlight />
-                <FieldCard label="Statut" value={<Badge s={d.statut} map={STAT_CLS} />} />
-                <FieldCard label="Priorité" value={<Badge s={d.priorite} map={PRIO_CLS} />} />
+                <EditableFieldCard label="Statut" editing={isEditing} displayValue={<Badge s={d.statut} map={STAT_CLS} />}>
+                  <Select value={editForm.statut || ''} onChange={e => patchEditField('statut', e.target.value)} className={`${INLINE_INPUT_CLS} w-full`}>
+                    {STATUTS.map(s => <option key={s}>{s}</option>)}
+                  </Select>
+                </EditableFieldCard>
+                <EditableFieldCard label="Priorité" editing={isEditing} displayValue={<Badge s={d.priorite} map={PRIO_CLS} />}>
+                  <Select value={editForm.priorite || ''} onChange={e => patchEditField('priorite', e.target.value)} className={`${INLINE_INPUT_CLS} w-full`}>
+                    {PRIORITES.map(p => <option key={p}>{p}</option>)}
+                  </Select>
+                </EditableFieldCard>
+                <EditableFieldCard label="À revoir" editing={isEditing} displayValue={d.a_revoir ? 'Oui' : '—'}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={!!editForm.a_revoir} onChange={e => patchEditField('a_revoir', e.target.checked)} className="w-4 h-4 accent-[#ef9f27]" />
+                    <span className="text-sm font-semibold text-[#172033]">Marquer à revoir</span>
+                  </label>
+                </EditableFieldCard>
                 <FieldCard label="Affaire" value={d.affaire_ref} />
                 <FieldCard label="Client" value={d.client} />
+                <FieldCard label="Maître d'ouvrage" value={d.maitre_ouvrage} />
+                <FieldCard label="Maître d'œuvre" value={d.maitre_oeuvre} />
                 <FieldCard label="N° étude" value={d.numero_etude} />
                 <FieldCard label="Chantier" value={d.chantier} className="sm:col-span-2" />
                 <FieldCard label="Site" value={d.site} />
+                <EditableFieldCard
+                  label="Adresse ouvrage"
+                  editing={isEditing}
+                  displayValue={d.adresse_ouvrage}
+                  className="sm:col-span-3"
+                >
+                  <textarea
+                    value={editForm.adresse_ouvrage || ''}
+                    onChange={(e) => patchEditField('adresse_ouvrage', e.target.value)}
+                    rows={2}
+                    placeholder="Rue et numéro — le site (commune / CP) complète la localisation carte"
+                    className={`${INLINE_TEXTAREA_CLS} font-normal`}
+                  />
+                  <div className="mt-1 text-[11px] font-normal text-text-muted">
+                    Enregistrée sur l’affaire. Avec le champ Site (commune / CP), sert au plan de situation.
+                  </div>
+                </EditableFieldCard>
                 <FieldCard label="N° NGE" value={d.affaire_nge} />
               </div>
             </SectionCard>
 
             <SectionCard title="Mission & contexte" subtitle="Type de prestation, domaine et paramètres techniques">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <FieldCard label="Type mission" value={d.type_mission} />
-                <FieldCard label="Nature" value={d.nature} />
-                <FieldCard label="N° DST" value={d.numero_dst} highlight />
-                <FieldCard label="Domaine d'étude" value={d.domaine_etude} />
-                <FieldCard label="Type prestation attendue" value={d.type_prestation_attendue} className="sm:col-span-2" />
-                <FieldCard label="Urgence source" value={d.urgence_source} />
-                <FieldCard label="Laboratoire" value={LABO_NOM[d.labo_code] || d.labo_code} />
+                <EditableFieldCard label="Type mission" editing={isEditing} displayValue={d.type_mission}>
+                  <Input value={editForm.type_mission || ''} onChange={e => patchEditField('type_mission', e.target.value)} placeholder="Texte libre" className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Nature" editing={isEditing} displayValue={d.nature}>
+                  <Input value={editForm.nature || ''} onChange={e => patchEditField('nature', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="N° DST" editing={isEditing} displayValue={d.numero_dst} highlight>
+                  <Input value={editForm.numero_dst || ''} onChange={e => patchEditField('numero_dst', e.target.value)} placeholder="CET0001234" className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Domaine d'étude" editing={isEditing} displayValue={d.domaine_etude}>
+                  <Input value={editForm.domaine_etude || ''} onChange={e => patchEditField('domaine_etude', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Type prestation attendue" editing={isEditing} displayValue={d.type_prestation_attendue} className="sm:col-span-2">
+                  <Input value={editForm.type_prestation_attendue || ''} onChange={e => patchEditField('type_prestation_attendue', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Urgence source" editing={isEditing} displayValue={d.urgence_source}>
+                  <Input value={editForm.urgence_source || ''} onChange={e => patchEditField('urgence_source', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Laboratoire" editing={isEditing} displayValue={resolveLaboDisplayName(d.labo_code, catalog) || d.labo_code}>
+                  <Select value={editForm.labo_code || ''} onChange={e => patchEditField('labo_code', e.target.value)} className={`${INLINE_INPUT_CLS} w-full`}>
+                    {laboSelectOptions.map(({ code, label }) => <option key={code} value={code}>{label}</option>)}
+                  </Select>
+                </EditableFieldCard>
               </div>
             </SectionCard>
 
-            {(d.documents_fournis || d.lien_pieces_jointes) && (
-              <SectionCard title="Pièces source" subtitle="Documents fournis et liens vers pièces jointes" technical>
-                <div className="grid grid-cols-1 gap-3">
-                  <FieldCard label="Documents fournis" value={d.documents_fournis} />
-                  <FieldCard label="Lien pièces jointes" value={d.lien_pieces_jointes} />
-                </div>
+            {passationUid ? (
+              <SectionCard
+                title="Prestations RST prévues"
+                subtitle="Reprise de la passation (section E) — lecture seule"
+              >
+                <PassationPrestationsSummary
+                  prestations={nav?.passation_prestations || []}
+                  passationReference={nav?.passation_reference || ''}
+                  passationHref={passationHref}
+                />
+              </SectionCard>
+            ) : (
+              <SectionCard
+                title="Prestations RST demandées"
+                subtitle="Cadrage de la demande — reprises en Préparation"
+              >
+                <DemandePrestationsEditor
+                  prestations={prestationsForm}
+                  onChange={setPrestationsForm}
+                  onSave={(prestations) => prestationsMutation.mutate(prestations)}
+                  isSaving={prestationsMutation.isPending}
+                />
               </SectionCard>
             )}
+
+            <SectionCard
+              title="Essais retenus en préparation"
+              subtitle="Tableau informatif — décisions prises en préparation"
+            >
+              <PreparationEssaisTable
+                preparation={preparation}
+                preparationHref={preparationEditHref}
+              />
+            </SectionCard>
           </div>
 
           {/* Right column */}
@@ -1542,54 +1803,147 @@ export default function DemandePage() {
             <SectionCard
               title="Acteurs & dates"
               subtitle="Demandeur, échéances et cycle de vie"
-              chip={<Badge s={d.statut} map={STAT_CLS} />}
+              chip={<Badge s={isEditing ? editForm.statut : d.statut} map={STAT_CLS} />}
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FieldCard label="Demandeur" value={d.demandeur} />
-                <FieldCard label="Urgence source" value={d.urgence_source} />
-                <FieldCard label="Service interne" value={d.service_interne} />
-                <FieldCard label="Société interne" value={d.societe_interne} />
-                <FieldCard label="Date réception" value={formatDate(d.date_reception)} />
-                <FieldCard label="Échéance" value={d.date_echeance ? formatDate(d.date_echeance) : '—'} highlight={urgCls !== ''} />
-                <FieldCard label="Clôture" value={d.date_cloture ? formatDate(d.date_cloture) : 'En cours'} />
+                <EditableFieldCard label="Demandeur" editing={isEditing} displayValue={d.demandeur}>
+                  <Input value={editForm.demandeur || ''} onChange={e => patchEditField('demandeur', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Urgence source" editing={isEditing} displayValue={d.urgence_source}>
+                  <Input value={editForm.urgence_source || ''} onChange={e => patchEditField('urgence_source', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Service interne" editing={isEditing} displayValue={d.service_interne}>
+                  <Input value={editForm.service_interne || ''} onChange={e => patchEditField('service_interne', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Société interne" editing={isEditing} displayValue={d.societe_interne}>
+                  <Input value={editForm.societe_interne || ''} onChange={e => patchEditField('societe_interne', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Date réception" editing={isEditing} displayValue={formatDate(d.date_reception)}>
+                  <Input type="date" value={editForm.date_reception || ''} onChange={e => patchEditField('date_reception', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Échéance" editing={isEditing} displayValue={d.date_echeance ? formatDate(d.date_echeance) : '—'} highlight={urgCls !== ''}>
+                  <Input type="date" value={editForm.date_echeance || ''} onChange={e => patchEditField('date_echeance', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Clôture" editing={isEditing} displayValue={d.date_cloture ? formatDate(d.date_cloture) : 'En cours'}>
+                  <Input type="date" value={editForm.date_cloture || ''} onChange={e => patchEditField('date_cloture', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
                 <FieldCard label="Création" value={createdDate} />
               </div>
             </SectionCard>
 
             <SectionCard title="Rapport & Administration" subtitle="Références rapport, devis, facture">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <FieldCard label="Réf. rapport" value={d.rapport_ref} />
-                <FieldCard label="Rapport envoyé" value={d.rapport_envoye ? 'Oui' : '—'} />
-                <FieldCard label="Réf. devis" value={d.devis_ref} />
-                <FieldCard label="Réf. facture" value={d.facture_ref} />
+                <EditableFieldCard label="Réf. rapport" editing={isEditing} displayValue={d.rapport_ref}>
+                  <Input value={editForm.rapport_ref || ''} onChange={e => patchEditField('rapport_ref', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Rapport envoyé" editing={isEditing} displayValue={d.rapport_envoye ? 'Oui' : '—'}>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={!!editForm.rapport_envoye} onChange={e => patchEditField('rapport_envoye', e.target.checked)} className="w-4 h-4 accent-accent" />
+                    <span className="text-sm font-semibold text-[#172033]">Rapport envoyé</span>
+                  </label>
+                </EditableFieldCard>
+                <EditableFieldCard label="Réf. devis" editing={isEditing} displayValue={d.devis_ref}>
+                  <Input value={editForm.devis_ref || ''} onChange={e => patchEditField('devis_ref', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
+                <EditableFieldCard label="Réf. facture" editing={isEditing} displayValue={d.facture_ref}>
+                  <Input value={editForm.facture_ref || ''} onChange={e => patchEditField('facture_ref', e.target.value)} className={INLINE_INPUT_CLS} />
+                </EditableFieldCard>
               </div>
             </SectionCard>
 
-            {(d.description || d.observations) && (
+            {(isEditing || d.note_reconciliation || d.suivi_notes) && (
+              <SectionCard title="Suivi & notes" subtitle="Notes de réconciliation et suivi" technical={!isEditing}>
+                <div className="grid grid-cols-1 gap-3">
+                  <EditableFieldCard label="Note réconciliation" editing={isEditing} displayValue={d.note_reconciliation}>
+                    <Input value={editForm.note_reconciliation || ''} onChange={e => patchEditField('note_reconciliation', e.target.value)} className={INLINE_INPUT_CLS} />
+                  </EditableFieldCard>
+                  <EditableFieldCard label="Notes suivi" editing={isEditing} displayValue={d.suivi_notes ? <span className="whitespace-pre-wrap font-normal">{d.suivi_notes}</span> : '—'}>
+                    <textarea value={editForm.suivi_notes || ''} onChange={e => patchEditField('suivi_notes', e.target.value)} rows={3} className={INLINE_TEXTAREA_CLS} />
+                  </EditableFieldCard>
+                </div>
+              </SectionCard>
+            )}
+
+            {(isEditing || d.description || d.observations) && (
               <SectionCard title="Description & observations" subtitle="Notes descriptives de la demande">
-                {d.description && (
-                  <div className="mb-3">
-                    <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Description</div>
-                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#172033]">{d.description}</p>
+                {isEditing ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    <EditableFieldCard label="Description" editing displayValue={d.description}>
+                      <textarea value={editForm.description || ''} onChange={e => patchEditField('description', e.target.value)} rows={4} className={INLINE_TEXTAREA_CLS} />
+                    </EditableFieldCard>
+                    <EditableFieldCard label="Observations" editing displayValue={d.observations}>
+                      <textarea value={editForm.observations || ''} onChange={e => patchEditField('observations', e.target.value)} rows={3} className={INLINE_TEXTAREA_CLS} />
+                    </EditableFieldCard>
                   </div>
-                )}
-                {d.observations && (
-                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Observations</div>
-                    <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#172033]">{d.observations}</p>
-                  </div>
+                ) : (
+                  <>
+                    {d.description && (
+                      <div className="mb-3">
+                        <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Description</div>
+                        <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#172033]">{d.description}</p>
+                      </div>
+                    )}
+                    {d.observations && (
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[.09em] text-[#69758a] mb-1.5">Observations</div>
+                        <p className="text-[13px] leading-relaxed whitespace-pre-wrap text-[#172033]">{d.observations}</p>
+                      </div>
+                    )}
+                  </>
                 )}
               </SectionCard>
             )}
           </div>
         </div>
+
+        {isEditing && saveMutation.error && (
+          <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2">{saveMutation.error.message}</p>
+        )}
+
+        <SectionCard
+          title="C - Documents reçus / attendus"
+          subtitle="Pièces nécessaires pour le lancement — suivi propre à cette demande"
+        >
+          <DocumentTrackingTable
+            documents={documentsForm}
+            onChange={setDocumentsForm}
+            onSave={handleSaveDocuments}
+            isSaving={documentsMutation.isPending}
+            uploadDocument={uploadAffaireDocument}
+            deleteStoredFile={deleteAffaireDocument}
+            captureSitePlan={sitePlanCapture}
+            documentTypeOptions={DEFAULT_DOCUMENT_DROP_TYPES}
+            siteGeocodeParts={{
+              adresseOuvrage: d?.adresse_ouvrage || editForm.adresse_ouvrage || '',
+              site: d?.site || '',
+            }}
+            distanceToLab={linkedAffaire?.site_geo?.distance_to_lab}
+            subtitle="Le plan de situation est obligatoire. Glisser un fichier sur Version ou « Depuis adresse » (adresse ouvrage + site)."
+          />
+        </SectionCard>
+
+        {(isEditing || d.documents_fournis || d.lien_pieces_jointes) && (
+          <SectionCard title="Pièces source DST" subtitle="Texte brut importé depuis la DST — le suivi opérationnel se fait dans le quadro C ci-dessus" technical>
+            <div className="grid grid-cols-1 gap-3">
+              {d.documents_fournis ? <FieldCard label="Liste documents fournis (DST)" value={d.documents_fournis} /> : null}
+              {(isEditing || d.lien_pieces_jointes) ? (
+                <EditableFieldCard label="Lien pièces jointes volumineuses" editing={isEditing} displayValue={d.lien_pieces_jointes ? <span className="whitespace-pre-wrap font-normal">{d.lien_pieces_jointes}</span> : '—'}>
+                  <textarea value={editForm.lien_pieces_jointes || ''} onChange={e => patchEditField('lien_pieces_jointes', e.target.value)} rows={2} className={INLINE_TEXTAREA_CLS} />
+                </EditableFieldCard>
+              ) : null}
+            </div>
+          </SectionCard>
         )}
 
         {/* ── Préparation ── */}
         <details className="rounded-[18px] border border-dashed border-[#dbe1ea] bg-white/60 px-5 py-3">
           <summary className="cursor-pointer select-none flex items-center justify-between gap-3">
             <span className="text-[10px] font-medium uppercase tracking-[.06em] text-[#69758a]/70">
-              Préparation <span className="ml-1 font-normal normal-case text-[#69758a]/50">{hasPreparationData ? 'configurée' : 'non initialisée'}</span>
+              Préparation
+              {preparation.reference ? (
+                <span className="ml-1.5 font-black normal-case text-[#003170]">{preparation.reference}</span>
+              ) : null}
+              <span className="ml-1 font-normal normal-case text-[#69758a]/50">{hasPreparationData ? 'configurée' : 'non initialisée'}</span>
             </span>
             <div className="flex gap-2" onClick={e => e.stopPropagation()}>
               <Button size="sm" variant="secondary" onClick={() => navigate(preparationPreviewHref)}>Voir</Button>
@@ -1600,6 +1954,7 @@ export default function DemandePage() {
           </summary>
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1">
+              <FieldRow label="Référence préparation" value={preparation.reference} />
               <FieldRow label="Phase opération" value={preparation.phase_operation} />
               <FieldRow label="Familles prévues" value={selectedFamilyLabels.join(', ')} />
               <FieldRow label="Attentes client" value={preparation.attentes_client} />
@@ -1644,39 +1999,34 @@ export default function DemandePage() {
           )}
         </details>
 
-        {/* ── PI/NI ── */}
-        {demandeSupportCount > 0 && (
-          <details className="rounded-[18px] border border-dashed border-[#dbe1ea] bg-white/60 px-5 py-3 opacity-[.82]">
-            <summary className="cursor-pointer select-none text-[10px] font-medium uppercase tracking-[.06em] text-[#69758a]/70">
-              PI / NI (demande) <span className="ml-1 font-normal normal-case text-[#69758a]/50">({demandeSupportCount})</span>
-            </summary>
-            <div className="mt-3 flex flex-col gap-4">
-              {demandeSupportCampaignGroups.map((entry) => (
-                <div key={entry.campaign?.uid || entry.campaign?.reference} className="rounded-lg border border-[#e4e9f1] bg-[#fbfcfe] px-3 py-3">
-                  <div className="text-[12px] font-semibold text-[#003170]">{entry.campaign?.reference || entry.campaign?.label || 'Campagne'}</div>
-                  <div className="mt-2 flex flex-col gap-3">
-                    {entry.interventionGroups.map((group) => (
-                      <div key={group.intervention_uid || group.intervention_reference} className="flex flex-col gap-2">
-                        <div className="text-[11px] font-semibold text-[#172033]">{group.intervention_reference}</div>
-                        <div className="flex flex-col gap-2">
-                          {group.objects.map((item) => (
-                            <RelatedObjectNode
-                              key={`${item.kind}-${item.uid}`}
-                              item={item}
-                              navigate={navigate}
-                              detailReturnTo={detailReturnTo}
-                              getExpandedState={getExpandedState}
-                              setExpandedState={setExpandedState}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+        {/* ── Plans d'implantation (plans image) ── */}
+        <PlanImagesConsultSection
+          plans={demandePlansImplantation}
+          imageFiles={demandePlanImageFiles}
+          interventionsByUid={interventionsByUid}
+          includeUnusedImages
+          separateViewHref={buildPathWithReturnTo(`/demandes/${uid}/plans`, detailReturnTo)}
+          emptyMessage="Les plans image du dossier affaire apparaîtront ici avec les implantations réalisées depuis les interventions."
+        />
+
+        {/* ── Notes techniques (scope demande) ── */}
+        {demandeNotesTechniques.length > 0 && (
+          <SectionCard
+            title="Notes techniques"
+            subtitle={`${demandeNotesTechniques.length} note${demandeNotesTechniques.length > 1 ? 's' : ''} rattachée${demandeNotesTechniques.length > 1 ? 's' : ''} à la demande`}
+          >
+            <div className="flex flex-col gap-3">
+              {demandeNotesTechniques.map((note) => (
+                <NoteTechniqueDemandeCard
+                  key={note.uid}
+                  note={note}
+                  demandeUid={uid}
+                  detailReturnTo={detailReturnTo}
+                  navigate={navigate}
+                />
               ))}
             </div>
-          </details>
+          </SectionCard>
         )}
 
         {/* ── Campagnes ── */}
@@ -1684,7 +2034,7 @@ export default function DemandePage() {
           <SectionCard
             title="Campagnes d'intervention"
             subtitle={`${campaignsForDisplay.length} campagne${campaignsForDisplay.length > 1 ? 's' : ''} cadrée${campaignsForDisplay.length > 1 ? 's' : ''}`}
-            actions={<Button size="sm" variant="primary" onClick={openNewCampaignModal}>Nouvelle campagne</Button>}
+            actions={<Button size="sm" variant="primary" onClick={openPreparationPage}>Créer via la préparation</Button>}
           >
             {campaignsForDisplay.length > 0 ? (
               <div className="flex flex-col gap-4">
@@ -1695,10 +2045,12 @@ export default function DemandePage() {
                     isVirtual={Boolean(campaign.is_virtual)}
                     detailReturnTo={detailReturnTo}
                     navigate={navigate}
-                    onEditCampaign={openEditCampaignModal}
+                    onEditCampaign={openCampaignFiche}
                     onCreateIntervention={() => openInterventionTypeModal(buildCreateInterventionHref(uid, preparation, campaign.is_virtual ? null : campaign, d, detailReturnTo), campaign.is_virtual ? null : campaign)}
                     getExpandedState={getExpandedState}
                     setExpandedState={setExpandedState}
+                    onDeleteSupportObject={handleDeleteSupportObject}
+                    deletingSupportKey={deletingSupportKey}
                   />
                 ))}
               </div>
@@ -1706,21 +2058,13 @@ export default function DemandePage() {
               <div className="rounded-[14px] border border-dashed border-[#dbe1ea] bg-[#f8fafc] px-4 py-4 flex flex-col gap-3">
                 <div className="text-[13px] text-[#172033]">Aucune campagne n'est encore cadrée pour cette demande.</div>
                 <div className="text-[12px] text-[#69758a] leading-6">
-                  Commencer par créer une campagne explicite, puis rattacher les interventions à ce cadre au fur et à mesure de l'exécution.
+                  Les campagnes se créent dans la préparation (DIAG-CH, Témoin, RARx, Suivi…), avec héritage du cadrage demande.
                 </div>
                 <div>
-                  <Button size="sm" variant="primary" onClick={openNewCampaignModal}>Nouvelle campagne</Button>
+                  <Button size="sm" variant="primary" onClick={openPreparationPage}>Ouvrir la préparation</Button>
                 </div>
               </div>
             )}
-          </SectionCard>
-        )}
-
-        {/* ── Suivi & Notes ── */}
-        {(d.suivi_notes || d.note_reconciliation) && (
-          <SectionCard title="Suivi & notes" subtitle="Notes de réconciliation et suivi" technical>
-            {d.note_reconciliation && <FieldRow label="Note réconciliation" value={d.note_reconciliation} />}
-            {d.suivi_notes && <p className="text-[13px] mt-2 whitespace-pre-wrap text-[#172033]">{d.suivi_notes}</p>}
           </SectionCard>
         )}
 

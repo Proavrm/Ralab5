@@ -87,15 +87,17 @@ class AffairesRstRepository:
         with self._connect() as conn:
             conn.execute("""
                 INSERT INTO affaires_rst
-                (reference,annee,region,numero,client,titulaire,chantier,affaire_nge,
-                 site,numero_etude,filiale,autre_reference,dossier_nom,dossier_path,
-                 date_ouverture,date_cloture,statut,statut_offre,responsable,created_at,updated_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                (reference,annee,region,numero,client,maitre_ouvrage,maitre_oeuvre,titulaire,chantier,affaire_nge,
+                 site,adresse_ouvrage,numero_etude,filiale,autre_reference,dossier_nom,dossier_path,
+                 date_ouverture,date_cloture,date_debut_travaux_prevue,statut,statut_offre,responsable,created_at,updated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
                 ref, annee, region, numero,
-                record.client, record.titulaire, record.chantier, record.affaire_nge,
-                record.site, record.numero_etude, record.filiale, record.autre_reference, record.dossier_nom, record.dossier_path,
+                record.client, record.maitre_ouvrage, record.maitre_oeuvre,
+                record.titulaire, record.chantier, record.affaire_nge,
+                record.site, record.adresse_ouvrage, record.numero_etude, record.filiale, record.autre_reference, record.dossier_nom, record.dossier_path,
                 self._fmt(record.date_ouverture), self._fmt(record.date_cloture),
+                self._fmt(record.date_debut_travaux_prevue),
                 record.statut, record.statut_offre, record.responsable, now, now,
             ))
             uid = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -104,9 +106,12 @@ class AffairesRstRepository:
     def update(self, uid: int, fields: dict) -> AffaireRstRecord:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         fields = dict(fields)
-        for k in ("date_ouverture", "date_cloture"):
-            if k in fields and isinstance(fields[k], date):
-                fields[k] = fields[k].strftime("%Y-%m-%d")
+        for k in ("date_ouverture", "date_cloture", "date_debut_travaux_prevue"):
+            if k in fields:
+                if fields[k] in (None, ""):
+                    fields[k] = None
+                elif isinstance(fields[k], date):
+                    fields[k] = fields[k].strftime("%Y-%m-%d")
         fields["updated_at"] = now
         clause = ", ".join(f"{k} = ?" for k in fields)
         with self._connect() as conn:
@@ -137,15 +142,22 @@ class AffairesRstRepository:
             uid=int(row["id"]), reference=row["reference"],
             annee=int(row["annee"]), region=row["region"], numero=int(row["numero"]),
             client=row["client"] or "", titulaire=row["titulaire"] or "",
+            maitre_ouvrage=(row["maitre_ouvrage"] or "") if "maitre_ouvrage" in keys else "",
+            maitre_oeuvre=(row["maitre_oeuvre"] or "") if "maitre_oeuvre" in keys else "",
             chantier=row["chantier"] or "", affaire_nge=row["affaire_nge"] or "",
             dossier_nom=(row["dossier_nom"] or "") if "dossier_nom" in keys else "",
             dossier_path=(row["dossier_path"] or "") if "dossier_path" in keys else "",
             site=(row["site"] or "") if "site" in keys else "",
+            adresse_ouvrage=(row["adresse_ouvrage"] or "") if "adresse_ouvrage" in keys else "",
             numero_etude=(row["numero_etude"] or "") if "numero_etude" in keys else "",
             filiale=(row["filiale"] or "") if "filiale" in keys else "",
             autre_reference=(row["autre_reference"] or "") if "autre_reference" in keys else "",
+            site_lat=(float(row["site_lat"]) if row["site_lat"] is not None else None) if "site_lat" in keys else None,
+            site_lon=(float(row["site_lon"]) if row["site_lon"] is not None else None) if "site_lon" in keys else None,
+            site_geocode_label=(row["site_geocode_label"] or "") if "site_geocode_label" in keys else "",
             date_ouverture=self._parse_date(row["date_ouverture"]) or date.today(),
             date_cloture=self._parse_date(row["date_cloture"]),
+            date_debut_travaux_prevue=self._parse_date(row["date_debut_travaux_prevue"]) if "date_debut_travaux_prevue" in keys else None,
             statut=row["statut"] or "À qualifier",
             statut_offre=(row["statut_offre"] or "") if "statut_offre" in keys else "",
             responsable=row["responsable"] or "",

@@ -16,6 +16,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api, demandesApi, interventionsApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
+import { formatDate } from '@/lib/utils'
 
 function Card({ title, children, right }) {
     return (
@@ -457,7 +458,7 @@ export default function InterventionPageCard() {
                         <FR label="Affaire" value={demande?.affaire_ref || demande?.affaire_reference} />
                         <FR label="Type d’intervention" value={form.type_intervention} />
                         <FR label="Finalité" value={form.finalite_intervention} />
-                        <FR label="Date d’intervention" value={form.date_intervention} />
+                        <FR label="Date d’intervention" value={form.date_intervention ? formatDate(form.date_intervention) : ''} />
                         <FR label="Technicien / opérateur" value={form.technicien} />
                         <FR label="Zone / localisation" value={form.zone_intervention} />
                         <FR label="Matériau / objet concerné" value={form.nature_materiau} />

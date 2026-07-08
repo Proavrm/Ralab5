@@ -1,20 +1,23 @@
 // Feuille SC terrain — coupe carottée, photos et couches.
 // Monté par ModeleSCPage.jsx (données API feuilles-terrain). Logique terrain alignée sur FeuilleTerrainPage.
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import Button from "@/components/ui/Button"
 import PhotoCropModal from "@/components/ui/PhotoCropModal"
 import Input from "@/components/ui/Input"
 import { navigateWithReturnTo } from "@/lib/detailNavigation"
+import { buildScAffaireDemandeLine, buildScInterventionTitle } from "@/lib/sc/pointInheritance"
+import { renderTerrainSelectOptionExtras } from "@/lib/terrainEssaiSelectOptions"
 import { formatDate } from "@/lib/utils"
 import { getFeuilleTypeConfig } from "@/pages/terrain/feuilleTypeRegistry"
 import { feuillesTerrainApi } from "@/services/api"
 
-function Select({ value, onChange, readOnly = false, children, className = "" }) {
+function Select({ value, onChange, readOnly = false, children, className = "", onClick = null }) {
     return (
         <select
             value={value || ""}
             onChange={(event) => onChange(event.target.value)}
+            onClick={onClick}
             disabled={readOnly}
             className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
         >
@@ -54,30 +57,53 @@ function ScCard({ title, children, right }) {
     )
 }
 
-// TODO TOOLBAR HOMOGENEISATION:
-// Barre de navigation du point SC (retour liste, titre). Hors coupe / hors RapportToolbar (rapports).
-// À terme: barre partagée type WorkPageToolbar avec d’autres feuilles de travail (ex. PMT).
+// Barre feuille de travail SC — position fixed sous la barre « Menu » (AppLayout).
+// TODO: extraire FeuilleWorkToolbar partagée pour toutes les feuilles terrain/labo
+//       (SC, SO, PMT, DE, NT, VC, essais génériques, etc.).
+//       FicheTopbar (FicheLayout.jsx) reste le modèle visuel des fiches RST (demande, campagne…).
 function ScSheetToolbar({ backLabel, onBack, title, subtitle, actions }) {
+    const barRef = useRef(null)
+    const [barHeight, setBarHeight] = useState(72)
+
+    useLayoutEffect(() => {
+        const node = barRef.current
+        if (!node) return undefined
+        const update = () => setBarHeight(node.offsetHeight)
+        update()
+        const observer = new ResizeObserver(update)
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [backLabel, title, subtitle, actions])
+
     return (
-        <div
-            className="sticky top-0 z-10 border-b border-[#dbe1ea]"
-            style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
-        >
-            <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-            <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-                <button
-                    onClick={onBack}
-                    className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-                >
-                    {backLabel}
-                </button>
-                <div className="flex-1 min-w-[220px]">
-                    <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">{subtitle || 'Sondage SC'}</div>
-                    <div className="text-[15px] font-black">{title}</div>
+        <>
+            <div aria-hidden className="-mt-6 shrink-0" style={{ height: barHeight }} />
+            <div
+                ref={barRef}
+                className="fixed z-40 border-b border-[#dbe1ea] bg-white"
+                style={{
+                    top: 'var(--app-chrome-top, 0px)',
+                    left: 'var(--app-sidebar-width, 0px)',
+                    right: 0,
+                    boxShadow: '0 6px 24px rgba(0,49,112,0.08)',
+                }}
+            >
+                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
+                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
+                    <button
+                        onClick={onBack}
+                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
+                    >
+                        {backLabel}
+                    </button>
+                    <div className="flex-1 min-w-[220px]">
+                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">{subtitle || 'Sondage SC'}</div>
+                        <div className="text-[15px] font-black">{title}</div>
+                    </div>
+                    {actions}
                 </div>
-                {actions}
             </div>
-        </div>
+        </>
     )
 }
 
@@ -111,11 +137,16 @@ function ScTextarea({ value, onChange, rows = 3, placeholder = '' }) {
     )
 }
 
-function ScSelect({ value, onChange, children, className = '', disabled = false }) {
+function ScSelect({ value, onChange, children, className = '', disabled = false, onClick = null }) {
     return (
         <Select
             value={value || ''}
-            onChange={onChange}
+            onChange={(nextValue) => {
+                if (typeof onChange === 'function') {
+                    onChange({ target: { value: nextValue } })
+                }
+            }}
+            onClick={onClick}
             className={className}
             readOnly={disabled}
         >
@@ -143,12 +174,40 @@ function scCentimetersToMeters(value) {
     return Number((numeric / 100).toFixed(6))
 }
 
+function scFormatDepthCmValue(value) {
+    const numeric = scParseNumber(value)
+    if (numeric == null) return '—'
+    return `${numeric.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} cm`
+}
+
+function scScCoucheDepthString(value) {
+    if (value == null || value === '') return ''
+    return String(value)
+}
+
+function scResolveProcedeFromEquipment(selected) {
+    if (!selected || typeof selected !== 'object') return ''
+    const domain = String(selected.domain || '').trim()
+    if (domain) return domain
+    const equipmentLabel = String(selected.equipment_label || '').trim()
+    if (equipmentLabel) return equipmentLabel
+    return String(selected.label || '').trim()
+}
+
 function scComputeThicknessCm(couche) {
     const zHaut = Number(couche?.z_haut)
     const zBas = Number(couche?.z_bas)
     if (!Number.isFinite(zHaut) || !Number.isFinite(zBas)) return null
     if (zBas < zHaut) return null
     return Number(((zBas - zHaut) * 100).toFixed(2))
+}
+
+function scComputeScCoucheThicknessCm(couche) {
+    const zHaut = Number(couche?.z_haut)
+    const zBas = Number(couche?.z_bas)
+    if (!Number.isFinite(zHaut) || !Number.isFinite(zBas)) return null
+    if (zBas < zHaut) return null
+    return Number((zBas - zHaut).toFixed(2))
 }
 
 function scReadFileAsDataUrl(file) {
@@ -193,31 +252,191 @@ function scGetScCoupeBoundsCm(layers = [], fallbackTotalHeightCm = '') {
     const normalizedLayers = Array.isArray(layers) ? layers : []
     const zHauts = normalizedLayers.map((layer) => Number(layer?.z_haut)).filter((value) => Number.isFinite(value))
     const zBas = normalizedLayers.map((layer) => Number(layer?.z_bas)).filter((value) => Number.isFinite(value))
-    const startCm = zHauts.length ? String(scMetersToCentimeters(Math.min(...zHauts))) : '0'
+    const startCm = zHauts.length ? String(Math.min(...zHauts)) : '0'
     const fallbackEndCm = String(fallbackTotalHeightCm ?? '').trim()
-    const endCm = zBas.length ? String(scMetersToCentimeters(Math.max(...zBas))) : fallbackEndCm
+    const endCm = zBas.length ? String(Math.max(...zBas)) : fallbackEndCm
     return {
         depth_start_cm: startCm,
         depth_end_cm: endCm,
     }
 }
 
-function scBuildDefaultScCoupe({ pointForm, selectedPhoto, couches, title = 'Coupe 1' }) {
+function scBuildDefaultScCoupe({ pointForm, selectedPhoto = null, couches, title = 'Coupe 1', assignPhoto = false }) {
     const normalizedLayers = scCloneCoupeLayers(couches).map((layer) => ({
         ...layer,
         uid: scCreateCoupeLayerId(),
     }))
     const bounds = scGetScCoupeBoundsCm(normalizedLayers, pointForm?.carotte_total_height_cm || '')
+    const photo = assignPhoto ? selectedPhoto : null
     return {
         id: scCreateCoupeId(),
         title,
-        photo_stored_name: selectedPhoto?.stored_name || '',
+        photo_stored_name: photo?.stored_name || '',
+        photo_url: photo?.url || '',
         depth_start_cm: bounds.depth_start_cm,
         depth_end_cm: bounds.depth_end_cm,
         total_height_cm: pointForm?.carotte_total_height_cm || '',
         couches: normalizedLayers,
         notes: '',
     }
+}
+
+function scCoupePhotoCode(coupe, index = 0) {
+    const title = String(coupe?.title || `Coupe ${index + 1}`).trim()
+    const compact = title.replace(/\s+/g, '')
+    return compact || `Coupe${index + 1}`
+}
+
+function scPhotoItemUrl(photo, photoVersion = 0) {
+    if (!photo?.url) return ''
+    const base = String(photo.url).trim().split('?')[0]
+    return `${base}?v=${photoVersion}`
+}
+
+function scStablePhotoKey({ storedName = '', url = '' } = {}) {
+    const normalizedStored = String(storedName || '').trim()
+    if (normalizedStored) return `stored:${normalizedStored}`
+    const normalizedUrl = String(url || '').trim().split('?')[0]
+    return normalizedUrl ? `url:${normalizedUrl}` : ''
+}
+
+function scFindGalleryPhoto(photoItems, storedName) {
+    const key = String(storedName || '').trim()
+    if (!key || !Array.isArray(photoItems)) return null
+    return photoItems.find((item) => (
+        item?.stored_name === key
+        || item?.filename === key
+        || item?.original_name === key
+    )) || null
+}
+
+function scIsWbsNumberedPhotoName(name = '') {
+    const normalized = String(name || '').trim()
+    if (!normalized) return false
+    return /(?:__|_)F\d{2}\.(?:jpe?g|png)$/i.test(normalized)
+}
+
+function scIsLegacyImportedPhotoUrl(url = '') {
+    const normalized = String(url || '').trim()
+    return normalized.includes('/photos/sc/') || normalized.includes('/photos/de/')
+}
+
+function scIsFeuilleUploadPhoto({ storedName = '', photoUrl = '', feuilleUid = null } = {}) {
+    const name = String(storedName || '').trim()
+    if (scIsWbsNumberedPhotoName(name)) return true
+    const url = String(photoUrl || '').trim()
+    if (url) {
+        const fileName = url.split('/').pop()?.split('?')[0] || ''
+        if (scIsWbsNumberedPhotoName(fileName)) return true
+    }
+    return false
+}
+
+function scResolveCoupePhotoUrl({
+    storedName = '',
+    photoUrl = '',
+    photoItems = [],
+    feuilleUid = null,
+    sourceEssaiId = null,
+    photoVersion = 0,
+    fallbackPhoto = null,
+    coupe = null,
+    coupeIndex = 0,
+} = {}) {
+    const normalizedStored = String(storedName || '').trim()
+    if (normalizedStored) {
+        const matched = scFindGalleryPhoto(photoItems, normalizedStored)
+        if (matched?.url) return scPhotoItemUrl(matched, photoVersion)
+        if (feuilleUid && normalizedStored) {
+            return `/api/photos/feuille/${feuilleUid}/files/${encodeURIComponent(normalizedStored)}?v=${photoVersion}`
+        }
+        if (sourceEssaiId && normalizedStored) {
+            return `/api/photos/essai/${sourceEssaiId}/files/${encodeURIComponent(normalizedStored)}?v=${photoVersion}`
+        }
+    }
+
+    const directUrl = String(photoUrl || '').trim()
+    if (directUrl) {
+        if (feuilleUid && normalizedStored && scIsLegacyImportedPhotoUrl(directUrl)) {
+            return `/api/photos/feuille/${feuilleUid}/files/${encodeURIComponent(normalizedStored)}?v=${photoVersion}`
+        }
+        const fileName = directUrl.split('/').pop()?.split('?')[0] || ''
+        const matchedByPath = fileName ? scFindGalleryPhoto(photoItems, fileName) : null
+        if (matchedByPath?.url) return scPhotoItemUrl(matchedByPath, photoVersion)
+        if (scIsLegacyImportedPhotoUrl(directUrl)) {
+            return `${directUrl.split('?')[0]}?v=${photoVersion}`
+        }
+        return `${directUrl.split('?')[0]}?v=${photoVersion}`
+    }
+
+    if (fallbackPhoto?.url) return scPhotoItemUrl(fallbackPhoto, photoVersion)
+    return ''
+}
+
+function scNormalizeGalleryPhoto(photo, { feuilleUid = null, sourceEssaiId = null, source = 'feuille' } = {}) {
+    if (!photo || typeof photo !== 'object') return null
+    const storedName = String(photo.stored_name || photo.filename || '').trim()
+    if (!storedName) return null
+    const existingUrl = String(photo.url || photo.photo_url || '').trim()
+    let url = existingUrl
+    if (!url) {
+        if (source === 'essai' && sourceEssaiId) {
+            url = `/api/photos/essai/${sourceEssaiId}/files/${encodeURIComponent(storedName)}`
+        } else if (feuilleUid) {
+            url = `/api/photos/feuille/${feuilleUid}/files/${encodeURIComponent(storedName)}`
+        }
+    }
+    return {
+        ...photo,
+        source,
+        stored_name: storedName,
+        filename: String(photo.filename || storedName),
+        original_name: String(photo.original_name || storedName),
+        url,
+    }
+}
+
+function scMergePhotoItems({ feuillePhotos = [], essaiPhotos = [], carotteCoupes = [], feuilleUid = null, sourceEssaiId = null }) {
+    const map = new Map()
+
+    const addPhoto = (photo, source = 'feuille') => {
+        const normalized = scNormalizeGalleryPhoto(photo, { feuilleUid, sourceEssaiId, source })
+        if (!normalized?.stored_name) return
+        if (!map.has(normalized.stored_name)) {
+            map.set(normalized.stored_name, normalized)
+        }
+    }
+
+    feuillePhotos.forEach((photo) => addPhoto(photo, 'feuille'))
+
+    if (!feuilleUid) {
+        essaiPhotos.forEach((photo) => addPhoto(photo, 'essai'))
+    }
+
+    for (const coupe of carotteCoupes) {
+        const storedName = String(coupe?.photo_stored_name || '').trim()
+        const directUrl = String(coupe?.photo_url || '').trim()
+        if (scIsLegacyImportedPhotoUrl(directUrl) && !scIsFeuilleUploadPhoto({ storedName, photoUrl: directUrl, feuilleUid })) {
+            continue
+        }
+        if (feuilleUid && !storedName && directUrl && !scIsFeuilleUploadPhoto({ storedName, photoUrl: directUrl, feuilleUid })) {
+            continue
+        }
+        const fileName = storedName || directUrl.split('/').pop()?.split('?')[0] || ''
+        if (!fileName || map.has(fileName)) continue
+        const source = directUrl.includes('/photos/essai/') ? 'essai' : 'feuille'
+        addPhoto({
+            stored_name: fileName,
+            url: directUrl,
+            original_name: fileName,
+        }, source)
+    }
+
+    const items = Array.from(map.values())
+    if (items.length && !items.some((item) => item.is_primary)) {
+        items[0] = { ...items[0], is_primary: true }
+    }
+    return items
 }
 
 function scNormalizeCoupeLayer(layer = {}, index = 0) {
@@ -269,13 +488,37 @@ function scFormatResult(value, unit) {
     return `${value}${unit ? ` ${unit}` : ''}`
 }
 
-function scBuildPointSummary(point) {
+function scDisplayPointType(pointType, isSCFeuille = false) {
+    const raw = String(pointType || '').trim()
+    if (!raw) return ''
+    if (isSCFeuille && raw.toUpperCase() === 'SONDAGE_PELLE') return 'Sondage carotte'
+    if (raw.toUpperCase() === 'SONDAGE_CAROTTE') return 'Sondage carotte'
+    if (raw.toUpperCase() === 'SONDAGE_PELLE') return 'Sondage pelle'
+    return raw.replace(/_/g, ' ')
+}
+
+function scBuildPointSummary(point, { isSCFeuille = false } = {}) {
+    if (isSCFeuille) {
+        return [
+            point?.profil,
+            point?.profondeur_finale_m != null && point?.profondeur_finale_m !== ''
+                ? scFormatDepthCm(point.profondeur_finale_m)
+                : null,
+        ].filter(Boolean).join(' · ')
+    }
     return [
-        point.localisation,
-        point.position_label,
-        point.type_ouvrage,
-        point.point_type,
+        point?.localisation,
+        point?.position_label,
+        point?.type_ouvrage,
+        point?.point_type,
     ].filter(Boolean).join(' · ')
+}
+
+function scDefaultPointType(codeFeuille) {
+    const code = String(codeFeuille || '').trim().toUpperCase()
+    if (code === 'SC') return 'SONDAGE_CAROTTE'
+    if (code === 'SO') return 'SONDAGE_PELLE'
+    return 'SONDAGE_PELLE'
 }
 
 function scFormatDepth(value) {
@@ -299,10 +542,14 @@ function scFormatDepthCm(value) {
     return `${numeric.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} cm`
 }
 
-function scBuildPointForm(point = null) {
+function scBuildPointForm(point = null, codeFeuille = '') {
+    const defaultType = scDefaultPointType(codeFeuille)
+    const resolvedType = String(point?.point_type || '').trim() || defaultType
     return {
         point_code: point?.point_code || '',
-        point_type: point?.point_type || 'SONDAGE_PELLE',
+        point_type: codeFeuille?.toUpperCase() === 'SC' && resolvedType === 'SONDAGE_PELLE'
+            ? 'SONDAGE_CAROTTE'
+            : resolvedType,
         localisation: point?.localisation || '',
         profil: point?.profil || '',
         date_point: point?.date_point || '',
@@ -310,14 +557,22 @@ function scBuildPointForm(point = null) {
         sondeur: point?.sondeur || '',
         procede: point?.procede || '',
         diametre: point?.diametre || '',
+        equipement: point?.equipement || '',
+        equipment_id: point?.equipment_id ?? '',
         type_ouvrage: point?.type_ouvrage || '',
         partie_ouvrage: point?.partie_ouvrage || '',
         document_reference: point?.document_reference || '',
-        profondeur_finale_m: point?.profondeur_finale_m ?? point?.profondeur_bas ?? '',
+        profondeur_finale_m: codeFeuille?.toUpperCase() === 'SC'
+            ? (point?.profondeur_finale_m == null || point?.profondeur_finale_m === ''
+                ? (point?.profondeur_bas == null ? '' : scMetersToCentimeters(point.profondeur_bas) ?? '')
+                : scMetersToCentimeters(point.profondeur_finale_m) ?? '')
+            : (point?.profondeur_finale_m ?? point?.profondeur_bas ?? ''),
         carotte_total_height_cm: point?.carotte_total_height_m == null ? '' : scMetersToCentimeters(point?.carotte_total_height_m),
         tenue_fouilles: point?.tenue_fouilles || '',
-        venue_eau: point?.venue_eau == null ? '' : (point.venue_eau ? 'Oui' : 'Non'),
-        niveau_nappe: point?.niveau_nappe || '',
+        venue_eau: codeFeuille?.toUpperCase() === 'SC'
+            ? ''
+            : (point?.venue_eau == null ? '' : (point.venue_eau ? 'Oui' : 'Non')),
+        niveau_nappe: codeFeuille?.toUpperCase() === 'SC' ? '' : (point?.niveau_nappe || ''),
         arret_sondage: point?.arret_sondage || '',
         ouvrage: point?.ouvrage || '',
         notes: point?.notes || '',
@@ -352,10 +607,16 @@ function scBuildCoucheForm(couche = null) {
     }
 }
 
-function scToPointPayload(form) {
+function scToPointPayload(form, codeFeuille = '') {
+    const defaultType = scDefaultPointType(codeFeuille)
+    const isSCFeuille = String(codeFeuille || '').toUpperCase() === 'SC'
+    let pointType = String(form.point_type || '').trim() || defaultType
+    if (isSCFeuille && pointType === 'SONDAGE_PELLE') {
+        pointType = 'SONDAGE_CAROTTE'
+    }
     return {
         point_code: form.point_code || '',
-        point_type: form.point_type || 'SONDAGE_PELLE',
+        point_type: pointType,
         localisation: form.localisation || '',
         profil: form.profil || '',
         date_point: form.date_point || '',
@@ -363,14 +624,16 @@ function scToPointPayload(form) {
         sondeur: form.sondeur || '',
         procede: form.procede || '',
         diametre: form.diametre || '',
+        equipement: form.equipement || '',
+        equipment_id: scParseNumber(form.equipment_id),
         type_ouvrage: form.type_ouvrage || '',
         partie_ouvrage: form.partie_ouvrage || '',
         document_reference: form.document_reference || '',
-        profondeur_finale_m: scParseNumber(form.profondeur_finale_m),
+        profondeur_finale_m: isSCFeuille ? scCentimetersToMeters(form.profondeur_finale_m) : scParseNumber(form.profondeur_finale_m),
         carotte_total_height_m: scCentimetersToMeters(form.carotte_total_height_cm),
-        tenue_fouilles: form.tenue_fouilles || '',
-        venue_eau: form.venue_eau === '' ? null : form.venue_eau === 'Oui',
-        niveau_nappe: form.niveau_nappe || '',
+        tenue_fouilles: isSCFeuille ? '' : (form.tenue_fouilles || ''),
+        venue_eau: isSCFeuille ? null : (form.venue_eau === '' ? null : form.venue_eau === 'Oui'),
+        niveau_nappe: isSCFeuille ? '' : (form.niveau_nappe || ''),
         arret_sondage: form.arret_sondage || '',
         ouvrage: form.ouvrage || '',
         notes: form.notes || '',
@@ -426,15 +689,15 @@ function scToCouchePayload(form) {
     }
 }
 
-function ScCoucheEditor({ form, onChange, onSave, onCancel, saving, submitLabel }) {
+function ScCoucheEditor({ form, onChange, onSave, onCancel, saving, submitLabel, depthUnit = 'm' }) {
     return (
         <div className="rounded-lg border border-border bg-bg px-4 py-4">
             <div className="grid gap-3 md:grid-cols-2">
-                <ScField label="Profondeur haut (m)">
-                    <Input value={form.z_haut} onChange={(event) => onChange('z_haut', event.target.value)} placeholder="0.00" />
+                <ScField label={`Profondeur haut (${depthUnit})`}>
+                    <Input value={form.z_haut} onChange={(event) => onChange('z_haut', event.target.value)} placeholder={depthUnit === 'cm' ? '0' : '0.00'} />
                 </ScField>
-                <ScField label="Profondeur bas (m)">
-                    <Input value={form.z_bas} onChange={(event) => onChange('z_bas', event.target.value)} placeholder="0.80" />
+                <ScField label={`Profondeur bas (${depthUnit})`}>
+                    <Input value={form.z_bas} onChange={(event) => onChange('z_bas', event.target.value)} placeholder={depthUnit === 'cm' ? '9.5' : '0.80'} />
                 </ScField>
                 <ScField label="Texture matrice">
                     <ScSelect value={form.texture_matrice} onChange={(event) => onChange('texture_matrice', event.target.value)}>
@@ -608,7 +871,7 @@ function ScCoupeSVG({ point, couches, prelevements, isSCFeuille = false, photoUr
 
         useEffect(() => {
             setPhotoNaturalSize({ width: 0, height: 0 })
-        }, [photoUrl])
+        }, [String(photoUrl || '').split('?')[0]])
 
         let renderedPhotoTop = 0
         let renderedPhotoHeight = bodyHeight
@@ -870,7 +1133,7 @@ function ScNewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSav
         const zHaut = scParseNumber(form.z_haut)
         const zBas = scParseNumber(form.z_bas)
         if (zHaut == null || zBas == null) return ''
-        const thickness = (zBas - zHaut) * 100
+        const thickness = isSCFeuille ? (zBas - zHaut) : (zBas - zHaut) * 100
         return Number.isFinite(thickness) ? thickness.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : ''
     })()
 
@@ -1022,7 +1285,7 @@ function ScPrelevementManagerItem({ prelevement, currentCoucheId, coucheOptions,
     )
 }
 
-function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing, setPointEditing, pointForm, setPointField, handleSavePoint, updatePointPending, addingCouche, setAddingCouche, editingCoucheId, setEditingCoucheId, coucheForm, setCoucheField, handleCreateCouche, createCouchePending, handleUpdateCouche, updateCouchePending, handleDeleteCouche, deleteCouchePending, onBackToCoupe, prelevCoucheId, setPrelevCoucheId, prelevForm, setPrelevForm, createPrelevementPending, handleCreatePrelevement, updatePrelevementPending, handleUpdatePrelevement, handleDeletePrelevement, handleDeletePoint, deleteErrorMessage, editingCell, setEditingCell, editingCellValue, setEditingCellValue, startEditCell, saveCellEdit, selectedCoucheRow, setSelectedCoucheRow, newCoucheRow, setNewCoucheRow, handleAddCouche, handleInsertCouche, sheetToolbarActions = null }) {
+function ScPointDetailView({ data, point, interventionData = null, isDraftPoint = false, topBanner = null, detailReturnTo, navigate, pointEditing, setPointEditing, pointForm, setPointField, patchPointForm = null, handleSavePoint, persistPointPhotos = null, updatePointPending, savePointErrorMessage = '', addingCouche, setAddingCouche, editingCoucheId, setEditingCoucheId, coucheForm, setCoucheField, handleCreateCouche, createCouchePending, handleUpdateCouche, updateCouchePending, handleDeleteCouche, deleteCouchePending, onBackToCoupe, prelevCoucheId, setPrelevCoucheId, prelevForm, setPrelevForm, createPrelevementPending, handleCreatePrelevement, updatePrelevementPending, handleUpdatePrelevement, handleDeletePrelevement, handleDeletePoint, deleteErrorMessage, editingCell, setEditingCell, editingCellValue, setEditingCellValue, startEditCell, saveCellEdit, selectedCoucheRow, setSelectedCoucheRow, newCoucheRow, setNewCoucheRow, handleAddCouche, handleInsertCouche, sheetToolbarActions = null, equipmentOptions = [], equipmentLoading = false, equipmentError = '' }) {
     const queryClient = useQueryClient()
     const feuilleType = useMemo(() => getFeuilleTypeConfig(data?.code_feuille), [data?.code_feuille])
     const isSCFeuille = feuilleType.flags.supportsPointDepthIntervalCm
@@ -1184,6 +1447,8 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
     const linkedPointPrelevements = Array.isArray(point?.prelevements) ? point.prelevements : []
     const couches = Array.isArray(point?.couches) ? point.couches : []
     const sourceEssaiId = data?.source_essai_id ? Number(data.source_essai_id) : null
+    const feuilleUid = data?.uid ? Number(data.uid) : null
+    const canManagePhotos = Boolean(feuilleUid || sourceEssaiId)
     const [photoVersion, setPhotoVersion] = useState(0)
     const [photoError, setPhotoError] = useState(false)
     const [photoRetryCount, setPhotoRetryCount] = useState(0)
@@ -1193,6 +1458,9 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
     const [photoSaving, setPhotoSaving] = useState(false)
     const [photoSortMode, setPhotoSortMode] = useState('primary')
     const [photoFilterText, setPhotoFilterText] = useState('')
+    const [photoCropTargetCoupeId, setPhotoCropTargetCoupeId] = useState('')
+    const [photoCropReplaceStoredName, setPhotoCropReplaceStoredName] = useState('')
+    const [coupeDragActiveId, setCoupeDragActiveId] = useState('')
     const [selectedAnnotationId, setSelectedAnnotationId] = useState(null)
     const [draggingAnnotationId, setDraggingAnnotationId] = useState(null)
     const [selectedCoupeId, setSelectedCoupeId] = useState('')
@@ -1200,16 +1468,34 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
     const fileInputRef = useRef(null)
     const photoCanvasRef = useRef(null)
 
-    const { data: photoGalleryData } = useQuery({
-        queryKey: ['essai-photo-gallery', sourceEssaiId, photoVersion],
-        queryFn: () => feuillesTerrainApi.listEssaiPhotos(sourceEssaiId),
-        enabled: Boolean(sourceEssaiId),
-        staleTime: 0,
+    const { data: feuillePhotoGalleryData } = useQuery({
+        queryKey: ['feuille-photo-gallery', feuilleUid],
+        queryFn: () => feuillesTerrainApi.listFeuillePhotos(feuilleUid),
+        enabled: Boolean(feuilleUid),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
     })
 
-    const photoItems = useMemo(() => (
-        Array.isArray(photoGalleryData?.photos) ? photoGalleryData.photos : []
-    ), [photoGalleryData?.photos])
+    const { data: photoGalleryData } = useQuery({
+        queryKey: ['essai-photo-gallery', sourceEssaiId],
+        queryFn: () => feuillesTerrainApi.listEssaiPhotos(sourceEssaiId),
+        enabled: Boolean(sourceEssaiId),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+    })
+
+    const carotteAnnotations = Array.isArray(pointForm.carotte_annotations) ? pointForm.carotte_annotations : []
+    const pointAnnotations = Array.isArray(point?.carotte_annotations) ? point.carotte_annotations : []
+    const carotteCoupes = Array.isArray(pointForm.carotte_coupes) ? pointForm.carotte_coupes : []
+    const pointCoupes = Array.isArray(point?.carotte_coupes) ? point.carotte_coupes : []
+
+    const photoItems = useMemo(() => scMergePhotoItems({
+        feuillePhotos: feuilleUid && Array.isArray(feuillePhotoGalleryData?.photos) ? feuillePhotoGalleryData.photos : [],
+        essaiPhotos: sourceEssaiId && Array.isArray(photoGalleryData?.photos) ? photoGalleryData.photos : [],
+        carotteCoupes,
+        feuilleUid,
+        sourceEssaiId,
+    }), [feuilleUid, feuillePhotoGalleryData?.photos, sourceEssaiId, photoGalleryData?.photos, carotteCoupes])
 
     const selectedPhoto = useMemo(() => (
         photoItems.find((item) => item?.is_primary) || photoItems[0] || null
@@ -1219,11 +1505,11 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         const search = photoFilterText.trim().toLowerCase()
         let items = [...photoItems]
         if (search) {
-            items = items.filter((item) => `${item?.original_name || ''} ${item?.filename || ''} ${item?.created_at || ''}`.toLowerCase().includes(search))
+            items = items.filter((item) => `${item?.stored_name || ''} ${item?.original_name || ''} ${item?.filename || ''} ${item?.created_at || ''}`.toLowerCase().includes(search))
         }
         items.sort((left, right) => {
             if (photoSortMode === 'filename') {
-                return String(left?.original_name || left?.filename || '').localeCompare(String(right?.original_name || right?.filename || ''), 'fr', { sensitivity: 'base' })
+                return String(left?.stored_name || left?.filename || '').localeCompare(String(right?.stored_name || right?.filename || ''), 'fr', { sensitivity: 'base' })
             }
             if (photoSortMode === 'recent') {
                 return String(right?.created_at || '').localeCompare(String(left?.created_at || ''))
@@ -1233,17 +1519,13 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         return items
     }, [photoFilterText, photoItems, photoSortMode])
 
-    const carotteAnnotations = Array.isArray(pointForm.carotte_annotations) ? pointForm.carotte_annotations : []
-    const pointAnnotations = Array.isArray(point?.carotte_annotations) ? point.carotte_annotations : []
-    const carotteCoupes = Array.isArray(pointForm.carotte_coupes) ? pointForm.carotte_coupes : []
-    const pointCoupes = Array.isArray(point?.carotte_coupes) ? point.carotte_coupes : []
     const showEmbeddedScPhoto = isSCFeuille && !editingCoucheId
     const legacyPointTotalHeight = scCentimetersToMeters(pointForm.carotte_total_height_cm) ?? scParseNumber(point?.carotte_total_height_m) ?? Math.max(...couches.map((couche) => Number(couche?.z_bas ?? 0)).filter(Number.isFinite), 0)
     const hasCarotteEdits = (pointForm.notes || '') !== (point?.notes || '') || !scAreAnnotationsEqual(carotteAnnotations, pointAnnotations) || !scAreCoupesEqual(carotteCoupes, pointCoupes)
     const pointFinalDepthValue = point?.profondeur_finale_m || point?.profondeur_bas
-    const pointFinalDepthBadge = isSCFeuille ? scFormatDepthCm(pointFinalDepthValue) : scFormatDepth(pointFinalDepthValue)
+    const pointFinalDepthBadge = isSCFeuille ? scFormatDepthCmValue(pointFinalDepthValue == null ? '' : scMetersToCentimeters(pointFinalDepthValue)) : scFormatDepth(pointFinalDepthValue)
     const pointFinalDepthInputValue = isSCFeuille
-        ? (scDepthStoredToDisplayCm(pointForm.profondeur_finale_m) ?? '')
+        ? (pointForm.profondeur_finale_m ?? '')
         : (pointForm.profondeur_finale_m ?? '')
 
     useEffect(() => {
@@ -1251,18 +1533,25 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
     }, [pointEditing, setPointEditing])
 
     function handlePointFinalDepthInputChange(rawValue) {
-        if (!isSCFeuille) {
-            setPointField('profondeur_finale_m', rawValue)
+        setPointField('profondeur_finale_m', rawValue)
+    }
+
+    function handleEquipementChange(rawValue) {
+        const value = String(rawValue ?? '')
+        const selected = equipmentOptions.find((item) => String(item?.value) === value)
+        const procede = scResolveProcedeFromEquipment(selected)
+        const patch = {
+            equipement: value,
+            equipment_id: selected?.equipment_id ? String(selected.equipment_id) : '',
+            ...(procede ? { procede } : {}),
+        }
+        if (typeof patchPointForm === 'function') {
+            patchPointForm(patch)
             return
         }
-        const normalized = String(rawValue ?? '').trim()
-        if (!normalized) {
-            setPointField('profondeur_finale_m', '')
-            return
-        }
-        const meters = scCentimetersToMeters(normalized)
-        if (meters == null) return
-        setPointField('profondeur_finale_m', meters)
+        setPointField('equipement', value)
+        setPointField('equipment_id', patch.equipment_id)
+        if (procede) setPointField('procede', procede)
     }
 
     const hasPointData = Boolean(point?.uid)
@@ -1309,13 +1598,20 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         coupesForDisplay.find((item) => item.id === selectedCoupeId) || coupesForDisplay[0] || null
     ), [coupesForDisplay, selectedCoupeId])
 
+    const coupeGalleryItems = displayedPhotoItems
+
     const activeCoupePhoto = useMemo(() => {
-        if (!activeCoupe?.photo_stored_name) return selectedPhoto
-        const matched = photoItems.find((item) => item?.stored_name === activeCoupe.photo_stored_name)
+        if (!activeCoupe?.photo_stored_name) return null
+        const matched = scFindGalleryPhoto(photoItems, activeCoupe.photo_stored_name)
         if (matched) return matched
-        if (carotteCoupes.length <= 1) return selectedPhoto
+        if (activeCoupe?.photo_url) {
+            const fileName = String(activeCoupe.photo_url).split('/').pop()?.split('?')[0] || ''
+            const matchedByPath = fileName ? scFindGalleryPhoto(photoItems, fileName) : null
+            if (matchedByPath) return matchedByPath
+        }
         return null
-    }, [activeCoupe?.photo_stored_name, photoItems, selectedPhoto, carotteCoupes.length])
+    }, [activeCoupe?.photo_stored_name, activeCoupe?.photo_url, photoItems])
+
     const activeCoupeCouches = useMemo(() => {
         if (!isSCFeuille) return couches
         if (Array.isArray(activeCoupe?.couches) && activeCoupe.couches.length) return scCloneCoupeLayers(activeCoupe.couches)
@@ -1325,21 +1621,22 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         () => scGetScCoupeBoundsCm(activeCoupeCouches, activeCoupe?.total_height_cm || pointForm.carotte_total_height_cm || ''),
         [activeCoupeCouches, activeCoupe?.total_height_cm, pointForm.carotte_total_height_cm]
     )
-    const activeCoupeTotalHeight = scCentimetersToMeters(activeCoupe?.total_height_cm) ?? legacyPointTotalHeight
-    const activeCoupeStartM = Math.max(0, scCentimetersToMeters(activeCoupe?.depth_start_cm || activeCoupeBoundsCm.depth_start_cm) ?? 0)
+    const activeCoupeTotalHeightCm = scParseNumber(activeCoupe?.total_height_cm) ?? scParseNumber(pointForm.carotte_total_height_cm) ?? null
+    const activeCoupeStartCm = Math.max(0, scParseNumber(activeCoupe?.depth_start_cm || activeCoupeBoundsCm.depth_start_cm) ?? 0)
     const baseScDepthMax = Math.max(
         ...activeCoupeCouches.map((couche) => Number(couche?.z_bas ?? 0)).filter((value) => Number.isFinite(value)),
+        activeCoupeTotalHeightCm ?? 0,
         0.1,
     )
-    const activeScDepthMax = Math.max(Number(activeCoupeTotalHeight || 0), baseScDepthMax, 0.1)
+    const activeScDepthMax = Math.max(baseScDepthMax, 0.1)
     const scLayerDepthMax = isSCFeuille
         ? Math.max(
             ...activeCoupeCouches.map((couche) => Number(couche?.z_bas ?? 0)).filter((v) => Number.isFinite(v)),
-            Number(activeCoupeTotalHeight || 0) || 0.001,
-            0.001,
+            Number(activeCoupeTotalHeightCm || 0) || 0.1,
+            0.1,
         )
         : activeScDepthMax
-    const scBodyHeight = Math.max(400, Math.min(1400, scLayerDepthMax * 3200))
+    const scBodyHeight = Math.max(400, Math.min(1400, scLayerDepthMax * 32))
     const scRowHeightsByUid = useMemo(() => {
         const entries = new Map()
         if (!isSCFeuille || !Array.isArray(activeCoupeCouches)) return entries
@@ -1363,8 +1660,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
             return {
                 uid: couche?.uid,
                 y: cumulative + (index + 1) * scBorderPx,
-                depthM: Number(couche?.z_bas ?? 0),
-                depthCm: Number(couche?.z_bas ?? 0) * 100,
+                depthCm: Number(couche?.z_bas ?? 0),
             }
         })
     }, [isSCFeuille, activeCoupeCouches, scRowHeightsByUid])
@@ -1383,51 +1679,93 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         const refHeight = scActualTotalHeight || scBodyHeight
         return Math.max(100, Math.min(320, refHeight * ratio))
     }, [isSCFeuille, embeddedPhotoNaturalSize.width, embeddedPhotoNaturalSize.height, scActualTotalHeight, scBodyHeight])
-    const activeCoupeEndM = Math.max(activeCoupeStartM, scCentimetersToMeters(activeCoupe?.depth_end_cm || activeCoupeBoundsCm.depth_end_cm) ?? activeCoupeTotalHeight ?? activeScDepthMax)
+    const activeCoupeEndCm = Math.max(
+        activeCoupeStartCm,
+        scParseNumber(activeCoupe?.depth_end_cm || activeCoupeBoundsCm.depth_end_cm) ?? activeCoupeTotalHeightCm ?? activeScDepthMax,
+    )
     const displayedCouches = isSCFeuille ? activeCoupeCouches : couches
     const activeScRowHeightsByUid = scRowHeightsByUid
     const activeScRenderHeight = scActualTotalHeight
     const activeScRowBoundaries = useMemo(() => {
         if (!isSCFeuille) return []
-        let previousDepth = activeCoupeStartM
+        let previousDepth = activeCoupeStartCm
         return scRowBoundaries.filter((item) => {
-            const depthM = Number(item?.depthM)
-            if (!Number.isFinite(depthM)) return false
-            if (depthM <= previousDepth) return false
-            if (depthM >= activeCoupeEndM) return false
-            previousDepth = depthM
+            const depthCm = Number(item?.depthCm)
+            if (!Number.isFinite(depthCm)) return false
+            if (depthCm <= previousDepth) return false
+            if (depthCm >= activeCoupeEndCm) return false
+            previousDepth = depthCm
             return true
         })
-    }, [isSCFeuille, scRowBoundaries, activeCoupeStartM, activeCoupeEndM])
+    }, [isSCFeuille, scRowBoundaries, activeCoupeStartCm, activeCoupeEndCm])
 
     const photoUrl = selectedPhoto?.url
-        ? `${selectedPhoto.url}?v=${photoVersion}`
+        ? scPhotoItemUrl(selectedPhoto, photoVersion)
         : ''
-    const activeCoupePhotoUrl = activeCoupePhoto?.url
-        ? `${activeCoupePhoto.url}?v=${photoVersion}`
-        : (activeCoupe?.photo_url || (carotteCoupes.length <= 1 ? (point?.photo_url || photoUrl || '') : ''))
+    const activeCoupePhotoUrl = useMemo(() => {
+        if (!isSCFeuille) return photoUrl
+        const activeCoupeIndex = coupesForDisplay.findIndex((item) => item.id === activeCoupe?.id)
+        return scResolveCoupePhotoUrl({
+            storedName: activeCoupe?.photo_stored_name,
+            photoUrl: activeCoupe?.photo_url,
+            photoItems,
+            feuilleUid,
+            sourceEssaiId,
+            photoVersion,
+            fallbackPhoto: null,
+            coupe: activeCoupe,
+            coupeIndex: activeCoupeIndex >= 0 ? activeCoupeIndex : 0,
+        })
+    }, [
+        isSCFeuille,
+        photoUrl,
+        activeCoupe,
+        activeCoupe?.photo_stored_name,
+        activeCoupe?.photo_url,
+        photoItems,
+        feuilleUid,
+        sourceEssaiId,
+        photoVersion,
+        coupesForDisplay,
+    ])
+    const displayedPhotoKey = useMemo(() => {
+        if (isSCFeuille) {
+            return scStablePhotoKey(
+                activeCoupePhoto
+                || { storedName: activeCoupe?.photo_stored_name, url: activeCoupe?.photo_url }
+            )
+        }
+        return scStablePhotoKey(selectedPhoto)
+    }, [
+        isSCFeuille,
+        activeCoupePhoto?.stored_name,
+        activeCoupePhoto?.url,
+        activeCoupe?.photo_stored_name,
+        activeCoupe?.photo_url,
+        selectedPhoto?.stored_name,
+        selectedPhoto?.url,
+    ])
 
     useEffect(() => {
         setPhotoError(false)
         setPhotoRetryCount(0)
-    }, [photoUrl, activeCoupePhotoUrl])
+    }, [displayedPhotoKey])
 
     function handlePhotoLoad() {
         if (photoError) {
             setPhotoError(false)
         }
-        if (photoRetryCount !== 0) {
-            setPhotoRetryCount(0)
-        }
     }
 
     function handlePhotoLoadError() {
-        if (photoRetryCount < 1) {
-            setPhotoRetryCount((value) => value + 1)
+        setPhotoRetryCount((count) => {
+            if (count >= 1) {
+                setPhotoError(true)
+                return count
+            }
             setPhotoVersion((value) => value + 1)
-            return
-        }
-        setPhotoError(true)
+            return count + 1
+        })
     }
 
     useEffect(() => {
@@ -1476,64 +1814,288 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         }
     }, [draggingAnnotationId, carotteAnnotations])
 
-    async function openCropFromFile(file) {
+    async function openCropFromFile(file, coupeId = '') {
         const src = await scReadFileAsDataUrl(file)
+        setPhotoCropTargetCoupeId(String(coupeId || activeCoupe?.id || ''))
+        setPhotoCropReplaceStoredName('')
         setPhotoEditorFilename(file?.name || 'carotte-crop.jpg')
         setPhotoEditorSrc(src)
         setPhotoEditorOpen(true)
     }
 
+    function resolveAffairePhotoHint() {
+        return String(
+            interventionData?.affaire_reference
+            || data?.payload?.affaire_reference
+            || data?.payload?.meta?.affaire_nge_raw
+            || '',
+        ).trim()
+    }
+
+    function resolveCoupeUploadContext(coupeId) {
+        const targetCoupe = coupesForDisplay.find((item) => item.id === coupeId)
+            || coupesForDisplay.find((item) => item.id === activeCoupe?.id)
+            || coupesForDisplay[0]
+            || null
+        const coupeIndex = targetCoupe
+            ? coupesForDisplay.findIndex((item) => item.id === targetCoupe.id)
+            : 0
+        return {
+            targetCoupe,
+            coupeCode: scCoupePhotoCode(targetCoupe, coupeIndex >= 0 ? coupeIndex : 0),
+            pointCode: String(pointForm.point_code || point?.point_code || '').trim(),
+        }
+    }
+
+    function buildCoupePhotoPatch(coupes, coupeId, photo) {
+        const baseCoupes = Array.isArray(coupes) ? coupes : []
+        if (!coupeId) return baseCoupes
+        if (!photo?.stored_name) {
+            return baseCoupes.map((item) => (
+                item.id === coupeId
+                    ? { ...item, photo_stored_name: '', photo_url: '' }
+                    : item
+            ))
+        }
+        return baseCoupes.map((item) => (
+            item.id === coupeId
+                ? {
+                    ...item,
+                    photo_stored_name: String(photo.stored_name),
+                    photo_url: String(photo.url || ''),
+                }
+                : item
+        ))
+    }
+
+    async function persistCoupePhotoAssignment(coupeId, photo) {
+        let nextCoupes = []
+        setPointField('carotte_coupes', (currentCoupes) => {
+            nextCoupes = buildCoupePhotoPatch(
+                Array.isArray(currentCoupes) ? currentCoupes : [],
+                coupeId,
+                photo,
+            )
+            return nextCoupes
+        })
+        setPhotoError(false)
+        setPhotoVersion((value) => value + 1)
+        if (typeof persistPointPhotos === 'function') {
+            try {
+                await persistPointPhotos(nextCoupes)
+            } catch {
+                // Garder la sélection locale même si l'enregistrement échoue.
+            }
+        }
+    }
+
+    function assignPhotoToCoupe(coupeId, photo) {
+        if (!coupeId || !photo?.stored_name) return
+        updateCarotteCoupe(coupeId, {
+            photo_stored_name: String(photo.stored_name),
+            photo_url: String(photo.url || ''),
+        })
+    }
+
+    function handleCoupePhotoPick(coupeId) {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.onchange = async (event) => {
+            const file = event.target.files?.[0]
+            if (!file) return
+            await openCropFromFile(file, coupeId)
+        }
+        input.click()
+    }
+
+    async function handleCoupePhotoDrop(coupeId, event) {
+        event.preventDefault()
+        event.stopPropagation()
+        setCoupeDragActiveId('')
+        const file = event.dataTransfer?.files?.[0]
+        if (!file || !file.type.startsWith('image/')) return
+        await openCropFromFile(file, coupeId)
+    }
+
+    function resolveGalleryPhotoSelection(storedName) {
+        const key = String(storedName || '').trim()
+        if (!key) return null
+        const matched = scFindGalleryPhoto(photoItems, key)
+        if (matched) return matched
+        if (feuilleUid) {
+            return {
+                stored_name: key,
+                url: `/api/photos/feuille/${feuilleUid}/files/${encodeURIComponent(key)}`,
+            }
+        }
+        if (sourceEssaiId) {
+            return {
+                stored_name: key,
+                url: `/api/photos/essai/${sourceEssaiId}/files/${encodeURIComponent(key)}`,
+            }
+        }
+        return null
+    }
+
+    function handleCoupePhotoSelect(coupeId, storedName) {
+        if (!storedName) {
+            void persistCoupePhotoAssignment(coupeId, null)
+            return
+        }
+        const matched = resolveGalleryPhotoSelection(storedName)
+        if (!matched) return
+        void persistCoupePhotoAssignment(coupeId, matched)
+    }
+
+    function resolveCoupeReplaceStoredName(coupe) {
+        const urlFileName = String(coupe?.photo_url || '').split('/').pop()?.split('?')[0] || ''
+        const candidates = [
+            coupe?.photo_stored_name,
+            urlFileName,
+        ].map((value) => String(value || '').trim()).filter(Boolean)
+        for (const candidate of candidates) {
+            const matched = scFindGalleryPhoto(photoItems, candidate)
+            if (matched?.stored_name) return String(matched.stored_name)
+        }
+        return candidates[0] || ''
+    }
+
+    function handleCoupePhotoRecrop(coupeId) {
+        const coupe = coupesForDisplay.find((item) => item.id === coupeId)
+        const coupeIndex = coupesForDisplay.findIndex((item) => item.id === coupeId)
+        const replaceStoredName = resolveCoupeReplaceStoredName(coupe)
+        const src = scResolveCoupePhotoUrl({
+            storedName: replaceStoredName || coupe?.photo_stored_name,
+            photoUrl: coupe?.photo_url,
+            photoItems,
+            feuilleUid,
+            sourceEssaiId,
+            photoVersion,
+            fallbackPhoto: null,
+            coupe,
+            coupeIndex: coupeIndex >= 0 ? coupeIndex : 0,
+        })
+        if (!src) return
+        const matched = replaceStoredName ? scFindGalleryPhoto(photoItems, replaceStoredName) : null
+        setPhotoCropTargetCoupeId(String(coupeId))
+        setPhotoCropReplaceStoredName(replaceStoredName)
+        setPhotoEditorFilename(replaceStoredName || matched?.original_name || matched?.filename || 'carotte-crop.jpg')
+        setPhotoEditorSrc(src)
+        setPhotoEditorOpen(true)
+    }
+
     function handlePickPhotoClick() {
+        if (isSCFeuille) {
+            handleCoupePhotoPick(activeCoupe?.id || coupesForDisplay[0]?.id || '')
+            return
+        }
         fileInputRef.current?.click()
     }
 
     async function handlePhotoFileSelected(event) {
         const file = event.target.files?.[0]
         if (!file) return
-        await openCropFromFile(file)
+        await openCropFromFile(file, activeCoupe?.id || '')
         event.target.value = ''
     }
 
     async function handleCropConfirm(file) {
-        if (!sourceEssaiId || !file) return
+        if (!file || !canManagePhotos) return
+        const targetCoupeId = photoCropTargetCoupeId || activeCoupe?.id || coupesForDisplay[0]?.id || ''
+        const replaceStoredName = String(photoCropReplaceStoredName || '').trim()
+        const { targetCoupe, coupeCode, pointCode } = resolveCoupeUploadContext(targetCoupeId)
         setPhotoSaving(true)
         try {
-            const affaireHint = String(data?.payload?.meta?.affaire_nge_raw || '').trim()
-            await feuillesTerrainApi.uploadEssaiPhoto(sourceEssaiId, file, affaireHint, {
-                coupe_code: selectedCoupeId || '',
-            })
+            const affaireHint = resolveAffairePhotoHint()
+            const uploadOptions = replaceStoredName
+                ? { replace_stored_name: replaceStoredName }
+                : { coupe_code: coupeCode, point_code: pointCode }
+            let uploaded = null
+            if (feuilleUid) {
+                uploaded = await feuillesTerrainApi.uploadFeuillePhoto(feuilleUid, file, affaireHint, uploadOptions)
+            } else if (sourceEssaiId) {
+                uploaded = await feuillesTerrainApi.uploadEssaiPhoto(sourceEssaiId, file, affaireHint, uploadOptions)
+            }
+            const storedName = uploaded?.photo?.stored_name || uploaded?.filename || replaceStoredName || ''
+            const uploadedPhoto = uploaded?.photo || null
+            const photoPayload = uploadedPhoto || (storedName ? {
+                stored_name: storedName,
+                url: feuilleUid
+                    ? `/api/photos/feuille/${feuilleUid}/files/${encodeURIComponent(storedName)}`
+                    : `/api/photos/essai/${sourceEssaiId}/files/${encodeURIComponent(storedName)}`,
+            } : null)
+            if (targetCoupe?.id && photoPayload?.stored_name && !replaceStoredName) {
+                await persistCoupePhotoAssignment(targetCoupe.id, photoPayload)
+            }
+            if (feuilleUid && Array.isArray(uploaded?.photos)) {
+                queryClient.setQueryData(['feuille-photo-gallery', feuilleUid], { photos: uploaded.photos })
+            }
+            if (sourceEssaiId && Array.isArray(uploaded?.photos)) {
+                queryClient.setQueryData(['essai-photo-gallery', sourceEssaiId], { photos: uploaded.photos })
+            }
             setPhotoEditorOpen(false)
             setPhotoEditorSrc('')
+            setPhotoCropTargetCoupeId('')
+            setPhotoCropReplaceStoredName('')
             setPhotoError(false)
             setPhotoVersion((v) => v + 1)
-            queryClient.invalidateQueries({ queryKey: ['essai-photo-gallery', sourceEssaiId] })
+            if (feuilleUid) {
+                queryClient.invalidateQueries({ queryKey: ['feuille-photo-gallery', feuilleUid] })
+            }
+            if (sourceEssaiId) {
+                queryClient.invalidateQueries({ queryKey: ['essai-photo-gallery', sourceEssaiId] })
+            }
             queryClient.invalidateQueries({ queryKey: ['feuille-terrain', data?.uid] })
+        } catch (error) {
+            window.alert(error?.message || 'Impossible d’enregistrer la photo recadrée.')
         } finally {
             setPhotoSaving(false)
         }
     }
 
     async function handleSelectPrimaryPhoto(storedName) {
-        if (!sourceEssaiId || !storedName || selectedPhoto?.stored_name === storedName) return
+        if (!storedName) return
         setPhotoSaving(true)
         try {
-            await feuillesTerrainApi.setPrimaryEssaiPhoto(sourceEssaiId, storedName)
+            if (feuilleUid) {
+                if (photoItems.find((item) => item?.stored_name === storedName)?.is_primary) return
+                await feuillesTerrainApi.setPrimaryFeuillePhoto(feuilleUid, storedName)
+                queryClient.invalidateQueries({ queryKey: ['feuille-photo-gallery', feuilleUid] })
+            } else if (sourceEssaiId) {
+                if (selectedPhoto?.stored_name === storedName) return
+                await feuillesTerrainApi.setPrimaryEssaiPhoto(sourceEssaiId, storedName)
+                queryClient.invalidateQueries({ queryKey: ['essai-photo-gallery', sourceEssaiId] })
+            } else {
+                return
+            }
             setPhotoError(false)
             setPhotoVersion((v) => v + 1)
-            queryClient.invalidateQueries({ queryKey: ['essai-photo-gallery', sourceEssaiId] })
         } finally {
             setPhotoSaving(false)
         }
     }
 
     async function handleDeletePhoto(storedName) {
-        if (!sourceEssaiId || !storedName) return
+        if (!storedName) return
         setPhotoSaving(true)
         try {
-            await feuillesTerrainApi.deleteEssaiPhoto(sourceEssaiId, storedName)
+            if (feuilleUid) {
+                await feuillesTerrainApi.deleteFeuillePhoto(feuilleUid, storedName)
+                queryClient.invalidateQueries({ queryKey: ['feuille-photo-gallery', feuilleUid] })
+            } else if (sourceEssaiId) {
+                await feuillesTerrainApi.deleteEssaiPhoto(sourceEssaiId, storedName)
+                queryClient.invalidateQueries({ queryKey: ['essai-photo-gallery', sourceEssaiId] })
+            } else {
+                return
+            }
+            setPointField('carotte_coupes', carotteCoupes.map((coupe) => (
+                coupe.photo_stored_name === storedName
+                    ? { ...coupe, photo_stored_name: '', photo_url: '' }
+                    : coupe
+            )))
             setPhotoError(false)
             setPhotoVersion((v) => v + 1)
-            queryClient.invalidateQueries({ queryKey: ['essai-photo-gallery', sourceEssaiId] })
         } finally {
             setPhotoSaving(false)
         }
@@ -1568,7 +2130,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 
     function addCarotteCoupe() {
         const nextIndex = carotteCoupes.length + 1
-        const nextCoupe = scBuildDefaultScCoupe({ pointForm, selectedPhoto, couches, title: `Coupe ${nextIndex}` })
+        const nextCoupe = scBuildDefaultScCoupe({ pointForm, couches, title: `Coupe ${nextIndex}` })
         setPointField('carotte_coupes', [...carotteCoupes, nextCoupe])
         setSelectedCoupeId(nextCoupe.id)
     }
@@ -1596,7 +2158,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
     }
 
     function handleCreateCoupeLayer(inlineForm) {
-        const payload = inlineForm ? scToCouchePayload(inlineForm) : scToCouchePayload(coucheForm)
+        const payload = scToCouchePayload(inlineForm || coucheForm)
         const rawInsertAfterUid = inlineForm?.insertAfterUid ?? null
         updateActiveCoupeCouches((currentLayers) => {
             const nextLayer = scNormalizeCoupeLayer({ ...payload, uid: scCreateCoupeLayerId(), prelevements: [] }, currentLayers.length)
@@ -1643,7 +2205,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                 setEditingCellValue('')
                 return
             }
-            patch = { [field]: Number((depthCm / 100).toFixed(6)) }
+            patch = { [field]: depthCm }
         }
         if (field === 'thickness_cm') {
             const zHaut = Number(couche?.z_haut)
@@ -1653,7 +2215,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                 setEditingCellValue('')
                 return
             }
-            patch = { z_bas: Number((zHaut + (thicknessCm / 100)).toFixed(6)) }
+            patch = { z_bas: Number((zHaut + thicknessCm).toFixed(2)) }
         }
         updateActiveCoupeCouches((currentLayers) => currentLayers.map((layer) => (
             String(layer.uid) === String(coucheUid)
@@ -1666,8 +2228,8 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 
     function handleAddCoupeLayer() {
         const lastCouche = activeCoupeCouches.length ? activeCoupeCouches[activeCoupeCouches.length - 1] : null
-        const nextZHaut = lastCouche?.z_bas ?? ''
-        setNewCoucheRow({ z_haut: String(nextZHaut), z_bas: '', insertAfterUid: lastCouche?.uid ?? null })
+        const nextZHaut = scScCoucheDepthString(lastCouche?.z_bas)
+        setNewCoucheRow({ z_haut: nextZHaut, z_bas: '', insertAfterUid: lastCouche?.uid ?? null })
         setAddingCouche(false)
         setEditingCoucheId(null)
     }
@@ -1678,8 +2240,8 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         if (idx < 0) return
         const before = activeCoupeCouches[idx]
         const after = activeCoupeCouches[idx + 1] || null
-        const newZHaut = String(before.z_bas ?? '')
-        const newZBas = after ? String(after.z_haut ?? '') : ''
+        const newZHaut = scScCoucheDepthString(before.z_bas)
+        const newZBas = after ? scScCoucheDepthString(after.z_haut) : ''
         setNewCoucheRow({ z_haut: newZHaut, z_bas: newZBas, insertAfterUid: before.uid })
         setAddingCouche(false)
         setEditingCoucheId(null)
@@ -1703,6 +2265,8 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         : String(newCoucheRow.insertAfterUid)
     const shouldRenderInlineAfterSelection = newCoucheRow != null && newCoucheInsertAfterUid != null
     const shouldRenderInlineAtBottom = newCoucheRow != null && !shouldRenderInlineAfterSelection
+    const coucheRows = isSCFeuille ? displayedCouches : couches
+    const showCoucheTable = coucheRows.length > 0 || newCoucheRow != null
 
     // Custom values — single query fetching all fields
     const { data: customValuesAll } = useQuery({
@@ -1722,16 +2286,57 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
         return pointPrelevementIds.has(item.uid)
     })
 
+    const pointDisplayTitle = isDraftPoint
+        ? (pointForm.point_code || 'Nouveau sondage')
+        : (point.point_code || point.reference || `Point ${point.uid}`)
+
+    const interventionTitle = useMemo(
+        () => buildScInterventionTitle(data, interventionData),
+        [data, interventionData],
+    )
+
+    const affaireDemandeLine = useMemo(
+        () => buildScAffaireDemandeLine(data, interventionData),
+        [data, interventionData],
+    )
+
+    const heroContextLine = useMemo(() => {
+        if (!isSCFeuille) {
+            return scBuildPointSummary(point) || data.label || 'Fiche de description géotechnique'
+        }
+        const title = interventionTitle
+        const profil = String(pointForm.profil || point?.profil || '').trim()
+        const depth = point?.profondeur_finale_m != null && point?.profondeur_finale_m !== ''
+            ? scFormatDepthCm(point.profondeur_finale_m)
+            : ''
+        const partie = String(pointForm.partie_ouvrage || point?.partie_ouvrage || '').trim()
+        const titleLower = title.toLowerCase()
+
+        const details = [partie, profil, depth].filter((part) => {
+            if (!part) return false
+            if (titleLower.includes(part.toLowerCase())) return false
+            return true
+        })
+
+        if (title && details.length) return `${title} · ${details.join(' · ')}`
+        return title || details.join(' · ') || data.label || 'Sondage carotte'
+    }, [isSCFeuille, interventionTitle, pointForm.partie_ouvrage, pointForm.profil, point, data?.label])
+
+    const displayPointType = scDisplayPointType(pointForm.point_type || point?.point_type, isSCFeuille)
+
     return (
         <div
-            className="flex flex-col h-full -m-6 overflow-y-auto"
+            className="flex flex-col h-full -mx-6 -mb-6"
             style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
         >
             <ScSheetToolbar
                 backLabel="← Coupe"
                 onBack={onBackToCoupe}
-                title={point.point_code || point.reference || `Point ${point.uid}`}
-                subtitle={[data.reference, scBuildPointSummary(point)].filter(Boolean).join(' · ')}
+                title={pointDisplayTitle}
+                subtitle={[
+                    affaireDemandeLine,
+                    isDraftPoint ? 'Non enregistré' : null,
+                ].filter(Boolean).join(' · ')}
                 actions={(
                     <div className="flex flex-wrap items-center gap-2">
                         {sheetToolbarActions}
@@ -1739,18 +2344,38 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                             {updatePointPending ? 'Enregistrement…' : 'Enregistrer'}
                         </Button>
                         <button
-                            onClick={() => { if (window.confirm('Supprimer ce sondage et toutes ses couches / prélèvements ?')) handleDeletePoint(point.uid) }}
+                            onClick={() => {
+                                const message = isDraftPoint
+                                    ? 'Abandonner ce sondage non enregistré ?'
+                                    : 'Supprimer ce sondage et toutes ses couches / prélèvements ?'
+                                if (window.confirm(message)) handleDeletePoint(point.uid)
+                            }}
                             className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
                         >
-                            Supprimer
+                            {isDraftPoint ? 'Abandonner' : 'Supprimer'}
                         </button>
                     </div>
                 )}
             />
 
+            {topBanner ? (
+                <div className="w-full max-w-[1900px] mx-auto px-7 pt-4">
+                    {topBanner}
+                </div>
+            ) : null}
+
             <div className="w-full max-w-[1900px] mx-auto px-7 py-7 flex flex-col gap-5">
                 {deleteErrorMessage ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{deleteErrorMessage}</div>
+                ) : null}
+                {savePointErrorMessage ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{savePointErrorMessage}</div>
+                ) : null}
+                {isDraftPoint ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        Sondage en cours de création — rien n’est enregistré tant que vous n’avez pas cliqué sur <strong>Enregistrer</strong>.
+                        {' '}Le bouton <strong>Imprimer / Ouvrir rapport</strong> apparaît une fois le sondage enregistré.
+                    </div>
                 ) : null}
 
                 {/* Hero */}
@@ -1769,9 +2394,9 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                 <span className="w-[9px] h-[9px] rounded-full bg-[#ffcc00]" style={{ boxShadow: '0 0 0 4px rgba(255,204,0,0.18)' }} />
                                 RaLab 5 · {isSCFeuille ? 'Sondage Carotte' : 'Sondage'}
                             </div>
-                            <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{point.point_code || point.reference || `Point ${point.uid}`}</h1>
+                            <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{pointDisplayTitle}</h1>
                             <p className="mt-3 text-[14px] leading-relaxed text-white/70 max-w-2xl">
-                                {scBuildPointSummary(point) || data.label || 'Fiche de description géotechnique'}
+                                {heroContextLine}
                             </p>
                         </div>
 
@@ -1779,13 +2404,13 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                             {data.reference ? (
                                 <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">Coupe {data.reference}</span>
                             ) : null}
-                            {point.point_type ? (
-                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">{point.point_type}</span>
+                            {displayPointType ? (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">{displayPointType}</span>
                             ) : null}
                             {pointFinalDepthBadge ? (
                                 <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold">Prof. {pointFinalDepthBadge}</span>
                             ) : null}
-                            {(point.venue_eau || point.niveau_nappe) ? (
+                            {!isSCFeuille && (point.venue_eau || point.niveau_nappe) ? (
                                 <span className="rounded-full border border-[rgba(96,165,250,0.4)] bg-[rgba(96,165,250,0.15)] px-3 py-1.5 text-[11px] font-bold">∇ {point.niveau_nappe || 'nappe'}</span>
                             ) : null}
                         </div>
@@ -1813,7 +2438,13 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 
                 <ScCard title="Modifier le sondage">
                     <div className="grid gap-3 md:grid-cols-3">
-                        <ScField label="Point"><Input value={pointForm.point_code} onChange={(event) => setPointField('point_code', event.target.value)} /></ScField>
+                        <ScField label="Point">
+                            <Input
+                                value={pointForm.point_code}
+                                onChange={(event) => setPointField('point_code', event.target.value)}
+                                placeholder={isDraftPoint ? 'Code proposé — modifiable avant enregistrement' : undefined}
+                            />
+                        </ScField>
                         <ScField label="Type"><Input value={pointForm.point_type} onChange={(event) => setPointField('point_type', event.target.value)} /></ScField>
                         <ScField label="Localisation"><Input value={pointForm.localisation} onChange={(event) => setPointField('localisation', event.target.value)} /></ScField>
                         <ScField label="Profil / PK"><Input value={pointForm.profil} onChange={(event) => setPointField('profil', event.target.value)} /></ScField>
@@ -1823,10 +2454,27 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                             <>
                                 <ScField label="Sondeur"><Input value={pointForm.sondeur} onChange={(event) => setPointField('sondeur', event.target.value)} /></ScField>
                                 <ScField label="Procédé de sondage"><Input value={pointForm.procede} onChange={(event) => setPointField('procede', event.target.value)} /></ScField>
-                                <ScField label="Diamètre de couronne"><Input value={pointForm.diametre} onChange={(event) => setPointField('diametre', event.target.value)} /></ScField>
-                                <ScField label="Type et nom de l'ouvrage"><Input value={pointForm.type_ouvrage} onChange={(event) => setPointField('type_ouvrage', event.target.value)} /></ScField>
-                                <ScField label="Partie de l'ouvrage"><Input value={pointForm.partie_ouvrage} onChange={(event) => setPointField('partie_ouvrage', event.target.value)} /></ScField>
-                                <ScField label="Document de référence"><Input value={pointForm.document_reference} onChange={(event) => setPointField('document_reference', event.target.value)} /></ScField>
+                                <ScField label="Équipement utilisé">
+                                    <ScSelect
+                                        value={pointForm.equipement}
+                                        onChange={handleEquipementChange}
+                                        disabled={equipmentLoading}
+                                    >
+                                        <option value="">{equipmentLoading ? 'Chargement des équipements...' : 'Sélectionner un équipement'}</option>
+                                        {renderTerrainSelectOptionExtras(equipmentOptions, pointForm.equipement)}
+                                    </ScSelect>
+                                    {equipmentError ? <div className="mt-1 text-[11px] text-red-600">{equipmentError}</div> : null}
+                                </ScField>
+                                <ScField label="Diamètre de couronne (cm)"><Input value={pointForm.diametre} onChange={(event) => setPointField('diametre', event.target.value)} /></ScField>
+                                <ScField label="Type et nom de l'ouvrage"><Input value={pointForm.type_ouvrage} onChange={(event) => setPointField('type_ouvrage', event.target.value)} placeholder="Hérité du chantier (modifiable)" /></ScField>
+                                <ScField label="Partie de l'ouvrage"><Input value={pointForm.partie_ouvrage} onChange={(event) => setPointField('partie_ouvrage', event.target.value)} placeholder="Héritée de la campagne / zone (modifiable)" /></ScField>
+                                <ScField label="Document de référence">
+                                    <Input
+                                        value={pointForm.document_reference}
+                                        onChange={(event) => setPointField('document_reference', event.target.value)}
+                                        placeholder="Réf. demande / campagne (héritée, modifiable)"
+                                    />
+                                </ScField>
                             </>
                         )}
                         <ScField label={isSCFeuille ? 'Profondeur finale (cm)' : 'Profondeur finale (m)'}><Input value={pointFinalDepthInputValue} onChange={(event) => handlePointFinalDepthInputChange(event.target.value)} /></ScField>
@@ -1846,18 +2494,22 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                 <ScField label="Niveau nappe"><Input value={pointForm.niveau_nappe} onChange={(event) => setPointField('niveau_nappe', event.target.value)} /></ScField>
                             </>
                         )}
-                        <ScField label="Arrêt de sondage"><Input value={pointForm.arret_sondage} onChange={(event) => setPointField('arret_sondage', event.target.value)} /></ScField>
-                        <ScField label="Ouvrage"><Input value={pointForm.ouvrage} onChange={(event) => setPointField('ouvrage', event.target.value)} /></ScField>
+                        <ScField label={isSCFeuille ? 'Arrêt de sondage (cm)' : 'Arrêt de sondage'}><Input value={pointForm.arret_sondage} onChange={(event) => setPointField('arret_sondage', event.target.value)} /></ScField>
+                        {!isSCFeuille ? (
+                            <ScField label="Ouvrage"><Input value={pointForm.ouvrage} onChange={(event) => setPointField('ouvrage', event.target.value)} /></ScField>
+                        ) : null}
                         <ScField label="Notes" full><ScTextarea value={pointForm.notes} onChange={(value) => setPointField('notes', value)} /></ScField>
                     </div>
                     </ScCard>
                 <div className={isSCFeuille ? 'grid items-start gap-4 xl:grid-cols-[420px_minmax(0,1fr)]' : 'flex flex-col gap-4'}>
                     <ScCard title="Carotte" right={
                         <div className="flex items-center gap-2 text-[11px] text-text-muted">
+                            {feuilleUid ? <span>Feuille #{feuilleUid}</span> : null}
                             {sourceEssaiId ? <span>Essai #{sourceEssaiId}</span> : null}
                             {photoItems.length ? <span>{photoItems.length} photo(s)</span> : null}
                         </div>
                     }>
+                        {!isSCFeuille ? (
                         <div className="flex flex-wrap gap-2">
                             <input
                                 ref={fileInputRef}
@@ -1866,7 +2518,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                 className="hidden"
                                 onChange={handlePhotoFileSelected}
                             />
-                            <Button variant="secondary" size="sm" onClick={handlePickPhotoClick} disabled={!sourceEssaiId || photoSaving}>
+                            <Button variant="secondary" size="sm" onClick={handlePickPhotoClick} disabled={!canManagePhotos || photoSaving}>
                                 Ajouter une photo
                             </Button>
                             <Button
@@ -1878,19 +2530,33 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                     setPhotoEditorSrc(photoUrl)
                                     setPhotoEditorOpen(true)
                                 }}
-                                disabled={!sourceEssaiId || photoError || photoSaving}
+                                disabled={!canManagePhotos || photoError || photoSaving}
                             >
                                 Recadrer / ajuster
                             </Button>
-                            {/* Save action moved to sticky toolbar (PMT-like layout). */}
                         </div>
+                        ) : (
+                        <div className="flex flex-wrap gap-2">
+                            <div className="rounded-lg border border-border bg-bg px-3 py-2 text-[12px] text-text-muted">
+                                Photo par coupe : glisser-déposer ou choisir sur chaque carte <strong className="text-text">Coupe SC</strong>.
+                            </div>
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => handleCoupePhotoRecrop(activeCoupe?.id || coupesForDisplay[0]?.id || '')}
+                                disabled={!canManagePhotos || photoSaving || !activeCoupePhotoUrl || photoError}
+                            >
+                                Recadrer / tourner
+                            </Button>
+                        </div>
+                        )}
 
                         <div className="mt-4 rounded-xl border border-border bg-bg p-2">
-                            {photoUrl && !photoError ? (
+                            {(isSCFeuille ? activeCoupePhotoUrl : photoUrl) && !photoError ? (
                                 <div className={`relative flex items-start justify-center overflow-hidden rounded-lg bg-transparent p-2 ${isSCFeuille ? 'min-h-[180px]' : 'min-h-[420px]'}`}>
                                     <img
-                                        src={photoUrl}
-                                        alt={`Photo carotte essai ${sourceEssaiId}`}
+                                        src={isSCFeuille ? activeCoupePhotoUrl : photoUrl}
+                                        alt={`Photo carotte ${activeCoupe?.title || 'coupe'}`}
                                         loading="lazy"
                                         onLoad={handlePhotoLoad}
                                         onError={handlePhotoLoadError}
@@ -1899,9 +2565,13 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                 </div>
                             ) : (
                                 <div className="rounded-lg border border-dashed border-border bg-surface px-4 py-10 text-[13px] text-text-muted">
-                                    {sourceEssaiId
-                                        ? 'Photo indisponible pour cet essai.'
-                                        : 'Aucune photo liée (source_essai_id absent sur la feuille).'}
+                                    {isSCFeuille
+                                        ? (canManagePhotos
+                                            ? 'Aucune photo sur la coupe active. Déposez une image sur la carte Coupe SC.'
+                                            : 'Feuille introuvable pour charger une photo.')
+                                        : (canManagePhotos
+                                            ? 'Photo indisponible pour cet essai.'
+                                            : 'Aucune photo liée (source_essai_id absent sur la feuille).')}
                                 </div>
                             )}
                         </div>
@@ -1912,7 +2582,9 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                     <div className="flex items-center justify-between gap-2">
                                         <div>
                                             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Galerie</p>
-                                            <p className="text-[12px] text-text-muted">Choisis la meilleure vue avec o nome do ficheiro.</p>
+                                            <p className="text-[12px] text-text-muted">
+                                                Toutes les photos du point SC. Cliquez pour affecter à la coupe active, ou choisissez sur chaque carte Coupe SC.
+                                            </p>
                                         </div>
                                         {selectedPhoto?.original_name ? (
                                             <span className="max-w-[180px] truncate rounded-full border border-border bg-bg px-3 py-1 text-[11px] text-text-muted" title={selectedPhoto.original_name}>
@@ -1928,30 +2600,43 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                             <option value="filename">Nom de fichier</option>
                                         </ScSelect>
                                     </div>
-                                    {displayedPhotoItems.length ? (
+                                    {coupeGalleryItems.length ? (
                                         <div className="grid gap-2 max-h-[220px] overflow-y-auto pr-1">
-                                            {displayedPhotoItems.map((photo) => {
-                                                const isActive = photo?.stored_name === selectedPhoto?.stored_name
+                                            {coupeGalleryItems.map((photo) => {
+                                                const optionValue = String(photo.stored_name || photo.filename || '').trim()
+                                                const activePhotoKey = String(activeCoupe?.photo_stored_name || '').trim()
+                                                const isActive = Boolean(activePhotoKey) && activePhotoKey === optionValue
                                                 return (
                                                     <div
                                                         key={photo.stored_name}
                                                         className={`grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-2 py-2 transition ${isActive ? 'border-accent bg-[#eef7ff]' : 'border-border bg-surface hover:border-accent/40 hover:bg-bg'}`}
                                                     >
                                                         <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-lg border border-border bg-bg">
-                                                            <img src={`${photo.url}?v=${photoVersion}`} alt={photo.original_name || photo.filename} className="h-full w-full object-cover" />
+                                                            <img src={scPhotoItemUrl(photo, photoVersion)} alt={photo.original_name || photo.filename} className="h-full w-full object-cover" />
                                                         </div>
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleSelectPrimaryPhoto(photo.stored_name)}
+                                                            onClick={() => {
+                                                                const optionValue = String(photo.stored_name || photo.filename || '').trim()
+                                                                if (activeCoupe?.id && optionValue) {
+                                                                    handleCoupePhotoSelect(activeCoupe.id, optionValue)
+                                                                    return
+                                                                }
+                                                                handleSelectPrimaryPhoto(optionValue)
+                                                            }}
                                                             disabled={photoSaving}
                                                             className="min-w-0 text-left"
                                                         >
                                                             <div className="flex items-center gap-2">
-                                                                <span className="truncate text-[12px] font-medium text-text" title={photo.original_name || photo.filename}>{photo.original_name || photo.filename}</span>
+                                                                <span className="truncate text-[12px] font-medium text-text" title={photo.stored_name || photo.filename}>
+                                                                    {photo.stored_name || photo.filename}
+                                                                </span>
                                                                 {photo.is_primary ? <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">Active</span> : null}
                                                             </div>
                                                             <div className="mt-1 text-[11px] text-text-muted">
-                                                                {photo.created_at || photo.filename}
+                                                                {photo.original_name && photo.original_name !== photo.stored_name
+                                                                    ? photo.original_name
+                                                                    : (photo.created_at || 'Upload terrain')}
                                                             </div>
                                                         </button>
                                                         <Button variant="danger" size="sm" onClick={() => handleDeletePhoto(photo.stored_name)} disabled={photoSaving}>✕</Button>
@@ -1970,7 +2655,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                     <div className="flex items-center justify-between gap-2">
                                         <div>
                                             <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Coupes SC</p>
-                                            <p className="text-[12px] text-text-muted">Chaque coupe peut viser um intervalo diferente e usar uma foto diferente.</p>
+                                            <p className="text-[12px] text-text-muted">Chaque coupe peut viser un intervalle différent et utiliser une photo différente.</p>
                                         </div>
                                         <Button variant="secondary" size="sm" onClick={addCarotteCoupe}>+ Coupe</Button>
                                     </div>
@@ -1981,21 +2666,37 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                 const coupeBounds = scGetScCoupeBoundsCm(coupe?.couches, coupe?.total_height_cm || pointForm.carotte_total_height_cm || '')
                                                 const startCm = String(coupe.depth_start_cm ?? '').trim() || coupeBounds.depth_start_cm
                                                 const endCm = String(coupe.depth_end_cm ?? '').trim() || coupeBounds.depth_end_cm
+                                                const coupePreviewUrl = scResolveCoupePhotoUrl({
+                                                    storedName: coupe.photo_stored_name,
+                                                    photoUrl: coupe.photo_url,
+                                                    photoItems,
+                                                    feuilleUid,
+                                                    sourceEssaiId,
+                                                    photoVersion,
+                                                    fallbackPhoto: null,
+                                                    coupe,
+                                                    coupeIndex: index,
+                                                })
+                                                const coupePhotoStoredName = coupe.photo_stored_name || ''
+                                                const selectablePhotoOptions = displayedPhotoItems
+                                                const isDropActive = coupeDragActiveId === coupe.id
                                                 return (
                                                     <div
                                                         key={coupe.id}
-                                                        role="button"
-                                                        tabIndex={0}
-                                                        onClick={() => setSelectedCoupeId(coupe.id)}
-                                                        onKeyDown={(event) => {
-                                                            if (event.key === 'Enter' || event.key === ' ') {
-                                                                event.preventDefault()
-                                                                setSelectedCoupeId(coupe.id)
-                                                            }
-                                                        }}
-                                                        className={`rounded-xl border p-3 transition cursor-pointer ${isActive ? 'border-accent bg-[#eef7ff]' : 'border-border bg-bg hover:border-accent/50 hover:bg-[#f8fbff]'}`}
+                                                        className={`rounded-xl border p-3 transition ${isActive ? 'border-accent bg-[#eef7ff]' : 'border-border bg-bg'}`}
                                                     >
-                                                        <div className="flex items-center justify-between gap-2">
+                                                        <div
+                                                            role="button"
+                                                            tabIndex={0}
+                                                            onClick={() => setSelectedCoupeId(coupe.id)}
+                                                            onKeyDown={(event) => {
+                                                                if (event.key === 'Enter' || event.key === ' ') {
+                                                                    event.preventDefault()
+                                                                    setSelectedCoupeId(coupe.id)
+                                                                }
+                                                            }}
+                                                            className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg px-1 py-0.5 ${isActive ? '' : 'hover:bg-[#f8fbff]'}`}
+                                                        >
                                                             <div className="text-left">
                                                                 <div className="text-[12px] font-semibold text-text">{coupe.title || `Coupe ${index + 1}`}</div>
                                                                 <div className="text-[11px] text-text-muted">{startCm || '—'} cm → {endCm || '—'} cm</div>
@@ -2005,16 +2706,84 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                 deleteCarotteCoupe(coupe.id)
                                                             }}>Suppr.</Button>
                                                         </div>
+
+                                                        <div
+                                                            className={`mt-3 rounded-xl border border-dashed px-3 py-3 transition ${isDropActive ? 'border-accent bg-[#eef7ff]' : 'border-border bg-surface'}`}
+                                                            onClick={(event) => event.stopPropagation()}
+                                                            onDragEnter={(event) => {
+                                                                event.preventDefault()
+                                                                event.stopPropagation()
+                                                                setCoupeDragActiveId(coupe.id)
+                                                            }}
+                                                            onDragOver={(event) => {
+                                                                event.preventDefault()
+                                                                event.stopPropagation()
+                                                                setCoupeDragActiveId(coupe.id)
+                                                            }}
+                                                            onDragLeave={(event) => {
+                                                                event.preventDefault()
+                                                                event.stopPropagation()
+                                                                if (event.currentTarget.contains(event.relatedTarget)) return
+                                                                setCoupeDragActiveId('')
+                                                            }}
+                                                            onDrop={(event) => handleCoupePhotoDrop(coupe.id, event)}
+                                                        >
+                                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                                                                <div className="flex h-[96px] w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-bg sm:w-[96px]">
+                                                                    {coupePreviewUrl ? (
+                                                                        <img src={coupePreviewUrl} alt={coupe.title || `Coupe ${index + 1}`} className="h-full w-full object-cover" />
+                                                                    ) : (
+                                                                        <span className="px-2 text-center text-[11px] text-text-muted">Glisser une photo ici</span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Photo de la coupe</p>
+                                                                    <p className="mt-1 text-[11px] text-text-muted">
+                                                                        Déposez une image ou choisissez un fichier. Recadrage avant enregistrement. Nom WBS incluant {scCoupePhotoCode(coupe, index)}.
+                                                                    </p>
+                                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                                        <Button
+                                                                            variant="secondary"
+                                                                            size="sm"
+                                                                            disabled={!canManagePhotos || photoSaving}
+                                                                            onClick={() => handleCoupePhotoPick(coupe.id)}
+                                                                        >
+                                                                            Choisir une photo
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="secondary"
+                                                                            size="sm"
+                                                                            disabled={!canManagePhotos || photoSaving || !coupePreviewUrl}
+                                                                            onClick={() => handleCoupePhotoRecrop(coupe.id)}
+                                                                        >
+                                                                            Recadrer / tourner
+                                                                        </Button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
                                                         <div className="mt-3 grid gap-2 md:grid-cols-2">
                                                             <ScField label="Titre">
-                                                                <Input value={coupe.title || ''} onChange={(event) => updateCarotteCoupe(coupe.id, { title: event.target.value })} />
+                                                                <Input value={coupe.title || ''} onChange={(event) => updateCarotteCoupe(coupe.id, { title: event.target.value })} onClick={(event) => event.stopPropagation()} />
                                                             </ScField>
-                                                            <ScField label="Photo">
-                                                                <ScSelect value={coupe.photo_stored_name || ''} onChange={(event) => updateCarotteCoupe(coupe.id, { photo_stored_name: event.target.value })}>
-                                                                    <option value="">Photo active de la galerie</option>
-                                                                    {photoItems.map((photo) => (
-                                                                        <option key={photo.stored_name} value={photo.stored_name}>{photo.original_name || photo.filename}</option>
-                                                                    ))}
+                                                            <ScField label="Photo (galerie)">
+                                                                <ScSelect
+                                                                    value={coupePhotoStoredName}
+                                                                    onChange={(event) => handleCoupePhotoSelect(coupe.id, event.target.value)}
+                                                                    onClick={(event) => event.stopPropagation()}
+                                                                    className="w-full"
+                                                                >
+                                                                    <option value="">— Choisir une photo existante —</option>
+                                                                    {selectablePhotoOptions.map((photo) => {
+                                                                        const optionValue = String(photo.stored_name || photo.filename || '').trim()
+                                                                        if (!optionValue) return null
+                                                                        return (
+                                                                            <option key={optionValue} value={optionValue}>
+                                                                                {optionValue}
+                                                                            </option>
+                                                                        )
+                                                                    })}
                                                                 </ScSelect>
                                                             </ScField>
                                                             <ScField label="Début (cm)">
@@ -2099,11 +2868,14 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                             open={photoEditorOpen}
                             imageSrc={photoEditorSrc}
                             title="Préparer la photo pour la coupe"
+                            initialAspectPreset="libre"
                             outputFilename={photoEditorFilename}
                             onCancel={() => {
                                 if (photoSaving) return
                                 setPhotoEditorOpen(false)
                                 setPhotoEditorSrc('')
+                                setPhotoCropTargetCoupeId('')
+                                setPhotoCropReplaceStoredName('')
                             }}
                             onConfirm={handleCropConfirm}
                             saving={photoSaving}
@@ -2112,9 +2884,9 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 
                     <ScCard title={isSCFeuille ? (activeCoupe?.title || 'Coupe de carotte enrobé') : 'Coupe de description géotechnique'} right={
                         <div className="flex gap-2 items-center">
-                            <span className="text-[11px] text-text-muted">{(isSCFeuille ? displayedCouches : couches).length} couche(s)</span>
+                            <span className="text-[11px] text-text-muted">{coucheRows.length} couche(s)</span>
                             {isSCFeuille && activeCoupe ? (
-                                <span className="text-[11px] text-text-muted">{scMetersToCentimeters(activeCoupeStartM)}-{scMetersToCentimeters(activeCoupeEndM)} cm</span>
+                                <span className="text-[11px] text-text-muted">{activeCoupe?.depth_start_cm || activeCoupeBoundsCm.depth_start_cm || '0'}-{activeCoupe?.depth_end_cm || activeCoupeBoundsCm.depth_end_cm || '—'} cm</span>
                             ) : null}
                             {!addingCouche ? (
                                 <div className="flex gap-2">
@@ -2126,7 +2898,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                     }>
 
 
-                {(isSCFeuille ? displayedCouches : couches).length ? (
+                {showCoucheTable ? (
                     <div className="flex gap-0 overflow-x-auto">
                         {!isSCFeuille ? (
                             <ScCoupeSVG
@@ -2182,7 +2954,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {(isSCFeuille ? displayedCouches : couches).map((couche, index) => {
+                                    {coucheRows.map((couche, index) => {
                                         const linkedPrelevements = Array.isArray(couche.prelevements) ? couche.prelevements : []
                                         const isEditing = editingCoucheId === couche.uid
                                         return (
@@ -2200,6 +2972,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                             onCancel={() => { setEditingCoucheId(null); setCoucheField('__reset__', scBuildCoucheForm()) }}
                                                             saving={isSCFeuille && carotteCoupes.length ? updatePointPending : updateCouchePending}
                                                             submitLabel="Enregistrer"
+                                                            depthUnit={isSCFeuille && carotteCoupes.length ? 'cm' : 'm'}
                                                         />
                                                     </td>
                                                 ) : (
@@ -2235,12 +3008,12 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 
                                                                         <div className="absolute left-0 right-0 border-t border-dashed border-[#f97316]" style={{ top: 0 }} />
                                                                         <div className="absolute right-1 rounded bg-white/90 px-1 py-[1px] text-[8px] font-semibold text-slate-700" style={{ top: 2 }}>
-                                                                            {activeCoupeStartM.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
+                                                                            {scFormatDepthCmValue(activeCoupeStartCm)}
                                                                         </div>
 
                                                                         <div className="absolute left-0 right-0 border-t border-dashed border-[#f97316]" style={{ top: activeScRenderHeight - 1 }} />
                                                                         <div className="absolute right-1 rounded bg-white/90 px-1 py-[1px] text-[8px] font-semibold text-slate-700" style={{ bottom: 2 }}>
-                                                                            {activeCoupeEndM.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
+                                                                            {scFormatDepthCmValue(activeCoupeEndCm)}
                                                                         </div>
 
                                                                         {activeScRowBoundaries.map((item) => {
@@ -2250,7 +3023,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                             <div key={`sc-boundary-${item.uid}`}>
                                                                                 <div className="absolute left-0 right-0 border-t border-dashed border-[#f97316]" style={{ top: lineTop }} />
                                                                                 <div className="absolute right-1 rounded bg-white/90 px-1 py-[1px] text-[8px] font-semibold text-slate-700" style={{ top: labelTop }}>
-                                                                                    {Number(item.depthM || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m
+                                                                                    {scFormatDepthCmValue(item.depthCm)}
                                                                                 </div>
                                                                             </div>
                                                                             )
@@ -2289,8 +3062,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                 onClick={(event) => {
                                                                     if (event.target instanceof HTMLInputElement) return
                                                                     expandIntervalColumnForEdit()
-                                                                    const zHautCm = couche?.z_haut == null || couche?.z_haut === '' ? '' : String(scMetersToCentimeters(couche.z_haut))
-                                                                    startEditCell(couche.uid, 'z_haut', zHautCm)
+                                                                    startEditCell(couche.uid, 'z_haut', scScCoucheDepthString(couche?.z_haut))
                                                                 }}
                                                                 onBlurCapture={(event) => {
                                                                     const nextTarget = event.relatedTarget
@@ -2301,12 +3073,11 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                 <div className="flex min-w-0 items-center gap-1 font-mono text-[11px] font-medium">
                                                                     {editingCell?.coucheUid === couche.uid && (editingCell?.field === 'z_haut' || editingCell?.field === 'z_bas') ? (
                                                                         <input
-                                                                            value={editingCell?.field === 'z_haut' ? editingCellValue : (couche?.z_haut == null || couche?.z_haut === '' ? '' : String(scMetersToCentimeters(couche.z_haut)))}
+                                                                            value={editingCell?.field === 'z_haut' ? editingCellValue : scScCoucheDepthString(couche?.z_haut)}
                                                                             onFocus={() => {
                                                                                 if (editingCell?.field === 'z_haut') return
-                                                                                const zHautCm = couche?.z_haut == null || couche?.z_haut === '' ? '' : String(scMetersToCentimeters(couche.z_haut))
                                                                                 setEditingCell({ coucheUid: couche.uid, field: 'z_haut' })
-                                                                                setEditingCellValue(zHautCm)
+                                                                                setEditingCellValue(scScCoucheDepthString(couche?.z_haut))
                                                                             }}
                                                                             onChange={e => {
                                                                                 if (editingCell?.field !== 'z_haut') {
@@ -2319,17 +3090,16 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                             className="w-[74px] max-w-full min-w-0 text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm"
                                                                         />
                                                                     ) : (
-                                                                        <span className="truncate hover:text-accent">{couche?.z_haut == null || couche?.z_haut === '' ? '—' : scMetersToCentimeters(couche.z_haut)}</span>
+                                                                        <span className="truncate hover:text-accent">{couche?.z_haut == null || couche?.z_haut === '' ? '—' : couche.z_haut}</span>
                                                                     )}
                                                                     <span className="shrink-0">→</span>
                                                                     {editingCell?.coucheUid === couche.uid && (editingCell?.field === 'z_haut' || editingCell?.field === 'z_bas') ? (
                                                                         <input
-                                                                            value={editingCell?.field === 'z_bas' ? editingCellValue : (couche?.z_bas == null || couche?.z_bas === '' ? '' : String(scMetersToCentimeters(couche.z_bas)))}
+                                                                            value={editingCell?.field === 'z_bas' ? editingCellValue : scScCoucheDepthString(couche?.z_bas)}
                                                                             onFocus={() => {
                                                                                 if (editingCell?.field === 'z_bas') return
-                                                                                const zBasCm = couche?.z_bas == null || couche?.z_bas === '' ? '' : String(scMetersToCentimeters(couche.z_bas))
                                                                                 setEditingCell({ coucheUid: couche.uid, field: 'z_bas' })
-                                                                                setEditingCellValue(zBasCm)
+                                                                                setEditingCellValue(scScCoucheDepthString(couche?.z_bas))
                                                                             }}
                                                                             onChange={e => {
                                                                                 if (editingCell?.field !== 'z_bas') {
@@ -2342,7 +3112,7 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                             className="w-[74px] max-w-full min-w-0 text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm"
                                                                         />
                                                                     ) : (
-                                                                        <span className="truncate hover:text-accent">{couche?.z_bas == null || couche?.z_bas === '' ? '—' : scMetersToCentimeters(couche.z_bas)}</span>
+                                                                        <span className="truncate hover:text-accent">{couche?.z_bas == null || couche?.z_bas === '' ? '—' : couche.z_bas}</span>
                                                                     )}
                                                                 </div>
                                                             </td>
@@ -2360,11 +3130,11 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
                                                                 ) : (
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => startEditCell(couche.uid, 'thickness_cm', scComputeThicknessCm(couche) ?? '')}
+                                                                        onClick={() => startEditCell(couche.uid, 'thickness_cm', scComputeScCoucheThicknessCm(couche) ?? '')}
                                                                         className="hover:text-accent"
                                                                         title="Éditer l'épaisseur en cm"
                                                                     >
-                                                                        {scComputeThicknessCm(couche) == null ? '—' : scComputeThicknessCm(couche).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
+                                                                        {scComputeScCoucheThicknessCm(couche) == null ? '—' : scComputeScCoucheThicknessCm(couche).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
                                                                     </button>
                                                                 )}
                                                             </td>
@@ -2766,4 +3536,4 @@ function ScPointDetailView({ data, point, detailReturnTo, navigate, pointEditing
 }
 
 
-export { ScPointDetailView, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload, scBuildDefaultScCoupe }
+export { ScPointDetailView, ScSheetToolbar, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload, scBuildDefaultScCoupe }

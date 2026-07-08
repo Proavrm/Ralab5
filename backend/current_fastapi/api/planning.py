@@ -8,6 +8,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 import unicodedata
 from datetime import date, datetime
@@ -18,17 +19,43 @@ from pydantic import BaseModel, Field
 
 from app.core.database import ensure_ralab4_schema, get_db_path
 from app.repositories.demandes_rst_repository import DemandesRstRepository
+from app.services.feuille_mission_journee_service import enrich_planning_items_with_mission_status
+from app.services.lab_geo_catalog import distance_to_lab
 
 router = APIRouter()
 _repo = DemandesRstRepository()
 DB_PATH = get_db_path()
 
-LABO_NOM = {
-    "SP":  "Saint-Priest",
-    "PDC": "Pont-du-Ch.",
-    "CHB": "Chambéry",
-    "CLM": "Clermont",
-}
+
+def _labo_label(code: Optional[str]) -> str:
+    raw = str(code or "").strip().upper()
+    if not raw:
+        return ""
+    try:
+        from app.repositories.laboratoires_repository import LaboratoiresRepository
+
+        record = LaboratoiresRepository().get_by_code(raw)
+        if record and record.nom:
+            return record.nom
+    except Exception:
+        pass
+    return raw
+
+
+def _distance_from_affaire_site(labo_code: Optional[str], site_lat: object, site_lon: object) -> dict | None:
+    if site_lat is None or site_lon is None:
+        return None
+    try:
+        return distance_to_lab(labo_code or "SP", float(site_lat), float(site_lon))
+    except (TypeError, ValueError):
+        return None
+
+
+def _row_site_distance(row: sqlite3.Row, labo_code: Optional[str]) -> dict | None:
+    keys = row.keys()
+    if "site_lat" not in keys or "site_lon" not in keys:
+        return None
+    return _distance_from_affaire_site(labo_code, row["site_lat"], row["site_lon"])
 
 
 def _urg(ech: Optional[date]) -> str:
@@ -75,11 +102,6 @@ def _iso_from_value(value: object) -> Optional[str]:
         return text
     except ValueError:
         return None
-
-
-def _labo_label(code: Optional[str]) -> str:
-    raw = str(code or "").strip()
-    return LABO_NOM.get(raw, raw)
 
 
 def _urg_from_dates(start: Optional[str], ech: Optional[str], state: str) -> str:
@@ -213,6 +235,14 @@ def _build_item(
     source_demande_id: Optional[int] = None,
     affaire_ref: Optional[str] = None,
     wbs: str = "",
+    type_intervention: str = "",
+    is_demande_scope: bool = False,
+    date_envoi: Optional[str] = None,
+    programme_terrain: str = "",
+    distance_to_lab: Optional[dict] = None,
+    technicien: str = "",
+    geotechnicien: str = "",
+    observations: str = "",
 ) -> dict:
     state = _display_state(_planning_state(kind, raw_stat, start, ech))
     return {
@@ -239,7 +269,82 @@ def _build_item(
         "source_demande_id": source_demande_id,
         "affaire_ref": str(affaire_ref or "").strip(),
         "wbs": str(wbs or "").strip(),
+        "type_intervention": str(type_intervention or "").strip(),
+        "is_demande_scope": bool(is_demande_scope),
+        "date_envoi": str(date_envoi or "").strip() or None,
+        "programme_terrain": str(programme_terrain or "").strip(),
+        "distance_to_lab": distance_to_lab,
+        "distance_to_lab_text": str((distance_to_lab or {}).get("distance_text") or "").strip(),
+        "technicien": str(technicien or "").strip(),
+        "geotechnicien": str(geotechnicien or "").strip(),
+        "observations": str(observations or "").strip(),
     }
+
+
+def _parse_intervention_observations(raw: Optional[str]) -> dict:
+    if not raw or not isinstance(raw, str):
+        return {}
+    text = raw.strip()
+    if not text.startswith("{"):
+        return {}
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _normalize_mission_essai_entries(raw_items) -> list[dict[str, str]]:
+    if not isinstance(raw_items, list):
+        return []
+    entries: list[dict[str, str]] = []
+    for item in raw_items:
+        if isinstance(item, str):
+            token = item.strip()
+            if token:
+                entries.append({"code": token.upper(), "label": token, "norme": ""})
+            continue
+        if not isinstance(item, dict):
+            continue
+        code = str(item.get("code") or "").strip()
+        label = str(item.get("label") or "").strip()
+        norme = str(item.get("norme") or "").strip()
+        if not code and not label:
+            continue
+        entries.append({"code": code, "label": label, "norme": norme})
+    return entries
+
+
+def _format_mission_essai_entry(entry: dict[str, str]) -> str:
+    code = str(entry.get("code") or "").strip().upper()
+    label = str(entry.get("label") or "").strip()
+    norme = str(entry.get("norme") or "").strip()
+    if code.startswith("ID:"):
+        display_code = f"#{code[3:]}" if len(code) > 3 else code
+    else:
+        display_code = code or label
+    if norme:
+        return f"{display_code} ({norme})"
+    if label and display_code and label.upper() != display_code:
+        return f"{display_code} — {label}"
+    return display_code or label
+
+
+def _mission_programme_from_observations(observations_raw: Optional[str]) -> str:
+    obs = _parse_intervention_observations(observations_raw)
+    entries = _normalize_mission_essai_entries(obs.get("mission_essais_prevus"))
+    chips = [
+        formatted
+        for entry in entries
+        if (formatted := _format_mission_essai_entry(entry))
+    ]
+    prep = str(obs.get("prep_points_a_realiser") or "").strip()
+    parts: list[str] = []
+    if chips:
+        parts.append(" · ".join(chips))
+    if prep:
+        parts.append(prep)
+    return " · ".join(parts)
 
 
 def _build_wbs(*parts: Optional[str]) -> str:
@@ -291,6 +396,24 @@ class PlanningItemOut(BaseModel):
     source_demande_id: Optional[int] = None
     affaire_ref: str = ""
     wbs: str = ""
+    type_intervention: str = ""
+    is_demande_scope: bool = False
+    date_envoi: Optional[str] = None
+    programme_terrain: str = ""
+    technicien: str = ""
+    geotechnicien: str = ""
+    mission_feuille_status: str = "none"
+    mission_feuille_generated_at: Optional[str] = None
+    mission_feuille_printed_at: Optional[str] = None
+
+
+def _is_note_technique_row(row: sqlite3.Row) -> bool:
+    if row["campagne_id"] not in (None, ""):
+        return False
+    type_val = _norm(row["type_intervention"])
+    nature = _norm(row["nature_reelle"] if "nature_reelle" in row.keys() else "")
+    ref = str(row["reference"] or "").upper()
+    return "note technique" in type_val or nature == "note technique" or "-NT" in ref
 
 
 def _to_out(r) -> PlanningDemandeOut:
@@ -303,33 +426,57 @@ def _to_out(r) -> PlanningDemandeOut:
         ech=r.date_echeance.isoformat()    if r.date_echeance   else None,
         dst=bool((r.numero_dst or "").strip()),
         urg=_urg(r.date_echeance),
-        labo=LABO_NOM.get(r.labo_code) if r.labo_code else None,
+        labo=_labo_label(r.labo_code) if r.labo_code else None,
     )
 
 
-def _load_demande_items() -> list[dict]:
+def _load_demande_items(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT
+            d.id,
+            d.reference,
+            d.statut,
+            d.date_reception,
+            d.date_echeance,
+            d.labo_code,
+            d.numero_dst,
+            a.reference AS affaire_ref,
+            a.client,
+            a.chantier,
+            a.site_lat,
+            a.site_lon
+        FROM demandes d
+        JOIN affaires_rst a ON a.id = d.affaire_rst_id
+        ORDER BY COALESCE(d.date_reception, d.date_echeance, d.id) DESC, d.id DESC
+        """
+    ).fetchall()
     items: list[dict] = []
-    for row in _repo.all():
-        start = row.date_reception.isoformat() if row.date_reception else None
-        ech = row.date_echeance.isoformat() if row.date_echeance else None
+    for row in rows:
+        start = row["date_reception"]
+        ech = row["date_echeance"]
+        start_iso = start.isoformat() if hasattr(start, "isoformat") else _iso_from_value(start)
+        ech_iso = ech.isoformat() if hasattr(ech, "isoformat") else _iso_from_value(ech)
+        labo_code = row["labo_code"]
         items.append(
             _build_item(
-                uid=row.uid,
+                uid=int(row["id"]),
                 kind="demande",
                 kind_label="Demande",
-                ref=row.reference,
-                tit=row.chantier or row.client or row.reference,
-                subtitle=row.client or "",
-                raw_stat=row.statut or "A qualifier",
-                start=start,
-                ech=ech,
-                labo_code=row.labo_code,
-                route=f"/demandes/{row.uid}",
+                ref=row["reference"],
+                tit=row["chantier"] or row["client"] or row["reference"],
+                subtitle=row["client"] or "",
+                raw_stat=row["statut"] or "A qualifier",
+                start=start_iso,
+                ech=ech_iso,
+                labo_code=labo_code,
+                route=f"/demandes/{int(row['id'])}",
                 views=["organiser", "demandes", "analyser"],
-                dst=bool((row.numero_dst or "").strip()),
-                source_demande_id=row.uid,
-                affaire_ref=getattr(row, "affaire_ref", ""),
-                wbs=_build_wbs(getattr(row, "affaire_ref", ""), row.reference),
+                dst=bool((row["numero_dst"] or "").strip()),
+                source_demande_id=int(row["id"]),
+                affaire_ref=row["affaire_ref"] or "",
+                wbs=_build_wbs(row["affaire_ref"], row["reference"]),
+                distance_to_lab=_row_site_distance(row, labo_code),
             )
         )
     return items
@@ -354,7 +501,9 @@ def _load_campaign_items(conn: sqlite3.Connection) -> list[dict]:
             d.labo_code,
             d.reference AS demande_reference,
             a.chantier,
-            a.client
+            a.client,
+            a.site_lat,
+            a.site_lon
         FROM campagnes c
         JOIN demandes d ON d.id = c.demande_id
         LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
@@ -365,6 +514,7 @@ def _load_campaign_items(conn: sqlite3.Connection) -> list[dict]:
     for row in rows:
         title = row["designation"] or row["label"] or row["chantier"] or row["reference"]
         subtitle = " | ".join(part for part in [row["demande_reference"] or "", row["attribue_a"] or row["responsable_technique"] or ""] if part)
+        labo_code = row["labo_code"]
         items.append(
             _build_item(
                 uid=int(row["id"]),
@@ -376,13 +526,14 @@ def _load_campaign_items(conn: sqlite3.Connection) -> list[dict]:
                 raw_stat=row["statut"] or "A cadrer",
                 start=_iso_from_value(row["date_debut_prevue"]),
                 ech=_iso_from_value(row["date_fin_prevue"]),
-                labo_code=row["labo_code"],
-                route=f"/demandes/{int(row['demande_id'])}",
-                open_label="Ouvrir la demande",
+                labo_code=labo_code,
+                route=f"/campagnes/{int(row['id'])}",
+                open_label="Ouvrir la campagne",
                 views=["organiser", "terrain", "analyser"],
                 source_demande_id=int(row["demande_id"]),
                 affaire_ref=row["affaire_reference"],
                 wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
+                distance_to_lab=_row_site_distance(row, labo_code),
             )
         )
     return items
@@ -396,16 +547,23 @@ def _load_intervention_items(conn: sqlite3.Connection) -> list[dict]:
             i.reference,
             i.sujet,
             i.type_intervention,
+            i.nature_reelle,
+            i.campagne_id,
             i.date_intervention,
+            i.date_fin,
+            i.date_envoi,
             i.statut,
             i.technicien,
             i.geotechnicien,
+            i.observations,
             i.demande_id,
             a.reference AS affaire_reference,
             d.reference AS demande_reference,
             d.labo_code,
             a.chantier,
-            a.client
+            a.client,
+            a.site_lat,
+            a.site_lon
         FROM interventions i
         JOIN demandes d ON d.id = i.demande_id
         LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
@@ -414,27 +572,66 @@ def _load_intervention_items(conn: sqlite3.Connection) -> list[dict]:
     ).fetchall()
     items: list[dict] = []
     for row in rows:
+        is_nt = _is_note_technique_row(row)
         title = row["sujet"] or row["type_intervention"] or row["chantier"] or row["reference"]
         subtitle = " | ".join(part for part in [row["demande_reference"] or "", row["technicien"] or row["geotechnicien"] or ""] if part)
-        date_iso = _iso_from_value(row["date_intervention"])
+        start_iso = _iso_from_value(row["date_intervention"])
+        fin_iso = _iso_from_value(row["date_fin"])
+        envoi_iso = _iso_from_value(row["date_envoi"])
+        ech_iso = fin_iso or envoi_iso or start_iso
+        demande_id = int(row["demande_id"])
+        intervention_id = int(row["id"])
+        programme_terrain = "" if is_nt else _mission_programme_from_observations(row["observations"])
+        if is_nt:
+            route = (
+                f"/g3/notes-techniques/redaction?demande_id={demande_id}"
+                f"&intervention_id={intervention_id}"
+                f"&return_to=/preparations/{demande_id}"
+            )
+            kind_label = "Note technique"
+            open_label = "Ouvrir dans G3"
+            editable_start = False
+            editable_ech = False
+            editable_stat = False
+            views = ["organiser", "analyser"]
+        else:
+            route = f"/interventions/{intervention_id}"
+            kind_label = "Intervention"
+            open_label = "Ouvrir l'intervention"
+            editable_start = True
+            editable_ech = False
+            editable_stat = True
+            views = ["organiser", "terrain", "labo", "analyser"]
+        labo_code = row["labo_code"]
         items.append(
             _build_item(
-                uid=int(row["id"]),
+                uid=intervention_id,
                 kind="intervention",
-                kind_label="Intervention",
-                ref=row["reference"] or f"Intervention #{row['id']}",
+                kind_label=kind_label,
+                ref=row["reference"] or f"Intervention #{intervention_id}",
                 tit=title,
                 subtitle=subtitle,
                 raw_stat=row["statut"] or "Planifiee",
-                start=date_iso,
-                ech=date_iso,
-                labo_code=row["labo_code"],
-                route=f"/interventions/{int(row['id'])}",
-                views=["organiser", "terrain", "labo", "analyser"],
+                start=start_iso,
+                ech=ech_iso,
+                labo_code=labo_code,
+                route=route,
+                views=views,
                 editable_ech=False,
-                source_demande_id=int(row["demande_id"]),
+                editable_start=editable_start,
+                editable_stat=editable_stat,
+                open_label=open_label,
+                source_demande_id=demande_id,
                 affaire_ref=row["affaire_reference"],
                 wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
+                type_intervention=str(row["type_intervention"] or ""),
+                is_demande_scope=is_nt,
+                date_envoi=envoi_iso,
+                programme_terrain=programme_terrain,
+                distance_to_lab=_row_site_distance(row, labo_code),
+                technicien=str(row["technicien"] or ""),
+                geotechnicien=str(row["geotechnicien"] or ""),
+                observations=str(row["observations"] or ""),
             )
         )
     return items
@@ -505,7 +702,9 @@ def _load_prelevement_items(conn: sqlite3.Connection) -> list[dict]:
             d.reference AS demande_reference,
             d.labo_code,
             a.chantier,
-            a.client
+            a.client,
+            a.site_lat,
+            a.site_lon
         FROM prelevements p
         LEFT JOIN demandes d ON d.id = p.demande_id
         LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
@@ -516,6 +715,7 @@ def _load_prelevement_items(conn: sqlite3.Connection) -> list[dict]:
     for row in rows:
         title = row["description"] or row["materiau"] or row["zone"] or row["reference"]
         subtitle = " | ".join(part for part in [row["demande_reference"] or "", row["technicien"] or row["finalite"] or ""] if part)
+        labo_code = row["labo_code"]
         items.append(
             _build_item(
                 uid=int(row["id"]),
@@ -527,13 +727,14 @@ def _load_prelevement_items(conn: sqlite3.Connection) -> list[dict]:
                 raw_stat=row["statut"] or "En attente",
                 start=_iso_from_value(row["date_prelevement"]),
                 ech=_iso_from_value(row["date_reception_labo"]),
-                labo_code=row["labo_code"],
+                labo_code=labo_code,
                 route=f"/prelevements/{int(row['id'])}",
                 open_label="Ouvrir le prelevement",
                 views=["organiser", "terrain", "labo", "analyser"],
                 source_demande_id=int(row["demande_id"]) if row["demande_id"] is not None else None,
                 affaire_ref=row["affaire_reference"],
                 wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
+                distance_to_lab=_row_site_distance(row, labo_code),
             )
         )
     return items
@@ -555,7 +756,9 @@ def _load_echantillon_items(conn: sqlite3.Connection) -> list[dict]:
             d.reference AS demande_reference,
             COALESCE(ech.labo_code, d.labo_code) AS labo_code,
             a.chantier,
-            a.client
+            a.client,
+            a.site_lat,
+            a.site_lon
         FROM echantillons ech
         LEFT JOIN demandes d ON d.id = ech.demande_id
         LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
@@ -566,6 +769,7 @@ def _load_echantillon_items(conn: sqlite3.Connection) -> list[dict]:
     for row in rows:
         title = row["designation"] or row["localisation"] or row["reference"]
         subtitle = " | ".join(part for part in [row["demande_reference"] or "", row["chantier"] or row["client"] or ""] if part)
+        labo_code = row["labo_code"]
         items.append(
             _build_item(
                 uid=int(row["id"]),
@@ -577,12 +781,13 @@ def _load_echantillon_items(conn: sqlite3.Connection) -> list[dict]:
                 raw_stat=row["statut"] or "Recu",
                 start=_iso_from_value(row["date_prelevement"]),
                 ech=_iso_from_value(row["date_reception_labo"]),
-                labo_code=row["labo_code"],
+                labo_code=labo_code,
                 route=f"/echantillons/{int(row['id'])}",
                 views=["organiser", "labo", "analyser"],
                 source_demande_id=int(row["demande_id"]) if row["demande_id"] is not None else None,
                 affaire_ref=row["affaire_reference"],
                 wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], row["reference"]),
+                distance_to_lab=_row_site_distance(row, labo_code),
             )
         )
     return items
@@ -605,7 +810,9 @@ def _load_essai_items(conn: sqlite3.Connection) -> list[dict]:
             d.reference AS demande_reference,
             COALESCE(ech.labo_code, d.labo_code) AS labo_code,
             a.chantier,
-            a.client
+            a.client,
+            a.site_lat,
+            a.site_lon
         FROM essais e
         LEFT JOIN echantillons ech ON ech.id = e.echantillon_id
         LEFT JOIN interventions i ON i.id = e.intervention_id
@@ -619,6 +826,7 @@ def _load_essai_items(conn: sqlite3.Connection) -> list[dict]:
         ref = row["essai_code"] or row["type_essai"] or f"Essai #{row['id']}"
         title = row["type_essai"] or row["echantillon_reference"] or ref
         subtitle = " | ".join(part for part in [row["demande_reference"] or "", row["operateur"] or ""] if part)
+        labo_code = row["labo_code"]
         items.append(
             _build_item(
                 uid=int(row["id"]),
@@ -630,12 +838,13 @@ def _load_essai_items(conn: sqlite3.Connection) -> list[dict]:
                 raw_stat=row["statut"] or "Programme",
                 start=_iso_from_value(row["date_debut"]),
                 ech=_iso_from_value(row["date_fin"]),
-                labo_code=row["labo_code"],
+                labo_code=labo_code,
                 route=f"/essais/{int(row['id'])}",
                 views=["organiser", "labo", "analyser"],
                 source_demande_id=int(row["demande_id"]) if row["demande_id"] is not None else None,
                 affaire_ref=row["affaire_reference"],
                 wbs=_build_wbs(row["affaire_reference"], row["demande_reference"], ref),
+                distance_to_lab=_row_site_distance(row, labo_code),
             )
         )
     return items
@@ -644,13 +853,14 @@ def _load_essai_items(conn: sqlite3.Connection) -> list[dict]:
 def _load_all_items() -> list[dict]:
     with _conn() as conn:
         items = []
-        items.extend(_load_demande_items())
+        items.extend(_load_demande_items(conn))
         items.extend(_load_campaign_items(conn))
         items.extend(_load_intervention_items(conn))
         items.extend(_load_passation_items(conn))
         items.extend(_load_prelevement_items(conn))
         items.extend(_load_echantillon_items(conn))
         items.extend(_load_essai_items(conn))
+        enrich_planning_items_with_mission_status(conn, items)
     items.sort(key=lambda item: (item.get("ech") or item.get("start") or "9999-12-31", item["ref"]))
     return items
 

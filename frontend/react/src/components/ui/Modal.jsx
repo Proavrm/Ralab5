@@ -12,6 +12,8 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
     '2xl': 'max-w-6xl',
+    '3xl': 'max-w-7xl',
+    '4xl': 'max-w-[min(96vw,90rem)]',
   }
 
   // Close on Escape

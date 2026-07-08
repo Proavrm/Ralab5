@@ -187,6 +187,7 @@ backend/current_fastapi/api/
    - Import base functions
    - Remove duplicated hierarchy/prediction logic  
    - Keep SC-specific: `_extract_sc_header()`, `_extract_sc_payload()`, form validation
+   - **Alinhamento saisie manual:** ver `HANDOFF_SC_IMPORT_AS_MANUAL_20260611.md` (import = mesmo payload que UI manual; sem dual-write `sondage_couches`)
 
 4. ⏳ **Validate** both types work identically via shared core
 

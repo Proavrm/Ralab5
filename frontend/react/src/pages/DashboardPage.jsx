@@ -2,8 +2,8 @@
  * pages/DashboardPage.jsx
  * Dashboard principal transverse.
  */
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import {
@@ -17,6 +17,7 @@ import {
   planningApi,
   qualiteApi,
   workInboxApi,
+  adminApi,
 } from '@/services/api'
 import { cn, formatDate } from '@/lib/utils'
 import Card, { CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -35,6 +36,9 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import { getDashboardPresetLabel } from '@/lib/dashboardWidgets'
+import { getUserHomeConfig } from '@/lib/userHome'
+import { getRegionalRstShortLabel, getUserOrgScope, recordMatchesOrgScope } from '@/lib/userOrgScope'
+import { buildLaboratoireCatalog } from '@/lib/laboratoireCatalog'
 import { hasPermission } from '@/lib/permissions'
 import { useDashboardPreferences } from '@/hooks/useDashboardPreferences'
 
@@ -741,6 +745,7 @@ function FutureCapabilityCard({ title, description, tone = 'slate' }) {
 export default function DashboardPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const qc = useQueryClient()
   const [isWidgetPickerOpen, setIsWidgetPickerOpen] = useState(false)
   const {
     availableWidgets,
@@ -827,21 +832,50 @@ export default function DashboardPage() {
     queryFn: () => qualiteApi.nc.list(),
   })
 
+  const labsOrgQuery = useQuery({
+    queryKey: ['laboratoires-catalog'],
+    queryFn: () => adminApi.labs.list(),
+    enabled: Boolean(user?.email),
+  })
+
+  const orgScope = useMemo(() => {
+    const orgRegions = labsOrgQuery.data?.org_regions ?? labsOrgQuery.data?.rst_regions ?? []
+    const catalog = buildLaboratoireCatalog(labsOrgQuery.data?.laboratoires ?? [], orgRegions)
+    return getUserOrgScope(user, orgRegions, catalog)
+  }, [user, labsOrgQuery.data])
+  const homeConfig = useMemo(() => getUserHomeConfig(user), [user])
+
+  const demandes = useMemo(() => {
+    const rows = demandesQuery.data || []
+    return orgScope.filterActive ? rows.filter((row) => recordMatchesOrgScope(row, orgScope)) : rows
+  }, [demandesQuery.data, orgScope])
+
+  const essais = useMemo(() => {
+    const rows = essaisQuery.data || []
+    return orgScope.filterActive ? rows.filter((row) => recordMatchesOrgScope(row, orgScope)) : rows
+  }, [essaisQuery.data, orgScope])
+
+  const echantillons = useMemo(() => {
+    const rows = echantillonsQuery.data || []
+    return orgScope.filterActive ? rows.filter((row) => recordMatchesOrgScope(row, orgScope)) : rows
+  }, [echantillonsQuery.data, orgScope])
+
+  const qualiteEquipment = useMemo(() => {
+    const rows = qualiteEquipmentQuery.data || []
+    return orgScope.filterActive ? rows.filter((row) => recordMatchesOrgScope(row, orgScope)) : rows
+  }, [qualiteEquipmentQuery.data, orgScope])
+
   const affaires = affairesQuery.data || []
-  const demandes = demandesQuery.data || []
   const planning = planningQuery.data || []
   const inboxSummary = inboxSummaryQuery.data || null
   const inboxMine = inboxMineQuery.data || null
   const passations = passationsQuery.data || []
   const interventions = interventionsQuery.data || []
-  const echantillons = echantillonsQuery.data || []
-  const essais = essaisQuery.data || []
-  const qualiteStats = qualiteStatsQuery.data
-  const metrologyAlerts = metrologyAlertsQuery.data || []
-  const qualiteEquipment = qualiteEquipmentQuery.data || []
   const qualiteProcedures = qualiteProceduresQuery.data || []
   const qualiteStandards = qualiteStandardsQuery.data || []
   const qualiteNc = qualiteNcQuery.data || []
+  const qualiteStats = qualiteStatsQuery.data
+  const metrologyAlerts = metrologyAlertsQuery.data || []
 
   const affairesEnCours = affaires.filter((affaire) => affaire.statut === 'En cours').length
   const affairesSousCharge = affaires.filter((affaire) => Number(affaire.nb_demandes_actives || 0) > 0).length
@@ -856,6 +890,8 @@ export default function DashboardPage() {
   const myAssignedOverdue = Number(inboxSummary?.overdue || 0)
   const myAssignedDueToday = Number(inboxSummary?.due_today || 0)
   const myInboxItems = Array.isArray(inboxMine?.items) ? inboxMine.items : []
+  const myNotifications = Array.isArray(inboxMine?.notifications) ? inboxMine.notifications.slice(0, 6) : []
+  const myUnreadNotifications = Number(inboxSummary?.unread_notifications || 0)
 
   const essaisProgrammes = essais.filter((essai) => getEssaiDisplayStatus(essai) === 'Programmé').length
   const essaisEnCours = essais.filter((essai) => getEssaiDisplayStatus(essai) === 'En cours').length
@@ -1053,6 +1089,10 @@ export default function DashboardPage() {
     }
     if (moduleType === 'PRELEVEMENT_RECEPTION') {
       navigate(`/prelevements/${objectUid}`)
+      return
+    }
+    if (moduleType === 'DEMANDE') {
+      navigate(`/demandes/${objectUid}`)
       return
     }
     navigate('/labo/workbench?mine=1')
@@ -1775,7 +1815,7 @@ export default function DashboardPage() {
       value: inboxSummaryQuery.isLoading ? '…' : myAssignedOpen,
       subtitle: inboxSummaryQuery.isLoading
         ? 'Chargement...'
-        : `${myAssignedOverdue} en retard - ${myAssignedDueToday} aujourd'hui`,
+        : `${myAssignedOverdue} en retard - ${myAssignedDueToday} aujourd'hui${myUnreadNotifications ? ` - ${myUnreadNotifications} notification(s)` : ''}`,
       tone: myAssignedOverdue > 0 ? 'red' : myAssignedDueToday > 0 ? 'amber' : 'sky',
       icon: RotateCcw,
       onClick: () => navigate('/labo/workbench?mine=1'),
@@ -1909,8 +1949,15 @@ export default function DashboardPage() {
               {greeting}{displayName ? `, ${displayName}` : ''}
             </h2>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/80">
-              Pilotage transversal des affaires, du planning, du laboratoire, du terrain et de la conformité.
+              {orgScope.isRegionalRst
+                ? homeConfig.description
+                : 'Pilotage transversal des affaires, du planning, du laboratoire, du terrain et de la conformité.'}
             </p>
+            {orgScope.isRegionalRst ? (
+              <p className="mt-2 text-xs font-medium text-[#ffcc00]">
+                {getRegionalRstShortLabel()} · labos {orgScope.labCodes.join(' + ')}
+              </p>
+            ) : null}
             <p className="mt-3 text-sm text-white/70">
               {now.toLocaleDateString('fr-FR', {
                 weekday: 'long',
@@ -2059,7 +2106,9 @@ export default function DashboardPage() {
                     ? 'Intervention'
                     : item?.module_type === 'ESSAI'
                       ? 'Essai'
-                      : (item?.module_type || 'Tâche')
+                      : item?.module_type === 'DEMANDE'
+                        ? 'Demande RST'
+                        : (item?.module_type || 'Tâche')
                 const dueLabel = item?.due_date ? formatDeadline(item.due_date) : 'Sans échéance'
 
                 return (
@@ -2074,6 +2123,34 @@ export default function DashboardPage() {
                   />
                 )
               })
+            )}
+          </div>
+
+          <div className="mt-6 flex flex-col gap-2">
+            <SubsectionHeader title="Notifications récentes" />
+            {inboxMineQuery.isLoading ? (
+              <ListFallback loading label="Chargement des notifications..." />
+            ) : myNotifications.length === 0 ? (
+              <ListFallback loading={false} label="Aucune notification récente." />
+            ) : (
+              myNotifications.map((notification) => (
+                <ListRow
+                  key={`notification-${notification.uid}`}
+                  title={notification.title || 'Notification'}
+                  subtitle={notification.message || '—'}
+                  meta={notification.created_at ? formatDeadline(notification.created_at.slice(0, 10)) : ''}
+                  trailing={
+                    <TonePill tone={notification.is_read ? 'slate' : 'sky'}>
+                      {notification.is_read ? 'Lue' : 'Nouvelle'}
+                    </TonePill>
+                  }
+                  leadingTone={notification.is_read ? 'slate' : 'sky'}
+                  onClick={() => workInboxApi.markRead(notification.uid).then(() => {
+                    qc.invalidateQueries({ queryKey: ['work-inbox-summary'] })
+                    qc.invalidateQueries({ queryKey: ['work-inbox-mine'] })
+                  })}
+                />
+              ))
             )}
           </div>
         </SectionCard>

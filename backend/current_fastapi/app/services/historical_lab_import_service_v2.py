@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from app.services.historical_lab_import_service import HistoricalLabImportService
+from app.services.prelevement_reference_service import next_prelevement_reference
 
 
 GROUPABLE_INTERVENTION_CODES = {"PLD", "DE", "DF", "PMT", "SC", "SO"}
@@ -1137,7 +1138,7 @@ class HistoricalLabImportServiceV2(HistoricalLabImportService):
         return f"{prefix}{max(numbers, default=0) + 1:04d}"
 
     def _next_prelevement_reference(self, conn: sqlite3.Connection, year_value: int) -> str:
-        return self._next_sequenced_reference(conn, "prelevements", f"{year_value}-RA-PRL")
+        return next_prelevement_reference(conn, year=year_value, labo_code="RA")
 
     def _next_intervention_reelle_reference(self, conn: sqlite3.Connection, year_value: int) -> str:
         return self._next_sequenced_reference(conn, "interventions_reelles", f"{year_value}-RA-INT")

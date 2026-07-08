@@ -74,7 +74,7 @@ def _create_notification(
         (
             assignment_uid,
             _clean(recipient_user_email) or None,
-            _clean(recipient_display_name) or None,
+            _clean(recipient_display_name) or _clean(recipient_user_email) or "",
             event_type,
             title,
             message,

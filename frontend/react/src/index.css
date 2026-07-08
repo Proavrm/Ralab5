@@ -37,6 +37,26 @@
     margin: 6mm;
   }
 
+  /* FMT : marges nulles (sinon débordement → 5e page fantôme) */
+  html.rapport-fmt-active,
+  html:has(body.rapport-fmt-active) {
+    width: 420mm !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  body.rapport-fmt-active {
+    width: 420mm !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.rapport-fmt-active .tsqd-parent-container {
+    display: none !important;
+  }
+
   html,
   body,
   #root,

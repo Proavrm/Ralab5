@@ -547,33 +547,60 @@ function buildReportFromSource(source, essaiId, searchParams, photoGallery = [])
     }
 }
 
+function resolveFeuilleIdForPhotos(searchParams) {
+    const sourceFamily = String(searchParams?.get?.('source_family') || '').trim().toLowerCase()
+    const sourceUid = String(searchParams?.get?.('source_uid') || searchParams?.get?.('feuille_uid') || '').trim()
+    if (sourceFamily === 'terrain' && sourceUid) {
+        const parsed = parseNumber(sourceUid)
+        if (parsed !== null) return parsed
+    }
+    return null
+}
+
 function usePhotoGallery(point, routeEssaiId, searchParams) {
     const [items, setItems] = useState([])
     const resolvedEssaiId = useMemo(
         () => resolveEssaiIdForPhotos(point, routeEssaiId, searchParams),
         [point, routeEssaiId, searchParams],
     )
+    const resolvedFeuilleId = useMemo(
+        () => resolveFeuilleIdForPhotos(searchParams),
+        [searchParams],
+    )
 
     useEffect(() => {
-        if (resolvedEssaiId === null) {
-            setItems([])
-            return undefined
+        let isCancelled = false
+
+        async function loadGallery() {
+            if (resolvedFeuilleId !== null) {
+                try {
+                    const payload = await feuillesTerrainApi.listFeuillePhotos(resolvedFeuilleId)
+                    if (!isCancelled) setItems(resolvePhotoGalleryItems(payload))
+                } catch {
+                    if (!isCancelled) setItems([])
+                }
+                return
+            }
+
+            if (resolvedEssaiId === null) {
+                if (!isCancelled) setItems([])
+                return
+            }
+
+            try {
+                const payload = await feuillesTerrainApi.listEssaiPhotos(resolvedEssaiId)
+                if (!isCancelled) setItems(resolvePhotoGalleryItems(payload))
+            } catch {
+                if (!isCancelled) setItems([])
+            }
         }
 
-        let isCancelled = false
-        feuillesTerrainApi.listEssaiPhotos(resolvedEssaiId)
-            .then((payload) => {
-                if (isCancelled) return
-                setItems(resolvePhotoGalleryItems(payload))
-            })
-            .catch(() => {
-                if (!isCancelled) setItems([])
-            })
+        loadGallery()
 
         return () => {
             isCancelled = true
         }
-    }, [resolvedEssaiId])
+    }, [resolvedEssaiId, resolvedFeuilleId])
 
     return items
 }
@@ -640,13 +667,14 @@ function resolveCoupeMaxLayerDepth(rows, depthEndCm) {
     return Math.max(fromRows, fromCoupe, 0)
 }
 
-/** Page 1: echelle fixe 0–50 cm comme le modele NGE (sauf si sondage > 50 cm). */
-function computePrimaryMaxDepth(rows, depthEndCm) {
-    const maxLayerDepth = resolveCoupeMaxLayerDepth(rows, depthEndCm)
-    if (maxLayerDepth > SC_PRIMARY_SCALE_CM) {
-        return Math.ceil(maxLayerDepth / 5) * 5
-    }
+/** Echelle fixe du rapport SC: toujours 0–50 cm (modele NGE), toutes coupes confondues. */
+function computeReportMaxDepth() {
     return SC_PRIMARY_SCALE_CM
+}
+
+/** @deprecated Utiliser computeReportMaxDepth pour garder la meme echelle sur toutes les coupes. */
+function computePrimaryMaxDepth(rows, depthEndCm) {
+    return computeReportMaxDepth([{ rows, depthEndCm }], depthEndCm)
 }
 
 /** Hauteur utile du corps de tableau (hors en-tetes), en mm. */
@@ -689,11 +717,9 @@ function inferGraphicKind(description, layer = {}) {
     return 'standard'
 }
 
-/** Pages coupes suivantes: echelle adaptee a la profondeur de la coupe (arrondi 5 cm, min. 5 cm). */
+/** @deprecated Utiliser computeReportMaxDepth pour garder la meme echelle sur toutes les coupes. */
 function computeCoupeMaxDepth(rows, depthEndCm) {
-    const maxLayerDepth = resolveCoupeMaxLayerDepth(rows, depthEndCm)
-    if (maxLayerDepth <= 0) return 5
-    return Math.max(5, Math.ceil(maxLayerDepth / 5) * 5)
+    return computeReportMaxDepth([{ rows, depthEndCm }], depthEndCm)
 }
 
 const SC_PRINT_STYLES = `
@@ -1408,10 +1434,10 @@ function RapportSCPage() {
     const supplementaryCoupes = Array.isArray(report.supplementaryCoupes) ? report.supplementaryCoupes : []
     const totalPages = 1 + supplementaryCoupes.length
     const primaryCoupe = report.primaryCoupe
-    const primaryMaxDepth = computePrimaryMaxDepth(primaryCoupe?.rows, identification?.arretSondageCm)
+    const reportMaxDepth = SC_PRIMARY_SCALE_CM
     const primaryArretCm = parseNumber(identification?.arretSondageCm)
         ?? parseNumber(primaryCoupe?.depthEndCm)
-        ?? primaryMaxDepth
+        ?? reportMaxDepth
 
     return (
         <RapportPageShell
@@ -1435,15 +1461,14 @@ function RapportSCPage() {
                     <ScResultsSection
                         title="Résultats du sondage et des identifications"
                         primaryCoupe={primaryCoupe}
-                        maxDepth={primaryMaxDepth}
+                        maxDepth={reportMaxDepth}
                         arretSondageCm={primaryArretCm}
                     />
                 </ScPrintPage>
 
                 {supplementaryCoupes.map((coupe, index) => {
                     const pageNumber = index + 2
-                    const coupeMaxDepth = computeCoupeMaxDepth(coupe.rows, coupe.depthEndCm)
-                    const coupeArretCm = parseNumber(coupe.depthEndCm) ?? coupeMaxDepth
+                    const coupeArretCm = parseNumber(coupe.depthEndCm) ?? reportMaxDepth
                     const resultsTitle = `Résultats du sondage et des identifications — ${valueOrEmpty(coupe.title) || `Coupe ${pageNumber}`}`
 
                     return (
@@ -1460,10 +1485,9 @@ function RapportSCPage() {
                             <ScResultsSection
                                 title={resultsTitle}
                                 primaryCoupe={coupe}
-                                maxDepth={coupeMaxDepth}
+                                maxDepth={reportMaxDepth}
                                 arretSondageCm={coupeArretCm}
                                 notes={coupe.notes}
-                                fillPhotoColumn
                             />
                         </ScPrintPage>
                     )

@@ -1,0 +1,136 @@
+/* Feuille VC — compte rendu visite chantier */
+.rapport-vc-page,
+.rapport-vc-page .rapport-vc-frame {
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+}
+
+.rapport-vc-paper-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+    width: 100%;
+}
+
+.rapport-vc-frame {
+    display: flex;
+    flex-direction: column;
+}
+
+.rapport-vc-page.rapport-page-a4 {
+    min-height: 297mm;
+    height: auto;
+}
+
+.rapport-vc-page .rapport-vc-frame {
+    min-height: calc(297mm - var(--rapport-page-margin-vertical));
+}
+
+.rapport-vc-page-indicator {
+    text-align: right;
+    padding: 0 2mm 1.5mm;
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--rapport-muted);
+}
+
+.rapport-vc-page .rapport-section {
+    padding: 2mm 3mm 1.5mm 3mm;
+}
+
+.rapport-vc-page .rapport-vc-frame > .rapport-section:first-of-type {
+    border-top: 1px solid var(--rapport-border);
+}
+
+.rapport-vc-page .rapport-section > h2 {
+    margin: 0 0 1.5mm;
+    padding: 0;
+}
+
+.rapport-vc-page .rapport-section > h2 span {
+    text-decoration: underline;
+}
+
+.rapport-vc-page .rapport-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr;
+    row-gap: 1.2mm;
+    padding: 0.5mm 2mm 0;
+}
+
+.rapport-vc-page .rapport-field {
+    display: grid;
+    grid-template-columns: 34mm 1fr;
+    align-items: baseline;
+    gap: 2mm;
+    font-size: 9px;
+    line-height: 1.2;
+}
+
+.rapport-vc-page .rapport-field-full {
+    grid-column: 1 / -1;
+}
+
+.rapport-vc-page .rapport-field strong {
+    font-weight: 700;
+    color: var(--rapport-muted);
+}
+
+.rapport-vc-page .rapport-vc-photos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4mm;
+    padding: 1mm 2mm 2mm;
+}
+
+.rapport-vc-page .rapport-vc-photo img {
+    display: block;
+    width: 100%;
+    max-height: 58mm;
+    object-fit: contain;
+    border: 0.25mm solid var(--rapport-border);
+    background: #ffffff;
+}
+
+.rapport-vc-page .rapport-vc-photo figcaption {
+    margin-top: 1mm;
+    font-size: 7px;
+    line-height: 1.15;
+    color: var(--rapport-muted);
+    word-break: break-word;
+}
+
+@media print {
+    .rapport-vc-paper-stack {
+        gap: 0;
+    }
+
+    .rapport-vc-page.rapport-page {
+        min-height: auto;
+        height: auto;
+        box-shadow: none;
+    }
+
+    .rapport-vc-page .rapport-vc-frame {
+        min-height: auto;
+    }
+
+    .rapport-vc-page.rapport-page:not(:last-child) {
+        page-break-after: always;
+    }
+
+    .rapport-vc-page .rapport-section > h2 {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    .rapport-vc-page .rapport-vc-photos {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .rapport-vc-page .rapport-final-block {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}

@@ -38,8 +38,9 @@ class EquipmentRepository:
             uid=r["id"], code=r["code"], label=r["label"],
             category=r["category"], domain=r["domain"],
             status=r["status"], serial_number=r["serial_number"],
-            supplier=r["supplier"], purchase_date=r["purchase_date"],
+            supplier=r["supplier"],             purchase_date=r["purchase_date"],
             lieu=r["lieu"],
+            labo_code=(r["labo_code"] or "") if "labo_code" in k else None,
             etalonnage_interval=r["etalonnage_interval"],
             verification_interval=r["verification_interval"],
             presence=r["presence"], notes=r["notes"],
@@ -55,7 +56,7 @@ class EquipmentRepository:
             next_metrology=r["next_metrology"] if "next_metrology" in k else None,
         )
 
-    def all(self, search=None, category=None, status=None) -> list[EquipmentRecord]:
+    def all(self, search=None, category=None, status=None, labo_code=None) -> list[EquipmentRecord]:
         sql = """
             SELECT e.*,
                    m.performed_on AS last_metrology,
@@ -77,6 +78,10 @@ class EquipmentRepository:
             q = f"%{search}%"; params += [q, q, q]
         if category: sql += " AND e.category = ?"; params.append(category)
         if status:   sql += " AND e.status = ?";   params.append(status)
+        if labo_code:
+            from app.services.lab_geo_catalog import normalize_labo_code
+            sql += " AND upper(trim(COALESCE(e.labo_code, ''))) = ?"
+            params.append(normalize_labo_code(labo_code))
         sql += " ORDER BY e.code"
         con = _get_db()
         rows = con.execute(sql, params).fetchall()
@@ -105,11 +110,12 @@ class EquipmentRepository:
         cur = con.execute(
             """INSERT INTO qualite_equipment
                (code,label,category,domain,status,serial_number,supplier,
-                purchase_date,lieu,etalonnage_interval,verification_interval,presence,notes,
+                purchase_date,lieu,labo_code,etalonnage_interval,verification_interval,presence,notes,
                 m_tare,volume_cm3,division,precision,capacite,sensibilite,facteur_k)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             [data.code, data.label, data.category, data.domain, data.status,
              data.serial_number, data.supplier, data.purchase_date, data.lieu,
+             getattr(data, 'labo_code', None) or '',
              data.etalonnage_interval, data.verification_interval, data.presence, data.notes,
              getattr(data, 'm_tare', None), getattr(data, 'volume_cm3', None),
              getattr(data, 'division', None), getattr(data, 'precision', None),

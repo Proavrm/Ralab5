@@ -15,6 +15,7 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
+import { buildAffaireFolderName } from '@/lib/affaireFolderNaming'
 import { Plus, RefreshCw, X } from 'lucide-react'
 import {
   EmptyStateBox,
@@ -98,7 +99,7 @@ function FG({ label, children }) {
 const EMPTY_FORM = {
   uid: 0,
   reference: '',
-  client: '', chantier: '', site: '', filiale: '',
+  client: '', maitre_ouvrage: '', maitre_oeuvre: '', chantier: '', site: '', adresse_ouvrage: '', filiale: '',
   numero_etude: '', affaire_nge: '',
   titulaire: '', responsable: '',
   statut: 'À qualifier', date_ouverture: '',
@@ -124,7 +125,6 @@ export default function AffairesPage() {
   const [form, setForm]           = useState(EMPTY_FORM)
   const [isCreating, setIsCreating] = useState(false)
 
-  // Ouvrir modal avec préfill depuis pages source (Études, Affaires NGE, DST)
   useEffect(() => {
     if (location.state?.openCreate) {
       const pf = location.state.prefill || {}
@@ -140,6 +140,8 @@ export default function AffairesPage() {
         titulaire:       pf.titulaire       ?? '',
         responsable:     pf.responsable     ?? '',
         client:          pf.client          ?? '',
+        maitre_ouvrage:  pf.maitre_ouvrage  ?? '',
+        maitre_oeuvre:   pf.maitre_oeuvre   ?? '',
         statut_offre:    pf.statut_offre    ?? '',
         source_type:     location.state.source_type || '',
         source_id:       location.state.source_id   || '',
@@ -171,6 +173,19 @@ export default function AffairesPage() {
     queryFn:  () => affairesApi.nextRef(),
     enabled:  modalOpen && isCreating,
   })
+
+  const dossierNomPrevu = useMemo(() => {
+    if (!isCreating) return ''
+    return buildAffaireFolderName({
+      reference: nextRef?.reference || form.reference || '',
+      affaire_nge: form.affaire_nge,
+      numero_etude: form.numero_etude,
+      chantier: form.chantier,
+      client: form.client,
+      site: form.site,
+      maitre_ouvrage: form.maitre_ouvrage,
+    })
+  }, [isCreating, nextRef?.reference, form])
 
   const { data: affaireFilters } = useQuery({
     queryKey: ['affaires-filters'],
@@ -215,23 +230,7 @@ export default function AffairesPage() {
 
   function openEdit() {
     if (!selected) return
-    setForm({
-      uid:           selected.uid,
-      reference:     selected.reference     ?? '',
-      client:        selected.client        ?? '',
-      chantier:      selected.chantier      ?? '',
-      site:          selected.site          ?? '',
-      filiale:       selected.filiale       ?? '',
-      numero_etude:  selected.numero_etude  ?? '',
-      affaire_nge:   selected.affaire_nge   ?? '',
-      titulaire:     selected.titulaire     ?? '',
-      responsable:   selected.responsable   ?? '',
-      statut:        selected.statut        ?? 'À qualifier',
-      statut_offre:  selected.statut_offre  ?? '',
-      date_ouverture: selected.date_ouverture ?? '',
-    })
-    setIsCreating(false)
-    setModalOpen(true)
+    navigate(`/affaires/${selected.uid}`, { state: { startEditing: true } })
   }
 
   function handleDelete() {
@@ -295,7 +294,9 @@ export default function AffairesPage() {
       filiale: String(row?.filiale || '').trim(),
       titulaire: String(row?.filiale || '').trim(),
       responsable: String(row?.responsable_etude || '').trim(),
-      client: '',
+      maitre_ouvrage: String(row?.maitre_ouvrage || '').trim(),
+      maitre_oeuvre: String(row?.maitre_oeuvre || '').trim(),
+      client: String(row?.maitre_ouvrage || '').trim(),
       statut_offre: statutOffre,
       source_type: 'etude',
       source_id: String(row?.id || ''),
@@ -651,6 +652,8 @@ export default function AffairesPage() {
 
             <div className="grid grid-cols-3 gap-3 px-[18px] py-4 border-b border-border">
               <DetItem label="Client" value={selected.client} />
+              <DetItem label="Maître d'ouvrage" value={selected.maitre_ouvrage} />
+              <DetItem label="Maître d'œuvre" value={selected.maitre_oeuvre} />
               <DetItem label="Site" value={selected.site} />
               <DetItem label="Statut" value={selected.statut} />
               <DetItem label="Statut offre" value={selected.statut_offre} />
@@ -705,9 +708,15 @@ export default function AffairesPage() {
             <Input value={form.statut_offre || ''} readOnly className="text-text-muted cursor-not-allowed" />
           </FG>
 
-          {/* Client / Chantier */}
+          {/* Client / acteurs */}
           <FG label="Client *">
-            <Input value={form.client} onChange={e => set('client', e.target.value)} placeholder="SNCF, IMERYS…" />
+            <Input value={form.client} onChange={e => set('client', e.target.value)} placeholder="Facturation / contact (peut différer du MOA)" />
+          </FG>
+          <FG label="Maître d'ouvrage">
+            <Input value={form.maitre_ouvrage || ''} onChange={e => set('maitre_ouvrage', e.target.value)} placeholder="Donneur d'ordre" />
+          </FG>
+          <FG label="Maître d'œuvre">
+            <Input value={form.maitre_oeuvre || ''} onChange={e => set('maitre_oeuvre', e.target.value)} placeholder="Projectiste / coordonnateur" />
           </FG>
           <FG label="Chantier *">
             <Input value={form.chantier} onChange={e => set('chantier', e.target.value)} placeholder="Libellé projet / chantier" />
@@ -717,6 +726,16 @@ export default function AffairesPage() {
           <FG label="Site">
             <Input value={form.site} onChange={e => set('site', e.target.value)} placeholder="VILLE (63)" />
           </FG>
+          <div className="col-span-2 flex flex-col gap-1">
+            <label className="text-[10px] font-medium text-text-muted">Adresse ouvrage</label>
+            <textarea
+              value={form.adresse_ouvrage || ''}
+              onChange={e => set('adresse_ouvrage', e.target.value)}
+              placeholder="Rue, numéro, commune — plan de situation"
+              rows={2}
+              className="w-full px-2.5 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+            />
+          </div>
           <FG label="Filiale">
             <Input value={form.filiale} onChange={e => set('filiale', e.target.value)} placeholder="NGE / GUINTOLI…" />
           </FG>
@@ -763,6 +782,16 @@ export default function AffairesPage() {
         <datalist id="affaires-nge-options">
           {ngeCodeOptions.map((value) => <option key={value} value={value} />)}
         </datalist>
+
+        {isCreating && dossierNomPrevu ? (
+          <div className="mt-4 rounded-xl border border-[#dbe1ea] bg-[#f8fafc] px-4 py-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Nom dossier prévu</div>
+            <div className="mt-1 text-[13px] font-semibold text-[#172033] leading-snug">{dossierNomPrevu}</div>
+            <div className="mt-1.5 text-[11px] text-text-muted leading-relaxed">
+              Appliqué à la création si aucun nom manuel n&apos;est saisi ensuite sur la fiche.
+            </div>
+          </div>
+        ) : null}
 
         {saveMutation.error && (
           <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2 mt-3">

@@ -73,6 +73,23 @@ function classifyAffaireDemandeur(raw) {
   return { numeroAffaireNge: value, numeroEtude: '' }
 }
 
+function parseDstDateValue(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
+  const fr = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (fr) return `${fr[3]}-${fr[2]}-${fr[1]}`
+  return ''
+}
+
+function mapDstPriorite(row) {
+  const urgence = String(row?.Urgence || '').toLowerCase()
+  const priorite = String(row?.Priorité || row?.Priorite || '').toLowerCase()
+  if (urgence.includes('bloquant') || priorite.includes('critique')) return 'Critique'
+  if (urgence.includes('gênant') || urgence.includes('genant') || priorite.includes('anomalie')) return 'Haute'
+  return 'Normale'
+}
+
 export default function DstDetailPage() {
   const { uid } = useParams()
   const navigate = useNavigate()
@@ -219,6 +236,8 @@ export default function DstDetailPage() {
         service_interne: dstField('Service'),
         societe_interne: dstField('Société'),
         urgence_source: dstField('Urgence'),
+        date_echeance: parseDstDateValue(dstField('Remise souhaitée', 'Echéance')),
+        priorite: mapDstPriorite(data),
         demandeur: shortName(data.Demandeur),
         description: [chrono ? `DST: ${chrono}` : '', data['Libellé du projet'] || '', objet].filter(Boolean).join('\n'),
         observations: `Pre-remplie depuis DST ${chrono}`.trim(),

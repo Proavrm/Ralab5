@@ -550,6 +550,13 @@ function buildReportTarget(report) {
         appendValidationIframeParams(params);
         return `/rapports/so/${encodeURIComponent(soRef)}?${params.toString()}`;
     }
+    if (type === "VC") {
+        const feuilleUid = sourceUid || sourceId || uid.split(":").pop() || id;
+        if (!feuilleUid) return "";
+        const params = new URLSearchParams();
+        appendValidationIframeParams(params);
+        return `/rapports/vc/${encodeURIComponent(feuilleUid)}?${params.toString()}`;
+    }
     const fallback = sourceId || uid || id;
     return fallback ? `/rapports/${encodeURIComponent(type.toLowerCase())}/${encodeURIComponent(fallback)}` : "";
 }
@@ -1556,15 +1563,18 @@ export default function ValiderRapportsPage() {
     }
 
     function openEssaiFeuille(report = selectedReport) {
-        const target = buildEssaiTarget(report);
+        let target = buildEssaiTarget(report);
         if (!target) {
             setErrorMessage("Impossible de construire l’URL de la feuille essai pour ce dossier.");
             return;
         }
-        navigate(target);
+        const returnTo = buildReportTarget(report) || "/rapports/validation";
+        const separator = target.includes("?") ? "&" : "?";
+        navigate(`${target}${separator}return_to=${encodeURIComponent(returnTo)}`);
     }
 
     const selectedNeedsEssaiCorrection = isCorrectionRequested(selectedReport?.status);
+    const selectedFeuilleTarget = selectedReport ? buildEssaiTarget(selectedReport) : "";
 
     return (
         <div className="vrp-page -m-6">
@@ -1660,7 +1670,7 @@ export default function ValiderRapportsPage() {
                         </div>
                         <div className="vrp-main-head-actions">
                             <SessionUserChip user={sessionUser} />
-                            {selectedNeedsEssaiCorrection ? (
+                            {selectedFeuilleTarget ? (
                                 <button
                                     type="button"
                                     className="vrp-full-report-button vrp-full-report-button-essai"
@@ -1668,7 +1678,8 @@ export default function ValiderRapportsPage() {
                                 >
                                     Ouvrir feuille essai
                                 </button>
-                            ) : (
+                            ) : null}
+                            {!selectedNeedsEssaiCorrection ? (
                                 <button
                                     type="button"
                                     className="vrp-full-report-button"
@@ -1680,7 +1691,7 @@ export default function ValiderRapportsPage() {
                                 >
                                     Ouvrir rapport
                                 </button>
-                            )}
+                            ) : null}
                         </div>
                     </header>
 

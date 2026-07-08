@@ -1,22 +1,29 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import Cropper from 'react-easy-crop'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ReactCrop, { centerCrop, convertToPixelCrop, makeAspectCrop } from 'react-image-crop'
+import 'react-image-crop/dist/ReactCrop.css'
 import Button from '@/components/ui/Button'
 
-function createImage(url) {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.addEventListener('load', () => resolve(image))
-    image.addEventListener('error', (err) => reject(err))
-    image.setAttribute('crossOrigin', 'anonymous')
-    image.src = url
-  })
+const ZOOM_MIN = 1
+const ZOOM_STEP = 0.1
+
+function resolveMaxZoom(naturalWidth, naturalHeight) {
+  const longest = Math.max(Number(naturalWidth) || 0, Number(naturalHeight) || 0)
+  if (longest >= 4000) return 4
+  if (longest >= 2800) return 3.5
+  if (longest >= 1800) return 3
+  if (longest >= 1200) return 2.5
+  return 2
 }
 
-function rotateSize(width, height, rotation) {
-  return {
-    width: Math.abs(Math.cos(rotation) * width) + Math.abs(Math.sin(rotation) * height),
-    height: Math.abs(Math.sin(rotation) * width) + Math.abs(Math.cos(rotation) * height),
-  }
+function isLargeImage(naturalWidth, naturalHeight) {
+  return Math.max(Number(naturalWidth) || 0, Number(naturalHeight) || 0) >= 1800
+}
+
+const ASPECT_PRESETS = {
+    libre: { label: 'Recadrage libre', aspect: null },
+    carotte: { label: 'Carotte (vertical)', aspect: 0.22 },
+    original: { label: 'Ratio de la photo', aspect: 'original' },
+    carre: { label: 'Carré', aspect: 1 },
 }
 
 function isMostlyDarkLine(data, width, height, lineIndex, axis = 'row') {
@@ -73,46 +80,49 @@ function trimDarkBorders(canvas) {
   return trimmed
 }
 
-async function getCroppedBlob(imageSrc, cropPixels, rotation = 0) {
-  const image = await createImage(imageSrc)
-  const rotationRad = (rotation * Math.PI) / 180
-  const bounds = rotateSize(image.width, image.height, rotationRad)
+function buildInitialCrop(mediaWidth, mediaHeight, aspectValue) {
+  if (aspectValue && Number.isFinite(aspectValue)) {
+    return centerCrop(
+      makeAspectCrop({ unit: '%', width: 88 }, aspectValue, mediaWidth, mediaHeight),
+      mediaWidth,
+      mediaHeight,
+    )
+  }
+  return {
+    unit: '%',
+    x: 3,
+    y: 1,
+    width: 94,
+    height: 98,
+  }
+}
 
+function getCanvasCrop(image, crop) {
   const canvas = document.createElement('canvas')
   const ctx = canvas.getContext('2d')
-  if (!ctx) return null
+  if (!ctx || !crop?.width || !crop?.height) return null
 
-  canvas.width = Math.round(bounds.width)
-  canvas.height = Math.round(bounds.height)
+  const scaleX = image.naturalWidth / image.width
+  const scaleY = image.naturalHeight / image.height
+  const pixelWidth = Math.round(crop.width * scaleX)
+  const pixelHeight = Math.round(crop.height * scaleY)
 
-  ctx.translate(canvas.width / 2, canvas.height / 2)
-  ctx.rotate(rotationRad)
-  ctx.translate(-image.width / 2, -image.height / 2)
-  ctx.drawImage(image, 0, 0)
+  canvas.width = Math.max(1, pixelWidth)
+  canvas.height = Math.max(1, pixelHeight)
 
-  const outCanvas = document.createElement('canvas')
-  outCanvas.width = Math.max(1, Math.round(cropPixels.width))
-  outCanvas.height = Math.max(1, Math.round(cropPixels.height))
-  const outCtx = outCanvas.getContext('2d')
-  if (!outCtx) return null
-
-  outCtx.drawImage(
-    canvas,
-    Math.round(cropPixels.x),
-    Math.round(cropPixels.y),
-    Math.round(cropPixels.width),
-    Math.round(cropPixels.height),
+  ctx.drawImage(
+    image,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
     0,
     0,
-    outCanvas.width,
-    outCanvas.height,
+    pixelWidth,
+    pixelHeight,
   )
 
-  const finalCanvas = trimDarkBorders(outCanvas)
-
-  return new Promise((resolve) => {
-    finalCanvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.95)
-  })
+  return canvas
 }
 
 export default function PhotoCropModal({
@@ -120,63 +130,166 @@ export default function PhotoCropModal({
   imageSrc,
   title = 'Recadrer la photo',
   aspect = null,
+  initialAspectPreset = 'libre',
   outputFilename = 'carotte-crop.jpg',
   onCancel,
   onConfirm,
   saving = false,
 }) {
-  const [crop, setCrop] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(1)
-  const [rotation, setRotation] = useState(0)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+  const imgRef = useRef(null)
+  const cropRef = useRef()
+  const [workingSrc, setWorkingSrc] = useState('')
+  const [crop, setCrop] = useState()
+  const [completedCrop, setCompletedCrop] = useState(null)
+  const [aspectPreset, setAspectPreset] = useState(initialAspectPreset || 'libre')
   const [detectedAspect, setDetectedAspect] = useState(3 / 4)
+  const [zoom, setZoom] = useState(ZOOM_MIN)
+  const [maxZoom, setMaxZoom] = useState(2)
+  const [baseFitWidth, setBaseFitWidth] = useState(null)
+  const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 })
 
-  const disabled = !imageSrc || !croppedAreaPixels || saving
-  const effectiveAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : detectedAspect
+  const displayWidth = baseFitWidth ? Math.round(baseFitWidth * zoom) : undefined
+  const showZoomHint = isLargeImage(imageNaturalSize.width, imageNaturalSize.height)
 
-  const onCropComplete = useCallback((_croppedArea, croppedPixels) => {
-    setCroppedAreaPixels(croppedPixels)
-  }, [])
+  const disabled = !workingSrc || !completedCrop?.width || !completedCrop?.height || saving
+
+  const effectiveAspect = useMemo(() => {
+    if (Number.isFinite(aspect) && aspect > 0) return aspect
+    const preset = ASPECT_PRESETS[aspectPreset] || ASPECT_PRESETS.libre
+    if (preset.aspect === 'original') return detectedAspect
+    if (preset.aspect == null) return undefined
+    return preset.aspect
+  }, [aspect, aspectPreset, detectedAspect])
+
+  const applyInitialCrop = useCallback((mediaWidth, mediaHeight) => {
+    if (!mediaWidth || !mediaHeight) return
+    const nextCrop = buildInitialCrop(mediaWidth, mediaHeight, effectiveAspect)
+    setCrop(nextCrop)
+    setCompletedCrop(convertToPixelCrop(nextCrop, mediaWidth, mediaHeight))
+  }, [effectiveAspect])
 
   const footerHint = useMemo(() => {
-    if (!imageSrc) return 'Aucune image sélectionnée.'
-    return 'Déplacez la photo avec la souris, ajustez zoom/rotation, puis validez.'
-  }, [imageSrc])
+    if (!workingSrc) return 'Aucune image sélectionnée.'
+    if (showZoomHint) {
+      return 'Déplacez et redimensionnez le cadre. Zoomez pour les grandes photos, puis faites défiler la zone si besoin.'
+    }
+    return 'Déplacez le cadre avec la souris, redimensionnez-le, ou tournez l’image. Seule la zone à l’intérieur sera exportée.'
+  }, [workingSrc, showZoomHint])
+
+  const syncCompletedCrop = useCallback(() => {
+    const image = imgRef.current
+    const currentCrop = cropRef.current
+    if (!image?.width || !image?.height || !currentCrop) return
+    if (currentCrop.unit === '%') {
+      setCompletedCrop(convertToPixelCrop(currentCrop, image.width, image.height))
+      return
+    }
+    setCompletedCrop(currentCrop)
+  }, [])
+
+  useEffect(() => {
+    cropRef.current = crop
+  }, [crop])
 
   useEffect(() => {
     if (!open) return
-    setCrop({ x: 0, y: 0 })
-    setZoom(1)
-    setRotation(0)
-    setCroppedAreaPixels(null)
-  }, [open, imageSrc])
+    setAspectPreset(initialAspectPreset || 'libre')
+    setWorkingSrc(imageSrc || '')
+    setCrop(undefined)
+    setCompletedCrop(null)
+    setZoom(ZOOM_MIN)
+    setMaxZoom(2)
+    setBaseFitWidth(null)
+    setImageNaturalSize({ width: 0, height: 0 })
+  }, [open, imageSrc, initialAspectPreset])
 
   useEffect(() => {
-    if (!imageSrc) return
-    let cancelled = false
-    createImage(imageSrc)
-      .then((img) => {
-        if (cancelled) return
-        const width = Number(img?.naturalWidth || img?.width || 0)
-        const height = Number(img?.naturalHeight || img?.height || 0)
-        if (width > 0 && height > 0) {
-          setDetectedAspect(width / height)
-        }
-      })
-      .catch(() => {
-        if (cancelled) return
-        setDetectedAspect(3 / 4)
-      })
-    return () => {
-      cancelled = true
+    if (!open || !imgRef.current?.complete) return
+    const { width, height } = imgRef.current
+    if (width > 0 && height > 0) {
+      applyInitialCrop(width, height)
     }
-  }, [imageSrc])
+  }, [open, effectiveAspect, applyInitialCrop])
+
+  useEffect(() => {
+    if (!open) return
+    const frame = requestAnimationFrame(() => {
+      syncCompletedCrop()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [zoom, open, syncCompletedCrop, displayWidth])
 
   if (!open) return null
 
+  function rotateWorkingImage(clockwise = true) {
+    const image = imgRef.current
+    if (!image?.naturalWidth || !image?.naturalHeight) return
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const width = image.naturalWidth
+    const height = image.naturalHeight
+    canvas.width = height
+    canvas.height = width
+    ctx.translate(canvas.width / 2, canvas.height / 2)
+    ctx.rotate((clockwise ? 90 : -90) * (Math.PI / 180))
+    ctx.drawImage(image, -width / 2, -height / 2)
+    const nextSrc = canvas.toDataURL('image/jpeg', 0.92)
+    setWorkingSrc(nextSrc)
+    setCrop(undefined)
+    setCompletedCrop(null)
+    setZoom(ZOOM_MIN)
+    setBaseFitWidth(null)
+    setImageNaturalSize({ width: height, height: width })
+    setDetectedAspect(height / width)
+  }
+
+  function handleZoomChange(nextZoom) {
+    const clamped = Math.min(maxZoom, Math.max(ZOOM_MIN, Number(nextZoom) || ZOOM_MIN))
+    setZoom(clamped)
+  }
+
+  function handleImageLoad(event) {
+    const { width, height, naturalWidth, naturalHeight } = event.currentTarget
+    if (naturalWidth > 0 && naturalHeight > 0) {
+      setDetectedAspect(naturalWidth / naturalHeight)
+      setImageNaturalSize({ width: naturalWidth, height: naturalHeight })
+      setMaxZoom(resolveMaxZoom(naturalWidth, naturalHeight))
+    }
+    if (width > 0) {
+      setBaseFitWidth(width)
+    }
+    applyInitialCrop(width, height)
+  }
+
+  function handleAspectPresetChange(nextPreset) {
+    setAspectPreset(nextPreset)
+    const image = imgRef.current
+    if (!image?.width || !image?.height) return
+    const preset = ASPECT_PRESETS[nextPreset] || ASPECT_PRESETS.libre
+    let aspectValue = preset.aspect
+    if (preset.aspect === 'original') {
+      aspectValue = image.naturalWidth > 0 && image.naturalHeight > 0
+        ? image.naturalWidth / image.naturalHeight
+        : detectedAspect
+    }
+    setCrop(buildInitialCrop(image.width, image.height, aspectValue))
+    setCompletedCrop(convertToPixelCrop(
+      buildInitialCrop(image.width, image.height, aspectValue),
+      image.width,
+      image.height,
+    ))
+  }
+
   async function handleConfirm() {
-    if (!imageSrc || !croppedAreaPixels) return
-    const blob = await getCroppedBlob(imageSrc, croppedAreaPixels, rotation)
+    const image = imgRef.current
+    if (!image || !completedCrop?.width || !completedCrop?.height) return
+    const canvas = getCanvasCrop(image, completedCrop)
+    if (!canvas) return
+    const finalCanvas = trimDarkBorders(canvas)
+    const blob = await new Promise((resolve) => {
+      finalCanvas.toBlob((value) => resolve(value), 'image/jpeg', 0.95)
+    })
     if (!blob) return
     const baseName = String(outputFilename || 'carotte-crop').replace(/\.[^.]+$/, '')
     const safeName = `${baseName || 'carotte-crop'}.jpg`
@@ -193,52 +306,94 @@ export default function PhotoCropModal({
         </div>
 
         <div className="grid gap-4 p-4 lg:grid-cols-[1fr_260px]">
-          <div className="relative h-[420px] overflow-hidden rounded-lg border border-border bg-black">
-            {imageSrc ? (
-              <Cropper
-                image={imageSrc}
+          <div className="max-h-[460px] overflow-auto rounded-lg border border-border bg-[#1a1a1a] p-2">
+            {workingSrc ? (
+              <ReactCrop
                 crop={crop}
-                zoom={zoom}
-                rotation={rotation}
+                onChange={(_, percentCrop) => setCrop(percentCrop)}
+                onComplete={(pixelCrop) => setCompletedCrop(pixelCrop)}
                 aspect={effectiveAspect}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onRotationChange={setRotation}
-                onCropComplete={onCropComplete}
-                cropShape="rect"
-                showGrid={true}
-                minZoom={0.5}
-                maxZoom={5}
-                restrictPosition={false}
-              />
+                keepSelection
+                ruleOfThirds
+              >
+                <img
+                  ref={imgRef}
+                  src={workingSrc}
+                  alt="Photo à recadrer"
+                  onLoad={handleImageLoad}
+                  className="block"
+                  style={{
+                    width: displayWidth ? `${displayWidth}px` : undefined,
+                    maxWidth: zoom <= ZOOM_MIN ? '100%' : 'none',
+                    height: 'auto',
+                  }}
+                />
+              </ReactCrop>
             ) : null}
           </div>
 
           <div className="space-y-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Zoom</p>
-              <input
-                type="range"
-                min={0.5}
-                max={5}
-                step={0.01}
-                value={zoom}
-                onChange={(event) => setZoom(Number(event.target.value))}
-                className="mt-2 w-full"
-              />
-            </div>
-
-            <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Rotation</p>
-              <input
-                type="range"
-                min={-180}
-                max={180}
-                step={0.5}
-                value={rotation}
-                onChange={(event) => setRotation(Number(event.target.value))}
-                className="mt-2 w-full"
-              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={() => rotateWorkingImage(false)} disabled={!workingSrc || saving}>
+                  ↺ 90°
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => rotateWorkingImage(true)} disabled={!workingSrc || saving}>
+                  ↻ 90°
+                </Button>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Zoom</p>
+                <span className="text-[11px] tabular-nums text-text-muted">{Math.round(zoom * 100)}%</span>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleZoomChange(zoom - ZOOM_STEP)}
+                  disabled={!workingSrc || saving || zoom <= ZOOM_MIN}
+                >
+                  −
+                </Button>
+                <input
+                  type="range"
+                  min={ZOOM_MIN}
+                  max={maxZoom}
+                  step={ZOOM_STEP}
+                  value={zoom}
+                  onChange={(event) => handleZoomChange(event.target.value)}
+                  disabled={!workingSrc || saving}
+                  className="w-full accent-accent"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleZoomChange(zoom + ZOOM_STEP)}
+                  disabled={!workingSrc || saving || zoom >= maxZoom}
+                >
+                  +
+                </Button>
+              </div>
+              {showZoomHint ? (
+                <p className="mt-1 text-[11px] text-text-muted">
+                  Grande image — zoomez et faites défiler pour ajuster le cadre avec précision.
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Format du cadre</p>
+              <select
+                value={aspectPreset}
+                onChange={(event) => handleAspectPresetChange(event.target.value)}
+                className="mt-2 w-full rounded border border-border bg-bg px-2 py-1.5 text-xs outline-none focus:border-accent"
+              >
+                {Object.entries(ASPECT_PRESETS).map(([key, preset]) => (
+                  <option key={key} value={key}>{preset.label}</option>
+                ))}
+              </select>
             </div>
 
             <div className="rounded-md border border-border bg-bg p-3 text-xs text-text-muted">

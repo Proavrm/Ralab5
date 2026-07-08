@@ -23,6 +23,24 @@ export const INTERVENTION_TYPE_GROUPS = [
     ],
   },
   {
+    title: 'Chaussées / enrobés',
+    items: [
+      {
+        value: 'Diagnostic de chaussée',
+        description: 'Diagnostic initial ou de routine sur chaussée existante — carottages, essais in situ, mesures.',
+      },
+    ],
+  },
+  {
+    title: 'Étude / bureau',
+    items: [
+      {
+        value: 'Note dimensionnement (Variante)',
+        description: 'Note de dimensionnement — rédaction, variantes et restitution d’étude.',
+      },
+    ],
+  },
+  {
     title: 'Contrôles et matériel',
     items: [
       { value: 'Contrôle béton frais', description: 'Contrôle terrain ou prélèvement sur béton frais.' },

@@ -34,6 +34,7 @@ class EquipmentRecord:
     capacite: Optional[float] = None       # Capacité maximale (kN)
     sensibilite: Optional[float] = None    # Sensibilité nominale (kN/div ou kN/mV)
     facteur_k: Optional[float] = None      # Constante de conversion retenue (kN/division)
+    labo_code: Optional[str] = None
     created_at: str = ""; updated_at: str = ""
     last_metrology: Optional[str] = None; next_metrology: Optional[str] = None
 
@@ -41,7 +42,7 @@ class EquipmentCreateSchema(BaseModel):
     code: str = Field(..., min_length=1); label: str = Field(..., min_length=1)
     category: str = "Labo"; domain: Optional[str] = None; status: str = "En service"
     serial_number: Optional[str] = None; supplier: Optional[str] = None
-    purchase_date: Optional[str] = None; lieu: Optional[str] = None
+    purchase_date: Optional[str] = None; lieu: Optional[str] = None; labo_code: Optional[str] = None
     etalonnage_interval: Optional[int] = None; verification_interval: Optional[int] = None
     presence: Optional[str] = None; notes: Optional[str] = None
     m_tare: Optional[float] = None; volume_cm3: Optional[float] = None
@@ -53,7 +54,7 @@ class EquipmentUpdateSchema(BaseModel):
     code: Optional[str] = None; label: Optional[str] = None; category: Optional[str] = None
     domain: Optional[str] = None; status: Optional[str] = None
     serial_number: Optional[str] = None; supplier: Optional[str] = None
-    purchase_date: Optional[str] = None; lieu: Optional[str] = None
+    purchase_date: Optional[str] = None; lieu: Optional[str] = None; labo_code: Optional[str] = None
     etalonnage_interval: Optional[int] = None; verification_interval: Optional[int] = None
     presence: Optional[str] = None; notes: Optional[str] = None
     m_tare: Optional[float] = None; volume_cm3: Optional[float] = None
@@ -64,7 +65,7 @@ class EquipmentUpdateSchema(BaseModel):
 class EquipmentResponseSchema(BaseModel):
     uid: int; code: str; label: str; category: str; domain: Optional[str]
     status: str; serial_number: Optional[str]; supplier: Optional[str]
-    purchase_date: Optional[str]; lieu: Optional[str]
+    purchase_date: Optional[str]; lieu: Optional[str]; labo_code: Optional[str] = None
     etalonnage_interval: Optional[int]; verification_interval: Optional[int]
     presence: Optional[str]; notes: Optional[str]
     m_tare: Optional[float] = None; volume_cm3: Optional[float] = None

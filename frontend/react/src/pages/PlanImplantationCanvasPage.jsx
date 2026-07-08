@@ -5,11 +5,15 @@ import { plansImplantationApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { resolveReturnTo } from '@/lib/detailNavigation'
+import {
+    buildAllowedPointFamilies,
+    normalizePointFamily,
+    resolveCanvasPointTypeOptions,
+} from '@/lib/planImplantationPointTypes'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const POINT_TYPES = ['Battage', 'Sondage', 'Puits', 'CPT', 'Piézomètre', 'Nivellement', 'Forage', 'Autre']
 const PALETTE = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4', '#f97316', '#ec4899']
-const DEFAULT_SAMPLE_PLAN_FILE = '5854 - Boissonnet 17 - Implantation battages - 2023.11.02.jpg'
 
 // Maps canonical backend types → French readable labels for display.
 const CANONICAL_TYPE_LABELS = {
@@ -90,23 +94,12 @@ function normalizePointCode(value) {
     return String(value || '').trim().toUpperCase()
 }
 
-function normalizeInterventionPointType(type) {
-    const text = String(type || '').trim().toUpperCase()
-    if (!text) return ''
-    if (text === 'SONDAGE_CAROTTE' || text.includes('CAROT')) return 'SC'
-    if (text === 'SONDAGE_PELLE' || text.includes('PELLE')) return 'SO'
-    if (text === 'DENSITE_ENROBES' || text.includes('DENSITE') || text.includes('ENROBE')) return 'DE'
-    if (text === 'REPERE' || text === 'REPERE') return 'REPERE'
-    if (text === 'OBSERVATION') return 'OBSERVATION'
-    return text
+function pointFamilyFromCodeAndType(pointCode, pointType) {
+    return normalizePointFamily(pointType, pointCode)
 }
 
-function getDefaultImagePathForPlan(plan) {
-    const affaireReference = String(plan?.affaire_reference || '').trim().toUpperCase()
-    if (affaireReference) {
-        return `Plans/${affaireReference}/${DEFAULT_SAMPLE_PLAN_FILE}`
-    }
-    return ''
+function resolvePlanImagePath(plan, canvasEntry) {
+    return canvasEntry?.image_path || plan?.fond_plan || plan?.payload?.fond_plan || ''
 }
 
 function resolveCanvasForFeuille(plan, selectedFeuilleId) {
@@ -131,6 +124,26 @@ function filterCanvasPointsForFeuille(points, selectedFeuilleId) {
     if (selectedFeuilleId == null) return list
     const selected = Number(selectedFeuilleId)
     return list.filter((item) => Number(item?.feuille_id || 0) === selected)
+}
+
+function enrichCanvasPointsFromIntervention(canvasPoints, interventionPoints) {
+    const byUid = new Map(
+        (Array.isArray(interventionPoints) ? interventionPoints : [])
+            .filter((item) => item?.uid != null)
+            .map((item) => [Number(item.uid), item]),
+    )
+    return (Array.isArray(canvasPoints) ? canvasPoints : []).map((point) => {
+        const db = point?.linked_uid != null ? byUid.get(Number(point.linked_uid)) : null
+        if (!db) return point
+        return {
+            ...point,
+            x: point.x ?? db.plan_canvas_x ?? null,
+            y: point.y ?? db.plan_canvas_y ?? null,
+            geo_x: point.geo_x ?? db.x ?? null,
+            geo_y: point.geo_y ?? db.y ?? null,
+            z: point.z ?? db.z ?? null,
+        }
+    })
 }
 
 function buildMigratedLegacyCanvasForFeuille(plan, selectedFeuilleId, feuilleReference, interventionPoints) {
@@ -305,7 +318,7 @@ export default function PlanImplantationCanvasPage() {
 
     // ── Point picker (inline list + create) ──────────────────────────────────
     const [interventionPoints, setInterventionPoints] = useState([])
-    const [allowedPointTypes, setAllowedPointTypes] = useState([])
+    const [allowedTypeOptions, setAllowedTypeOptions] = useState([])
     const [feuilleOptions, setFeuilleOptions] = useState([])
     const [selectedFeuilleId, setSelectedFeuilleId] = useState(initialFeuilleId)
     const [pendingPlacement, setPendingPlacement] = useState(null) // { source: 'existing'|'new', uid?, code, type, isVirtual? }
@@ -330,11 +343,16 @@ export default function PlanImplantationCanvasPage() {
     useEffect(() => { zoomRef.current = zoom }, [zoom])
     useEffect(() => { panRef.current = pan }, [pan])
 
+    useEffect(() => {
+        if (!interventionPoints.length) return
+        setPoints((prev) => enrichCanvasPointsFromIntervention(prev, interventionPoints))
+    }, [interventionPoints])
+
     // Load canvas data from plan
     useEffect(() => {
         if (!plan) return
         const c = resolveCanvasForFeuille(plan, selectedFeuilleId)
-        const fallbackPath = c.image_path || plan?.fond_plan || plan?.payload?.fond_plan || getDefaultImagePathForPlan(plan)
+        const fallbackPath = resolvePlanImagePath(plan, c)
         pendingZoneZoomRef.current = c.zone_rect ? normalizeRect(c.zone_rect) : null
         pendingViewportModeRef.current = c.zone_rect ? 'zone' : 'fit'
         setImagePath(normalizePlanImagePath(fallbackPath))
@@ -362,10 +380,10 @@ export default function PlanImplantationCanvasPage() {
 
     function applyInterventionPointsPayload(data) {
         const pointsData = Array.isArray(data?.points) ? data.points : []
-        const allowedTypes = Array.isArray(data?.allowed_types) ? data.allowed_types : []
+        const typeOptions = Array.isArray(data?.allowed_type_options) ? data.allowed_type_options : []
         const feuilles = Array.isArray(data?.feuilles) ? data.feuilles : []
         setInterventionPoints(pointsData)
-        setAllowedPointTypes(allowedTypes)
+        setAllowedTypeOptions(typeOptions)
         setFeuilleOptions(feuilles)
 
         setSelectedFeuilleId((current) => {
@@ -378,7 +396,7 @@ export default function PlanImplantationCanvasPage() {
 
         setNewPointDraft((prev) => ({
             code: prev.code || '',
-            type: prev.type || (allowedTypes.length ? allowedTypes[0] : ''),
+            type: prev.type || '',
         }))
     }
 
@@ -399,6 +417,28 @@ export default function PlanImplantationCanvasPage() {
         () => feuilleOptions.find((item) => Number(item.id) === Number(selectedFeuilleId))?.reference || null,
         [feuilleOptions, selectedFeuilleId],
     )
+
+    const pointTypeOptions = useMemo(
+        () => resolveCanvasPointTypeOptions({
+            feuilleOptions,
+            selectedFeuilleId,
+            allowedTypeOptions,
+        }),
+        [feuilleOptions, selectedFeuilleId, allowedTypeOptions],
+    )
+
+    useEffect(() => {
+        if (!pointTypeOptions.length) return
+        setNewPointDraft((prev) => {
+            if (prev.type && pointTypeOptions.some((item) => item.value === prev.type)) return prev
+            const selectedFeuille = feuilleOptions.find((item) => Number(item.id) === Number(selectedFeuilleId))
+            const feuilleFamily = normalizePointFamily(selectedFeuille?.code_feuille || '')
+            const preferred = feuilleFamily
+                ? pointTypeOptions.find((item) => item.family === feuilleFamily)
+                : null
+            return { ...prev, type: preferred?.value || pointTypeOptions[0].value }
+        })
+    }, [pointTypeOptions, feuilleOptions, selectedFeuilleId])
 
     // One-shot migration: convert legacy canvas to feuille-scoped canvas when needed.
     useEffect(() => {
@@ -421,7 +461,7 @@ export default function PlanImplantationCanvasPage() {
             .then((saved) => {
                 queryClient.setQueryData(['plan-implantation', planUid], saved)
                 const c = resolveCanvasForFeuille(saved, selectedFeuilleId)
-                setImagePath(normalizePlanImagePath(c.image_path || plan?.fond_plan || plan?.payload?.fond_plan || getDefaultImagePathForPlan(plan)))
+                setImagePath(normalizePlanImagePath(resolvePlanImagePath(plan, c)))
                 setCalibration(c.calibration || null)
                 setZoneRect(c.zone_rect || null)
                 setPoints(filterCanvasPointsForFeuille(c.points || [], selectedFeuilleId))
@@ -444,6 +484,7 @@ export default function PlanImplantationCanvasPage() {
         }),
         onSuccess: (saved) => {
             queryClient.setQueryData(['plan-implantation', planUid], saved)
+            queryClient.invalidateQueries({ queryKey: ['plan-implantation-intervention-points', planUid] })
             const canvas = resolveCanvasForFeuille(saved, selectedFeuilleId)
             setPoints(filterCanvasPointsForFeuille(canvas?.points || [], selectedFeuilleId))
             setDirty(false)
@@ -563,6 +604,9 @@ export default function PlanImplantationCanvasPage() {
                     is_virtual: isVirtual,
                     feuille_id: isVirtual ? null : (pendingPlacement.feuille_id || null),
                     feuille_reference: isVirtual ? null : (pendingPlacement.feuille_reference || null),
+                    geo_x: pendingPlacement.geo_x ?? null,
+                    geo_y: pendingPlacement.geo_y ?? null,
+                    z: pendingPlacement.z ?? null,
                     x: norm.x,
                     y: norm.y,
                 },
@@ -581,8 +625,15 @@ export default function PlanImplantationCanvasPage() {
             setSelectedId(hit?.id || null)
             if (hit) {
                 if (hit.is_virtual || ['repere', 'repère', 'observation', 'obs'].includes(String(hit.type || '').trim().toLowerCase())) {
-                    setDialog('dummy_point')
-                    setDlgValues({ code: hit.code, type: hit.type })
+                    setDialog('edit_point')
+                    setDlgValues({
+                        _id: hit.id,
+                        code: hit.code,
+                        type: hit.type,
+                        geo_x: hit.geo_x ?? '',
+                        geo_y: hit.geo_y ?? '',
+                        z: hit.z ?? '',
+                    })
                 }
                 pointDragRef.current = {
                     pointId: hit.id,
@@ -707,7 +758,14 @@ export default function PlanImplantationCanvasPage() {
                 return
             }
             setPoints((ps) =>
-                ps.map((p) => p.id === dlgValues._id ? { ...p, code: dlgValues.code.trim(), type: dlgValues.type } : p)
+                ps.map((p) => p.id === dlgValues._id ? {
+                    ...p,
+                    code: dlgValues.code.trim(),
+                    type: dlgValues.type,
+                    geo_x: dlgValues.geo_x === '' || dlgValues.geo_x == null ? null : Number(dlgValues.geo_x),
+                    geo_y: dlgValues.geo_y === '' || dlgValues.geo_y == null ? null : Number(dlgValues.geo_y),
+                    z: dlgValues.z === '' || dlgValues.z == null ? null : Number(dlgValues.z),
+                } : p)
             )
             setDirty(true)
         }
@@ -793,6 +851,9 @@ export default function PlanImplantationCanvasPage() {
             already_in_plan: Boolean(item.already_in_plan),
             feuille_id: item.feuille_id || null,
             feuille_reference: item.feuille_reference || null,
+            geo_x: item.x ?? null,
+            geo_y: item.y ?? null,
+            z: item.z ?? null,
         })
         setPointPickerError('')
         setMode('point')
@@ -853,12 +914,14 @@ export default function PlanImplantationCanvasPage() {
     const zoneFocusRect = normalizeRect(tempRect || zoneRect)
     const placedCodes = new Set(points.map((p) => String(p.code || '').trim().toUpperCase()).filter(Boolean))
 
-    const allowedPointFamilies = new Set((allowedPointTypes || []).map(normalizeInterventionPointType).filter(Boolean))
+    const allowedPointFamilies = buildAllowedPointFamilies(allowedTypeOptions, feuilleOptions, selectedFeuilleId)
     const availableExistingPoints = interventionPoints
         .filter((p) => {
             if (p.is_virtual) return true
             if (selectedFeuilleId != null && Number(p.feuille_id || 0) !== Number(selectedFeuilleId)) return false
-            const family = normalizeInterventionPointType(p.point_type)
+            // Points already on the active feuille are always implantable (family filter is for cross-feuille only).
+            if (selectedFeuilleId != null && Number(p.feuille_id || 0) === Number(selectedFeuilleId)) return true
+            const family = pointFamilyFromCodeAndType(p.point_code, p.point_type)
             if (!allowedPointFamilies.size) return true
             return allowedPointFamilies.has(family)
         })
@@ -952,10 +1015,12 @@ export default function PlanImplantationCanvasPage() {
                     <select
                         value={newPointDraft.type}
                         onChange={(e) => setNewPointDraft((v) => ({ ...v, type: e.target.value }))}
-                        className="h-9 min-w-[170px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-accent"
+                        className="h-9 min-w-[220px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-accent"
                         title="Tipo do novo ponto"
                     >
-                        {allowedPointTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                        {pointTypeOptions.map((item) => (
+                            <option key={item.value} value={item.value}>{item.label}</option>
+                        ))}
                     </select>
                     <Button
                         variant="secondary"
@@ -1019,7 +1084,14 @@ export default function PlanImplantationCanvasPage() {
                             <>
                                 <Button variant="secondary" onClick={() => {
                                     setDialog('edit_point')
-                                    setDlgValues({ _id: selPt.id, code: selPt.code, type: selPt.type })
+                                    setDlgValues({
+                                        _id: selPt.id,
+                                        code: selPt.code,
+                                        type: selPt.type,
+                                        geo_x: selPt.geo_x ?? '',
+                                        geo_y: selPt.geo_y ?? '',
+                                        z: selPt.z ?? '',
+                                    })
                                 }}>✏️</Button>
                                 <Button variant="secondary" onClick={() => {
                                     setPoints((ps) => ps.filter((p) => p.id !== selectedId))
@@ -1371,21 +1443,36 @@ export default function PlanImplantationCanvasPage() {
                                 {POINT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                             </select>
                         </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            <div>
+                                <label className="text-[11px] font-medium text-text-muted mb-1 block">X</label>
+                                <Input
+                                    type="number"
+                                    step="any"
+                                    value={dlgValues.geo_x ?? ''}
+                                    onChange={(e) => setDlgValues((v) => ({ ...v, geo_x: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-medium text-text-muted mb-1 block">Y</label>
+                                <Input
+                                    type="number"
+                                    step="any"
+                                    value={dlgValues.geo_y ?? ''}
+                                    onChange={(e) => setDlgValues((v) => ({ ...v, geo_y: e.target.value }))}
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[11px] font-medium text-text-muted mb-1 block">Z</label>
+                                <Input
+                                    type="number"
+                                    step="any"
+                                    value={dlgValues.z ?? ''}
+                                    onChange={(e) => setDlgValues((v) => ({ ...v, z: e.target.value }))}
+                                />
+                            </div>
+                        </div>
                     </div>
-                </Modal>
-            )}
-
-            {dialog === 'dummy_point' && (
-                <Modal
-                    title="Fonction en attente"
-                    onConfirm={() => setDialog(null)}
-                    onCancel={() => setDialog(null)}
-                    confirmLabel="Fermer"
-                >
-                    <p className="text-[12px] text-text-muted leading-relaxed">
-                        Le point {dlgValues.code || ''} ({dlgValues.type || ''}) est bien placé sur le plan,
-                        mais sa logique détaillée n'est pas encore traitée.
-                    </p>
                 </Modal>
             )}
 

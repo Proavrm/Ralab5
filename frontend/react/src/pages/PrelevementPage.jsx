@@ -10,7 +10,11 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
 import { echantillonsApi, essaisApi, prelevementsApi } from '@/services/api'
+
+import { LABO_ESSAI_TYPES as TYPES_ESSAI } from '@/lib/laboEssaiTypes'
 
 const DEFAULT_STATUSES = ['À trier', 'Reçu', 'En attente', 'En cours', 'Prêt labo', 'Clôturé']
 const DEFAULT_ECHANTILLON_STATUS = 'Reçu'
@@ -22,24 +26,6 @@ const ECHANTILLON_STAT_CLS = {
     'Terminé': 'bg-[#eaf3de] text-[#3b6d11]',
     'Rejeté': 'bg-[#fcebeb] text-[#a32d2d]',
 }
-
-const TYPES_ESSAI = [
-    { code: 'WE', label: 'Teneur en eau naturelle', norme: 'Détermination de la Teneur en Eau (NF P 94 049 et NF P 94 050)' },
-    { code: 'GR', label: 'Granulométrie', norme: 'NF P 94-056' },
-    { code: 'EL', label: 'Extraction de liant', norme: 'NF EN 12697-1' },
-    { code: 'CFE', label: 'Contrôle de fabrication enrobés', norme: '' },
-    { code: 'LCP', label: "Limites d'Atterberg", norme: 'NF P 94-051' },
-    { code: 'VBS', label: "Prise d'essai au bleu (sols)", norme: 'NF P 94-068', init_resultats: '{"type_materiau":"sols"}' },
-    { code: 'MB', label: 'Valeur au bleu 0/2mm', norme: 'NF EN 933-9', init_resultats: '{"type_materiau":"mb_0_2"}' },
-    { code: 'MBF', label: 'Valeur au bleu 0/0.125mm', norme: 'NF EN 933-9', init_resultats: '{"type_materiau":"mbf_0_0125"}' },
-    { code: 'ES', label: 'Équivalent de sable', norme: 'NF P 94-055' },
-    { code: 'PN', label: 'Proctor Normal', norme: 'NF P 94-093' },
-    { code: 'IPI', label: 'IPI — Indice Portant Immédiat', norme: 'NF P 94-078' },
-    { code: 'CBRI', label: 'CBRi — CBR immédiat', norme: 'NF P 94-090-1' },
-    { code: 'CBR', label: 'CBR — après immersion 4 jours', norme: 'NF P 94-090-1' },
-    { code: 'ID', label: 'Identification GTR', norme: 'NF P 11-300' },
-    { code: 'MVA', label: 'Masse volumique des enrobés', norme: 'NF EN 12697-6' },
-]
 
 function Card({ title, children }) {
     return (
@@ -129,6 +115,8 @@ export default function PrelevementPage() {
     })
 
     const prelevement = prelevementQuery.data
+    const { catalog } = useLaboratoireCatalog()
+    const laboLabel = resolveLaboDisplayName(prelevement?.labo_code, catalog) || prelevement?.labo_code || ''
 
     useEffect(() => {
         if (!prelevement) return
@@ -383,6 +371,7 @@ export default function PrelevementPage() {
                             </div>
                             <div>
                                 <FR label="Demande" value={prelevement.demande_reference} />
+                                <FR label="Laboratoire" value={laboLabel} />
                                 <FR label="Affaire" value={prelevement.affaire_reference} />
                                 <FR label="Zone" value={prelevement.zone} />
                                 <FR label="Matériau" value={prelevement.materiau} />

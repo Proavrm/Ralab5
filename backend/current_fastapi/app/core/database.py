@@ -57,6 +57,9 @@ CREATE TABLE IF NOT EXISTS passations (
     workflow_decided_at TEXT,
     synthese TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
+    types_essais_prevus TEXT NOT NULL DEFAULT '',
+    livrables_attendus TEXT NOT NULL DEFAULT '',
+    criteres_conformite TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -152,6 +155,7 @@ CREATE TABLE IF NOT EXISTS passation_structured_needs (
     passation_id INTEGER NOT NULL REFERENCES passations(id) ON DELETE CASCADE,
     need_code TEXT NOT NULL DEFAULT '',
     need_label TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
     request_status TEXT NOT NULL DEFAULT 'Non évalué',
     quantity TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
@@ -227,6 +231,35 @@ CREATE TABLE IF NOT EXISTS demande_enabled_modules (
 
 CREATE INDEX IF NOT EXISTS idx_demande_preparations_demande ON demande_preparations(demande_id);
 CREATE INDEX IF NOT EXISTS idx_demande_enabled_modules_demande ON demande_enabled_modules(demande_id);
+
+CREATE TABLE IF NOT EXISTS demande_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
+    document_type TEXT NOT NULL DEFAULT '',
+    is_received INTEGER NOT NULL DEFAULT 0,
+    version TEXT NOT NULL DEFAULT '',
+    document_date TEXT,
+    comment TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_demande_documents_demande ON demande_documents(demande_id);
+
+CREATE TABLE IF NOT EXISTS demande_prestations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
+    need_code TEXT NOT NULL DEFAULT '',
+    need_label TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    request_status TEXT NOT NULL DEFAULT 'À confirmer',
+    quantity TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_demande_prestations_demande ON demande_prestations(demande_id);
 """
 
 LAB_WORKFLOW_DDL = """
@@ -494,14 +527,193 @@ CREATE INDEX IF NOT EXISTS idx_task_assignments_module_object
     ON task_assignments(module_type, object_uid, assignment_role_code);
 CREATE INDEX IF NOT EXISTS idx_task_notifications_recipient_read_created
     ON task_notifications(recipient_user_email, recipient_display_name, is_read, created_at);
+
+CREATE TABLE IF NOT EXISTS email_outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    recipient_email TEXT NOT NULL DEFAULT '',
+    recipient_name TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL DEFAULT '',
+    body_text TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'mock_sent',
+    context_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_outbox_recipient_created
+    ON email_outbox(recipient_email, created_at);
+"""
+
+FEUILLE_MISSION_DDL = """
+CREATE TABLE IF NOT EXISTS feuille_mission_journee (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
+    mission_date TEXT NOT NULL,
+    technicien_key TEXT NOT NULL DEFAULT '',
+    technicien_label TEXT NOT NULL DEFAULT '',
+    snapshot_hash TEXT NOT NULL DEFAULT '',
+    generated_at TEXT,
+    printed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(demande_id, mission_date, technicien_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_feuille_mission_journee_lookup
+    ON feuille_mission_journee(demande_id, mission_date, technicien_key);
+"""
+
+AFFAIRE_CONTACTS_DDL = """
+CREATE TABLE IF NOT EXISTS affaire_contacts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    affaire_rst_id INTEGER NOT NULL REFERENCES affaires_rst(id) ON DELETE CASCADE,
+    full_name TEXT NOT NULL DEFAULT '',
+    role_label TEXT NOT NULL DEFAULT '',
+    organisation TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    display_label TEXT NOT NULL DEFAULT '',
+    normalized_key TEXT NOT NULL DEFAULT '',
+    source_type TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    use_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(affaire_rst_id, normalized_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_affaire_contacts_affaire
+    ON affaire_contacts(affaire_rst_id);
+
+CREATE INDEX IF NOT EXISTS idx_affaire_contacts_organisation
+    ON affaire_contacts(affaire_rst_id, organisation);
+"""
+
+AFFAIRE_CONTACT_DISMISSALS_DDL = """
+CREATE TABLE IF NOT EXISTS affaire_contact_dismissals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    affaire_rst_id INTEGER NOT NULL REFERENCES affaires_rst(id) ON DELETE CASCADE,
+    listing_key TEXT NOT NULL,
+    full_name TEXT NOT NULL DEFAULT '',
+    agence_code TEXT NOT NULL DEFAULT '',
+    dismissed_by TEXT NOT NULL DEFAULT '',
+    dismissed_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    UNIQUE(affaire_rst_id, listing_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_affaire_contact_dismissals_affaire
+    ON affaire_contact_dismissals(affaire_rst_id);
 """
 
 DEFAULT_LABS = [
-    ("SP", "Saint-Priest", "RA"),
-    ("PDC", "Pont-du-Château", "AUV"),
-    ("CHB", "Chambéry", "RA"),
-    ("CLM", "Clermont-Ferrand", "AUV"),
+    ("SP", "Saint-Priest", "ARS", "RA"),
+    ("PDC", "Pont-du-Château", "ARS", "AUV"),
 ]
+
+# Valeurs initiales — remplacées par l'écran Admin ; seed uniquement si coords/adresse vides.
+# Laboratoires fantômes — retirés au démarrage s'ils ne sont référencés nulle part.
+OBSOLETE_LAB_CODES = ("CLM",)
+
+# Renommages automatiques au démarrage (ex. ancien seed CHB → SVV).
+STARTUP_LAB_CODE_RENAMES = {
+    "CHB": "SVV",
+}
+
+
+def _purge_obsolete_laboratoires(conn: sqlite3.Connection) -> None:
+    for code in OBSOLETE_LAB_CODES:
+        refs = conn.execute(
+            "SELECT COUNT(*) FROM demandes WHERE upper(trim(labo_code)) = ?",
+            (code,),
+        ).fetchone()[0]
+        cols = [info[1] for info in conn.execute("PRAGMA table_info(qualite_equipment)")]
+        if "labo_code" in cols:
+            refs += conn.execute(
+                "SELECT COUNT(*) FROM qualite_equipment WHERE upper(trim(labo_code)) = ?",
+                (code,),
+            ).fetchone()[0]
+        if refs == 0:
+            conn.execute("DELETE FROM laboratoires WHERE upper(code) = ?", (code,))
+
+
+def _apply_startup_lab_code_renames() -> None:
+    from app.repositories.laboratoires_repository import LaboratoiresRepository
+    from app.services.laboratoire_code_service import rename_laboratoire_code
+
+    repo = LaboratoiresRepository()
+    for old_code, new_code in STARTUP_LAB_CODE_RENAMES.items():
+        if repo.get_by_code(old_code) is None:
+            continue
+        if repo.get_by_code(new_code) is not None:
+            continue
+        try:
+            rename_laboratoire_code(old_code, new_code)
+        except (LookupError, ValueError):
+            continue
+
+
+DEFAULT_LAB_GEO_SEED = {
+    "SP": {
+        "address": "29-31 rue des Tâches, ZI Mi-Plaine, 69800 Saint-Priest",
+        "report_header": "Région Rhône Alpes - 29-31 rue des Tâches - ZI Mi-Plaine - 69800 SAINT PRIEST",
+        "lat": 45.6969,
+        "lon": 4.9422,
+    },
+    "PDC": {
+        "address": "Pont-du-Château (63430)",
+        "report_header": "Pont-du-Château (63430)",
+        "lat": 45.7964,
+        "lon": 3.2425,
+    },
+}
+
+
+def _seed_laboratoires_org(conn: sqlite3.Connection) -> None:
+    from app.repositories.org_repository import OrgRepository
+
+    repo = OrgRepository()
+    repo.ensure_schema(conn)
+    repo.seed_defaults(conn)
+
+
+def _seed_laboratoires_rst_regions(conn: sqlite3.Connection) -> None:
+    """Legacy alias — org seed replaces RST hardcode."""
+    _seed_laboratoires_org(conn)
+
+
+def _seed_campaign_type_catalog(conn: sqlite3.Connection) -> None:
+    from app.repositories.campaign_type_catalog_repository import CampaignTypeCatalogRepository
+
+    CampaignTypeCatalogRepository.reconcile_catalog(conn)
+
+
+def _seed_intervention_type_catalog(conn: sqlite3.Connection) -> None:
+    from app.repositories.intervention_type_catalog_repository import InterventionTypeCatalogRepository
+
+    InterventionTypeCatalogRepository.seed_defaults(conn)
+
+
+def _seed_laboratoires_geo(conn: sqlite3.Connection) -> None:
+    for code, data in DEFAULT_LAB_GEO_SEED.items():
+        conn.execute(
+            """
+            UPDATE laboratoires
+            SET
+                address = CASE WHEN trim(COALESCE(address, '')) = '' THEN ? ELSE address END,
+                report_header = CASE WHEN trim(COALESCE(report_header, '')) = '' THEN ? ELSE report_header END,
+                lat = COALESCE(lat, ?),
+                lon = COALESCE(lon, ?)
+            WHERE code = ?
+            """,
+            (
+                data["address"],
+                data["report_header"],
+                data["lat"],
+                data["lon"],
+                code,
+            ),
+        )
 
 
 def get_db_path() -> Path:
@@ -977,6 +1189,9 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         conn.executescript(PMT_WORKFLOW_DDL)
         conn.executescript(QSSE_IMPORT_DDL)
         conn.executescript(WORK_INBOX_DDL)
+        conn.executescript(FEUILLE_MISSION_DDL)
+        conn.executescript(AFFAIRE_CONTACTS_DDL)
+        conn.executescript(AFFAIRE_CONTACT_DISMISSALS_DDL)
         _ensure_generic_essais_parent_schema(conn)
         _ensure_pmt_essais_harmonized_schema(conn)
 
@@ -1021,6 +1236,7 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "campagnes", "responsable_travaux", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "campagnes", "responsable_controle", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "campagnes", "responsable_suivi", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "campagnes", "intervention_plan", "TEXT NOT NULL DEFAULT ''")
 
         _ensure_column(conn, "echantillons", "prelevement_id", "INTEGER REFERENCES prelevements(id) ON DELETE SET NULL")
         _ensure_column(conn, "echantillons", "intervention_id", "INTEGER REFERENCES interventions(id) ON DELETE SET NULL")
@@ -1035,6 +1251,8 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "interventions", "prelevement_id", "INTEGER REFERENCES prelevements(id) ON DELETE SET NULL")
         _ensure_column(conn, "interventions", "tri_comment", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "interventions", "tri_updated_at", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "interventions", "date_fin", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "interventions", "date_envoi", "TEXT NOT NULL DEFAULT ''")
 
         _ensure_column(conn, "demande_preparations", "type_intervention_prevu", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demande_preparations", "finalite", "TEXT NOT NULL DEFAULT ''")
@@ -1056,20 +1274,70 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "demande_preparations", "responsable_travaux", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demande_preparations", "responsable_controle", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demande_preparations", "responsable_suivi", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_preparations", "reference", "TEXT NOT NULL DEFAULT ''")
 
         _ensure_column(conn, "passations", "workflow_status", "TEXT NOT NULL DEFAULT 'Brouillon'")
         _ensure_column(conn, "passations", "workflow_decision", "TEXT NOT NULL DEFAULT 'À décider'")
         _ensure_column(conn, "passations", "workflow_decision_comment", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "passations", "workflow_decided_by", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "passations", "workflow_decided_at", "TEXT")
+        _ensure_column(conn, "passations", "types_essais_prevus", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "livrables_attendus", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "criteres_conformite", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passation_structured_needs", "description", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "demande_destinataire_email", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "demande_destinataire_name", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "date_debut_travaux_prevue", "TEXT")
+
+        _ensure_column(conn, "demande_documents", "stored_path", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passation_documents", "stored_path", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "demande_documents", "uploaded_at", "TEXT")
+        _ensure_column(conn, "passation_documents", "uploaded_at", "TEXT")
 
         _ensure_column(conn, "affaires_rst", "site", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaire_contacts", "agence_code", "TEXT NOT NULL DEFAULT 'RA'")
+        _ensure_column(conn, "affaire_contacts", "region_code", "TEXT NOT NULL DEFAULT 'ARS'")
+        conn.execute(
+            """
+            UPDATE affaire_contacts
+            SET agence_code = 'RA',
+                region_code = 'ARS'
+            WHERE trim(COALESCE(agence_code, '')) = ''
+               OR trim(COALESCE(region_code, '')) = ''
+            """
+        )
         _ensure_column(conn, "affaires_rst", "numero_etude", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "filiale", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "statut_offre", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "autre_reference", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "dossier_nom", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "dossier_path", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "date_debut_travaux_prevue", "TEXT")
+        _ensure_column(conn, "affaires_rst", "adresse_ouvrage", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "maitre_ouvrage", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "maitre_oeuvre", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "affaires_rst", "site_lat", "REAL")
+        _ensure_column(conn, "affaires_rst", "site_lon", "REAL")
+        _ensure_column(conn, "affaires_rst", "site_geocode_label", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "maitre_ouvrage", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "passations", "maitre_oeuvre", "TEXT NOT NULL DEFAULT ''")
+        conn.execute(
+            """
+            UPDATE affaires_rst
+            SET maitre_ouvrage = client
+            WHERE trim(COALESCE(maitre_ouvrage, '')) = ''
+              AND trim(COALESCE(client, '')) != ''
+              AND client != 'Non communiqué'
+            """
+        )
+        conn.execute(
+            """
+            UPDATE passations
+            SET maitre_ouvrage = client
+            WHERE trim(COALESCE(maitre_ouvrage, '')) = ''
+              AND trim(COALESCE(client, '')) != ''
+            """
+        )
 
         _ensure_column(conn, "demandes", "domaine_etude", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demandes", "type_prestation_attendue", "TEXT NOT NULL DEFAULT ''")
@@ -1080,6 +1348,12 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "demandes", "urgence_source", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demandes", "passation_source_id", "INTEGER REFERENCES passations(id) ON DELETE SET NULL")
         _ensure_column(conn, "demandes", "passation_module_code", "TEXT NOT NULL DEFAULT ''")
+
+        _ensure_column(conn, "points_terrain", "x", "REAL")
+        _ensure_column(conn, "points_terrain", "y", "REAL")
+        _ensure_column(conn, "points_terrain", "z", "REAL")
+        _ensure_column(conn, "points_terrain", "plan_canvas_x", "REAL")
+        _ensure_column(conn, "points_terrain", "plan_canvas_y", "REAL")
 
         _ensure_column(conn, "qualite_equipment", "m_tare", "REAL")
         _ensure_column(conn, "qualite_equipment", "volume_cm3", "REAL")
@@ -1162,13 +1436,43 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
 
         _ensure_historical_sondage_prelevement_links(conn)
 
-        for code, nom, region in DEFAULT_LABS:
+        for code, nom, region, agence in DEFAULT_LABS:
             conn.execute(
-                "INSERT OR IGNORE INTO laboratoires (code, nom, region, actif) VALUES (?, ?, ?, 1)",
+                """
+                INSERT OR IGNORE INTO laboratoires (code, nom, region, actif)
+                VALUES (?, ?, ?, 1)
+                """,
                 (code, nom, region),
             )
 
+        _ensure_column(conn, "laboratoires", "address", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "laboratoires", "report_header", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "laboratoires", "lat", "REAL")
+        _ensure_column(conn, "laboratoires", "lon", "REAL")
+        _ensure_column(conn, "laboratoires", "coords_updated_at", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "laboratoires", "responsable_email", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "laboratoires", "notes", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "laboratoires", "agence_code", "TEXT NOT NULL DEFAULT ''")
+        _ensure_column(conn, "qualite_equipment", "labo_code", "TEXT NOT NULL DEFAULT ''")
+
+        for code, nom, region, agence in DEFAULT_LABS:
+            conn.execute(
+                """
+                UPDATE laboratoires
+                SET region = ?, agence_code = ?
+                WHERE upper(code) = ?
+                """,
+                (region, agence, code.upper()),
+            )
+        _seed_laboratoires_geo(conn)
+        _seed_laboratoires_rst_regions(conn)
+        _purge_obsolete_laboratoires(conn)
+        _seed_campaign_type_catalog(conn)
+        _seed_intervention_type_catalog(conn)
+
         conn.commit()
+
+    _apply_startup_lab_code_renames()
     return path
 
 
@@ -1181,16 +1485,25 @@ def ensure_qsse_schema(db_path: Path | None = None) -> Path:
 
 
 def list_laboratoires(db_path: Path | None = None) -> list[dict]:
+    from app.repositories.laboratoires_repository import LaboratoiresRepository
+
     ensure_ralab4_schema(db_path)
-    with connect_db(db_path) as conn:
-        rows = conn.execute("SELECT id, code, nom, region, actif FROM laboratoires ORDER BY code").fetchall()
-    return [
-        {
-            "id": int(row["id"]),
-            "code": row["code"],
-            "name": row["nom"],
-            "region": row["region"],
-            "is_active": bool(row["actif"]),
-        }
-        for row in rows
-    ]
+    return [_laboratoire_to_dict(row) for row in LaboratoiresRepository(db_path).list_all()]
+
+
+def _laboratoire_to_dict(row) -> dict:
+    return {
+        "id": row.id,
+        "code": row.code,
+        "name": row.nom,
+        "region": row.region,
+        "is_active": row.actif,
+        "address": row.address,
+        "report_header": row.report_header,
+        "lat": row.lat,
+        "lon": row.lon,
+        "coords_updated_at": row.coords_updated_at,
+        "has_coords": row.lat is not None and row.lon is not None,
+        "responsable_email": getattr(row, "responsable_email", "") or "",
+        "notes": getattr(row, "notes", "") or "",
+    }

@@ -242,6 +242,225 @@ def _ownership_origin_label(row: dict[str, Any]) -> str:
     return f"Demande {row.get('demande_reference') or '#'+str(row.get('demande_id') or '')}".strip()
 
 
+_TERRAIN_POINT_COORD_COLUMNS = ('x', 'y', 'z', 'plan_canvas_x', 'plan_canvas_y')
+
+
+def _coerce_optional_float(value: object) -> float | None:
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _terrain_coord_select_sql(columns: set[str]) -> str:
+    selected = [f'pt.{column}' for column in _TERRAIN_POINT_COORD_COLUMNS if column in columns]
+    return f", {', '.join(selected)}" if selected else ''
+
+
+def _serialize_terrain_point_row(point_row: sqlite3.Row, pt_columns: set[str]) -> dict[str, Any]:
+    payload = {
+        'uid': int(point_row['id']),
+        'point_code': str(point_row['point_code'] or '').strip(),
+        'point_type': str(point_row['point_type'] or '').strip(),
+        'ordre': int(point_row['ordre'] or 0),
+        'feuille_id': int(point_row['feuille_id']) if point_row['feuille_id'] is not None else None,
+        'feuille_reference': str(point_row['feuille_reference'] or '').strip() or None,
+    }
+    for column in _TERRAIN_POINT_COORD_COLUMNS:
+        if column in pt_columns and column in point_row.keys():
+            payload[column] = _coerce_optional_float(point_row[column])
+    return payload
+
+
+def _list_terrain_points_for_intervention(conn: sqlite3.Connection, intervention_id: int) -> list[dict[str, Any]]:
+    pt_columns = _table_columns(conn, 'points_terrain')
+    if not pt_columns:
+        return []
+
+    point_rows = conn.execute(
+        f'''
+        SELECT pt.id, pt.point_code, pt.point_type, pt.ordre
+               {_terrain_coord_select_sql(pt_columns)}
+             , ft.id AS feuille_id, ft.reference AS feuille_reference
+        FROM points_terrain pt
+        LEFT JOIN series_essais_terrain st ON st.id = pt.serie_id
+        LEFT JOIN feuilles_terrain ft ON ft.serie_id = st.id
+        WHERE COALESCE(pt.intervention_id, st.intervention_id, ft.intervention_id) = ?
+        ORDER BY COALESCE(pt.ordre, 0) ASC, pt.id ASC
+        ''',
+        (int(intervention_id),),
+    ).fetchall()
+
+    seen_uids: set[int] = set()
+    points: list[dict[str, Any]] = []
+    for point_row in point_rows:
+        point_uid = int(point_row['id'])
+        if point_uid in seen_uids:
+            continue
+        seen_uids.add(point_uid)
+        points.append(_serialize_terrain_point_row(point_row, pt_columns))
+    return points
+
+
+def _count_terrain_points_for_intervention(conn: sqlite3.Connection, intervention_id: int) -> int:
+    return len(_list_terrain_points_for_intervention(conn, int(intervention_id)))
+
+
+def _ensure_terrain_point_belongs_to_intervention(
+    conn: sqlite3.Connection,
+    intervention_id: int,
+    point_uid: int,
+) -> sqlite3.Row:
+    row = conn.execute(
+        '''
+        SELECT pt.id, pt.point_code, pt.point_type, pt.ordre, pt.serie_id
+        FROM points_terrain pt
+        LEFT JOIN series_essais_terrain st ON st.id = pt.serie_id
+        LEFT JOIN feuilles_terrain ft ON ft.serie_id = st.id
+        WHERE pt.id = ?
+          AND COALESCE(pt.intervention_id, st.intervention_id, ft.intervention_id) = ?
+        LIMIT 1
+        ''',
+        (int(point_uid), int(intervention_id)),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f'Point terrain #{point_uid} introuvable pour cette intervention')
+    return row
+
+
+def _serialize_nivellement_summary(row: sqlite3.Row, *, terrain_points_count: int | None = None) -> dict[str, Any]:
+    payload = dict(row)
+    payload['uid'] = int(payload.pop('id'))
+    points_count = terrain_points_count
+    if points_count is None:
+        points_count = int(row['points_count'] or 0) if 'points_count' in row.keys() else 0
+    payload['points_count'] = int(points_count or 0)
+    payload['terrain_points_count'] = int(points_count or 0)
+    payload['ownership_scope'] = _ownership_scope(payload)
+    payload['ownership_origin_label'] = _ownership_origin_label(payload)
+    return payload
+
+
+class TerrainPointCoordsPayload(BaseModel):
+    z: float | None = None
+    x: float | None = None
+    y: float | None = None
+
+
+def ensure_nivellement_for_intervention(conn: sqlite3.Connection, intervention_id: int) -> int:
+    columns = _table_columns(conn, 'nivellements')
+    if not columns:
+        raise HTTPException(status_code=400, detail='Table nivellements indisponible')
+
+    existing = conn.execute(
+        'SELECT id FROM nivellements WHERE intervention_id = ? ORDER BY id ASC LIMIT 1',
+        (int(intervention_id),),
+    ).fetchone()
+    if existing is not None:
+        return int(existing['id'])
+
+    intervention = _fetch_intervention(conn, int(intervention_id))
+    demande = _fetch_demande(conn, int(intervention['demande_id']))
+    reference = _next_nivellement_reference(
+        conn,
+        int(demande['annee'] or datetime.now().year),
+        str(demande['labo_code'] or 'RST'),
+    )
+    titre = f"Nivellement {intervention['type_intervention'] or intervention['reference']}"
+    payload_json: dict[str, Any] = {
+        'type_document': 'NIVELLEMENT',
+        'scope': 'intervention',
+        'paired_with_plan_implantation': True,
+    }
+    values = {
+        'reference': reference,
+        'demande_id': int(intervention['demande_id']),
+        'campagne_id': int(intervention['campagne_id']) if intervention['campagne_id'] else None,
+        'intervention_id': int(intervention_id),
+        'titre': titre,
+        'date_releve': intervention['date_intervention'] or '',
+        'operateur': intervention['technicien'] or '',
+        'referentiel_altimetrique': '',
+        'materiel': '',
+        'observations': f"Créé automatiquement avec le plan d'implantation de {intervention['reference']}",
+        'statut': 'Brouillon',
+        'payload_json': json.dumps(payload_json, ensure_ascii=False),
+        'created_at': _now_sql(),
+        'updated_at': _now_sql(),
+    }
+    insert_values = {key: value for key, value in values.items() if key in columns}
+    sql_columns = ', '.join(insert_values.keys())
+    placeholders = ', '.join('?' for _ in insert_values)
+    uid = conn.execute(
+        f'INSERT INTO nivellements ({sql_columns}) VALUES ({placeholders})',
+        tuple(insert_values.values()),
+    ).lastrowid
+    return int(uid)
+
+
+@router.get('')
+def list_nivellements(
+    demande_id: int | None = None,
+    campagne_id: int | None = None,
+    intervention_id: int | None = None,
+):
+    with _connect() as conn:
+        conditions: list[str] = []
+        params: list[Any] = []
+        if intervention_id is not None:
+            conditions.append('n.intervention_id = ?')
+            params.append(int(intervention_id))
+        elif campagne_id is not None:
+            conditions.append('n.campagne_id = ?')
+            params.append(int(campagne_id))
+        elif demande_id is not None:
+            conditions.append('n.demande_id = ?')
+            params.append(int(demande_id))
+
+        where = f'WHERE {" AND ".join(conditions)}' if conditions else ''
+        rows = conn.execute(
+            f'''
+            SELECT
+                n.id,
+                n.reference,
+                n.titre,
+                n.date_releve,
+                n.statut,
+                n.demande_id,
+                n.campagne_id,
+                n.intervention_id,
+                d.reference AS demande_reference,
+                c.reference AS campagne_reference,
+                i.reference AS intervention_reference
+            FROM nivellements n
+            LEFT JOIN demandes d ON d.id = n.demande_id
+            LEFT JOIN campagnes c ON c.id = n.campagne_id
+            LEFT JOIN interventions i ON i.id = n.intervention_id
+            {where}
+            ORDER BY n.id DESC
+            ''',
+            params,
+        ).fetchall()
+
+        result: list[dict[str, Any]] = []
+        for row in rows:
+            terrain_points_count = None
+            if row['intervention_id']:
+                terrain_points_count = _count_terrain_points_for_intervention(conn, int(row['intervention_id']))
+            result.append(_serialize_nivellement_summary(row, terrain_points_count=terrain_points_count))
+        return result
+
+
+@router.post('/ensure-for-intervention/{intervention_id}')
+def ensure_nivellement_for_intervention_route(intervention_id: int):
+    with _connect() as conn:
+        uid = ensure_nivellement_for_intervention(conn, int(intervention_id))
+        conn.commit()
+    return get_nivellement(uid)
+
+
 @router.get('/{uid}')
 def get_nivellement(uid: int):
     with _connect() as conn:
@@ -267,14 +486,62 @@ def get_nivellement(uid: int):
             (uid,),
         ).fetchall()
 
+        terrain_points: list[dict[str, Any]] = []
+        if row['intervention_id']:
+            terrain_points = _list_terrain_points_for_intervention(conn, int(row['intervention_id']))
+
     payload = dict(row)
     payload['uid'] = int(payload.pop('id'))
     payload['payload'] = _parse_payload(payload.pop('payload_json', None))
     payload['ownership_scope'] = _ownership_scope(payload)
     payload['ownership_origin_label'] = _ownership_origin_label(payload)
     payload['points'] = [dict(item) | {'uid': int(item['id'])} for item in point_rows]
+    payload['terrain_points'] = terrain_points
+    payload['terrain_points_count'] = len(terrain_points)
     payload['rapports'] = [dict(item) | {'uid': int(item['id'])} for item in rapport_rows]
     return payload
+
+
+@router.patch('/{uid}/terrain-points/{point_uid}')
+def update_nivellement_terrain_point(uid: int, point_uid: int, body: TerrainPointCoordsPayload):
+    with _connect() as conn:
+        row = _get_nivellement_row(conn, uid)
+        intervention_id = row['intervention_id']
+        if not intervention_id:
+            raise HTTPException(status_code=400, detail='Ce nivellement n\'est pas lié à une intervention')
+
+        _ensure_terrain_point_belongs_to_intervention(conn, int(intervention_id), int(point_uid))
+        point_columns = _table_columns(conn, 'points_terrain')
+        if not point_columns:
+            raise HTTPException(status_code=400, detail='Table points_terrain indisponible')
+
+        fields: dict[str, float | None] = {}
+        for column in ('x', 'y', 'z'):
+            if column not in point_columns:
+                continue
+            raw_value = getattr(body, column)
+            if raw_value is None:
+                continue
+            fields[column] = _coerce_optional_float(raw_value)
+
+        if not fields:
+            raise HTTPException(status_code=400, detail='Aucune coordonnée à mettre à jour')
+
+        clause = ', '.join(f'{column} = ?' for column in fields)
+        conn.execute(
+            f'UPDATE points_terrain SET {clause} WHERE id = ?',
+            [*fields.values(), int(point_uid)],
+        )
+        conn.commit()
+
+    refreshed = get_nivellement(uid)
+    updated_point = next(
+        (item for item in refreshed.get('terrain_points', []) if int(item.get('uid') or 0) == int(point_uid)),
+        None,
+    )
+    if updated_point is None:
+        raise HTTPException(status_code=404, detail=f'Point terrain #{point_uid} introuvable après mise à jour')
+    return updated_point
 
 
 @router.post('', status_code=201)
@@ -404,3 +671,27 @@ def update_nivellement(uid: int, body: NivellementUpdatePayload):
         conn.commit()
 
     return get_nivellement(uid)
+
+
+@router.delete('/{uid}', status_code=204)
+def delete_nivellement(uid: int):
+    with _connect() as conn:
+        _get_nivellement_row(conn, uid)
+
+        if _table_exists(conn, 'nivellement_points'):
+            conn.execute(
+                'DELETE FROM nivellement_points WHERE nivellement_id = ?',
+                (int(uid),),
+            )
+
+        rapport_columns = _table_columns(conn, 'rapports')
+        if 'nivellement_id' in rapport_columns:
+            conn.execute(
+                'UPDATE rapports SET nivellement_id = NULL WHERE nivellement_id = ?',
+                (int(uid),),
+            )
+
+        cur = conn.execute('DELETE FROM nivellements WHERE id = ?', (int(uid),))
+        if not cur.rowcount:
+            raise HTTPException(status_code=404, detail=f'Nivellement #{uid} introuvable')
+        conn.commit()

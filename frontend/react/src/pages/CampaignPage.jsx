@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Plus, Save, Wrench } from 'lucide-react'
+import { Plus, Save, Trash2, Wrench } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import SiteAccessRapportButton from '@/components/site/SiteAccessRapportButton'
 import Input, { Select } from '@/components/ui/Input'
-import { demandesApi, interventionCampaignsApi } from '@/services/api'
+import { demandesApi, interventionCampaignsApi, plansImplantationApi } from '@/services/api'
+import PlanImagesConsultSection from '@/components/plans/PlanImagesConsultSection'
+import { aggregatePlanImages } from '@/lib/planImagesAggregate'
 import { buildLocationTarget, buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import {
   appendCampaignInterventionQueryParams,
@@ -19,11 +22,11 @@ import {
   FicheMain,
   FichePageShell,
   FicheTopbar,
-  LABO_NOM,
   MetricCard,
   PRIO_CLS,
   SectionCard,
 } from '@/components/layout/FicheLayout'
+import LabName from '@/components/laboratoire/LabName'
 
 const PRIORITY_OPTIONS = ['Basse', 'Normale', 'Haute', 'Urgente']
 
@@ -110,7 +113,7 @@ function CampaignHero({ campaign, demande, metrics }) {
             <FicheBadge s={campaign.priorite} map={PRIO_CLS} />
           </div>
           <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">Laboratoire</div>
-          <div className="mt-1.5 text-[13px] font-black">{LABO_NOM[demande?.labo_code] || demande?.labo_code || '—'}</div>
+          <div className="mt-1.5 text-[13px] font-black"><LabName code={demande?.labo_code} /></div>
           <div className="mt-2 text-[12px] font-black text-white/70">
             {[campaign.temporalite, campaign.responsable_technique].filter(Boolean).join(' · ') || 'Pilotage à cadrer'}
           </div>
@@ -148,6 +151,48 @@ export default function CampaignPage() {
     queryFn: () => demandesApi.get(demandeUid),
     enabled: Boolean(demandeUid),
   })
+
+  const campaignInterventionIds = useMemo(() => {
+    const ids = new Set(
+      (Array.isArray(data?.interventions) ? data.interventions : [])
+        .map((item) => Number(item?.uid))
+        .filter((value) => Number.isInteger(value) && value > 0),
+    )
+    return ids
+  }, [data?.interventions])
+
+  const { data: campaignPlansSource = [] } = useQuery({
+    queryKey: ['plans-implantation', 'demande', demandeUid],
+    queryFn: () => plansImplantationApi.list({ demande_id: Number(demandeUid) }),
+    enabled: Boolean(demandeUid) && Boolean(data),
+  })
+
+  const campaignPlansRaw = useMemo(() => {
+    const campaignUid = Number(uid)
+    return campaignPlansSource.filter((plan) => {
+      const interventionId = Number(plan?.intervention_id || 0)
+      const campagneId = Number(plan?.campagne_id || 0)
+      return campagneId === campaignUid || campaignInterventionIds.has(interventionId)
+    })
+  }, [campaignPlansSource, uid, campaignInterventionIds])
+
+  const campaignInterventionsByUid = useMemo(
+    () => new Map(
+      (Array.isArray(data?.interventions) ? data.interventions : [])
+        .map((item) => [Number(item.uid), item]),
+    ),
+    [data?.interventions],
+  )
+
+  const campaignPlanImageRows = useMemo(
+    () => aggregatePlanImages({
+      plans: campaignPlansRaw,
+      imageFiles: [],
+      interventionsByUid: campaignInterventionsByUid,
+      includeUnusedImages: false,
+    }),
+    [campaignPlansRaw, campaignInterventionsByUid],
+  )
 
   const [form, setForm] = useState({})
 
@@ -189,6 +234,20 @@ export default function CampaignPage() {
     },
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: () => interventionCampaignsApi.delete(uid),
+    onSuccess: async () => {
+      if (demandeUid) {
+        await qc.invalidateQueries({ queryKey: ['demande-nav', String(demandeUid)] })
+        await qc.invalidateQueries({ queryKey: ['campagnes', String(demandeUid)] })
+      }
+      navigate(buildPathWithReturnTo(`/campagnes?demande_id=${demandeUid}`, returnTo))
+    },
+    onError: (error) => {
+      setResult({ type: 'err', msg: error?.message || 'Impossible de supprimer la campagne.' })
+    },
+  })
+
   const heroCampaign = useMemo(() => (data ? { ...data, ...form } : null), [data, form])
 
   function setField(key, value) {
@@ -216,6 +275,17 @@ export default function CampaignPage() {
       ...pickCampagneStructuredFields(form),
     })
   }
+
+  function handleDeleteCampaign() {
+    if ((data?.intervention_count || 0) > 0) {
+      setResult({ type: 'err', msg: 'Impossible de supprimer une campagne avec des interventions rattachées.' })
+      return
+    }
+    if (!window.confirm(`Supprimer la campagne ${data?.reference || uid} ?`)) return
+    deleteMutation.mutate()
+  }
+
+  const canDeleteCampaign = (data?.intervention_count || 0) === 0
 
   function openNewInterventionFromCampaign() {
     const params = new URLSearchParams()
@@ -317,12 +387,25 @@ export default function CampaignPage() {
             >
               Interventions
             </button>
+            <SiteAccessRapportButton
+              demandeUid={demandeUid}
+              campagneUid={uid}
+              returnTo={returnTo}
+              label="Fiche mission"
+              className="!rounded-xl"
+            />
           </>
         ) : null}
         <Button size="sm" variant="secondary" onClick={openNewInterventionFromCampaign}>
           <Plus size={13} />
           <span className="ml-1">Nouvelle intervention</span>
         </Button>
+        {canDeleteCampaign ? (
+          <Button size="sm" variant="secondary" onClick={handleDeleteCampaign} disabled={deleteMutation.isPending}>
+            <Trash2 size={13} />
+            <span className="ml-1">{deleteMutation.isPending ? 'Suppression…' : 'Supprimer'}</span>
+          </Button>
+        ) : null}
         <Button size="sm" onClick={handleSave} disabled={saveMutation.isPending}>
           <Save size={13} />
           <span className="ml-1">{saveMutation.isPending ? 'Enregistrement…' : 'Enregistrer'}</span>
@@ -403,8 +486,8 @@ export default function CampaignPage() {
           </SectionCard>
 
           <SectionCard
-            title="Interventions associées"
-            subtitle={`${data.intervention_count || 0} intervention(s) rattachée(s)`}
+            title="Interventions"
+            subtitle={`${data.intervention_count || 0} intervention(s) rattachée(s) à cette campagne`}
             actions={(
               <Button size="sm" variant="secondary" onClick={openNewInterventionFromCampaign}>
                 <Wrench size={13} />
@@ -445,6 +528,17 @@ export default function CampaignPage() {
               )}
             </div>
           </SectionCard>
+
+          {campaignPlanImageRows.length > 0 ? (
+            <PlanImagesConsultSection
+              title="Plans d'implantation (campagne)"
+              plans={campaignPlansRaw}
+              interventionsByUid={campaignInterventionsByUid}
+              includeUnusedImages={false}
+              separateViewHref={buildPathWithReturnTo(`/campagnes/${uid}/plans`, buildLocationTarget(location))}
+              emptyMessage="Aucun plan image avec implantation pour cette campagne."
+            />
+          ) : null}
         </div>
       </FicheMain>
     </FichePageShell>

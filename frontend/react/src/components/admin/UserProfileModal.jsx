@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Briefcase, ClipboardList, PenTool, ShieldCheck, Trash2, Upload, UserRound } from 'lucide-react'
+import { Briefcase, Building2, ClipboardList, PenTool, ShieldCheck, Trash2, Upload, UserRound } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
 import Button from '@/components/ui/Button'
 import Input, { Select, Textarea } from '@/components/ui/Input'
 import { adminApi } from '@/services/api'
+import CompetencyRstCodeEditor from '@/components/admin/CompetencyRstCodeEditor'
 import { cn, formatDate } from '@/lib/utils'
+import { normalizeLaboCode } from '@/lib/labGeo'
+import {
+  buildUserOrgAssociation,
+  buildLabAgencyLabel,
+  isAgenceCode,
+  isOrgRegionCode,
+  orgRegionLabel,
+  agenceLabel,
+} from '@/lib/laboratoireOrgCatalog'
 
 const ROLE_OPTIONS = ['admin', 'labo', 'etudes', 'consult']
 const ROLE_LABELS = {
@@ -101,6 +111,14 @@ function buildProfileForm(profile, email = '') {
   }
 }
 
+function buildLabLocationLabel(lab) {
+  if (!lab) return ''
+  const name = String(lab.name || '').trim()
+  const address = String(lab.address || '').trim()
+  if (name && address) return `${name} — ${address}`
+  return name || address || String(lab.code || '').trim()
+}
+
 function buildAssessmentForm() {
   return {
     competency_id: '',
@@ -188,6 +206,192 @@ function LevelBadge({ levelCode, label }) {
   )
 }
 
+function AssociatedLaboratoirePanel({ serviceCode, labs, orgRegions, detail, detailLoading, dirty }) {
+  const association = buildUserOrgAssociation(serviceCode, labs, orgRegions)
+  const rawCode = String(serviceCode || '').trim()
+  const hasSelection = Boolean(rawCode)
+
+  if (!hasSelection || association.kind === 'none') {
+    return (
+      <SectionCard
+        title="Rattachement orga / laboratoire"
+        description="Région, agence ou laboratoire — référentiel Administration → Laboratoires."
+      >
+        <p className="text-xs text-text-muted rounded-xl border border-dashed border-border px-4 py-6 text-center">
+          Aucun rattachement. Choisissez une région, une agence ou un laboratoire du référentiel.
+        </p>
+      </SectionCard>
+    )
+  }
+
+  if (association.kind === 'unknown') {
+    return (
+      <SectionCard title="Rattachement orga / laboratoire" description="Référentiel central.">
+        <div className="rounded-xl border border-[#ecd1a2] bg-[#fbf1e2] px-4 py-3 text-xs text-[#854f0b]">
+          Code <strong>{rawCode.toUpperCase()}</strong> introuvable dans le référentiel orga / laboratoires.
+        </div>
+      </SectionCard>
+    )
+  }
+
+  if (association.kind === 'org_region') {
+    const isRstArs = association.code === 'ARS'
+    return (
+      <SectionCard
+        title={isRstArs ? 'RST · région ARS' : 'Région associée'}
+        description={
+          isRstArs
+            ? 'Référent Scientifique et Technique — périmètre SP (RA) et PDC (AUV).'
+            : 'Le collaborateur est rattaché à toute la région — agences et laboratoires inclus ci-dessous.'
+        }
+      >
+        {dirty ? (
+          <div className="mb-3 rounded-lg border border-[#c7d2fe] bg-[#eeeffe] px-3 py-2 text-[11px] text-[#1e3a8a]">
+            Aperçu — enregistrez la fiche pour confirmer le rattachement {association.code}.
+          </div>
+        ) : null}
+        <div className="rounded-xl border border-border bg-bg px-4 py-3 mb-3">
+          <div className="text-lg font-semibold">{association.code} — {association.label}</div>
+          <div className="text-[11px] text-text-muted mt-1">
+            {association.laboratoires.length} laboratoire{association.laboratoires.length > 1 ? 's' : ''}
+          </div>
+        </div>
+        <div className="border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-bg text-text-muted">
+                <th className="text-left px-3 py-2 font-medium">Code</th>
+                <th className="text-left px-3 py-2 font-medium">Nom</th>
+                <th className="text-left px-3 py-2 font-medium">Agence</th>
+                <th className="text-left px-3 py-2 font-medium">Équipe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {association.laboratoires.map((lab) => (
+                <tr key={lab.code} className="border-t border-border">
+                  <td className="px-3 py-2 font-semibold">{lab.code}</td>
+                  <td className="px-3 py-2">{lab.name}</td>
+                  <td className="px-3 py-2">{lab.agence_label || lab.agence_code || '—'}</td>
+                  <td className="px-3 py-2">{lab.staff_active_count ?? 0} actif(s)</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+    )
+  }
+
+  if (association.kind === 'agence') {
+    return (
+      <SectionCard
+        title="Agence associée"
+        description="Rattachement à une agence — laboratoires de l'agence listés ci-dessous."
+      >
+        {dirty ? (
+          <div className="mb-3 rounded-lg border border-[#c7d2fe] bg-[#eeeffe] px-3 py-2 text-[11px] text-[#1e3a8a]">
+            Aperçu — enregistrez pour confirmer l'agence {association.code}.
+          </div>
+        ) : null}
+        <div className="rounded-xl border border-border bg-bg px-4 py-3 mb-3">
+          <div className="text-lg font-semibold">{association.code} — {association.label}</div>
+          <div className="text-[11px] text-text-muted mt-1">
+            Région {association.region_code} · {association.laboratoires.length} labo(s)
+          </div>
+        </div>
+        <div className="border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="bg-bg text-text-muted">
+                <th className="text-left px-3 py-2 font-medium">Code</th>
+                <th className="text-left px-3 py-2 font-medium">Nom</th>
+                <th className="text-left px-3 py-2 font-medium">Équipe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {association.laboratoires.map((lab) => (
+                <tr key={lab.code} className="border-t border-border">
+                  <td className="px-3 py-2 font-semibold">{lab.code}</td>
+                  <td className="px-3 py-2">{lab.name}</td>
+                  <td className="px-3 py-2">{lab.staff_active_count ?? 0} actif(s)</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </SectionCard>
+    )
+  }
+
+  const summary = association.laboratoire || (labs || []).find((lab) => normalizeLaboCode(lab.code) === normalizeLaboCode(rawCode))
+  const payload = detail || summary
+
+  if (!payload) {
+    return null
+  }
+
+  const responsableLabel = payload.responsable?.display_name
+    || payload.responsable_email
+    || 'Non défini'
+
+  return (
+    <SectionCard
+      title="Laboratoire associé"
+      description="Laboratoire du référentiel — agence et région indiquées ci-dessous."
+    >
+      {dirty ? (
+        <div className="mb-3 rounded-lg border border-[#c7d2fe] bg-[#eeeffe] px-3 py-2 text-[11px] text-[#1e3a8a]">
+          Aperçu du labo sélectionné — cliquez « Enregistrer la fiche » pour confirmer le rattachement.
+        </div>
+      ) : null}
+
+      <div className="mb-3 rounded-lg border border-[#dbe1ea] bg-[#f8fafc] px-3 py-2 text-xs">
+        <span className="font-medium text-text">Agence :</span>{' '}
+        {association.agence_label || payload.agence_label || payload.agence_code || '—'}
+        {' · '}
+        <span className="font-medium text-text">Région :</span>{' '}
+        {association.region_label || payload.region_label || payload.region || '—'}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-xl border border-border bg-bg px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-text-muted">Laboratoire</div>
+          <div className="mt-1 text-sm font-semibold">{payload.code} — {payload.name}</div>
+          <div className="text-[11px] text-text-muted">{payload.agence_label || payload.agence_code || '—'}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-bg px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-text-muted">Responsable</div>
+          <div className="mt-1 text-sm font-medium">{responsableLabel}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-bg px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-text-muted">Équipe active</div>
+          <div className="mt-1 text-sm font-semibold">
+            {detailLoading && !detail ? '…' : (payload.staff_active_count ?? '—')}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-bg px-3 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-text-muted">Équipements</div>
+          <div className="mt-1 text-sm font-semibold">
+            {payload.equipment?.linked ? (payload.equipment.total ?? 0) : '—'}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 text-xs text-text-muted">
+        {payload.address ? (
+          <div><span className="font-medium text-text">Adresse :</span> {payload.address}</div>
+        ) : null}
+        {payload.has_coords ? (
+          <div><span className="font-medium text-text">Coords :</span> {payload.lat}, {payload.lon}</div>
+        ) : null}
+        {payload.report_header ? (
+          <div><span className="font-medium text-text">En-tête rapports :</span> {payload.report_header}</div>
+        ) : null}
+      </div>
+    </SectionCard>
+  )
+}
+
 export default function UserProfileModal({ open, onClose, user, employmentLevels = [] }) {
   const queryClient = useQueryClient()
   const email = user?.email || ''
@@ -231,6 +435,108 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
     enabled: open && !!email,
   })
 
+  const { data: labsPayload } = useQuery({
+    queryKey: ['admin-labs'],
+    queryFn: () => adminApi.labs.list(),
+    enabled: open,
+  })
+  const labs = labsPayload?.laboratoires ?? []
+  const orgRegions = labsPayload?.org_regions ?? labsPayload?.rst_regions ?? []
+
+  const associatedLabCode = useMemo(() => {
+    const text = String(baseForm.service_code || '').trim()
+    if (!text || isOrgRegionCode(text, orgRegions) || isAgenceCode(text, orgRegions)) return ''
+    return normalizeLaboCode(text)
+  }, [baseForm.service_code, orgRegions])
+
+  const associatedLabDetailQuery = useQuery({
+    queryKey: ['admin-lab-detail', associatedLabCode],
+    queryFn: () => adminApi.labs.get(associatedLabCode),
+    enabled: open && Boolean(associatedLabCode) && labs.some((lab) => normalizeLaboCode(lab.code) === associatedLabCode),
+  })
+
+  const userAssociation = useMemo(
+    () => buildUserOrgAssociation(baseForm.service_code, labs, orgRegions),
+    [baseForm.service_code, labs, orgRegions]
+  )
+
+  const labAssociationDirty = String(baseForm.service_code || '').trim().toUpperCase()
+    !== String(user?.service_code || '').trim().toUpperCase()
+
+  const employmentSubtitle = useMemo(() => {
+    const roleLabel = ROLE_LABELS[baseForm.role_code] || baseForm.role_code
+    if (userAssociation.kind === 'org_region') {
+      const prefix = userAssociation.code === 'ARS' ? 'RST · ' : ''
+      return `${roleLabel} · ${prefix}${userAssociation.code} — ${userAssociation.label}`
+    }
+    if (userAssociation.kind === 'agence') {
+      return `${roleLabel} · ${userAssociation.code} — ${userAssociation.label}`
+    }
+    if (userAssociation.kind === 'laboratoire') {
+      return `${roleLabel} · ${userAssociation.code} — ${userAssociation.label}`
+    }
+    if (String(baseForm.service_code || '').trim()) {
+      return `${roleLabel} · ${String(baseForm.service_code).trim().toUpperCase()}`
+    }
+    return roleLabel
+  }, [baseForm.role_code, baseForm.service_code, userAssociation])
+
+  function applyLabDerivedProfileFields(nextServiceCode) {
+    const normalized = String(nextServiceCode || '').trim().toUpperCase()
+    if (!normalized) {
+      setProfileForm((current) => ({
+        ...current,
+        location_name: '',
+      }))
+      return
+    }
+
+    if (isOrgRegionCode(normalized, orgRegions)) {
+      setProfileForm((current) => ({
+        ...current,
+        location_name: orgRegionLabel(normalized, orgRegions),
+        agency_name: '',
+        manager_name: current.manager_name,
+      }))
+      return
+    }
+
+    if (isAgenceCode(normalized, orgRegions)) {
+      setProfileForm((current) => ({
+        ...current,
+        location_name: agenceLabel(normalized, orgRegions),
+        agency_name: normalized,
+        manager_name: current.manager_name,
+      }))
+      return
+    }
+
+    const lab = labs.find((item) => normalizeLaboCode(item.code) === normalizeLaboCode(normalized))
+    if (!lab) return
+
+    setProfileForm((current) => ({
+      ...current,
+      location_name: buildLabLocationLabel(lab),
+      agency_name: buildLabAgencyLabel(lab),
+      manager_name: lab.responsable?.display_name || current.manager_name,
+    }))
+  }
+
+  function handleServiceCodeChange(nextServiceCode) {
+    setBaseForm((current) => ({ ...current, service_code: nextServiceCode }))
+    applyLabDerivedProfileFields(nextServiceCode)
+  }
+
+  useEffect(() => {
+    if (!open || !associatedLabDetailQuery.data || !labAssociationDirty) return
+    const lab = associatedLabDetailQuery.data
+    setProfileForm((current) => ({
+      ...current,
+      location_name: buildLabLocationLabel(lab),
+      manager_name: lab.responsable?.display_name || current.manager_name,
+    }))
+  }, [associatedLabDetailQuery.data, labAssociationDirty, open])
+
   useEffect(() => {
     if (!open) return
     setActiveTab('fiche')
@@ -251,6 +557,24 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
     if (!open) return
     setProfileForm(buildProfileForm(profileQuery.data, email))
   }, [profileQuery.data, email, open])
+
+  useEffect(() => {
+    if (!open || !labs.length || !user) return
+    const code = String(user.service_code || '').trim()
+    if (!code) return
+    if (isOrgRegionCode(code, orgRegions) || isAgenceCode(code, orgRegions)) return
+    const lab = labs.find((item) => normalizeLaboCode(item.code) === normalizeLaboCode(code))
+    if (!lab) return
+    setProfileForm((current) => {
+      const location = String(current.location_name || '').trim()
+      if (location) return current
+      return {
+        ...current,
+        location_name: buildLabLocationLabel(lab),
+        agency_name: String(current.agency_name || '').trim() || buildLabAgencyLabel(lab),
+      }
+    })
+  }, [open, labs, user, orgRegions])
 
   const saveProfileMutation = useMutation({
     mutationFn: async (mode) => {
@@ -293,6 +617,8 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['admin-users'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-user-profile', email] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-labs'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-lab-detail'] }),
       ])
     },
   })
@@ -446,15 +772,43 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
   }, [currentCompetencies])
 
   const completionRatio = competencies.length ? Math.round((currentCompetencies.length / competencies.length) * 100) : 0
+  const mappedRstCount = competencies.filter((item) => item.rst_code).length
 
   if (!user) return null
 
   return (
     <Modal open={open} onClose={onClose} title={`Fiche utilisateur — ${user.display_name}`} size="2xl">
       <div className="flex flex-col gap-5">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <SummaryCard icon={UserRound} title="Utilisateur" value={user.display_name} subtitle={user.email} />
-          <SummaryCard icon={Briefcase} title="Emploi" value={user.employment_level_label || 'Non renseigné'} subtitle={ROLE_LABELS[user.role_code] || user.role_code} tone="blue" />
+          <SummaryCard icon={Briefcase} title="Emploi" value={user.employment_level_label || 'Non renseigné'} subtitle={employmentSubtitle} tone="blue" />
+          <SummaryCard
+            icon={Building2}
+            title={
+              userAssociation.kind === 'org_region'
+                ? (userAssociation.code === 'ARS' ? 'RST · région ARS' : 'Région')
+                : userAssociation.kind === 'agence'
+                  ? 'Agence'
+                  : 'Laboratoire'
+            }
+            value={
+              userAssociation.kind === 'org_region' || userAssociation.kind === 'agence'
+                ? userAssociation.label
+                : (associatedLabDetailQuery.data?.name
+                  || labs.find((lab) => normalizeLaboCode(lab.code) === associatedLabCode)?.name
+                  || (userAssociation.label || 'Non rattaché'))
+            }
+            subtitle={
+              userAssociation.kind === 'org_region'
+                ? `${userAssociation.laboratoires?.length || 0} labo(s) · ${userAssociation.code}`
+                : userAssociation.kind === 'agence'
+                  ? `${userAssociation.laboratoires?.length || 0} labo(s) · ${userAssociation.code}`
+                  : (associatedLabCode
+                    ? `${userAssociation.agence_label || userAssociation.agence_code || '—'} · ${associatedLabCode}`
+                    : 'Choisir région, agence ou labo')
+            }
+            tone={userAssociation.kind !== 'none' ? 'green' : 'amber'}
+          />
           <SummaryCard icon={ClipboardList} title="Compétences courantes" value={String(currentCompetencies.length)} subtitle={`${completionRatio}% du catalogue officiel`} tone="green" />
           <SummaryCard icon={ShieldCheck} title="Suivi" value={profileForm.next_review_due_date ? formatDate(profileForm.next_review_due_date) : 'À planifier'} subtitle="Prochaine revue" tone="amber" />
         </div>
@@ -520,16 +874,42 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
                     ))}
                   </Select>
                 </FieldGroup>
-                <FieldGroup label="Service / code labo">
-                  <Input value={baseForm.service_code} onChange={(event) => setBaseForm((current) => ({ ...current, service_code: event.target.value }))} placeholder="SP, AUV, rst..." />
+                <FieldGroup label="Rattachement orga / labo" hint="Région, agence ou laboratoire du référentiel. Met à jour la localisation.">
+                  <Select
+                    value={baseForm.service_code}
+                    onChange={(event) => handleServiceCodeChange(event.target.value)}
+                  >
+                    <option value="">— Non rattaché —</option>
+                    <optgroup label="Régions">
+                      {orgRegions.map((region) => (
+                        <option key={region.code} value={region.code}>
+                          {region.code} — {region.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Agences">
+                      {orgRegions.flatMap((region) => (region.agences || []).map((agence) => (
+                        <option key={agence.code} value={agence.code}>
+                          {agence.code} — {agence.label}
+                        </option>
+                      )))}
+                    </optgroup>
+                    <optgroup label="Laboratoires">
+                      {labs.map((lab) => (
+                        <option key={lab.code} value={lab.code}>
+                          {lab.code} — {lab.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </Select>
                 </FieldGroup>
                 <FieldGroup label="Fonction affichée">
                   <Input value={profileForm.professional_title} onChange={(event) => setProfileForm((current) => ({ ...current, professional_title: event.target.value }))} placeholder="Titre libre si besoin" />
                 </FieldGroup>
-                <FieldGroup label="Agence">
-                  <Input value={profileForm.agency_name} onChange={(event) => setProfileForm((current) => ({ ...current, agency_name: event.target.value }))} placeholder="Agence / entité" />
+                <FieldGroup label="Agence" hint="Code agence (RA, AUV…) — pré-rempli depuis le laboratoire.">
+                  <Input value={profileForm.agency_name} onChange={(event) => setProfileForm((current) => ({ ...current, agency_name: event.target.value }))} placeholder="RA ou AUV" />
                 </FieldGroup>
-                <FieldGroup label="Localisation">
+                <FieldGroup label="Localisation" hint="Pré-rempli depuis le laboratoire ; modifiable si besoin (base vie, déplacement…).">
                   <Input value={profileForm.location_name} onChange={(event) => setProfileForm((current) => ({ ...current, location_name: event.target.value }))} placeholder="Ville, laboratoire, base vie..." />
                 </FieldGroup>
                 <FieldGroup label="Manager / référent">
@@ -540,6 +920,17 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
                 </FieldGroup>
               </div>
             </SectionCard>
+
+            <div className="xl:col-span-2">
+              <AssociatedLaboratoirePanel
+                serviceCode={baseForm.service_code}
+                labs={labs}
+                orgRegions={orgRegions}
+                detail={associatedLabDetailQuery.data}
+                detailLoading={associatedLabDetailQuery.isLoading}
+                dirty={labAssociationDirty}
+              />
+            </div>
 
             <SectionCard title="Notes générales" description="Contexte libre, observations de suivi ou informations utiles pour la fiche.">
               <FieldGroup label="Observations">
@@ -845,10 +1236,17 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
 
             <div className="grid gap-3 md:grid-cols-4">
               <SummaryCard icon={ClipboardList} title="Catalogue officiel" value={String(competencies.length)} subtitle="Essais disponibles" />
-              <SummaryCard icon={ClipboardList} title="Niveau courant" value={String(currentCompetencies.length)} subtitle="Essais évalués" tone="blue" />
-              <SummaryCard icon={Briefcase} title="Historique" value={String(competencyHistory.length)} subtitle="Évaluations enregistrées" tone="green" />
+              <SummaryCard icon={ClipboardList} title="Codes RST" value={`${mappedRstCount}/${competencies.length}`} subtitle="Mappés pour consignes" tone="blue" />
+              <SummaryCard icon={ClipboardList} title="Niveau courant" value={String(currentCompetencies.length)} subtitle="Essais évalués" tone="green" />
               <SummaryCard icon={ShieldCheck} title="Couverture" value={`${completionRatio}%`} subtitle="Par rapport au catalogue" tone="amber" />
             </div>
+
+            <SectionCard
+              title="Codes RST opérationnels"
+              description="Associer nos sigles métier (PMT, SC, FWD, DE…) aux essais du catalogue officiel. Utilisé dans les consignes passation / demande — à affiner progressivement."
+            >
+              <CompetencyRstCodeEditor competencies={competencies} />
+            </SectionCard>
 
             <SectionCard title="Répartition des niveaux courants" description="Vue synthétique du niveau actuellement retenu pour chaque essai évalué.">
               <div className="flex flex-wrap gap-2">

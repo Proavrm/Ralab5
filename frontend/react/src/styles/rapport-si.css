@@ -1,0 +1,759 @@
+.rapport-si-paper-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+    width: 100%;
+}
+
+@media screen {
+    /* Écran uniquement — ne pas appliquer en impression (sinon 4 pages empilées) */
+    .rapport-si-a3-sheet {
+        display: contents;
+    }
+
+    #rapport-si-printable-1 { order: 1; }
+    #rapport-si-printable-2 { order: 2; }
+    #rapport-si-printable-3 { order: 3; }
+    #rapport-si-printable-4 { order: 4; }
+}
+
+.rapport-si-page,
+.rapport-si-page .rapport-si-frame {
+    font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
+}
+
+.rapport-si-frame {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.rapport-si-page.rapport-page-a4 {
+    min-height: 297mm;
+    height: auto;
+    box-sizing: border-box;
+    background: #ffffff;
+}
+
+.rapport-si-body-sheet {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border: 0.25mm solid var(--rapport-border);
+    box-sizing: border-box;
+}
+
+.rapport-si-section-fill {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.rapport-si-section-fill .rapport-si-map {
+    flex: 1 1 auto;
+    min-height: 60mm;
+    margin-top: 1mm;
+}
+
+.rapport-si-section-fill .rapport-si-missing {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60mm;
+    margin: 1mm 2mm 2mm;
+}
+
+.rapport-si-page .rapport-si-body-sheet > .rapport-section:first-of-type {
+    border-top: none;
+}
+
+.rapport-si-page .rapport-si-frame {
+    min-height: calc(297mm - var(--rapport-page-margin-vertical));
+}
+
+.rapport-si-page-indicator {
+    text-align: right;
+    padding: 0 2mm 1.5mm;
+    font-size: 8px;
+    font-weight: 700;
+    color: var(--rapport-muted);
+}
+
+.rapport-si-page .rapport-section {
+    padding: 2mm 3mm 1.5mm 3mm;
+}
+
+.rapport-si-page .rapport-si-frame > .rapport-section:first-of-type {
+    border-top: none;
+}
+
+.rapport-si-page .rapport-section > h2 {
+    margin: 0 0 1.5mm;
+    padding: 0;
+}
+
+.rapport-si-page .rapport-section > h2 span {
+    text-decoration: underline;
+}
+
+.rapport-si-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5mm 4mm;
+    padding: 0.5mm 2mm 0;
+}
+
+.rapport-si-grid-identite .rapport-si-field:not(.rapport-si-field-full) {
+    min-width: 0;
+}
+
+.rapport-si-grid-identite .rapport-si-field div {
+    word-break: break-word;
+}
+
+.rapport-si-field {
+    font-size: 9px;
+    line-height: 1.35;
+}
+
+.rapport-si-field strong {
+    display: block;
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--rapport-muted);
+    margin-bottom: 0.4mm;
+}
+
+.rapport-si-field-full {
+    grid-column: 1 / -1;
+}
+
+.rapport-si-map {
+    margin: 2mm 2mm 0;
+    border: 1px solid var(--rapport-border);
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120mm;
+    overflow: hidden;
+}
+
+.rapport-si-map img {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 175mm;
+    object-fit: contain;
+}
+
+.rapport-si-map-landscape img {
+    max-height: 145mm;
+}
+
+.rapport-si-missing {
+    margin: 2mm;
+    padding: 8mm 4mm;
+    border: 1px dashed var(--rapport-border);
+    color: var(--rapport-muted);
+    font-size: 10px;
+    text-align: center;
+    line-height: 1.5;
+}
+
+.rapport-si-missing-croqui {
+    font-size: 13px;
+    font-weight: 400;
+    color: #b8c0cc;
+    border-color: #d8dee8;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+}
+
+.rapport-si-pins {
+    margin: 1.5mm 2mm 0;
+    padding: 0;
+    list-style: none;
+    font-size: 9px;
+}
+
+.rapport-si-pins li {
+    padding: 0.8mm 0;
+    border-bottom: 1px solid #eef2f7;
+}
+
+.rapport-si-checklist {
+    margin: 1mm 2mm 0;
+    padding: 0;
+    list-style: none;
+    font-size: 9px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 3mm;
+}
+
+.rapport-si-checklist li {
+    padding: 0.6mm 0;
+}
+
+.rapport-si-checklist li[data-ok="true"]::before {
+    content: '✓ ';
+    color: #16a34a;
+    font-weight: 700;
+}
+
+.rapport-si-checklist li[data-ok="false"]::before {
+    content: '○ ';
+    color: #94a3b8;
+}
+
+.rapport-si-consignes-box {
+    margin: 2mm 2mm 0;
+    padding: 2.5mm 3mm;
+    border: 0.6mm solid #c81e1e;
+    background: #fef2f2;
+    box-sizing: border-box;
+}
+
+.rapport-si-consignes-title {
+    margin: 0 0 1.5mm;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #991b1b;
+}
+
+.rapport-si-consignes {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1mm 3mm;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1.35;
+    color: #7f1d1d;
+}
+
+.rapport-si-consignes li {
+    margin: 0;
+    padding: 0 0 0 3.5mm;
+    position: relative;
+}
+
+.rapport-si-consignes li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: #c81e1e;
+    font-weight: 700;
+}
+
+.rapport-si-field-alert {
+    padding: 1.5mm 2mm;
+    border: 0.5mm solid #f59e0b;
+    background: #fffbeb;
+    border-radius: 1px;
+}
+
+.rapport-si-field-alert strong {
+    color: #b45309;
+}
+
+.rapport-si-field-alert div {
+    color: #92400e;
+    font-weight: 600;
+}
+
+.rapport-si-field div {
+    white-space: pre-line;
+}
+
+.rapport-si-notes-field {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.rapport-si-notes-hint {
+    font-size: 8px;
+    line-height: 1.4;
+    color: #475569;
+    margin-bottom: 1mm;
+    white-space: pre-line;
+}
+
+.rapport-si-notes-area {
+    min-height: calc(var(--si-notes-lines, 4) * 5mm);
+    border: 0.35mm solid #94a3b8;
+    background-color: #fff;
+    background-image: repeating-linear-gradient(
+        to bottom,
+        #fff,
+        #fff calc(5mm - 0.25mm),
+        #dbeafe calc(5mm - 0.25mm),
+        #dbeafe 5mm
+    );
+    box-sizing: border-box;
+}
+
+#rapport-si-printable-1 .rapport-si-section-terrain {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#rapport-si-printable-1 .rapport-si-notes-stack {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5mm;
+    min-height: 0;
+    margin: 1mm 2mm 0;
+}
+
+#rapport-si-printable-1 .rapport-si-notes-stack .rapport-si-notes-field {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#rapport-si-printable-1 .rapport-si-notes-stack .rapport-si-notes-field:nth-child(1) {
+    flex-grow: 2;
+}
+
+#rapport-si-printable-1 .rapport-si-notes-stack .rapport-si-notes-field:nth-child(2) {
+    flex-grow: 5;
+}
+
+#rapport-si-printable-1 .rapport-si-notes-stack .rapport-si-notes-field:nth-child(3) {
+    flex-grow: 4;
+}
+
+#rapport-si-printable-1 .rapport-si-notes-stack .rapport-si-notes-area {
+    flex: 1 1 auto;
+    min-height: calc(var(--si-notes-lines, 4) * 5mm);
+}
+
+#rapport-si-printable-1 .rapport-si-consignes-anchor {
+    flex: 0 0 auto;
+    margin-top: auto;
+}
+
+#rapport-si-printable-1 .rapport-si-consignes-anchor .rapport-si-consignes-box {
+    margin-bottom: 0;
+}
+
+.rapport-si-closure {
+    flex: 0 0 auto;
+    margin-top: auto;
+    padding: 1.5mm 2mm 0;
+    border-top: 0.25mm solid var(--rapport-border);
+}
+
+.rapport-si-closure-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5mm 3mm;
+}
+
+.rapport-si-closure-grid-inline {
+    grid-template-columns: 1.1fr 0.9fr 1.2fr;
+}
+
+.rapport-si-closure-field strong {
+    display: block;
+    font-size: 7px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--rapport-muted);
+    margin-bottom: 0.6mm;
+}
+
+.rapport-si-closure-value {
+    min-height: 6mm;
+    font-size: 10px;
+    line-height: 1.3;
+    color: #0f172a;
+}
+
+.rapport-si-closure-line {
+    min-height: 6mm;
+    border-bottom: 0.35mm solid #94a3b8;
+}
+
+.rapport-si-closure-line-tall {
+    min-height: 8mm;
+}
+
+.rapport-si-mission-block {
+    margin: 2mm 2mm 0;
+    padding: 2mm;
+    border: 1px solid #e2e8f0;
+    border-radius: 2px;
+}
+
+.rapport-si-mission-heading {
+    margin: 0 0 1.5mm;
+    font-size: 10px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.rapport-si-mission-table {
+    width: calc(100% - 4mm);
+    margin: 1.5mm 2mm 0;
+    border-collapse: collapse;
+    font-size: 8px;
+    line-height: 1.25;
+}
+
+.rapport-si-mission-table th,
+.rapport-si-mission-table td {
+    border: 1px solid var(--rapport-border);
+    padding: 0.8mm 1mm;
+    text-align: left;
+    vertical-align: top;
+}
+
+.rapport-si-mission-table th {
+    font-size: 7px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--rapport-muted);
+    background: #f8fafc;
+}
+
+.rapport-si-mission-table td:first-child,
+.rapport-si-mission-table th:first-child {
+    width: 6mm;
+    text-align: center;
+}
+
+.rapport-si-mission-table td:nth-child(2),
+.rapport-si-mission-table th:nth-child(2) {
+    width: 24mm;
+}
+
+.rapport-si-mission-table td:nth-child(3),
+.rapport-si-mission-table th:nth-child(3) {
+    width: 22mm;
+}
+
+.rapport-si-mission-table td:nth-child(4),
+.rapport-si-mission-table th:nth-child(4) {
+    width: 18mm;
+}
+
+.rapport-si-programme-table td:nth-child(5),
+.rapport-si-programme-table th:nth-child(5) {
+    width: auto;
+}
+
+.rapport-si-programme-table td:nth-child(6),
+.rapport-si-programme-table th:nth-child(6) {
+    width: 28mm;
+}
+
+.rapport-si-synthese {
+    margin: 1mm 2mm 0;
+    padding: 0 0 0 4mm;
+    list-style: disc;
+    font-size: 9px;
+    line-height: 1.45;
+    color: #0f172a;
+}
+
+.rapport-si-synthese li {
+    margin: 0 0 1mm;
+}
+
+.rapport-si-synthese li:last-child {
+    margin-bottom: 0;
+}
+
+.rapport-si-missing-inline {
+    margin: 1mm 2mm 0;
+    padding: 2mm 3mm;
+    text-align: left;
+    font-size: 8.5px;
+}
+
+/* En-tête FMT — colonnes chrono / affaire / date plus lisibles */
+.rapport-si-page .rapport-header-main-grid {
+    min-height: 20mm;
+    grid-template-columns: 34mm 1fr 40mm;
+}
+
+.rapport-si-page .rapport-title-cell {
+    padding: 0.6mm 0 0;
+}
+
+.rapport-si-page .rapport-title-block {
+    min-height: 7mm;
+    padding: 0.4mm 2mm 0.6mm;
+}
+
+.rapport-si-page .rapport-main-title {
+    font-size: 8.2px;
+}
+
+.rapport-si-page .rapport-subtitle {
+    white-space: pre-line;
+    font-size: 7.2px;
+    font-weight: 600;
+    line-height: 1.18;
+    text-transform: none;
+    max-width: 100%;
+}
+
+.rapport-si-page .rapport-reference-grid {
+    min-height: 7.2mm;
+    padding-top: 0.3mm;
+}
+
+.rapport-si-page .rapport-reference-grid--no-chrono {
+    grid-template-columns: 1.15fr 1fr;
+}
+
+.rapport-si-page .rapport-reference-grid--no-chrono .rapport-reference-item:first-child::after {
+    top: 16%;
+    bottom: 16%;
+}
+
+.rapport-si-page .rapport-reference-item-sc .rapport-reference-sc-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15mm;
+}
+
+.rapport-si-page .rapport-reference-type-label {
+    font-size: 7.4px;
+    line-height: 1;
+}
+
+.rapport-si-page .rapport-reference-number-stack strong {
+    display: block;
+    font-size: 7.6px;
+    line-height: 1.1;
+    word-break: break-word;
+    max-width: 28mm;
+}
+
+.rapport-si-page .rapport-reference-item strong {
+    font-size: 7.6px;
+    line-height: 1.1;
+    word-break: break-word;
+}
+
+.rapport-si-page .rapport-reference-field-label {
+    font-size: 6px;
+    margin-top: 0.25mm;
+}
+
+.rapport-si-page .rapport-site-cell {
+    font-size: 8px;
+    line-height: 1.16;
+    padding: 1mm 1.2mm;
+}
+
+.rapport-si-page .rapport-laboratory-line {
+    grid-template-columns: 22mm 1fr;
+}
+
+@media print {
+    @page {
+        size: A3 landscape;
+        margin: 0 !important;
+    }
+
+    @page fmt-a3-sheet {
+        size: A3 landscape;
+        margin: 0 !important;
+    }
+
+    html.rapport-fmt-active,
+    html:has(body.rapport-fmt-active),
+    body.rapport-fmt-active {
+        width: 420mm !important;
+        min-width: 420mm !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        background: #ffffff !important;
+    }
+
+    body.rapport-fmt-active #root,
+    body.rapport-fmt-active .app-shell,
+    body.rapport-fmt-active .app-main {
+        width: 420mm !important;
+        min-width: 420mm !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .app-main {
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    .app-shell .flex-1.flex.flex-col > .shrink-0 {
+        display: none !important;
+    }
+
+    .rapport-si-print-hint {
+        display: none !important;
+    }
+
+    body.rapport-fmt-active .rapport-paper-frame > :not(.rapport-si-paper-stack) {
+        display: none !important;
+    }
+
+    body.rapport-fmt-active .rapport-page-shell,
+    body.rapport-fmt-active .rapport-page-shell-inner,
+    body.rapport-fmt-active .rapport-work-block,
+    body.rapport-fmt-active .rapport-paper-frame,
+    body.rapport-fmt-active .rapport-si-paper-stack {
+        width: 420mm !important;
+        max-width: none !important;
+        height: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        overflow: hidden !important;
+    }
+
+    body.rapport-fmt-active .rapport-si-paper-stack {
+        display: block !important;
+        width: 420mm !important;
+        height: auto !important;
+        min-height: 0 !important;
+    }
+
+    body.rapport-fmt-active .rapport-si-paper-stack .rapport-page,
+    body.rapport-fmt-active .rapport-si-paper-stack main.rapport-si-page {
+        page-break-before: avoid !important;
+        page-break-after: avoid !important;
+        break-before: avoid !important;
+        break-after: avoid !important;
+    }
+
+    body.rapport-fmt-active .rapport-si-paper-stack {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+
+    /* Float (plus fiable que grid en impression Chrome/Edge) : 2×A4 côte à côte sur A3 */
+    body.rapport-fmt-active .rapport-si-a3-sheet {
+        display: block !important;
+        width: 420mm !important;
+        min-width: 420mm !important;
+        height: 297mm !important;
+        max-height: 297mm !important;
+        overflow: hidden !important;
+        page: fmt-a3-sheet;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+
+    body.rapport-fmt-active .rapport-si-a3-sheet::after {
+        content: "";
+        display: table;
+        clear: both;
+    }
+
+    body.rapport-fmt-active .rapport-si-a3-sheet:not(:last-child) {
+        page-break-after: always !important;
+        break-after: page !important;
+    }
+
+    body.rapport-fmt-active .rapport-si-a3-sheet:last-child {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+
+    body.rapport-fmt-active .rapport-si-a3-sheet:last-child .rapport-si-page:last-child {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+
+    body.rapport-fmt-active .rapport-si-a3-sheet .rapport-si-page.rapport-page {
+        float: left !important;
+        display: block !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        width: 210mm !important;
+        height: 297mm !important;
+        max-height: 297mm !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        overflow: hidden;
+        box-sizing: border-box;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        page-break-before: avoid !important;
+        page-break-after: avoid !important;
+        break-before: avoid !important;
+        break-after: avoid !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    body.rapport-fmt-active .rapport-si-a3-sheet .rapport-si-page .rapport-si-frame {
+        display: flex !important;
+        flex-direction: column !important;
+        height: calc(297mm - var(--rapport-page-margin-vertical)) !important;
+        max-height: calc(297mm - var(--rapport-page-margin-vertical));
+        min-height: 0 !important;
+        overflow: hidden;
+    }
+
+    body.rapport-fmt-active .rapport-si-body-sheet {
+        flex: 1 1 auto;
+        min-height: 0;
+        border: 0.25mm solid var(--rapport-border) !important;
+    }
+
+    .rapport-si-page .rapport-header {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    .rapport-si-page .rapport-section > h2 {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    #rapport-si-printable-2 .rapport-si-map {
+        min-height: 90mm;
+    }
+
+    #rapport-si-printable-2 .rapport-si-map img {
+        max-height: 130mm;
+    }
+
+    .rapport-si-consignes-box,
+    .rapport-si-field-alert,
+    .rapport-si-notes-area {
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}

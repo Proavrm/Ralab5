@@ -1,6 +1,9 @@
 """
 app/services/affaire_folder_naming.py
-Format: Reference - Affaire NGE/Etude/Autre - Site - Client_Chantier
+Format: Reference - Affaire NGE/Etude/Autre - Site - Acteur_Chantier
+
+Acteur = Client (prioritaire) sinon Maître d'ouvrage.
+Titulaire / filiale / maître d'œuvre n'entrent pas dans le nom de dossier.
 """
 from __future__ import annotations
 
@@ -38,6 +41,7 @@ def build_affaire_folder_name(
     chantier: str,
     client: str,
     site: str,
+    maitre_ouvrage: str = "",
 ) -> str:
     parts: list[str] = []
     if ref := clean_piece(reference):
@@ -49,10 +53,19 @@ def build_affaire_folder_name(
     if site_piece := clean_piece(site):
         parts.append(site_piece)
 
-    if client_chantier_piece := _build_client_chantier_piece(client, chantier):
-        parts.append(client_chantier_piece)
+    acteur = _resolve_folder_acteur(client, maitre_ouvrage)
+    if acteur_piece := _build_client_chantier_piece(acteur, chantier):
+        parts.append(acteur_piece)
 
     return sanitize_folder_name(" - ".join(parts))
+
+
+def _resolve_folder_acteur(client: str, maitre_ouvrage: str) -> str:
+    """Client en priorité ; MOA si client absent ou générique."""
+    client_value = clean_piece(client)
+    if client_value:
+        return client_value
+    return clean_piece(maitre_ouvrage)
 
 
 def build_affaire_folder_name_from_record(record: AffaireRstRecord) -> str:
@@ -64,6 +77,7 @@ def build_affaire_folder_name_from_record(record: AffaireRstRecord) -> str:
         chantier=record.chantier,
         client=record.client,
         site=record.site,
+        maitre_ouvrage=record.maitre_ouvrage,
     )
 
 

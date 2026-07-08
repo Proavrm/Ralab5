@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RaLab — Mockup Laboratoires RST v1</title>
+  <style>
+    :root {
+      --bg: #f5f7fa; --surface: #fff; --text: #1f2630; --muted: #6f7681;
+      --border: #d8dde6; --accent: #003275; --green-bg: #eaf3de; --green: #3b6d11;
+      --amber-bg: #fbf1e2; --amber: #854f0b; --blue-bg: #eeeffe; --blue: #1e3a8a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, "Segoe UI", Arial, sans-serif; font-size: 13px; background: var(--bg); color: var(--text); }
+    .hero { background: var(--accent); color: #fff; padding: 20px 24px; }
+    .hero h1 { margin: 8px 0 0; font-size: 20px; }
+    .hero p { margin: 8px 0 0; max-width: 720px; line-height: 1.5; color: #bfdbfe; font-size: 13px; }
+    .tag { display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #93c5fd; }
+    .tabs { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; }
+    .tab { border: 0; background: none; padding: 14px 16px; font-size: 13px; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .panel { display: none; padding: 24px; }
+    .panel.active { display: block; }
+    .grid-2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+    @media (max-width: 960px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .card-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: var(--bg); color: var(--muted); font-size: 11px; font-weight: 600; }
+    tr.selected { background: var(--blue-bg); }
+    tr:hover { background: var(--bg); cursor: pointer; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .badge-green { background: var(--green-bg); color: var(--green); }
+    .badge-amber { background: var(--amber-bg); color: var(--amber); }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px; }
+    .stat { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--bg); }
+    .stat-label { font-size: 10px; text-transform: uppercase; color: var(--muted); }
+    .stat-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+    .note { border-radius: 10px; padding: 12px 16px; font-size: 12px; line-height: 1.5; margin-bottom: 16px; }
+    .note-blue { background: var(--blue-bg); border: 1px solid #c7d2fe; color: var(--blue); }
+    .note-amber { background: var(--amber-bg); border: 1px solid #ecd1a2; color: var(--amber); }
+    pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 11px; overflow: auto; }
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+    @media (max-width: 800px) { .kpi-row { grid-template-columns: 1fr 1fr; } }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 800px) { .split { grid-template-columns: 1fr; } }
+    .list-item { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+    .mono { font-family: ui-monospace, monospace; color: var(--accent); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <span class="tag">Mockup v1 · 2026-06-18</span>
+    <h1>Laboratoires RST — Administration &amp; périmètre dashboard</h1>
+    <p>Référentiel central, personnel = utilisateurs (service_code), équipements (labo_code), dashboard filtré + demandes partagées.</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="admin">Administration</button>
+    <button class="tab" data-tab="dashboard">Dashboard labo</button>
+    <button class="tab" data-tab="scope">Périmètre &amp; données</button>
+  </nav>
+
+  <section id="admin" class="panel active">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><strong>Administration → Laboratoires</strong> (implémenté)</div>
+        <table>
+          <thead><tr><th>Code</th><th>Nom</th><th>Équipe</th><th>Équip.</th><th>Statut</th></tr></thead>
+          <tbody>
+            <tr class="selected" onclick="selectLab('SP')"><td><strong>SP</strong></td><td>Saint-Priest</td><td>12 actifs</td><td>84</td><td><span class="badge badge-green">Actif</span></td></tr>
+            <tr onclick="selectLab('PDC')"><td><strong>PDC</strong></td><td>Pont-du-Château</td><td>9 actifs</td><td>62</td><td><span class="badge badge-green">Actif</span></td></tr>
+            <tr onclick="selectLab('CHB')"><td><strong>CHB</strong></td><td>Chambéry</td><td>6 actifs</td><td>41</td><td><span class="badge badge-green">Actif</span></td></tr>
+            <tr onclick="selectLab('CLM')"><td><strong>CLM</strong></td><td>Clermont-Ferrand</td><td>4 actifs</td><td>18</td><td><span class="badge badge-green">Actif</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-head">Fiche laboratoire <strong id="lab-title">SP</strong> · modal XL</div>
+        <div class="stats">
+          <div class="stat"><div class="stat-label">Équipe</div><div class="stat-value">12</div></div>
+          <div class="stat"><div class="stat-label">Équip.</div><div class="stat-value">84</div></div>
+          <div class="stat"><div class="stat-label">GPS</div><div class="stat-value">OK</div></div>
+        </div>
+        <div style="padding:0 16px 16px">
+          <p><strong>Responsable :</strong> Sylvain LHOPITAL</p>
+          <p style="color:var(--muted);font-size:12px">Personnel = utilisateurs avec service_code = SP (pas de table séparée)</p>
+          <table style="margin-top:12px">
+            <thead><tr><th>Nom</th><th>Rôle</th><th>Statut</th></tr></thead>
+            <tbody>
+              <tr><td>Sylvain LHOPITAL</td><td>lab_manager</td><td><span class="badge badge-green">Actif</span></td></tr>
+              <tr><td>Marco Costa Pereira</td><td>technician</td><td><span class="badge badge-green">Actif</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="dashboard" class="panel">
+    <div class="note note-amber"><strong>Vision cible</strong> — route <code>/dashboard/labos/:slug</code> existe ; à connecter au code labo BD + service_code session. <span class="badge badge-amber">À brancher</span></div>
+    <h2 style="margin:0">Laboratoire SP — Saint-Priest</h2>
+    <div class="kpi-row">
+      <div class="stat"><div class="stat-label">Essais en cours</div><div class="stat-value">14</div></div>
+      <div class="stat"><div class="stat-label">Échantillons reçus</div><div class="stat-value">6</div></div>
+      <div class="stat"><div class="stat-label">Planning semaine</div><div class="stat-value">9</div></div>
+      <div class="stat"><div class="stat-label">Équip. HS</div><div class="stat-value">4</div></div>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-head">Demandes du labo SP</div>
+        <div class="list-item"><div><div class="mono">2026-RA-DEM0042</div><div style="color:var(--muted)">Eiffage GC · éch. 22/06</div></div><span class="badge badge-amber">En cours</span></div>
+        <div class="list-item"><div><div class="mono">2026-RA-DEM0038</div><div style="color:var(--muted)">Colas · éch. 25/06</div></div><span class="badge badge-green">A planifier</span></div>
+      </div>
+      <div class="card">
+        <div class="card-head">Partagé / routé vers SP</div>
+        <div class="list-item"><div><div class="mono">2026-RA-DEM0051</div><div style="color:var(--muted)">NGE essai · PDC → SP</div></div><span class="badge badge-green">Demande essais</span></div>
+        <div class="card-head" style="border-top:1px solid var(--border)">Visible même si dossier d'origine ailleurs</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="scope" class="panel">
+    <div class="note note-blue">Une seule liste de personnes : <strong>utilisateurs</strong>. Le laboratoire est le pivot organisationnel.</div>
+    <pre>users.service_code  ──►  laboratoires.code
+laboratoires.responsable_email  ──►  users.email
+qualite_equipment.labo_code  ──►  laboratoires.code</pre>
+    <div class="split" style="margin-top:16px">
+      <div class="card" style="padding:16px;border-color:#d4e4c1;background:#eef5e6">
+        <strong style="color:var(--green)">✓ Implémenté</strong>
+        <ul style="margin:8px 0 0;padding-left:18px;color:var(--green);font-size:12px;line-height:1.6">
+          <li>Fiche labo admin + personnel read-only</li>
+          <li>API GET/PUT /admin/labs</li>
+          <li>qualite_equipment.labo_code</li>
+          <li>userMatchesLab (front + back)</li>
+        </ul>
+      </div>
+      <div class="card" style="padding:16px;border-color:#ecd1a2;background:var(--amber-bg)">
+        <strong style="color:var(--amber)">○ Prochaine étape</strong>
+        <ul style="margin:8px 0 0;padding-left:18px;color:var(--amber);font-size:12px;line-height:1.6">
+          <li>Dashboard filtré par session</li>
+          <li>Règles demandes partagées en API</li>
+          <li>CRUD 15+ labos</li>
+          <li>Backfill labo_code équipements</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:16px;font-size:12px;color:var(--muted)">Doc complet : <code>docs/MOCKUP_LABORATOIRES_ADMIN_20260618.md</code> · App : <code>/mockups/laboratoires-admin</code></p>
+  </section>
+
+  <script>
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach((p) => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+    function selectLab(code) {
+      document.getElementById('lab-title').textContent = code;
+      document.querySelectorAll('#admin tbody tr').forEach((tr) => tr.classList.remove('selected'));
+      event.currentTarget.classList.add('selected');
+    }
+  </script>
+</body>
+</html>

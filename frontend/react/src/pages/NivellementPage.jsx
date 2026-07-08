@@ -96,6 +96,8 @@ export default function NivellementPage() {
     const isNew = String(uid || '').trim().toLowerCase() === 'new'
     const draftPrefill = useMemo(() => buildDraftPrefill(searchParams), [searchParams])
     const [editing, setEditing] = useState(isNew)
+    const [zEditing, setZEditing] = useState(false)
+    const [zDrafts, setZDrafts] = useState({})
     const [form, setForm] = useState(() => buildForm(null, draftPrefill))
     const childReturnTo = buildLocationTarget(location)
     const parentInterventionId = Number.parseInt(String(isNew ? form.intervention_id : ''), 10)
@@ -115,6 +117,13 @@ export default function NivellementPage() {
         }
         if (data) {
             setForm(buildForm(data))
+            const drafts = {}
+            for (const point of data.terrain_points || []) {
+                if (point?.uid != null) {
+                    drafts[point.uid] = point.z ?? ''
+                }
+            }
+            setZDrafts(drafts)
         }
     }, [isNew, draftPrefill, data])
 
@@ -131,16 +140,92 @@ export default function NivellementPage() {
         },
     })
 
+    const saveZMutation = useMutation({
+        mutationFn: async (updates) => {
+            const results = []
+            for (const item of updates) {
+                const saved = await nivellementsApi.updateTerrainPoint(uid, item.pointUid, { z: item.z })
+                results.push(saved)
+            }
+            return results
+        },
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: ['nivellement', uid] })
+            await queryClient.invalidateQueries({ queryKey: ['nivellements', 'intervention'] })
+            setZEditing(false)
+        },
+    })
+
+    const deleteMutation = useMutation({
+        mutationFn: () => nivellementsApi.delete(uid),
+        onSuccess: () => {
+            navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)
+        },
+    })
+
+    const terrainPoints = useMemo(
+        () => (Array.isArray(data?.terrain_points) ? data.terrain_points : []),
+        [data?.terrain_points],
+    )
+    const usesTerrainPoints = terrainPoints.length > 0
+
     const averageAltitude = useMemo(() => {
-        const values = Array.isArray(data?.points) ? data.points.map((item) => item.altitude_terrain).filter((value) => value != null) : []
+        const values = usesTerrainPoints
+            ? terrainPoints.map((item) => item.z).filter((value) => value != null && value !== '')
+            : (Array.isArray(data?.points) ? data.points.map((item) => item.altitude_terrain).filter((value) => value != null) : [])
         if (!values.length) return null
         return values.reduce((sum, value) => sum + Number(value), 0) / values.length
-    }, [data?.points])
+    }, [usesTerrainPoints, terrainPoints, data?.points])
 
-    const saveError = saveMutation.error?.message || ''
+    const saveError = saveMutation.error?.message || saveZMutation.error?.message || deleteMutation.error?.message || ''
 
     function setField(key, value) {
         setForm((current) => ({ ...current, [key]: value }))
+    }
+
+    function formatCoord(value) {
+        if (value == null || value === '') return '—'
+        const numeric = Number(value)
+        if (!Number.isFinite(numeric)) return '—'
+        return numeric.toLocaleString('fr-FR', { maximumFractionDigits: 3 })
+    }
+
+    function setZDraft(pointUid, value) {
+        setZDrafts((current) => ({ ...current, [pointUid]: value }))
+    }
+
+    function handleCancelZEditing() {
+        const drafts = {}
+        for (const point of terrainPoints) {
+            if (point?.uid != null) {
+                drafts[point.uid] = point.z ?? ''
+            }
+        }
+        setZDrafts(drafts)
+        setZEditing(false)
+    }
+
+    function handleSaveZ() {
+        const updates = terrainPoints
+            .map((point) => {
+                const raw = zDrafts[point.uid]
+                let nextZ = null
+                if (raw !== '' && raw != null) {
+                    const numeric = Number(String(raw).replace(',', '.'))
+                    if (!Number.isFinite(numeric)) return null
+                    nextZ = numeric
+                }
+                const prevZ = point.z == null || point.z === '' ? null : Number(point.z)
+                if (prevZ === nextZ) return null
+                if (prevZ != null && nextZ != null && Math.abs(prevZ - nextZ) < 1e-9) return null
+                return { pointUid: point.uid, z: nextZ }
+            })
+            .filter(Boolean)
+        if (!updates.length) {
+            setZEditing(false)
+            return
+        }
+        saveZMutation.mutate(updates)
     }
 
     function handleSave() {
@@ -165,6 +250,14 @@ export default function NivellementPage() {
         }
         setForm(buildForm(data))
         setEditing(false)
+    }
+
+    function handleDelete() {
+        const label = data?.reference || `NI #${uid}`
+        if (!window.confirm(
+            `Supprimer le nivellement ${label} ?\n\nLa fiche NI sera supprimée. Les altitudes Z sur les points terrain restent inchangées.`,
+        )) return
+        deleteMutation.mutate()
     }
 
     if (!isNew && isLoading) {
@@ -214,7 +307,12 @@ export default function NivellementPage() {
                             <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending || !form.demande_id}>{saveMutation.isPending ? '…' : 'Enregistrer'}</Button>
                         </>
                     ) : (
-                        <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
+                        <>
+                            <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
+                            <Button variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
+                                {deleteMutation.isPending ? '…' : 'Supprimer'}
+                            </Button>
+                        </>
                     )}
                 </div>
             </div>
@@ -272,7 +370,7 @@ export default function NivellementPage() {
                 </Card>
                 <Card title="Synthèse">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Row label="Points nivelés" value={Array.isArray(current?.points) ? String(current.points.length) : ''} />
+                        <Row label="Points nivelés" value={usesTerrainPoints ? String(terrainPoints.length) : (Array.isArray(current?.points) ? String(current.points.length) : '')} />
                         <Row label="Altitude moyenne" value={averageAltitude != null ? `${averageAltitude.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} m` : ''} />
                         <Row label="Intervention source" value={current?.intervention_subject || current?.type_intervention} />
                     </div>
@@ -280,8 +378,64 @@ export default function NivellementPage() {
                 </Card>
             </div>
 
-            <Card title="Points nivelés">
-                {Array.isArray(current?.points) && current.points.length > 0 ? (
+            <Card title={usesTerrainPoints ? 'Points terrain (PI / NI)' : 'Points nivelés'}>
+                {usesTerrainPoints ? (
+                    <>
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-[12px] text-text-muted leading-5">
+                                Mêmes points que le plan d&apos;implantation : X/Y en lecture seule, Z saisi ici sans duplication.
+                            </p>
+                            {!isNew ? (
+                                zEditing ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button size="sm" variant="secondary" onClick={handleCancelZEditing}>Annuler</Button>
+                                        <Button size="sm" variant="primary" onClick={handleSaveZ} disabled={saveZMutation.isPending}>
+                                            {saveZMutation.isPending ? '…' : 'Enregistrer les Z'}
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Button size="sm" variant="primary" onClick={() => setZEditing(true)}>Saisir / modifier les Z</Button>
+                                )
+                            ) : null}
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full border-collapse text-sm">
+                                <thead>
+                                    <tr className="bg-bg border-b border-border">
+                                        <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Point</th>
+                                        <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Type</th>
+                                        <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">X</th>
+                                        <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Y</th>
+                                        <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Z (m)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {terrainPoints.map((point) => (
+                                        <tr key={point.uid} className="border-b border-border">
+                                            <td className="px-2 py-1.5 text-[12px] font-semibold text-text">{point.point_code || '—'}</td>
+                                            <td className="px-2 py-1.5 text-[12px] text-text-muted">{point.point_type || '—'}</td>
+                                            <td className="px-2 py-1.5 text-[12px] text-right text-text-muted">{formatCoord(point.x ?? point.plan_canvas_x)}</td>
+                                            <td className="px-2 py-1.5 text-[12px] text-right text-text-muted">{formatCoord(point.y ?? point.plan_canvas_y)}</td>
+                                            <td className="px-2 py-1.5 text-[12px] text-right">
+                                                {zEditing ? (
+                                                    <Input
+                                                        type="number"
+                                                        step="0.001"
+                                                        value={zDrafts[point.uid] ?? ''}
+                                                        onChange={(event) => setZDraft(point.uid, event.target.value)}
+                                                        className="ml-auto max-w-[120px] text-right"
+                                                    />
+                                                ) : (
+                                                    <span className="font-medium text-text">{formatCoord(point.z)}</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : Array.isArray(current?.points) && current.points.length > 0 ? (
                     <div className="overflow-x-auto">
                         <table className="w-full border-collapse text-sm">
                             <thead>
@@ -309,7 +463,11 @@ export default function NivellementPage() {
                         </table>
                     </div>
                 ) : (
-                    <div className="text-[13px] text-text-muted">{isNew ? 'Enregistre d’abord ce nivellement pour ajouter ensuite des points.' : 'Aucun point détaillé dans ce nivellement.'}</div>
+                    <div className="text-[13px] text-text-muted">
+                        {isNew
+                            ? 'Enregistre d’abord ce nivellement, puis les points implantés dans le PI apparaîtront ici pour saisie du Z.'
+                            : 'Aucun point terrain lié à l’intervention. Implantez des points dans le canevas PI.'}
+                    </div>
                 )}
             </Card>
 

@@ -1,4 +1,5 @@
 import { hasAllPermissions, hasAnyPermission, hasRole } from '@/lib/permissions'
+import { getRegionalRstShortLabel, isRegionalRstUser } from '@/lib/userOrgScope'
 
 export const DASHBOARD_WIDGETS = [
   {
@@ -93,6 +94,8 @@ export function getDefaultDashboardWidgetIds(user) {
 }
 
 export function getDashboardPresetLabel(user) {
+  if (isRegionalRstUser(user)) return getRegionalRstShortLabel()
+
   const roleCode = String(user?.role_code || user?.role || '').trim().toLowerCase()
 
   return {

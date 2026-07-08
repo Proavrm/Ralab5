@@ -79,7 +79,9 @@ def import_catalog(workbook_path: Path, sheet_name: str, deactivate_missing: boo
     if deactivate_missing:
         deactivated_rows = repository.deactivate_missing_catalog_entries(imported_source_keys)
 
-    return imported_rows, deactivated_rows, skipped_rows
+    rst_stats = repository.apply_rst_codes(include_inactive=False)
+
+    return imported_rows, deactivated_rows, skipped_rows, rst_stats
 
 
 def main() -> None:
@@ -97,13 +99,14 @@ def main() -> None:
     if not workbook_path.exists():
         raise FileNotFoundError(f"Workbook not found: {workbook_path}")
 
-    imported_rows, deactivated_rows, skipped_rows = import_catalog(
+    imported_rows, deactivated_rows, skipped_rows, rst_stats = import_catalog(
         workbook_path=workbook_path,
         sheet_name=args.sheet,
         deactivate_missing=args.deactivate_missing,
     )
     print(f"[OK] catalog imported: {imported_rows} row(s)")
     print(f"[OK] catalog deactivated: {deactivated_rows} row(s)")
+    print(f"[OK] rst codes mapped: {rst_stats['mapped']}/{rst_stats['total']} row(s)")
     if skipped_rows:
         print(f"[WARN] skipped malformed rows: {skipped_rows}")
 

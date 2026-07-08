@@ -87,6 +87,7 @@ DEMANDE_FAMILY_CATALOG = [
 class DemandePreparationRecord:
     uid: int
     demande_id: int
+    reference: str
     phase_operation: str
     contexte_operationnel: str
     objectifs: str
@@ -171,6 +172,7 @@ class DemandePreparationUpdateSchema(BaseModel):
 class DemandePreparationResponseSchema(BaseModel):
     uid: int
     demande_id: int
+    reference: str = ""
     phase_operation: str
     contexte_operationnel: str
     objectifs: str

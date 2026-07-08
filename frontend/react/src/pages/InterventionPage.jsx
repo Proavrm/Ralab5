@@ -4,20 +4,38 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import Button from '@/components/ui/Button'
+import SiteAccessRapportButton from '@/components/site/SiteAccessRapportButton'
+import AffaireContactPicker from '@/components/contacts/AffaireContactPicker'
+import InterventionEssaisPrevusPicker from '@/components/interventions/InterventionEssaisPrevusPicker'
 import InterventionTypeModal, { buildInterventionTypeOptions } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
 import { api, demandesApi, echantillonsApi, essaisApi, feuillesTerrainApi, interventionRequalificationApi, interventionsApi } from '@/services/api'
-import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import InterventionPlansPanel from '@/components/plans/InterventionPlansPanel'
+import InterventionNivellementPanel from '@/components/nivellement/InterventionNivellementPanel'
+import { buildLocationTarget, buildPathWithReturnTo, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import {
+    buildGenericTerrainEssaiOpenPath,
     buildTerrainFeuilleOpenPath,
     createTerrainFeuilleForIntervention,
+    findLinkedFeuilleTerrainByCode,
     isFeuilleTerrainEssaiCode,
+    isGenericTerrainEssaiCode,
 } from '@/lib/terrainFeuilleFromIntervention'
 import { buildInterventionPrefillFromCampaignQuery } from '@/lib/campaignStructuredFields'
+import { buildG3NotesTechniquesPath } from '@/lib/modeleNTContent'
+import { isNoteTechniqueIntervention } from '@/lib/noteTechniqueIntervention'
 import { DIRECT_ESSAI_TEMPLATES, DIRECT_ESSAI_TEMPLATE_BY_CODE } from '@/lib/directEssaiTemplates'
+import {
+    isMissionDocumentEssaiCode,
+    missionEssaiFromDocumentEntry,
+    MISSION_DOCUMENT_ESSAI_BY_CODE,
+} from '@/lib/missionDocumentEssaiCodes'
 import { formatDate } from '@/lib/utils'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { buildLaboSelectOptions, resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
 import {
   DEMANDE_STAT_CLS,
   FieldCard,
@@ -38,6 +56,7 @@ const FINALITY_OPTIONS = [
     'Contrôle de matériaux',
     'Suivi d’exécution',
     'Diagnostic d’anomalie',
+    'Diagnostic chaussée initial',
     'Étanchéité',
     'Percolation',
     'Infiltration / perméabilité',
@@ -117,6 +136,8 @@ const INTERVENTION_TYPE_SUGGESTED_FINALITY = {
     'Sondage': 'Identification / classification',
     'Carottage': 'Prélèvement pour laboratoire',
     'Campagne de description géotechnique': 'Identification / classification',
+    'Diagnostic de chaussée': 'Diagnostic chaussée initial',
+    'Note dimensionnement (Variante)': 'Étude de traitement',
     'Contrôle béton frais': 'Contrôle de matériaux',
     'Pose de matériel': 'Réception technique',
     'Relevé de matériel': 'Réception technique',
@@ -129,9 +150,11 @@ const DIRECT_ESSAIS_BY_INTERVENTION_TYPE = {
     'Sondage carotte': ['SC'],
     'Carottage': ['SC', 'SO'],
     'Campagne de description géotechnique': ['SO', 'SC', 'PA'],
+    'Diagnostic de chaussée': ['SC', 'HAP', 'AMI', 'DF', 'FWD', 'PMT', 'ADH', 'ACO'],
+    'Note dimensionnement (Variante)': [],
     'Prélèvement': [],
     'Contrôle béton frais': ['GEN'],
-    'Visite chantier': [],
+    'Visite chantier': ['VC'],
     'Visite de constat': [],
     'Recontrôle': [],
     'Contre-visite': [],
@@ -210,6 +233,7 @@ function guessDirectEssaiCode(source = null) {
     if (typeIntervention.includes('essai d') && typeIntervention.includes('eau')) return 'EAU'
     if (typeIntervention.includes('étanchéité') || finalite.includes('étanchéité') || materiau.includes('réseau')) return 'EE'
     if (typeIntervention.includes('reconnaissance')) return 'SO'
+    if (typeIntervention.includes('visite chantier')) return 'VC'
     return 'GEN'
 }
 
@@ -232,6 +256,10 @@ function normalizeEssaiFollowupItem(source) {
     if (typeof source !== 'object') return null
 
     const rawCode = String(source.code || source.essai_code || '').trim().toUpperCase()
+    const documentEntry = MISSION_DOCUMENT_ESSAI_BY_CODE[rawCode] || null
+    if (documentEntry) {
+        return missionEssaiFromDocumentEntry(documentEntry)
+    }
     const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[rawCode] || null
     const label = String(source.label || source.type_essai || template?.label || rawCode || '').trim()
     const norme = String(source.norme || template?.norme || '').trim()
@@ -270,6 +298,71 @@ function buildEssaiFollowupKey(item) {
     ].join('::')
 }
 
+function normalizeMissionEssaiCode(value) {
+    return String(value || '').trim().toUpperCase()
+}
+
+/** Plan « Essais à réaliser » : incluir codes des feuilles/fiches déjà liées (invariant plan ⊃ matérialisé). */
+function syncMissionPlanFromLinkedMaterial(planItems, feuilles = [], essais = []) {
+    const current = normalizeEssaiFollowupList(planItems)
+    const knownKeys = new Set(current.map(buildEssaiFollowupKey))
+    const next = [...current]
+
+    const appendCode = (code, label = '', norme = '') => {
+        const normalized = normalizeMissionEssaiCode(code)
+        if (!normalized) return
+        const item = normalizeEssaiFollowupItem({ code: normalized, label, norme })
+        if (!item) return
+        const key = buildEssaiFollowupKey(item)
+        if (knownKeys.has(key)) return
+        knownKeys.add(key)
+        next.push(item)
+    }
+
+    feuilles.forEach((feuille) => {
+        const code = feuille?.code_feuille
+        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[normalizeMissionEssaiCode(code)]
+        appendCode(code, template?.label || feuille?.label || code, '')
+    })
+
+    essais.forEach((essai) => {
+        const code = essai?.essai_code || essai?.code_essai || essai?.code
+        appendCode(code, essai?.type_essai || essai?.label || code, essai?.norme || '')
+    })
+
+    return next
+}
+
+function findRemovedMissionEssaiItems(previousItems, nextItems) {
+    const nextKeys = new Set(normalizeEssaiFollowupList(nextItems).map(buildEssaiFollowupKey))
+    return normalizeEssaiFollowupList(previousItems).filter(
+        (item) => !nextKeys.has(buildEssaiFollowupKey(item)),
+    )
+}
+
+function getMissionEssaiRemovalBlockMessage(item, feuilles = [], essais = []) {
+    const code = normalizeMissionEssaiCode(item?.code)
+    if (!code) return null
+
+    const feuille = findLinkedFeuilleTerrainByCode(feuilles, code)
+    if (feuille) {
+        const label = feuille.reference
+            || DIRECT_ESSAI_TEMPLATE_BY_CODE[code]?.label
+            || code
+        return `Impossible de retirer ${code} du plan : la fiche ${label} existe déjà. Retirez-la d'abord dans « Fiches créées ».`
+    }
+
+    const essai = essais.find(
+        (entry) => normalizeMissionEssaiCode(entry?.essai_code || entry?.code_essai || entry?.code) === code,
+    )
+    if (essai) {
+        const label = essai.reference || essai.type_essai || code
+        return `Impossible de retirer ${code} du plan : la fiche essai ${label} existe déjà. Retirez-la d'abord.`
+    }
+
+    return null
+}
+
 function Card({ title, children }) {
     return (
         <SectionCard title={title || 'Section'}>
@@ -281,7 +374,7 @@ function Card({ title, children }) {
 function FG({ label, children, full = false }) {
     return (
         <div className={full ? 'col-span-2 flex flex-col gap-1' : 'flex flex-col gap-1'}>
-            <label className="text-[11px] font-medium text-text-muted">{label}</label>
+            {label ? <label className="text-[11px] font-medium text-text-muted">{label}</label> : null}
             {children}
         </div>
     )
@@ -935,6 +1028,13 @@ function buildObservationsPayload(form, baseObservations = {}) {
         prep_metrologie_ok:          form.prep_metrologie_ok || '',
         prep_consommables_epi:       form.prep_consommables_epi || '',
         prep_contact_chantier:       form.prep_contact_chantier || '',
+        prep_contact_id:             form.prep_contact_id || '',
+        prep_contact_name:           form.prep_contact_name || '',
+        prep_contact_role:           form.prep_contact_role || '',
+        prep_contact_organisation:   form.prep_contact_organisation || '',
+        prep_contact_phone:          form.prep_contact_phone || '',
+        prep_contact_email:          form.prep_contact_email || '',
+        prep_contact_notes:          form.prep_contact_notes || '',
         prep_plan_prevention:        form.prep_plan_prevention || '',
         prep_contraintes_acces:      form.prep_contraintes_acces || '',
         prep_preparation_complete:   form.prep_preparation_complete || '',
@@ -943,6 +1043,7 @@ function buildObservationsPayload(form, baseObservations = {}) {
         suite_nb_essais_prevus:      form.suite_nb_essais_prevus || '',
         suite_essais_prevus:         [],
         suite_essais_realises:       normalizeEssaiFollowupList(form.suite_essais_realises),
+        mission_essais_prevus:       normalizeEssaiFollowupList(form.mission_essais_prevus),
         // Conditions
         cond_meteo:            form.cond_meteo || '',
         cond_etat_site:        form.cond_etat_site || '',
@@ -978,6 +1079,7 @@ function buildObservationsPayload(form, baseObservations = {}) {
 
 function mergeFormFromIntervention(data) {
     const observations = parseObservations(data?.observations || '')
+    const missionEssaisPrevus = normalizeEssaiFollowupList(observations.mission_essais_prevus)
     return {
         demande_id: String(data?.demande_id || ''),
         type_intervention: data?.type_intervention || '',
@@ -1001,6 +1103,13 @@ function mergeFormFromIntervention(data) {
         prep_metrologie_ok:          observations.prep_metrologie_ok || '',
         prep_consommables_epi:       observations.prep_consommables_epi || '',
         prep_contact_chantier:       observations.prep_contact_chantier || '',
+        prep_contact_id:             observations.prep_contact_id || '',
+        prep_contact_name:           observations.prep_contact_name || '',
+        prep_contact_role:           observations.prep_contact_role || '',
+        prep_contact_organisation:   observations.prep_contact_organisation || '',
+        prep_contact_phone:          observations.prep_contact_phone || '',
+        prep_contact_email:          observations.prep_contact_email || '',
+        prep_contact_notes:          observations.prep_contact_notes || '',
         prep_plan_prevention:        observations.prep_plan_prevention || '',
         prep_contraintes_acces:      observations.prep_contraintes_acces || '',
         prep_preparation_complete:   observations.prep_preparation_complete || '',
@@ -1008,11 +1117,14 @@ function mergeFormFromIntervention(data) {
         prep_point_bloquant_desc:    observations.prep_point_bloquant_desc || '',
         suite_nb_essais_prevus:      String(
             observations.suite_nb_essais_prevus
-            ?? normalizeEssaiFollowupList(observations.suite_essais_prevus, observations.prep_essais_a_effectuer).length
+            ?? missionEssaisPrevus.length
             ?? ''
         ),
         suite_essais_prevus:         [],
         suite_essais_realises:       normalizeEssaiFollowupList(observations.suite_essais_realises),
+        mission_essais_prevus:       missionEssaisPrevus,
+        mission_assignee:            observations.mission_assignee || observations.attribue_a || '',
+        mission_date_prevue:         observations.mission_date_prevue || '',
         // Conditions
         cond_meteo:           observations.cond_meteo || '',
         cond_etat_site:       observations.cond_etat_site || '',
@@ -1064,14 +1176,19 @@ function prefillFromQuery(searchParams) {
         responsable_referent: campaignPrefill.responsable_referent || searchParams.get('responsable') || '',
         attribue_a: campaignPrefill.attribue_a || searchParams.get('attribue_a') || '',
         prep_points_a_realiser: campaignPrefill.prep_points_a_realiser || '',
-        prep_essais_a_effectuer: campaignPrefill.prep_essais_a_effectuer || '',
+        prep_essais_a_effectuer: '',
         prep_prelevements_prevus: '',
         prep_materiels_requis: '', prep_metrologie_ok: '', prep_consommables_epi: '',
-        prep_contact_chantier: '', prep_plan_prevention: '', prep_contraintes_acces: '',
+        prep_contact_chantier: '', prep_contact_id: '', prep_contact_name: '', prep_contact_role: '',
+        prep_contact_organisation: '', prep_contact_phone: '', prep_contact_email: '', prep_contact_notes: '',
+        prep_plan_prevention: '', prep_contraintes_acces: '',
         prep_preparation_complete: '', prep_point_bloquant: '', prep_point_bloquant_desc: '',
         suite_nb_essais_prevus: '',
         suite_essais_prevus: [],
         suite_essais_realises: [],
+        mission_essais_prevus: [],
+        mission_assignee: '',
+        mission_date_prevue: '',
         campaign_zone_type: campaignPrefill.campaign_zone_type || '',
         campaign_comparison_group: campaignPrefill.campaign_comparison_group || '',
         campaign_pk_debut: campaignPrefill.campaign_pk_debut || '',
@@ -1121,9 +1238,11 @@ function extractIsoDate(value) {
     return match ? match[1] : ''
 }
 
+
 export default function InterventionPage() {
     const navigate = useNavigate()
     const location = useLocation()
+    const queryClient = useQueryClient()
     const { uid } = useParams()
     const [searchParams] = useSearchParams()
 
@@ -1152,6 +1271,13 @@ export default function InterventionPage() {
         prep_metrologie_ok: '',
         prep_consommables_epi: '',
         prep_contact_chantier: '',
+        prep_contact_id: '',
+        prep_contact_name: '',
+        prep_contact_role: '',
+        prep_contact_organisation: '',
+        prep_contact_phone: '',
+        prep_contact_email: '',
+        prep_contact_notes: '',
         prep_plan_prevention: '',
         prep_contraintes_acces: '',
         prep_preparation_complete: '',
@@ -1160,6 +1286,7 @@ export default function InterventionPage() {
         suite_nb_essais_prevus: '',
         suite_essais_prevus: [],
         suite_essais_realises: [],
+        mission_essais_prevus: [],
         // Conditions réelles (terrain)
         cond_meteo: '',
         cond_etat_site: '',
@@ -1185,6 +1312,7 @@ export default function InterventionPage() {
     const [loading, setLoading] = useState(!isCreate)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
+    const [missionPlanError, setMissionPlanError] = useState('')
     const [success, setSuccess] = useState('')
     const [demandeInfo, setDemandeInfo] = useState(null)
     const [interventionInfo, setInterventionInfo] = useState(null)
@@ -1207,6 +1335,8 @@ export default function InterventionPage() {
     const [creatingDirectFeuille, setCreatingDirectFeuille] = useState(false)
     const [removingFeuilleUid, setRemovingFeuilleUid] = useState(null)
     const [typePickerOpen, setTypePickerOpen] = useState(false)
+
+    const { catalog } = useLaboratoireCatalog()
 
     const demandeId = form.demande_id || ''
     const campaignInfo = useMemo(() => ({
@@ -1244,7 +1374,8 @@ export default function InterventionPage() {
     const typeOptions = useMemo(() => buildInterventionTypeOptions(form.type_intervention), [form.type_intervention])
     const missionWindow = useMemo(() => {
         const hours = [form.heure_debut, form.heure_fin].filter(Boolean).join(' - ')
-        return [form.date_intervention, hours].filter(Boolean).join(' · ')
+        const dateLabel = form.date_intervention ? formatDate(form.date_intervention) : ''
+        return [dateLabel, hours].filter(Boolean).join(' · ')
     }, [form.date_intervention, form.heure_debut, form.heure_fin])
     const interventionSourceLabel = useMemo(() => {
         if (campaignInfo.source === 'preparation') return 'Issue de la préparation de la demande'
@@ -1254,11 +1385,12 @@ export default function InterventionPage() {
     const demandeContextItems = useMemo(() => {
         return [
             { label: 'Demande', value: demandeInfo?.reference || demandeId || '' },
+            { label: 'Laboratoire', value: resolveLaboDisplayName(demandeInfo?.labo_code, catalog) || demandeInfo?.labo_code || '' },
             { label: 'Affaire', value: demandeInfo?.affaire_ref || demandeInfo?.affaire_reference || '' },
             { label: 'Client', value: demandeInfo?.client || '' },
             { label: 'Chantier / site', value: [demandeInfo?.chantier, demandeInfo?.site].filter(Boolean).join(' · ') },
         ].filter((item) => hasHistoricalValue(item.value))
-    }, [demandeInfo, demandeId])
+    }, [demandeInfo, demandeId, catalog])
     const campaignContextItems = useMemo(() => {
         return [
             { label: 'Source', value: interventionSourceLabel },
@@ -1287,7 +1419,7 @@ export default function InterventionPage() {
                 done: Boolean(form.type_intervention),
             },
             {
-                label: 'But de la mission',
+                label: 'But de l’intervention',
                 detail: form.objectif_intervention || form.finalite_intervention || 'Préciser la finalité ou l\'objectif concret',
                 done: Boolean(form.objectif_intervention || form.finalite_intervention),
             },
@@ -1307,12 +1439,17 @@ export default function InterventionPage() {
                 done: Boolean(form.technicien || form.responsable_referent || form.attribue_a),
             },
             {
+                label: 'Contact chantier / accès',
+                detail: form.prep_contact_chantier || 'Nom, téléphone et horaires du contact sur site',
+                done: Boolean(form.prep_contact_chantier),
+            },
+            {
                 label: 'Programme terrain',
                 detail: [
                     form.prep_points_a_realiser,
-                    form.prep_essais_a_effectuer,
-                ].filter(Boolean).join(' · ') || 'Lister points, essais ou prélèvements prévus',
-                done: Boolean(form.prep_points_a_realiser || form.prep_essais_a_effectuer),
+                    normalizeEssaiFollowupList(form.mission_essais_prevus).map((item) => item.code || item.label).filter(Boolean).join(', '),
+                ].filter(Boolean).join(' · ') || 'Choisir les essais à réaliser',
+                done: Boolean(form.prep_points_a_realiser || normalizeEssaiFollowupList(form.mission_essais_prevus).length),
             },
             {
                 label: 'Accès / blocages',
@@ -1351,6 +1488,21 @@ export default function InterventionPage() {
                 setError('')
                 const data = await interventionsApi.get(uid)
                 if (!active) return
+                if (isNoteTechniqueIntervention(data)) {
+                    const noteReturnTo = resolveReturnTo(
+                        searchParams,
+                        data.demande_id ? `/demandes/${data.demande_id}` : '/g3/notes-techniques',
+                    )
+                    navigate(buildPathWithReturnTo(
+                        buildG3NotesTechniquesPath({
+                            demandeUid: data.demande_id,
+                            interventionUid: data.uid,
+                            returnTo: noteReturnTo,
+                        }),
+                        noteReturnTo,
+                    ), { replace: true })
+                    return
+                }
                 const mergedForm = mergeFormFromIntervention(data)
                 setInterventionInfo(data)
                 setForm(mergedForm)
@@ -1555,6 +1707,24 @@ export default function InterventionPage() {
         loadLinkedObjects()
         return () => { active = false }
     }, [isCreate, uid, showHistoricalImportedResult])
+
+    useEffect(() => {
+        if (isCreate || !uid) return
+        setForm((prev) => {
+            const synced = syncMissionPlanFromLinkedMaterial(
+                prev.mission_essais_prevus,
+                linkedFeuillesTerrain,
+                linkedEssais,
+            )
+            const current = normalizeEssaiFollowupList(prev.mission_essais_prevus)
+            if (synced.length === current.length) return prev
+            return {
+                ...prev,
+                mission_essais_prevus: synced,
+                suite_nb_essais_prevus: String(synced.length || ''),
+            }
+        })
+    }, [isCreate, uid, linkedFeuillesTerrain, linkedEssais])
     const importedResultMeta = useMemo(() => {
         const sourceSheet = historicalObservations?.sheet_name
             || (Array.isArray(historicalPayload?.source_sheets) ? historicalPayload.source_sheets[0] : '')
@@ -1562,7 +1732,12 @@ export default function InterventionPage() {
 
         return [
             { label: 'Sujet terrain', value: interventionInfo?.sujet || '' },
-            { label: 'Date / feuille', value: [form.date_intervention || interventionInfo?.date_intervention || '', sourceSheet].filter(Boolean).join(' · ') },
+            { label: 'Date / feuille', value: [
+                form.date_intervention || interventionInfo?.date_intervention
+                    ? formatDate(form.date_intervention || interventionInfo?.date_intervention)
+                    : '',
+                sourceSheet,
+            ].filter(Boolean).join(' · ') },
             { label: 'Section contrôlée', value: historicalPayload?.section_controlee || '' },
             { label: 'Couche', value: historicalPayload?.couche || '' },
             { label: 'Nature matériau', value: historicalPayload?.nature_materiau || historicalPayload?.nature_produit || '' },
@@ -1573,7 +1748,7 @@ export default function InterventionPage() {
         return [
             { label: 'Type d’intervention', value: form.type_intervention },
             { label: 'Finalité', value: form.finalite_intervention },
-            { label: 'Date d’intervention', value: form.date_intervention },
+            { label: 'Date d’intervention', value: form.date_intervention ? formatDate(form.date_intervention) : '' },
             { label: 'Technicien / opérateur', value: form.technicien },
             { label: 'Zone / localisation', value: form.zone_intervention },
             { label: 'Matériau / objet concerné', value: form.nature_materiau },
@@ -1601,11 +1776,20 @@ export default function InterventionPage() {
         ].filter((item) => hasHistoricalValue(item.value))
     }, [form, missionWindow])
     const allowedDirectEssaiTemplates = useMemo(
-        () => getDirectEssaiTemplatesForIntervention({
-            type_intervention: form.type_intervention,
-            historicalCode,
-            historicalLabel: historicalObservations?.essai_label || interventionInfo?.essai_label || interventionInfo?.type_intervention || '',
-        }),
+        () => {
+            const source = {
+                type_intervention: form.type_intervention,
+                historicalCode,
+                historicalLabel: historicalObservations?.essai_label || interventionInfo?.essai_label || interventionInfo?.type_intervention || '',
+            }
+            const all = getDirectEssaiTemplatesForIntervention(source)
+            const inferred = inferDirectEssaiCodes(source)
+            if (Array.isArray(inferred) && inferred.length) {
+                const filtered = all.filter((template) => inferred.includes(template.code))
+                if (filtered.length) return filtered
+            }
+            return all
+        },
         [form.type_intervention, historicalCode, historicalObservations, interventionInfo]
     )
     const directEssaiSelectOptions = useMemo(
@@ -1629,6 +1813,15 @@ export default function InterventionPage() {
         () => directEssaiOptionMap[quickEssaiForm.option_value] || directEssaiSelectOptions[0] || null,
         [directEssaiOptionMap, directEssaiSelectOptions, quickEssaiForm.option_value]
     )
+    const missionEssaisPrevus = useMemo(
+        () => normalizeEssaiFollowupList(form.mission_essais_prevus),
+        [form.mission_essais_prevus],
+    )
+    const laboSelectOptions = useMemo(
+        () => buildLaboSelectOptions(catalog, [demandeInfo?.labo_code, form.sortie_destination_labo].filter(Boolean)),
+        [catalog, demandeInfo?.labo_code, form.sortie_destination_labo],
+    )
+    const contextLaboLabel = resolveLaboDisplayName(demandeInfo?.labo_code, catalog) || demandeInfo?.labo_code || ''
     const canCreateDirectEssai = !isCreate && Boolean(uid)
     const contextDemandeLabel = demandeInfo?.reference || (demandeId ? `#${demandeId}` : '')
     const contextCampaignLabel = campaignInfo.reference || campaignInfo.code || campaignInfo.label || campaignInfo.designation || ''
@@ -1640,6 +1833,8 @@ export default function InterventionPage() {
     const hasParentAffaire = Number.isInteger(parentAffaireId) && parentAffaireId > 0
     const parentCampaignId = Number.parseInt(String(campaignInfo?.uid || interventionInfo?.campaign_id || ''), 10)
     const hasParentCampaign = Number.isInteger(parentCampaignId) && parentCampaignId > 0
+    const interventionUid = Number.parseInt(String(!isCreate ? uid : ''), 10)
+    const hasSavedIntervention = Number.isInteger(interventionUid) && interventionUid > 0
     const parentDemandePath = hasParentDemande
         ? (() => {
             const params = new URLSearchParams()
@@ -1697,7 +1892,7 @@ export default function InterventionPage() {
     async function persistInlineForm(nextForm, successMessage = 'Intervention mise à jour.') {
         if (isCreate || !uid) {
             setForm(nextForm)
-            return
+            return true
         }
 
         try {
@@ -1709,9 +1904,11 @@ export default function InterventionPage() {
             setInterventionInfo(saved)
             setForm(mergedSaved)
             setOriginalObservations(parseObservations(saved?.observations || ''))
-            setSuccess(successMessage)
+            if (successMessage) setSuccess(successMessage)
+            return true
         } catch (err) {
             setError(err.message || "Impossible d'enregistrer l'intervention.")
+            return false
         } finally {
             setSaving(false)
         }
@@ -1762,6 +1959,107 @@ export default function InterventionPage() {
         setSuccess('')
     }
 
+    async function invalidatePreparationPlanning() {
+        const demandeKey = String(form.demande_id || interventionInfo?.demande_id || '').trim()
+        if (!demandeKey) return
+        await queryClient.invalidateQueries({ queryKey: ['preparation-planning', demandeKey] })
+    }
+
+    async function updateMissionEssaisPrevus(nextItems) {
+        const currentItems = normalizeEssaiFollowupList(form.mission_essais_prevus)
+        const normalizedItems = normalizeEssaiFollowupList(nextItems)
+        const removedItems = findRemovedMissionEssaiItems(currentItems, normalizedItems)
+
+        for (const item of removedItems) {
+            const blockMessage = getMissionEssaiRemovalBlockMessage(
+                item,
+                linkedFeuillesTerrain,
+                linkedEssais,
+            )
+            if (blockMessage) {
+                setMissionPlanError(blockMessage)
+                setError(blockMessage)
+                setSuccess('')
+                window.alert(blockMessage)
+                return
+            }
+        }
+
+        const nextForm = {
+            ...form,
+            mission_essais_prevus: normalizedItems,
+            suite_nb_essais_prevus: String(normalizedItems.length || ''),
+        }
+
+        setMissionPlanError('')
+        setForm(nextForm)
+
+        if (!isCreate && uid) {
+            const saved = await persistInlineForm(nextForm, 'Essais à réaliser mis à jour.')
+            if (saved) {
+                await invalidatePreparationPlanning()
+            }
+            if (!saved) {
+                setForm((prev) => ({
+                    ...prev,
+                    mission_essais_prevus: currentItems,
+                    suite_nb_essais_prevus: String(currentItems.length || ''),
+                }))
+            }
+            return
+        }
+
+        setSuccess('')
+    }
+
+    function getMissionEssaiRemoveBlockMessage(item) {
+        return getMissionEssaiRemovalBlockMessage(item, linkedFeuillesTerrain, linkedEssais)
+    }
+
+    async function ensureMissionEssaiPrevuBeforeMaterialize(essaiCode, norme = '') {
+        const normalized = normalizeMissionEssaiCode(essaiCode)
+        if (!normalized) return false
+
+        const currentItems = normalizeEssaiFollowupList(form.mission_essais_prevus)
+        if (currentItems.some((item) => normalizeMissionEssaiCode(item.code) === normalized)) {
+            return true
+        }
+
+        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[normalized] || null
+        const nextItem = normalizeEssaiFollowupItem({
+            code: normalized,
+            label: template?.label || normalized,
+            norme: norme || template?.norme || '',
+        })
+        if (!nextItem) return false
+
+        const nextForm = {
+            ...form,
+            mission_essais_prevus: [...currentItems, nextItem],
+            suite_nb_essais_prevus: String(currentItems.length + 1),
+        }
+
+        if (!isCreate && uid) {
+            return persistInlineForm(nextForm, '')
+        }
+
+        setForm(nextForm)
+        return true
+    }
+
+    async function handleCreateMissionEssaiPrevu(item) {
+        const essaiCode = String(item?.rst_code || item?.code || '').trim().toUpperCase()
+        if (!essaiCode) {
+            setError('Code non reconnu — sélectionnez une ligne du catalogue ou des documents terrain.')
+            return
+        }
+        if (essaiCode.startsWith('ID:') && !isMissionDocumentEssaiCode(essaiCode)) {
+            setError('Code RST non mappé — assignez un code RST dans le catalogue compétences avant de créer la fiche.')
+            return
+        }
+        await openDirectEssaiDraft({ essaiCode, norme: item?.norme || '' })
+    }
+
     function handleSelectInterventionType(value) {
         const suggestedFinality = INTERVENTION_TYPE_SUGGESTED_FINALITY[value] || ''
         setForm((prev) => ({
@@ -1793,25 +2091,46 @@ export default function InterventionPage() {
         }
     }
 
-    function buildDirectEssaiDraftPath(interventionUid, options = {}) {
+    function resolveDirectEssaiDraftSelection(options = {}) {
+        const explicitCode = String(options.essaiCode || '').trim().toUpperCase()
+        if (explicitCode) {
+            const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[explicitCode] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
+            return {
+                essai_code: template.code,
+                type_essai: options.typeEssai || template.typeEssai,
+                norme: options.norme ?? template.norme ?? '',
+                source_label: options.sourceLabel ?? '',
+            }
+        }
+
         const selected = selectedDirectEssaiOption || {
-            essai_code: options.essaiCode || quickEssaiForm.essai_code,
+            essai_code: quickEssaiForm.essai_code,
             type_essai: undefined,
             norme: quickEssaiForm.norme,
             source_label: quickEssaiForm.source_label || '',
         }
-        const essaiCode = selected.essai_code || options.essaiCode || quickEssaiForm.essai_code
-        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[essaiCode] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
+        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[selected.essai_code] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
+        return {
+            essai_code: template.code,
+            type_essai: selected.type_essai || template.typeEssai,
+            norme: selected.norme || template.norme || '',
+            source_label: selected.source_label || '',
+        }
+    }
+
+    function buildDirectEssaiDraftPath(interventionUid, options = {}) {
+        const selected = resolveDirectEssaiDraftSelection(options)
+        const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[selected.essai_code] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
         const params = new URLSearchParams({
             intervention_id: String(interventionUid),
             essai_code: template.code,
             type_essai: selected.type_essai || template.typeEssai,
         })
 
-        const norme = options.norme ?? selected.norme ?? quickEssaiForm.norme
+        const norme = options.norme ?? selected.norme
         if (norme) params.set('norme', norme)
 
-        const sourceLabel = options.sourceLabel ?? selected.source_label ?? quickEssaiForm.source_label
+        const sourceLabel = options.sourceLabel ?? selected.source_label
         if (sourceLabel) params.set('source_label', sourceLabel)
 
         const reference = options.interventionReference || interventionInfo?.reference || ''
@@ -1831,16 +2150,18 @@ export default function InterventionPage() {
         return `/essais/new?${params.toString()}`
     }
 
+    function findLinkedEssaiByCode(code) {
+        const normalized = String(code || '').trim().toUpperCase()
+        return linkedEssais.find(
+            (item) => String(item?.essai_code || item?.code_essai || item?.code || '').trim().toUpperCase() === normalized,
+        ) || null
+    }
+
     async function openDirectEssaiDraft(options = {}) {
         if (isCreate || !uid) return
 
-        const selected = selectedDirectEssaiOption || {
-            essai_code: options.essaiCode || quickEssaiForm.essai_code,
-            type_essai: options.typeEssai,
-            norme: quickEssaiForm.norme,
-            source_label: quickEssaiForm.source_label || '',
-        }
-        const essaiCode = String(selected.essai_code || options.essaiCode || quickEssaiForm.essai_code || '').trim().toUpperCase()
+        const selected = resolveDirectEssaiDraftSelection(options)
+        const essaiCode = String(selected.essai_code || '').trim().toUpperCase()
         const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[essaiCode] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
         const mismatchWarning = getInterventionEssaiMismatchWarning(
             form.type_intervention || interventionInfo?.type_intervention || interventionInfo?.sujet,
@@ -1849,6 +2170,30 @@ export default function InterventionPage() {
         if (mismatchWarning && !window.confirm(`${mismatchWarning}\n\nCréer quand même cet essai sur cette intervention ?`)) {
             return
         }
+
+        if (isFeuilleTerrainEssaiCode(essaiCode)) {
+            const existingFeuille = findLinkedFeuilleTerrainByCode(linkedFeuillesTerrain, essaiCode)
+            if (existingFeuille?.uid) {
+                navigateWithReturnTo(
+                    navigate,
+                    buildTerrainFeuilleOpenPath(existingFeuille.uid, essaiCode),
+                    childReturnTo,
+                )
+                return
+            }
+        } else {
+            const existingEssai = findLinkedEssaiByCode(essaiCode)
+            if (existingEssai?.uid) {
+                navigateWithReturnTo(navigate, `/essais/${existingEssai.uid}`, childReturnTo)
+                return
+            }
+        }
+
+        const planReady = await ensureMissionEssaiPrevuBeforeMaterialize(
+            essaiCode,
+            selected.norme || template.norme || '',
+        )
+        if (!planReady) return
 
         if (isFeuilleTerrainEssaiCode(essaiCode)) {
             try {
@@ -1862,12 +2207,29 @@ export default function InterventionPage() {
                     dateFeuille: extractIsoDate(form.date_intervention || interventionInfo?.date_intervention),
                     operateur: form.technicien || interventionInfo?.technicien || '',
                 })
+                await refreshLinkedChain()
                 navigateWithReturnTo(navigate, openPath, childReturnTo)
             } catch (err) {
                 setError(err.message || 'Impossible de créer la feuille terrain.')
             } finally {
                 setCreatingDirectFeuille(false)
             }
+            return
+        }
+
+        if (isGenericTerrainEssaiCode(essaiCode)) {
+            navigateWithReturnTo(navigate, buildGenericTerrainEssaiOpenPath({
+                interventionId: Number(uid),
+                code: essaiCode,
+                interventionRef: interventionInfo?.reference || '',
+                demandeRef: demandeInfo?.reference || '',
+                campagneRef: contextCampaignLabel || '',
+                site: demandeInfo?.chantier || demandeInfo?.site || '',
+                zone: form.zone_intervention || '',
+                operateur: form.technicien || interventionInfo?.technicien || '',
+                dateFeuille: extractIsoDate(form.date_intervention || interventionInfo?.date_intervention),
+                returnTo: childReturnTo,
+            }), childReturnTo)
             return
         }
 
@@ -2144,6 +2506,15 @@ export default function InterventionPage() {
                             Campagne
                         </Button>
                     ) : null}
+                    {!isCreate && hasParentDemande ? (
+                        <SiteAccessRapportButton
+                            demandeUid={parentDemandeId}
+                            campagneUid={hasParentCampaign ? parentCampaignId : ''}
+                            interventionUid={!isCreate && uid !== 'new' ? uid : ''}
+                            returnTo={childReturnTo}
+                            label="Fiche mission"
+                        />
+                    ) : null}
                     {!isCreate && !editing ? (
                         <>
                             {form.statut !== 'Annulée' ? (
@@ -2204,9 +2575,17 @@ export default function InterventionPage() {
                             </div>
                             <h1 className="text-[32px] font-black leading-none tracking-tight m-0 font-mono">{title}</h1>
                             <div className="mt-3 text-[20px] font-black">{form.type_intervention || 'Type à qualifier'}</div>
+                            {(form.objectif_intervention || interventionInfo?.sujet) ? (
+                                <div className="mt-2 max-w-[760px] text-[16px] font-semibold leading-snug text-[#ffcc00]">
+                                    {form.objectif_intervention || interventionInfo?.sujet}
+                                </div>
+                            ) : null}
                             <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
                                 {contextDemandeLabel ? (
                                     <span>Demande : <strong className="text-white">{contextDemandeLabel}</strong></span>
+                                ) : null}
+                                {contextLaboLabel ? (
+                                    <span>Laboratoire : <strong className="text-white">{contextLaboLabel}</strong></span>
                                 ) : null}
                                 {contextCampaignLabel ? (
                                     <span>Campagne : <strong className="text-white">{contextCampaignLabel}</strong></span>
@@ -2333,13 +2712,48 @@ export default function InterventionPage() {
                     </Card>
                 ) : null}
 
+                {!isCreate && hasSavedIntervention && hasParentDemande ? (
+                    <InterventionPlansPanel
+                        interventionUid={interventionUid}
+                        demandeId={parentDemandeId}
+                        campagneId={hasParentCampaign ? parentCampaignId : ''}
+                        interventionReference={interventionInfo?.reference || ''}
+                        demandeReference={demandeInfo?.reference || ''}
+                        campagneReference={campaignInfo?.reference || campaignInfo?.code || ''}
+                        returnTo={childReturnTo}
+                        readOnly={!editing}
+                    />
+                ) : null}
+
+                {!isCreate && hasSavedIntervention && hasParentDemande ? (
+                    <InterventionNivellementPanel
+                        interventionUid={interventionUid}
+                        demandeId={parentDemandeId}
+                        campagneId={hasParentCampaign ? parentCampaignId : ''}
+                        interventionReference={interventionInfo?.reference || ''}
+                        demandeReference={demandeInfo?.reference || ''}
+                        campagneReference={campaignInfo?.reference || campaignInfo?.code || ''}
+                        returnTo={childReturnTo}
+                        readOnly={!editing}
+                    />
+                ) : null}
+
                 <SectionCard
-                    title={editing || isCreate ? 'Intervention' : 'Intervention / mission terrain'}
+                    title={editing || isCreate ? 'Intervention' : 'Intervention terrain'}
                     subtitle="Type, finalité, planning et personnes affectées"
                     chip={form.statut ? <FicheBadge s={form.statut} map={DEMANDE_STAT_CLS} /> : null}
                 >
                     {editing || isCreate ? (
                         <div className="grid grid-cols-2 gap-3">
+                            <FG full>
+                                <Textarea
+                                    value={form.objectif_intervention}
+                                    onChange={(value) => setField('objectif_intervention', value)}
+                                    rows={3}
+                                    placeholder="Titre / objectif — affiché sous le type d’intervention en haut de page."
+                                />
+                            </FG>
+
                             <FG label="Type d'intervention" full>
                                 <div className="flex flex-wrap gap-2">
                                     <Select
@@ -2399,6 +2813,16 @@ export default function InterventionPage() {
                                 <Input value={form.zone_intervention} onChange={(e) => setField('zone_intervention', e.target.value)} />
                             </FG>
 
+                            <FG label="Contact chantier / accès" full>
+                                <AffaireContactPicker
+                                    affaireUid={hasParentAffaire ? parentAffaireId : ''}
+                                    value={form.prep_contact_chantier}
+                                    onChange={(payload) => {
+                                      Object.entries(payload || {}).forEach(([key, value]) => setField(key, value))
+                                    }}
+                                />
+                            </FG>
+
                             <FG label="Matériau / objet concerné">
                                 <Select value={form.nature_materiau} onChange={(e) => setField('nature_materiau', e.target.value)}>
                                     <option value="">—</option>
@@ -2406,15 +2830,6 @@ export default function InterventionPage() {
                                         <option key={item} value={item}>{item}</option>
                                     ))}
                                 </Select>
-                            </FG>
-
-                            <FG label="Objectif terrain" full>
-                                <Textarea
-                                    value={form.objectif_intervention}
-                                    onChange={(value) => setField('objectif_intervention', value)}
-                                    rows={3}
-                                    placeholder="Décrire simplement ce qui sera fait ou constaté."
-                                />
                             </FG>
 
                             <FG label="Notes terrain" full>
@@ -2430,17 +2845,18 @@ export default function InterventionPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <FieldCard label="Référence" value={interventionInfo?.reference} highlight />
                             <FieldCard label="Demande" value={contextDemandeLabel} />
+                            <FieldCard label="Laboratoire" value={contextLaboLabel} />
                             <FieldCard label="Campagne" value={contextCampaignLabel} />
                             <FieldCard label="Type d'intervention" value={form.type_intervention} />
                             <FieldCard label="Finalité" value={form.finalite_intervention} />
                             <FieldCard label="Date / créneau" value={missionWindow} />
                             <FieldCard label="Technicien / opérateur" value={form.technicien} />
                             <FieldCard label="Zone / localisation" value={form.zone_intervention} />
+                            <FieldCard label="Contact chantier / accès" value={form.prep_contact_chantier} className="sm:col-span-2" />
                             <FieldCard label="Matériau / objet" value={form.nature_materiau} />
                             <FieldCard label="Statut" value={form.statut} />
                             <FieldCard label="Responsable / référent" value={form.responsable_referent} />
                             <FieldCard label="Attribué à" value={form.attribue_a} />
-                            <FieldCard label="Objectif terrain" value={form.objectif_intervention} className="sm:col-span-2" />
                             <FieldCard label="Notes terrain" value={form.notes_terrain} className="sm:col-span-3" />
                         </div>
                     )}
@@ -2563,7 +2979,12 @@ export default function InterventionPage() {
                             </FG>
 
                             <FG label="Destination labo">
-                                <Input value={form.sortie_destination_labo} onChange={(e) => setField('sortie_destination_labo', e.target.value)} placeholder="SP, AUV, CHB…" />
+                                <Select value={form.sortie_destination_labo} onChange={(e) => setField('sortie_destination_labo', e.target.value)}>
+                                    <option value="">—</option>
+                                    {laboSelectOptions.map((option) => (
+                                        <option key={option.code} value={option.code}>{option.label}</option>
+                                    ))}
+                                </Select>
                             </FG>
 
                             <FG label="Alerte émise">
@@ -2606,7 +3027,7 @@ export default function InterventionPage() {
                             <div>
                                 <FR label="Adaptations sur site" value={form.real_adaptations} />
                                 <FR label="Échantillons ramenés" value={form.sortie_nb_echantillons} />
-                                <FR label="Destination labo" value={form.sortie_destination_labo} />
+                                <FR label="Destination labo" value={resolveLaboDisplayName(form.sortie_destination_labo, catalog) || form.sortie_destination_labo} />
                                 <FR label="Alerte" value={form.sortie_alerte ? `${form.sortie_alerte}${form.sortie_alerte_desc ? ` — ${form.sortie_alerte_desc}` : ''}` : ''} />
                                 <FR label="Information demandeur" value={form.sortie_info_demandeur} />
                                 <FR label="Synthèse de l'intervention" value={form.sortie_synthese} />
@@ -2642,7 +3063,12 @@ export default function InterventionPage() {
 
                         {linkedFeuillesTerrain.length > 0 ? (
                             <div className="mb-4 pb-4 border-b border-border flex flex-col gap-2">
-                                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Sondages / feuilles terrain liées</div>
+                                <div>
+                                    <div className="text-[11px] font-bold uppercase tracking-wide text-text">Fiches créées</div>
+                                    <p className="mt-1 text-[12px] text-text-muted">
+                                        Feuilles de saisie déjà créées pour cette intervention — cliquez pour reprendre la saisie.
+                                    </p>
+                                </div>
                                 <div className="flex flex-col gap-2">
                                     {linkedFeuillesTerrain.map((item) => (
                                         <div
@@ -2661,7 +3087,11 @@ export default function InterventionPage() {
                                                         || 'Feuille terrain'}
                                                 </div>
                                                 <div className="mt-1 text-[12px] text-text-muted">
-                                                    {[item.reference, item.code_feuille, item.date_feuille].filter(Boolean).join(' · ') || 'Feuille terrain liée'}
+                                                    {[
+                                                        item.reference,
+                                                        item.code_feuille,
+                                                        item.date_feuille ? formatDate(item.date_feuille) : null,
+                                                    ].filter(Boolean).join(' · ') || 'Fiche de saisie'}
                                                 </div>
                                                 <div className="mt-1 text-[11px] text-text-muted">
                                                     {item.points_count ?? 0} point(s)
@@ -2706,35 +3136,31 @@ export default function InterventionPage() {
                             </div>
                         ) : null}
 
-                        <div className="flex items-center gap-3 mb-4 pb-4 border-b border-border flex-wrap">
-                            <Select
-                                value={canCreateDirectEssai ? (quickEssaiForm.option_value || selectedDirectEssaiOption?.value || '') : ''}
-                                onChange={(e) => setQuickEssaiCode(e.target.value)}
-                                className="text-sm"
-                                disabled={!canCreateDirectEssai}
-                            >
-                                {canCreateDirectEssai ? (
-                                    directEssaiSelectOptions.map((item) => (
-                                        <option key={item.value} value={item.value}>{item.label}</option>
-                                    ))
-                                ) : (
-                                    <option value="">Sélectionner un essai</option>
-                                )}
-                            </Select>
-                            <Button variant="primary" size="sm" onClick={handleOpenDirectEssaiDraft} disabled={saving || creatingDirectFeuille || !canCreateDirectEssai}>
-                                {creatingDirectFeuille ? 'Création…' : '+ Créer cet essai'}
-                            </Button>
-                        </div>
-
-                        <LinkedEssaisContent
-                            items={linkedEssais}
-                            loading={linkedEssaisLoading}
-                            error={linkedEssaisError}
-                            onOpen={(essaiUid) => navigateWithReturnTo(navigate, `/essais/${essaiUid}`, childReturnTo)}
-                            emptyMessage={showHistoricalImportedResult
-                                ? 'Aucune fiche d’essai n’a encore été matérialisée pour cette intervention importée.'
-                                : 'Aucun essai'}
+                        <InterventionEssaisPrevusPicker
+                            items={missionEssaisPrevus}
+                            onChange={updateMissionEssaisPrevus}
+                            onCreateEssai={canCreateDirectEssai ? handleCreateMissionEssaiPrevu : undefined}
+                            onBeforeRemove={getMissionEssaiRemoveBlockMessage}
+                            planError={missionPlanError}
+                            disabled={saving}
                         />
+
+                        {linkedEssaisLoading || linkedEssaisError || linkedEssais.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">
+                                    Fiches essai liées
+                                </div>
+                                <LinkedEssaisContent
+                                    items={linkedEssais}
+                                    loading={linkedEssaisLoading}
+                                    error={linkedEssaisError}
+                                    onOpen={(essaiUid) => navigateWithReturnTo(navigate, `/essais/${essaiUid}`, childReturnTo)}
+                                    emptyMessage={showHistoricalImportedResult
+                                        ? 'Aucune fiche d’essai n’a encore été matérialisée pour cette intervention importée.'
+                                        : 'Aucune fiche essai liée'}
+                                />
+                            </div>
+                        ) : null}
                     </Card>
                 ) : null}
 
@@ -3282,8 +3708,14 @@ export default function InterventionPage() {
                             <Field label="Matériels requis" full>
                                 <Textarea value={form.prep_materiels_requis} onChange={v => setField('prep_materiels_requis', v)} rows={2} placeholder="Appareils, vérifié métrologie oui/non, EPI, contenants…" />
                             </Field>
-                            <Field label="Contact chantier / accès">
-                                <Input value={form.prep_contact_chantier} onChange={e => setField('prep_contact_chantier', e.target.value)} placeholder="Nom, tél, horaires…" />
+                            <Field label="Contact chantier / accès" full>
+                                <AffaireContactPicker
+                                    affaireUid={hasParentAffaire ? parentAffaireId : ''}
+                                    value={form.prep_contact_chantier}
+                                    onChange={(payload) => {
+                                      Object.entries(payload || {}).forEach(([key, value]) => setField(key, value))
+                                    }}
+                                />
                             </Field>
                             <Field label="Plan de prévention requis">
                                 <Select value={form.prep_plan_prevention} onChange={e => setField('prep_plan_prevention', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
@@ -3387,7 +3819,12 @@ export default function InterventionPage() {
                                 <Input type="number" value={form.sortie_nb_echantillons} onChange={e => setField('sortie_nb_echantillons', e.target.value)} />
                             </Field>
                             <Field label="Destination labo">
-                                <Input value={form.sortie_destination_labo} onChange={e => setField('sortie_destination_labo', e.target.value)} placeholder="SP, AUV, CHB, CLM…" />
+                                <Select value={form.sortie_destination_labo} onChange={e => setField('sortie_destination_labo', e.target.value)}>
+                                    <option value="">—</option>
+                                    {laboSelectOptions.map((option) => (
+                                        <option key={option.code} value={option.code}>{option.label}</option>
+                                    ))}
+                                </Select>
                             </Field>
                             <Field label="Alerte émise">
                                 <Select value={form.sortie_alerte} onChange={e => setField('sortie_alerte', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
@@ -3416,7 +3853,7 @@ export default function InterventionPage() {
                         <div className="grid gap-x-8 md:grid-cols-2">
                             <div>
                                 <InfoLine label="Échantillons ramenés" value={form.sortie_nb_echantillons} />
-                                <InfoLine label="Destination labo" value={form.sortie_destination_labo} />
+                                <InfoLine label="Destination labo" value={resolveLaboDisplayName(form.sortie_destination_labo, catalog) || form.sortie_destination_labo} />
                                 <InfoLine label="Alerte" value={form.sortie_alerte + (form.sortie_alerte_desc ? ' — ' + form.sortie_alerte_desc : '')} />
                             </div>
                             <div>

@@ -1445,7 +1445,7 @@ export default function FeuilleTerrainPage() {
         return (
             <Navigate
                 replace
-                to={`/feuilles-terrain/de/${encodeURIComponent(String(uid))}/runtime?return_to=${encodeURIComponent(returnTo)}`}
+                to={`/modeles/de/${encodeURIComponent(String(uid))}?return_to=${encodeURIComponent(returnTo)}`}
             />
         )
     }

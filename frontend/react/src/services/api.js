@@ -106,7 +106,7 @@ export const authApi = {
 // ── Affaires ──────────────────────────────────────────────────────────────────
 export const affairesApi = {
   list:     (params = {}) => api.get('/affaires?' + new URLSearchParams(params)),
-  get:      (uid)         => api.get(`/affaires/${uid}`),
+  get:      (uid, params = {}) => api.get(`/affaires/${uid}?` + new URLSearchParams(params)),
   create:   (data)        => api.post('/affaires', data),
   update:   (uid, data)   => api.put(`/affaires/${uid}`, data),
   delete:   (uid)         => api.delete(`/affaires/${uid}`),
@@ -116,6 +116,83 @@ export const affairesApi = {
   dossierStatus: (uid)    => api.get(`/affaires/${uid}/dossier-status`),
   syncDossier: (uid)      => api.post(`/affaires/${uid}/sync-dossier`, {}),
   openDossier: (uid)      => api.get(`/affaires/${uid}/open-dossier`),
+  listContacts: (uid, params = {}) => api.get(`/affaires/${uid}/contacts?${new URLSearchParams(params)}`),
+  listContactOrganisations: (uid) => api.get(`/affaires/${uid}/contacts/organisations`),
+  createContact: (uid, data) => api.post(`/affaires/${uid}/contacts`, data),
+  updateContact: (uid, contactId, data) => api.put(`/affaires/${uid}/contacts/${contactId}`, data),
+  deleteContact: (uid, contactId) => api.delete(`/affaires/${uid}/contacts/${contactId}`),
+  touchContact: (uid, contactId) => api.post(`/affaires/${uid}/contacts/${contactId}/touch`, {}),
+  listPlanImages: (uid)   => api.get(`/affaires/${uid}/plan-images`),
+  uploadDocument: (uid, file, options = {}) => {
+    const form = new FormData()
+    form.append('file', file)
+    const documentType = String(options.documentType || '').trim()
+    if (documentType) form.append('document_type', documentType)
+    return api.postForm(`/affaires/${uid}/documents/upload`, form)
+  },
+  deleteDocument: (uid, storedPath) => api.delete(
+    `/affaires/${uid}/documents/file?stored_path=${encodeURIComponent(String(storedPath || ''))}`,
+  ),
+  geocodeSitePlan: (uid, address, laboCode = 'SP') => {
+    const query = new URLSearchParams({
+      address: String(address || ''),
+      labo_code: String(laboCode || 'SP'),
+    })
+    return api.get(`/affaires/${uid}/documents/site-plan/geocode?${query}`)
+  },
+  previewSitePlan: async (uid, { address, lat, lon, zoom = 16, width, height } = {}) => {
+    const headers = {}
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+    const query = new URLSearchParams({ zoom: String(zoom) })
+    if (width != null) query.set('width', String(width))
+    if (height != null) query.set('height', String(height))
+    if (lat != null && lon != null) {
+      query.set('lat', String(lat))
+      query.set('lon', String(lon))
+    } else if (address) {
+      query.set('address', String(address))
+    }
+    const res = await fetch(`${BASE_URL}/affaires/${uid}/documents/site-plan/preview?${query}`, {
+      headers,
+      credentials: 'same-origin',
+    })
+    if (res.status === 401) {
+      localStorage.removeItem('ralab_token')
+      localStorage.removeItem('ralab_user')
+      window.location.href = '/login'
+      throw new Error('Session expirée')
+    }
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(error.detail || `Erreur ${res.status}`)
+    }
+    const blob = await res.blob()
+    return { blobUrl: URL.createObjectURL(blob) }
+  },
+  captureSitePlan: (uid, payload) => api.post(`/affaires/${uid}/documents/site-plan/capture`, payload),
+  getSitePlanMeta: (uid, storedPath, { kind = 'plan' } = {}) => {
+    const query = new URLSearchParams({
+      stored_path: String(storedPath || ''),
+      kind: String(kind || 'plan'),
+    })
+    return api.get(`/affaires/${uid}/documents/site-plan/meta?${query}`)
+  },
+  getSitePlanItinerary: (uid, { lat, lon, laboCode = 'SP' } = {}) => {
+    const query = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lon),
+      labo_code: String(laboCode || 'SP'),
+    })
+    return api.get(`/affaires/${uid}/documents/site-plan/itinerary?${query}`)
+  },
+}
+
+// ── Contacts (annuaire global) ────────────────────────────────────────────────
+export const contactsApi = {
+  list: (params = {}) => api.get(`/contacts?${new URLSearchParams(params)}`),
+  listOrganisations: (params = {}) => api.get(`/contacts/organisations?${new URLSearchParams(params)}`),
+  sync: (params = {}) => api.post(`/contacts/sync?${new URLSearchParams(params)}`, {}),
 }
 
 // ── Demandes ──────────────────────────────────────────────────────────────────
@@ -141,7 +218,10 @@ export const passationsApi = {
   readiness: (uid) => api.get(`/passations/${uid}/readiness`),
   openDemandeAffaireFolder: (uid) => api.get(`/passations/${uid}/open-demande-affaire-folder`),
   demandesPreview: (uid) => api.get(`/passations/${uid}/demandes-preview`),
+  demandes: (uid) => api.get(`/passations/${uid}/demandes`),
+  linkableDemandes: (uid) => api.get(`/passations/${uid}/demandes-linkable`),
   generateDemandes: (uid) => api.post(`/passations/${uid}/demandes-generate`, {}),
+  linkDemande: (uid, data) => api.post(`/passations/${uid}/link-demande`, data),
 }
 
 // ── DST ───────────────────────────────────────────────────────────────────────
@@ -163,6 +243,16 @@ export const planningApi = {
   updateItem: (kind, uid, data) => api.patch(`/planning/items/${encodeURIComponent(kind)}/${uid}`, data),
 }
 
+export const feuilleMissionApi = {
+  touchJournee: (data) => api.post('/feuille-mission/journee/touch', data),
+  getJourneeSnapshotHash: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)]),
+    ).toString()
+    return api.get(`/feuille-mission/journee/snapshot-hash${qs ? `?${qs}` : ''}`)
+  },
+}
+
 // ── Work inbox ───────────────────────────────────────────────────────────────
 export const workInboxApi = {
   mine:     (params = {}) => api.get('/work/inbox/me?' + new URLSearchParams(params)),
@@ -177,6 +267,8 @@ export const interventionsApi = {
   create: (data)        => api.post('/interventions', data),
   update: (uid, data)   => api.put(`/interventions/${uid}`, data),
   delete: (uid)         => api.delete(`/interventions/${uid}`),
+  listTypeCatalog: () => api.get('/interventions/catalog/types'),
+  createTypeCatalog: (data) => api.post('/interventions/catalog/types', data),
 }
 
 export const interventionCampaignsApi = {
@@ -184,6 +276,10 @@ export const interventionCampaignsApi = {
   get:    (uid)         => api.get(`/intervention-campaigns/${uid}`),
   create: (data)        => api.post('/intervention-campaigns', data),
   update: (uid, data)   => api.patch(`/intervention-campaigns/${uid}`, data),
+  delete: (uid)         => api.delete(`/intervention-campaigns/${uid}`),
+  archive:(uid)         => api.post(`/intervention-campaigns/${uid}/archive`, {}),
+  listTypeCatalog: () => api.get('/intervention-campaigns/catalog/types'),
+  createTypeCatalog: (data) => api.post('/intervention-campaigns/catalog/types', data),
 }
 
 // ── Échantillons ──────────────────────────────────────────────────────────────
@@ -315,6 +411,33 @@ export const adminApi = {
   },
   competencies: {
     list: () => api.get('/admin/competencies'),
+    rstCodeOptions: () => api.get('/admin/competencies/rst-code-options'),
+    updateRstCode: (competencyId, body) => api.patch(`/admin/competencies/${competencyId}/rst-code`, body),
+  },
+  labs: {
+    list: async () => {
+      const payload = await api.get('/admin/labs')
+      if (Array.isArray(payload)) {
+        return { laboratoires: payload, rst_regions: [] }
+      }
+      return {
+        laboratoires: payload?.laboratoires || [],
+        org_regions: payload?.org_regions || payload?.rst_regions || [],
+        rst_regions: payload?.org_regions || payload?.rst_regions || [],
+      }
+    },
+    listOrgRegions: () => api.get('/admin/labs/org-regions'),
+    listRstRegions: () => api.get('/admin/labs/rst-regions'),
+    get: (code) => api.get(`/admin/labs/${encodeURIComponent(code)}`),
+    update: (code, body) => api.put(`/admin/labs/${encodeURIComponent(code)}`, body),
+    create: (body) => api.post('/admin/labs', body),
+    delete: (code) => api.delete(`/admin/labs/${encodeURIComponent(code)}`),
+  },
+  org: {
+    listRegions: () => api.get('/admin/org/regions'),
+    upsertRegion: (code, body) => api.put(`/admin/org/regions/${encodeURIComponent(code)}`, body),
+    listAgences: () => api.get('/admin/org/agences'),
+    upsertAgence: (code, body) => api.put(`/admin/org/agences/${encodeURIComponent(code)}`, body),
   },
 }
 
@@ -362,17 +485,40 @@ export const feuillesTerrainApi = {
     form.append('file', file)
     if (affaire) form.append('affaire', affaire)
     if (options?.coupe_code) form.append('coupe_code', String(options.coupe_code))
+    if (options?.replace_stored_name) form.append('replace_stored_name', String(options.replace_stored_name))
     return api.postForm(`/photos/essai/${essaiId}`, form)
   },
   setPrimaryEssaiPhoto: (essaiId, storedName) => api.patch(`/photos/essai/${essaiId}/primary`, { stored_name: storedName }),
   deleteEssaiPhoto: (essaiId, storedName) => api.delete(`/photos/essai/${essaiId}/files/${encodeURIComponent(storedName)}`),
+  listFeuillePhotos: (feuilleId) => api.get(`/photos/feuille/${feuilleId}/gallery`),
+  uploadFeuillePhoto: (feuilleId, file, affaire = '', options = {}) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (affaire) form.append('affaire', affaire)
+    if (options?.coupe_code) form.append('coupe_code', String(options.coupe_code))
+    if (options?.point_code) form.append('point_code', String(options.point_code))
+    if (options?.replace_stored_name) form.append('replace_stored_name', String(options.replace_stored_name))
+    if (options?.make_primary != null) form.append('make_primary', String(Boolean(options.make_primary)))
+    return api.postForm(`/photos/feuille/${feuilleId}`, form)
+  },
+  setPrimaryFeuillePhoto: (feuilleId, storedName) => api.patch(`/photos/feuille/${feuilleId}/primary`, { stored_name: storedName }),
+  deleteFeuillePhoto: (feuilleId, storedName) => api.delete(`/photos/feuille/${feuilleId}/files/${encodeURIComponent(storedName)}`),
 }
 
 // ── Nivellements ──────────────────────────────────────────────────────────────
 export const nivellementsApi = {
   get: (uid) => api.get(`/nivellements/${uid}`),
+  list: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])
+    ).toString()
+    return api.get(`/nivellements${qs ? '?' + qs : ''}`)
+  },
   create: (data) => api.post('/nivellements', data),
   update: (uid, data) => api.put(`/nivellements/${uid}`, data),
+  ensureForIntervention: (interventionId) => api.post(`/nivellements/ensure-for-intervention/${interventionId}`),
+  updateTerrainPoint: (uid, pointUid, data) => api.patch(`/nivellements/${uid}/terrain-points/${pointUid}`, data),
+  delete: (uid) => api.delete(`/nivellements/${uid}`),
 }
 
 // ── Plans d'implantation ──────────────────────────────────────────────────────
@@ -397,4 +543,5 @@ export const plansImplantationApi = {
   createInterventionPoint: (uid, data) => api.post(`/plans-implantation/${uid}/intervention-points`, data),
   searchPoints: (interventionId, code = '') =>
     api.get(`/plans-implantation/search-points?intervention_id=${interventionId}&code=${encodeURIComponent(code)}`),
+  delete: (uid) => api.delete(`/plans-implantation/${uid}`),
 }

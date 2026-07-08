@@ -16,6 +16,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from api.admin import router as admin_router
 from api.affaires import router as affaires_router
+from api.contacts import router as contacts_router
 from api.audits import router as audits_router
 from api.auth import router as auth_router
 from api.demande_preparation import router as demande_preparation_router
@@ -36,6 +37,7 @@ from api.intervention_campaigns import router as intervention_campaigns_router
 from api.intervention_requalification import router as intervention_requalification_router
 from api.passations import router as passations_router
 from api.planning import router as planning_router
+from api.feuille_mission import router as feuille_mission_router
 from api.plans_implantation import router as plans_implantation_router
 from api.nivellements import router as nivellements_router
 from api.feuilles_terrain import router as feuilles_terrain_router
@@ -133,7 +135,9 @@ app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
 app.include_router(demandes_router, prefix="/api/demandes", tags=["Demandes"])
 app.include_router(dst_router, prefix="/api/dst", tags=["DST"])
 app.include_router(planning_router, prefix="/api/planning", tags=["Planning"])
+app.include_router(feuille_mission_router, prefix="/api/feuille-mission", tags=["Feuille mission"])
 app.include_router(affaires_router, prefix="/api/affaires", tags=["Affaires RST"])
+app.include_router(contacts_router, prefix="/api/contacts", tags=["Contacts"])
 app.include_router(passations_router, prefix="/api/passations", tags=["Passations"])
 app.include_router(demande_preparation_router, prefix="/api/demandes_rst", tags=["Demandes RST Configuration"])
 app.include_router(demandes_rst_router, prefix="/api/demandes_rst", tags=["Demandes RST"])

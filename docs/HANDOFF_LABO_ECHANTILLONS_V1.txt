@@ -45,6 +45,6 @@ Recommended tests:
 - Open Echantillons tab and verify real rows appear
 - Test filters:
   - year 2025 / 2026
-  - labo SP / PT / CLM / CHB
+  - labo SP / PDC (référentiel Admin)
   - status values that exist in your DB
 - Check search on reference / demande / affaire / chantier / nature

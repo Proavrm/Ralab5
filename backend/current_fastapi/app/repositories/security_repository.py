@@ -133,10 +133,14 @@ class SecurityRepository:
                 users.is_active,
                 users.employment_level_code,
                 employment_levels.label AS employment_level_label,
-                employment_levels.sort_order AS employment_level_sort_order
+                employment_levels.sort_order AS employment_level_sort_order,
+                profile.phone,
+                profile.signature_display_name
             FROM users
             LEFT JOIN employment_levels
                 ON employment_levels.employment_level_code = users.employment_level_code
+            LEFT JOIN user_profile_details profile
+                ON lower(profile.user_email) = lower(users.email)
             WHERE users.is_active = 1
             ORDER BY COALESCE(employment_levels.sort_order, 9999), users.display_name COLLATE NOCASE
         """

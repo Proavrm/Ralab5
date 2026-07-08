@@ -5,6 +5,7 @@ Repository preparation demande.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 
 from app.core.database import connect_db, ensure_ralab4_schema, get_db_path
@@ -54,6 +55,28 @@ _PREP_FIELDS = [
 ]
 
 
+def build_preparation_reference(
+    demande_reference: str = "",
+    *,
+    annee: int | None = None,
+    labo_code: str = "SP",
+    numero: int | None = None,
+) -> str:
+    ref = str(demande_reference or "").strip().upper()
+    match = re.match(r"^(\d{4})-([A-Z]+)-D(\d+)$", ref)
+    if match:
+        return f"{match.group(1)}-{match.group(2)}-PR{match.group(3)}"
+    year = int(annee or datetime.now().year)
+    labo = str(labo_code or "SP").strip().upper() or "SP"
+    num = int(numero or 0)
+    if num > 0:
+        return f"{year}-{labo}-PR{num:04d}"
+    return ""
+
+
+_LEGACY_PREP_REFERENCE = re.compile(r"^(\d{4})-([A-Z]+)-P(\d+)$")
+
+
 class DemandePreparationRepository:
     def __init__(self, db_path=None):
         self.db_path = db_path or get_db_path()
@@ -100,16 +123,61 @@ class DemandePreparationRepository:
                 objectif_mission, responsable_referent, attribue_a, priorite,
                 date_prevue, nb_points_prevus, types_essais_prevus,
                 criteres_conformite, livrables_attendus, remarques,
-                created_at, updated_at
+                reference, created_at, updated_at
             ) VALUES (
                 ?, '\u00c0 qualifier', '', '', '', '', '', '', '', '', '', '',
                 '', '', '', '', '', '', '', 'Normale',
                 '', '', '', '', '', '',
-                ?, ?
+                '', ?, ?
             )
             """,
             (demande_id, now, now),
         )
+        self._ensure_preparation_reference(conn, demande_id)
+
+    def _demande_reference_parts(self, conn, demande_id: int) -> dict:
+        row = conn.execute(
+            "SELECT reference, annee, labo_code, numero FROM demandes WHERE id=?",
+            (demande_id,),
+        ).fetchone()
+        if not row:
+            return {}
+        return {
+            "demande_reference": row["reference"] or "",
+            "annee": row["annee"],
+            "labo_code": row["labo_code"] or "SP",
+            "numero": row["numero"],
+        }
+
+    def _ensure_preparation_reference(self, conn, demande_id: int) -> str:
+        row = conn.execute(
+            "SELECT id, reference FROM demande_preparations WHERE demande_id=?",
+            (demande_id,),
+        ).fetchone()
+        if not row:
+            return ""
+        parts = self._demande_reference_parts(conn, demande_id)
+        reference = build_preparation_reference(
+            parts.get("demande_reference", ""),
+            annee=parts.get("annee"),
+            labo_code=parts.get("labo_code", "SP"),
+            numero=parts.get("numero"),
+        )
+        existing = str(row["reference"] or "").strip().upper()
+        if not reference:
+            return existing
+        needs_update = not existing or existing != reference
+        if existing and not needs_update:
+            return existing
+        if existing and _LEGACY_PREP_REFERENCE.match(existing):
+            needs_update = True
+        if not needs_update:
+            return existing
+        conn.execute(
+            "UPDATE demande_preparations SET reference=?, updated_at=? WHERE id=?",
+            (reference, self._now(), int(row["id"])),
+        )
+        return reference
 
     def _ensure_module_rows(self, conn, demande_id: int) -> None:
         now = self._now()
@@ -195,6 +263,7 @@ class DemandePreparationRepository:
         return DemandePreparationResponseSchema(
             uid=record.uid,
             demande_id=record.demande_id,
+            reference=record.reference,
             phase_operation=record.phase_operation,
             contexte_operationnel=record.contexte_operationnel,
             objectifs=record.objectifs,
@@ -253,6 +322,7 @@ class DemandePreparationRepository:
         return DemandePreparationRecord(
             uid=int(row["id"]),
             demande_id=int(row["demande_id"]),
+            reference=g("reference"),
             phase_operation=g("phase_operation", PREPARATION_PHASE_OPTIONS[0]),
             contexte_operationnel=g("contexte_operationnel"),
             objectifs=g("objectifs"),

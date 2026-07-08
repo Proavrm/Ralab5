@@ -10,12 +10,20 @@ export function cn(...inputs) {
   return twMerge(clsx(inputs))
 }
 
-// Format date PT/FR style
+// Format date for display: dd-mm-yyyy (ISO yyyy-mm-dd stays for inputs, search, API)
 export function formatDate(dateStr) {
   if (!dateStr) return '—'
-  const d = new Date(dateStr)
-  if (isNaN(d)) return dateStr
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const raw = String(dateStr).trim()
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (isoMatch) {
+    return `${isoMatch[3]}-${isoMatch[2]}-${isoMatch[1]}`
+  }
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) return raw
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}-${month}-${year}`
 }
 
 // Status badge color

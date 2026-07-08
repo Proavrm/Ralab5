@@ -64,6 +64,7 @@ export default function RapportHeader({
     essaiCode,
     chantier,
     site,
+    hideChrono = false,
 }) {
     const resolvedMainTitle = mainTitle || title || "COMPTE RENDU D'ESSAIS";
     const resolvedLaboratory = laboratory || laboratoire || DEFAULT_LABORATORY;
@@ -100,16 +101,18 @@ export default function RapportHeader({
                         {standardLabel ? <div className="rapport-standard">{standardLabel}</div> : null}
                     </div>
 
-                    <div className="rapport-reference-grid">
-                        <div className="rapport-reference-item rapport-reference-item-sc">
-                            <div className="rapport-reference-sc-row">
-                                <span className="rapport-reference-type-label">{resolvedReportTypeLabel}</span>
-                                <span className="rapport-reference-number-stack">
-                                    <strong>{valueOrDash(reportNumberValue)}</strong>
-                                    <span className="rapport-reference-field-label">Chrono</span>
-                                </span>
+                    <div className={`rapport-reference-grid${hideChrono ? ' rapport-reference-grid--no-chrono' : ''}`}>
+                        {hideChrono ? null : (
+                            <div className="rapport-reference-item rapport-reference-item-sc">
+                                <div className="rapport-reference-sc-row">
+                                    <span className="rapport-reference-type-label">{resolvedReportTypeLabel}</span>
+                                    <span className="rapport-reference-number-stack">
+                                        <strong>{valueOrDash(reportNumberValue)}</strong>
+                                        <span className="rapport-reference-field-label">Chrono</span>
+                                    </span>
+                                </div>
                             </div>
-                        </div>
+                        )}
                         <div className="rapport-reference-item">
                             <strong>{valueOrDash(resolvedAffaireNumber)}</strong>
                             <span className="rapport-reference-field-label">N° d'affaire</span>

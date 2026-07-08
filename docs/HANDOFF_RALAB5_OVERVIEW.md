@@ -1,4 +1,4 @@
-﻿# RaLab5 — Plataforma de Gestão Laboratorial NGE
+# RaLab5 — Plataforma de Gestão Laboratorial NGE
 > Versão maio 2026
 
 ---
@@ -22,13 +22,13 @@ são frequentes.
 **RaLab5** é o sistema de informação de laboratório (LIMS) da NGE,
 desenvolvido à medida para laboratórios geotécnicos.
 
-Cobre os 4 laboratórios do grupo:
-| Código | Laboratório | Região |
-|---|---|---|
-| SP | Saint-Priest | Rhône-Alpes |
-| PDC | Pont-du-Château | Auvergne |
-| CHB | Chambéry | Rhône-Alpes |
-| CLM | Clermont-Ferrand | Auvergne |
+Cobre os laboratórios do référentiel central (Admin → Laboratoires) :
+| Código | Laboratório | Agence | Région |
+|---|---|---|---|
+| SP | Saint-Priest | RA | ARS |
+| PDC | Pont-du-Château | AUV | ARS |
+
+(Novos labos/regiões/agências — editáveis na Admin, sem hardcode.)
 
 ---
 

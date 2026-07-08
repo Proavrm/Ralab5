@@ -22,12 +22,12 @@ import {
   MetricCard,
   SectionCard,
 } from '@/components/layout/FicheLayout'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { buildLaboSelectOptions, resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
 
 const STATUTS   = ['À qualifier','Demande','En Cours','Répondu','Fini','Envoyé - Perdu']
-const LABOS     = ['SP','PDC','CHB','CLM']
 const MISSIONS  = ['À définir','Études G1','Études G2','Exploitation G3','Essais Labo','Avis Technique','Externe','Autre']
 const PRIORITES = ['Basse','Normale','Haute','Critique']
-const LABO_NOM  = { SP:'Saint-Priest', PDC:'Pont-du-Château', CHB:'Chambéry', CLM:'Clermont' }
 
 const STAT_CLS = {
   'À qualifier':'bg-[#f1efe8] text-[#5f5e5a]','Demande':'bg-[#e6f1fb] text-[#185fa5]',
@@ -86,10 +86,29 @@ function urgence(ech, statut) {
   return ''
 }
 
+function parseDstDateValue(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10)
+  const fr = text.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (fr) return `${fr[3]}-${fr[2]}-${fr[1]}`
+  return ''
+}
+
+function mapDstPriorite(row) {
+  const urgence = String(row?.Urgence || row?.urgence || '').toLowerCase()
+  const priorite = String(row?.Priorité || row?.Priorite || row?.priorite || '').toLowerCase()
+  if (urgence.includes('bloquant') || priorite.includes('critique')) return 'Critique'
+  if (urgence.includes('gênant') || urgence.includes('genant') || priorite.includes('anomalie')) return 'Haute'
+  return 'Normale'
+}
+
 const EMPTY_FORM = {
   affaire_rst_id: '', labo_code: 'SP', statut: 'À qualifier', priorite: 'Normale',
   type_mission: 'À définir', nature: '', numero_dst: '',
-  numero_etude: '', affaire_nge_ref: '',  // lecture seule, pour référence
+  numero_etude: '', affaire_nge_ref: '',
+  domaine_etude: '', type_prestation_attendue: '', documents_fournis: '',
+  lien_pieces_jointes: '', service_interne: '', societe_interne: '', urgence_source: '',
   demandeur: '', date_reception: new Date().toISOString().split('T')[0],
   date_echeance: '', description: '', observations: '',
   a_revoir: false, note_reconciliation: '',
@@ -99,6 +118,8 @@ const EMPTY_FORM = {
 // ── Modal créer / modifier ────────────────────────────────────────────────────
 function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editDemande = null, nextRef }) {
   const qc = useQueryClient()
+  const { catalog } = useLaboratoireCatalog()
+  const laboSelectOptions = useMemo(() => buildLaboSelectOptions(catalog), [catalog])
   const [form, setForm] = useState(EMPTY_FORM)
 
   // Init form
@@ -113,6 +134,13 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
         type_mission: editDemande.type_mission || 'À définir',
         nature: editDemande.nature || '',
         numero_dst: editDemande.numero_dst || '',
+        domaine_etude: editDemande.domaine_etude || '',
+        type_prestation_attendue: editDemande.type_prestation_attendue || '',
+        documents_fournis: editDemande.documents_fournis || '',
+        lien_pieces_jointes: editDemande.lien_pieces_jointes || '',
+        service_interne: editDemande.service_interne || '',
+        societe_interne: editDemande.societe_interne || '',
+        urgence_source: editDemande.urgence_source || '',
         numero_etude: editDemande.numero_etude || '',
         affaire_nge_ref: editDemande.affaire_nge || '',
         demandeur: editDemande.demandeur || '',
@@ -153,12 +181,19 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
       priorite: d.priorite || 'Normale',
       type_mission: d.type_mission || 'À définir',
       nature: d.nature || src.type_demande || '',
+      domaine_etude: d.domaine_etude || '',
+      type_prestation_attendue: d.type_prestation_attendue || d.type_mission || '',
+      documents_fournis: d.documents_fournis || '',
+      lien_pieces_jointes: d.lien_pieces_jointes || '',
+      service_interne: d.service_interne || '',
+      societe_interne: d.societe_interne || '',
+      urgence_source: d.urgence_source || '',
       numero_dst: d.numero_dst || src.numero_dst || '',
       numero_etude: d.numero_etude || src.numero_etude || '',
       affaire_nge_ref: d.numero_affaire_nge || src.affaire_nge || '',
       demandeur: d.demandeur || src.demandeur || '',
       date_reception: (d.date_reception || today).slice(0, 10),
-      date_echeance: (d.date_echeance || src.remise_souhaitee || '').slice(0, 10),
+      date_echeance: parseDstDateValue(d.date_echeance || src.remise_souhaitee || ''),
       description: d.description || [
         src.libelle_projet && `Projet: ${src.libelle_projet}`,
         src.objet && `Objet: ${src.objet}`,
@@ -193,6 +228,13 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
       priorite: form.priorite,
       type_mission: form.type_mission,
       nature: form.nature,
+      domaine_etude: form.domaine_etude,
+      type_prestation_attendue: form.type_prestation_attendue,
+      documents_fournis: form.documents_fournis,
+      lien_pieces_jointes: form.lien_pieces_jointes,
+      service_interne: form.service_interne,
+      societe_interne: form.societe_interne,
+      urgence_source: form.urgence_source,
       numero_dst: form.numero_dst,
       demandeur: form.demandeur,
       date_reception: form.date_reception,
@@ -232,7 +274,7 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
         </FG>
         <FG label="Laboratoire">
           <Select value={form.labo_code} onChange={e => set('labo_code', e.target.value)} className="w-full">
-            {LABOS.map(l => <option key={l}>{l}</option>)}
+            {laboSelectOptions.map(({ code, label }) => <option key={code} value={code}>{label}</option>)}
           </Select>
         </FG>
         {form.numero_etude && (
@@ -322,6 +364,8 @@ export default function DemandesPage() {
   const location  = useLocation()
   const [searchParams] = useSearchParams()
   const qc        = useQueryClient()
+  const { catalog } = useLaboratoireCatalog()
+  const laboSelectOptions = useMemo(() => buildLaboSelectOptions(catalog), [catalog])
 
   const filterAffaireId = searchParams.get('affaire_id') || null
   const autoCreate      = searchParams.get('create') === '1'
@@ -497,7 +541,7 @@ export default function DemandesPage() {
               </Select>
               <Select value={labo} onChange={e => setLabo(e.target.value)} className="text-xs py-1.5">
                 <option value="">Tous labos</option>
-                {LABOS.map(l => <option key={l} value={l}>{LABO_NOM[l]}</option>)}
+                {laboSelectOptions.map(({ code, label }) => <option key={code} value={code}>{label}</option>)}
               </Select>
               <Select value={mission} onChange={e => setMission(e.target.value)} className="text-xs py-1.5">
                 <option value="">Toutes missions</option>
@@ -592,7 +636,7 @@ export default function DemandesPage() {
               <DetItem label="À revoir" value={selected.a_revoir ? 'Oui' : 'Non'} />
               <DetItem label="Type mission" value={selected.type_mission} />
               <DetItem label="Nature" value={selected.nature} />
-              <DetItem label="Labo" value={LABO_NOM[selected.labo_code] || selected.labo_code} />
+              <DetItem label="Labo" value={resolveLaboDisplayName(selected.labo_code, catalog) || selected.labo_code} />
               <DetItem label="N° DST" value={selected.numero_dst} />
               <DetItem label="N° étude" value={selected.numero_etude} />
               <DetItem label="N° aff. NGE" value={selected.affaire_nge} />

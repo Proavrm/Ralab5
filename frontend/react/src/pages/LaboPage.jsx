@@ -12,6 +12,8 @@ import { RefreshCw, Search, FlaskConical, Package, Truck, TestTube2, X } from 'l
 import { buildLocationTarget, navigateWithReturnTo } from '@/lib/detailNavigation'
 import { getPrelevementReferenceDate, normalizePrelevement, prelevementHasArrival, prelevementIsReadyForLab, prelevementIsUnexpectedArrival, prelevementNeedsReceptionCompletion } from '@/lib/prelevements'
 import { interventionsApi, echantillonsApi, essaisApi, prelevementsApi } from '@/services/api'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { labCodesFromCatalog, labDisplayLine } from '@/lib/laboratoireCatalog'
 
 const TABS = [
     { key: 'interventions', label: 'Interventions', icon: Truck },
@@ -27,7 +29,6 @@ const DEFAULT_SORT = {
     essais: { key: 'reference', dir: 'asc' },
 }
 
-const LABO_OPTIONS = ['AUV', 'SP', 'PT', 'CLM', 'CHB']
 const LABO_ESSAI_ACTIVE_STATUS = '__active__'
 
 function normalizeFilterText(value) {
@@ -821,6 +822,12 @@ function compareValues(a, b, dir) {
 export default function LaboPage() {
     const navigate = useNavigate()
     const location = useLocation()
+    const { catalog } = useLaboratoireCatalog()
+    const catalogLabCodes = useMemo(() => labCodesFromCatalog(catalog), [catalog])
+    const laboFilterOptions = useMemo(
+        () => catalogLabCodes.map((code) => ({ code, label: labDisplayLine(code, catalog) || code })),
+        [catalog, catalogLabCodes],
+    )
     const [searchParams, setSearchParams] = useSearchParams()
     const detailReturnTo = buildLocationTarget(location)
     const queryLabo = searchParams.get('labo') || ''
@@ -1344,8 +1351,8 @@ export default function LaboPage() {
 
                 <Select value={labo} onChange={(e) => updateLaboFilter(e.target.value)} className="text-xs py-1.5 min-w-[120px]">
                     <option value="">Tous labos</option>
-                    {LABO_OPTIONS.map((code) => (
-                        <option key={code} value={code}>{code}</option>
+                    {laboFilterOptions.map(({ code, label }) => (
+                        <option key={code} value={code}>{label}</option>
                     ))}
                 </Select>
 

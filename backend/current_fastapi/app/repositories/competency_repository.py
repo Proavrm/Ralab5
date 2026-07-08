@@ -7,6 +7,8 @@ import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.services.competency_rst_mapping import infer_rst_code
+
 
 COMPETENCY_LEVELS = (
     ("N0", 0, "Niveau 0", "Ne connait pas l'essai."),
@@ -117,6 +119,17 @@ class CompetencyRepository:
             CREATE INDEX IF NOT EXISTS idx_user_competency_assessments_assessed_at ON user_competency_assessments(assessed_at);
 
             DROP VIEW IF EXISTS user_competency_current;
+            """
+        )
+        columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(competency_catalog)").fetchall()
+        }
+        if "rst_code" not in columns:
+            connection.execute("ALTER TABLE competency_catalog ADD COLUMN rst_code TEXT")
+        connection.executescript(
+            """
+            DROP VIEW IF EXISTS user_competency_current;
 
             CREATE VIEW user_competency_current AS
             SELECT assessments.*
@@ -181,6 +194,7 @@ class CompetencyRepository:
                 standard_referent,
                 standard_update_impact,
                 trainer_name,
+                rst_code,
                 is_active,
                 created_at,
                 updated_at
@@ -208,6 +222,7 @@ class CompetencyRepository:
                 standard_referent,
                 standard_update_impact,
                 trainer_name,
+                rst_code,
                 is_active,
                 created_at,
                 updated_at
@@ -248,6 +263,7 @@ class CompetencyRepository:
                 standard_referent,
                 standard_update_impact,
                 trainer_name,
+                rst_code,
                 is_active,
                 created_at,
                 updated_at
@@ -289,8 +305,71 @@ class CompetencyRepository:
                 "SELECT competency_id FROM competency_catalog WHERE source_key = ? LIMIT 1",
                 (source_key.strip(),),
             ).fetchone()
+            competency_id = int(row["competency_id"])
+            inferred_rst_code = infer_rst_code(label, reference, domain, context_type)
+            connection.execute(
+                """
+                UPDATE competency_catalog
+                SET rst_code = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE competency_id = ?
+                """,
+                (inferred_rst_code, competency_id),
+            )
             connection.commit()
-        return int(row["competency_id"])
+        return competency_id
+
+    def apply_rst_codes(self, include_inactive: bool = False) -> dict[str, int]:
+        where_clause = "" if include_inactive else "WHERE is_active = 1"
+        query = f"""
+            SELECT competency_id, label, reference, domain, context_type
+            FROM competency_catalog
+            {where_clause}
+        """
+        mapped = 0
+        cleared = 0
+        with self._connect() as connection:
+            rows = connection.execute(query).fetchall()
+            for row in rows:
+                inferred = infer_rst_code(
+                    row["label"],
+                    row["reference"],
+                    row["domain"],
+                    row["context_type"],
+                )
+                connection.execute(
+                    """
+                    UPDATE competency_catalog
+                    SET rst_code = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE competency_id = ?
+                    """,
+                    (inferred, int(row["competency_id"])),
+                )
+                if inferred:
+                    mapped += 1
+                else:
+                    cleared += 1
+            connection.commit()
+        return {"mapped": mapped, "cleared": cleared, "total": len(rows)}
+
+    def update_rst_code(self, competency_id: int, rst_code: str | None) -> sqlite3.Row | None:
+        normalized = str(rst_code or "").strip().upper() or None
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT competency_id FROM competency_catalog WHERE competency_id = ? LIMIT 1",
+                (competency_id,),
+            ).fetchone()
+            if not row:
+                return None
+            connection.execute(
+                """
+                UPDATE competency_catalog
+                SET rst_code = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE competency_id = ?
+                """,
+                (normalized, competency_id),
+            )
+            connection.commit()
+        return self.get_competency(competency_id)
 
     def deactivate_missing_catalog_entries(self, active_source_keys: set[str]) -> int:
         if not active_source_keys:

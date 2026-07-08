@@ -5,6 +5,9 @@ import Card, { CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import Input, { Select } from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { labCodesFromCatalog } from '@/lib/laboratoireCatalog'
+import { normalizeLaboCode } from '@/lib/labGeo'
 import { buildLocationTarget, buildPathWithReturnTo } from '@/lib/detailNavigation'
 import { hasRole } from '@/lib/permissions'
 import { normalizePrelevement, getPrelevementReferenceDate, prelevementHasArrival, prelevementIsReadyForLab, prelevementIsUnexpectedArrival, prelevementNeedsReceptionCompletion } from '@/lib/prelevements'
@@ -14,7 +17,6 @@ import { cn, formatDate } from '@/lib/utils'
 import { prelevementsApi } from '@/services/api'
 import { ClipboardList, Package, RefreshCw, Search, TriangleAlert, Workflow } from 'lucide-react'
 
-const KNOWN_LABOS = ['AUV', 'SP', 'PT', 'CLM', 'CHB']
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const VIEWS = [
@@ -176,6 +178,8 @@ export default function PrelevementsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const detailReturnTo = buildLocationTarget(location)
   const { user } = useAuth()
+  const { catalog } = useLaboratoireCatalog()
+  const catalogLabCodes = useMemo(() => labCodesFromCatalog(catalog), [catalog])
 
   const requestedLaboCode = normalizeCode(searchParams.get('labo') || '')
   const requestedView = VIEWS.some((item) => item.key === searchParams.get('view')) ? searchParams.get('view') : 'all'
@@ -188,7 +192,7 @@ export default function PrelevementsPage() {
   const defaultLaboCode = normalizeCode(
     responsibleProfile?.laboCode
       || technicianProfile?.defaultLaboCodes?.[0]
-      || (KNOWN_LABOS.includes(serviceCode) ? serviceCode : '')
+      || (catalogLabCodes.includes(normalizeLaboCode(serviceCode)) ? normalizeLaboCode(serviceCode) : '')
   )
   const effectiveLaboCode = isAdmin ? requestedLaboCode : defaultLaboCode
 
@@ -204,8 +208,8 @@ export default function PrelevementsPage() {
 
   const availableLabos = useMemo(() => {
     const discovered = allPrelevements.map((row) => normalizeCode(row.laboCode)).filter(Boolean)
-    return [...new Set([...KNOWN_LABOS, ...discovered, defaultLaboCode, requestedLaboCode].filter(Boolean))]
-  }, [allPrelevements, defaultLaboCode, requestedLaboCode])
+    return [...new Set([...catalogLabCodes, ...discovered, defaultLaboCode, requestedLaboCode].filter(Boolean))]
+  }, [allPrelevements, catalogLabCodes, defaultLaboCode, requestedLaboCode])
 
   const scopedRows = useMemo(
     () => allPrelevements.filter((row) => !effectiveLaboCode || matchesLaboCode(effectiveLaboCode, row.laboCode, row.reference, row.demandeReference, row.chantier)),

@@ -7,11 +7,11 @@ import Button from '@/components/ui/Button'
 import { cn, formatDate } from '@/lib/utils'
 import { getPrelevementReferenceDate, normalizePrelevement, prelevementHasArrival, prelevementIsReadyForLab, prelevementNeedsReceptionCompletion } from '@/lib/prelevements'
 import { prelevementsApi } from '@/services/api'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { labCodesFromCatalog } from '@/lib/laboratoireCatalog'
 import { Printer, Search } from 'lucide-react'
 import JsBarcode from 'jsbarcode'
 import QRCode from 'qrcode'
-
-const KNOWN_LABOS = ['AUV', 'SP', 'PT', 'CLM', 'CHB']
 
 const VIEW_OPTIONS = [
   { key: 'all', label: 'Tous' },
@@ -217,6 +217,8 @@ function LabelMachineCode({ row, codeType, compact }) {
 
 export default function PrelevementLabelsPage() {
   const navigate = useNavigate()
+  const { catalog } = useLaboratoireCatalog()
+  const catalogLabCodes = useMemo(() => labCodesFromCatalog(catalog), [catalog])
   const [searchParams, setSearchParams] = useSearchParams()
   const queryLabo = normalizeCode(searchParams.get('labo') || '')
   const querySearch = searchParams.get('q') || ''
@@ -245,8 +247,8 @@ export default function PrelevementLabelsPage() {
 
   const availableLabos = useMemo(() => {
     const discovered = allRows.map((row) => normalizeCode(row.laboCode)).filter(Boolean)
-    return [...new Set([...KNOWN_LABOS, ...discovered, queryLabo].filter(Boolean))]
-  }, [allRows, queryLabo])
+    return [...new Set([...catalogLabCodes, ...discovered, queryLabo].filter(Boolean))]
+  }, [allRows, catalogLabCodes, queryLabo])
 
   const filteredRows = useMemo(
     () => allRows

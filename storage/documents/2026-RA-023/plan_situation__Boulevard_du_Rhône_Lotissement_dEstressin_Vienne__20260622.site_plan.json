@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "address_query": "Boulevard du Rhône, VIENNE (38)",
+  "address_label": "Boulevard du Rhône, Lotissement d'Estressin, Vienne, Isère, Auvergne-Rhône-Alpes, France métropolitaine, 38200, France",
+  "lat": 45.54208211943339,
+  "lon": 4.8512447345189855,
+  "map_center_lat": 45.5417786,
+  "map_center_lon": 4.8519624,
+  "zoom": 17,
+  "image_width": 1486,
+  "image_height": 1050,
+  "orientation": "landscape",
+  "zones": [
+    {
+      "id": "zone-mqp82aqt-u8bbi",
+      "label": "Zone 1",
+      "color": "#2563eb",
+      "points": [
+        {
+          "x": 27.215831682739772,
+          "y": 23.92955589586524
+        },
+        {
+          "x": 24.999742363127837,
+          "y": 52.94027565084226
+        },
+        {
+          "x": 65.85888919347292,
+          "y": 64.3093415007657
+        },
+        {
+          "x": 73.75370739459046,
+          "y": 28.830015313935682
+        },
+        {
+          "x": 27.63134843016701,
+          "y": 23.92955589586524
+        }
+      ]
+    }
+  ],
+  "pins": [
+    {
+      "id": "pin-mqp82mwk-ps6yx",
+      "x": 31.370999157012154,
+      "y": 35.56814701378254,
+      "comment": "Stationement"
+    },
+    {
+      "id": "pin-mqp82wyt-dr103",
+      "x": 59.62613798206435,
+      "y": 43.604900459418076,
+      "comment": "Entré"
+    }
+  ],
+  "show_itinerary": false,
+  "itinerary_route": [],
+  "source": "map_capture",
+  "stored_path": "documents/2026-RA-023/plan_situation__Boulevard_du_Rhône_Lotissement_dEstressin_Vienne__20260622.png"
+}

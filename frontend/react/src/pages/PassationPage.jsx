@@ -3,14 +3,21 @@
  * Chemin projet non confirmé : remplacer le fichier PassationPage.jsx existant à son emplacement réel.
  * Fiche de passation RST avec prestations structurées, documents et actions.
  */
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, authApi, affairesApi } from '@/services/api'
+import { api, authApi, affairesApi, passationsApi, adminApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate } from '@/lib/utils'
+import { buildPathWithReturnTo } from '@/lib/detailNavigation'
+import { RESPONSIBLE_LAB_PROFILES } from '@/lib/responsibleLaboProfiles'
+import { partitionDestinataireUsers } from '@/lib/userOrgScope'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { FichePageShell, MetricCard, SectionCard } from '@/components/layout/FicheLayout'
+import DocumentTrackingTable from '@/components/demande/DocumentTrackingTable'
+import { validatePassationSitePlan, ensureSiteCaptureDocumentRows, hasPlanSituationFile } from '@/lib/sitePlanRequirements'
+import { A4_ORIENTATION_LANDSCAPE, A4_ORIENTATION_PORTRAIT } from '@/lib/sitePlanImageCoords'
 
 const today = () => new Date().toISOString().split('T')[0]
 
@@ -55,6 +62,7 @@ function TA({ value, onChange, rows = 3, placeholder }) {
 const EMPTY = {
     affaire_rst_id: '',
     date_passation: today(),
+    date_debut_travaux_prevue: '',
     source: '',
     operation_type: '',
     phase_operation: '',
@@ -62,6 +70,8 @@ const EMPTY = {
     numero_affaire_nge: '',
     chantier: '',
     client: '',
+    maitre_ouvrage: '',
+    maitre_oeuvre: '',
     entreprise_responsable: '',
     agence: '',
     responsable: '',
@@ -78,6 +88,11 @@ const EMPTY = {
     besoins_ressources_humaines: '',
     synthese: '',
     notes: '',
+    types_essais_prevus: '',
+    livrables_attendus: '',
+    criteres_conformite: '',
+    demande_destinataire_email: '',
+    demande_destinataire_name: '',
 }
 
 const RST_PRESTATION_TEMPLATES = [
@@ -149,6 +164,33 @@ const RST_PRESTATION_TEMPLATES = [
 ]
 
 const RST_NEED_STATUS_OPTIONS = ['À confirmer', 'Requis', 'Optionnel', 'Hors périmètre', 'Annulé']
+
+const STAT_DEM = {
+    'À qualifier': 'bg-[#f1efe8] text-[#5f5e5a]',
+    Demande: 'bg-[#e6f1fb] text-[#185fa5]',
+    'En Cours': 'bg-[#eaf3de] text-[#3b6d11]',
+    Répondu: 'bg-[#eeedfe] text-[#534ab7]',
+    Fini: 'bg-[#eaf3de] text-[#3b6d11]',
+    'Envoyé - Perdu': 'bg-[#f1efe8] text-[#5f5e5a]',
+}
+
+function DemandeBadge({ statut }) {
+    return (
+        <span
+            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${STAT_DEM[statut] || 'bg-[#f1efe8] text-[#5f5e5a]'}`}
+        >
+            {statut || '—'}
+        </span>
+    )
+}
+
+function buildTerrainFamiliesSummary(demande) {
+    const items = []
+    if ((demande?.nb_feuilles_sc || 0) > 0) items.push(`SC: ${demande.nb_feuilles_sc}`)
+    if ((demande?.nb_feuilles_so || 0) > 0) items.push(`SO: ${demande.nb_feuilles_so}`)
+    if ((demande?.nb_feuilles_de || 0) > 0) items.push(`DE: ${demande.nb_feuilles_de}`)
+    return items.join(' · ')
+}
 
 function createClientKey() {
     return `rst-need-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -329,58 +371,6 @@ function RstPrestationCard({ item, onChange, onRemove }) {
     )
 }
 
-function DocRow({ doc, onChange, onRemove }) {
-    function set(k, v) {
-        onChange({ ...doc, [k]: v })
-    }
-    return (
-        <tr className="border-b border-border">
-            <td className="px-2 py-1.5">
-                <input
-                    value={doc.document_type ?? ''}
-                    onChange={(e) => set('document_type', e.target.value)}
-                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-                />
-            </td>
-            <td className="px-2 py-1.5 text-center">
-                <input
-                    type="checkbox"
-                    checked={!!doc.is_received}
-                    onChange={(e) => set('is_received', e.target.checked)}
-                    className="w-4 h-4 accent-accent"
-                />
-            </td>
-            <td className="px-2 py-1.5">
-                <input
-                    value={doc.version ?? ''}
-                    onChange={(e) => set('version', e.target.value)}
-                    className="w-20 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-                />
-            </td>
-            <td className="px-2 py-1.5">
-                <input
-                    type="date"
-                    value={doc.document_date ?? ''}
-                    onChange={(e) => set('document_date', e.target.value || null)}
-                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-                />
-            </td>
-            <td className="px-2 py-1.5">
-                <input
-                    value={doc.comment ?? ''}
-                    onChange={(e) => set('comment', e.target.value)}
-                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
-                />
-            </td>
-            <td className="px-2 py-1.5">
-                <button onClick={onRemove} className="text-danger text-xs hover:opacity-70">
-                    ✕
-                </button>
-            </td>
-        </tr>
-    )
-}
-
 function ActionRow({ action, onChange, onRemove, priorites, statuts }) {
     function set(k, v) {
         onChange({ ...action, [k]: v })
@@ -452,13 +442,16 @@ export default function PassationPage() {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const qc = useQueryClient()
+    const { orgRegions } = useLaboratoireCatalog()
     const isNew = !uid || uid === 'new'
 
     const [form, setForm] = useState(EMPTY)
     const [documents, setDocuments] = useState([])
+    const [adresseOuvrage, setAdresseOuvrage] = useState('')
     const [actions, setActions] = useState([])
     const [structuredNeeds, setStructuredNeeds] = useState([])
     const [isEditing, setIsEditing] = useState(isNew)
+    const [linkDemandeUid, setLinkDemandeUid] = useState('')
 
     function set(k, v) {
         setForm((f) => ({ ...f, [k]: v }))
@@ -497,13 +490,96 @@ export default function PassationPage() {
         queryKey: ['auth-active-users-passation'],
         queryFn: async () => {
             try {
-                return await authApi.users()
+                const users = await authApi.users()
+                if (Array.isArray(users) && users.length > 0) return users
             } catch {
-                return []
+                /* auth directory unavailable */
             }
+            try {
+                const adminUsers = await adminApi.users.list()
+                if (Array.isArray(adminUsers) && adminUsers.length > 0) {
+                    return adminUsers
+                        .filter((entry) => entry.is_active !== false)
+                        .map((entry) => ({
+                            email: entry.email,
+                            display_name: entry.display_name || entry.email,
+                            service_code: entry.service_code || '',
+                        }))
+                }
+            } catch {
+                /* admin directory unavailable */
+            }
+            return RESPONSIBLE_LAB_PROFILES.flatMap((profile) =>
+                (profile.emails || []).map((email) => ({
+                    email,
+                    display_name: profile.displayName,
+                }))
+            )
         },
         retry: false,
     })
+
+    const destinataireOptions = useMemo(() => {
+        const byEmail = new Map()
+        for (const user of authUsers) {
+            const email = String(user?.email || '').trim().toLowerCase()
+            if (!email || byEmail.has(email)) continue
+            byEmail.set(email, {
+                email,
+                display_name: String(user?.display_name || email).trim(),
+                service_code: String(user?.service_code || '').trim().toUpperCase(),
+            })
+        }
+        return [...byEmail.values()].sort((a, b) =>
+            a.display_name.localeCompare(b.display_name, 'fr')
+        )
+    }, [authUsers])
+
+    const destinataireGroups = useMemo(
+        () => partitionDestinataireUsers(destinataireOptions, orgRegions),
+        [destinataireOptions, orgRegions],
+    )
+
+    const selectedAffaire = useMemo(
+        () => affaires.find((a) => String(a.uid) === String(form.affaire_rst_id)),
+        [affaires, form.affaire_rst_id],
+    )
+
+    const uploadAffaireDocument = useCallback(
+        (file, options = {}) => {
+            const affaireUid = form.affaire_rst_id
+            if (!affaireUid) {
+                return Promise.reject(new Error('Sélectionnez d’abord une affaire'))
+            }
+            return affairesApi.uploadDocument(affaireUid, file, options)
+        },
+        [form.affaire_rst_id],
+    )
+
+    const deleteAffaireDocument = useCallback(
+        (storedPath) => {
+            const affaireUid = form.affaire_rst_id
+            if (!affaireUid) {
+                return Promise.reject(new Error('Sélectionnez d’abord une affaire'))
+            }
+            return affairesApi.deleteDocument(affaireUid, storedPath)
+        },
+        [form.affaire_rst_id],
+    )
+
+    const debutTravauxLocked = Boolean(
+        passation?.date_debut_travaux_locked
+        || passation?.affaire_date_debut_travaux_prevue
+        || selectedAffaire?.date_debut_travaux_prevue,
+    )
+
+    const debutTravauxDisplay = (() => {
+        const affaireDate = passation?.affaire_date_debut_travaux_prevue
+            || selectedAffaire?.date_debut_travaux_prevue
+            || ''
+        if (affaireDate) return String(affaireDate).slice(0, 10)
+        return form.date_debut_travaux_prevue ?? ''
+    })()
 
     // Bootstrap from affaire if ?affaire_id=X
     const bootstrapAffaireId = searchParams.get('affaire_id')
@@ -519,7 +595,7 @@ export default function PassationPage() {
             const { documents: docs, actions: acts, structured_needs: needs, ...rest } = passation
             const nextForm = { ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') }
             setForm(nextForm)
-            setDocuments(docs || [])
+            setDocuments(ensureSiteCaptureDocumentRows(docs || []))
             setActions(acts || [])
             setStructuredNeeds(
                 Array.isArray(needs) && needs.length > 0
@@ -533,7 +609,6 @@ export default function PassationPage() {
         if (isNew && bootstrap) {
             const nextForm = { ...EMPTY, ...bootstrap, affaire_rst_id: String(bootstrapAffaireId) }
             setForm(nextForm)
-            if (bootstrap.documents?.length) setDocuments(bootstrap.documents)
             if (bootstrap.structured_needs?.length) {
                 setStructuredNeeds(bootstrap.structured_needs.map(normalizeStructuredNeed))
             } else {
@@ -548,25 +623,116 @@ export default function PassationPage() {
         }
     }, [bootstrapAffaireId, isNew])
 
-    // Seed default docs from filters
     useEffect(() => {
-        if (isNew && documents.length === 0 && filters.document_type_options?.length) {
-            setDocuments(
+        setAdresseOuvrage(String(selectedAffaire?.adresse_ouvrage || '').trim())
+    }, [selectedAffaire?.uid, selectedAffaire?.adresse_ouvrage])
+
+    useEffect(() => {
+        if (isNew) setDocuments([])
+    }, [isNew])
+
+    // Seed default docs after passation is created (not while drafting a new one)
+    useEffect(() => {
+        if (isNew || !passation) return
+        if ((passation.documents || []).length > 0) return
+        if (documents.length > 0) return
+        if (!filters.document_type_options?.length) return
+        setDocuments(
+            ensureSiteCaptureDocumentRows(
                 filters.document_type_options.map((t) => ({
                     document_type: t,
                     is_received: false,
                     version: '',
                     document_date: null,
+                    uploaded_at: null,
                     comment: '',
-                }))
-            )
+                })),
+            ),
+        )
+    }, [filters, isNew, passation, documents.length])
+
+    const demandesPreviewQuery = useQuery({
+        queryKey: ['passation-demandes', uid],
+        queryFn: () => passationsApi.demandes(uid),
+        enabled: !isNew && !!uid,
+    })
+
+    const linkableDemandesQuery = useQuery({
+        queryKey: ['passation-demandes-linkable', uid],
+        queryFn: () => passationsApi.linkableDemandes(uid),
+        enabled: !isNew && !!uid,
+    })
+
+    const passationDemandes = demandesPreviewQuery.data || []
+    const linkableDemandes = linkableDemandesQuery.data || []
+    const hasLinkedDemande = passationDemandes.length > 0
+    const detailReturnTo = `/passations/${uid}`
+
+    const passationLaboCode = useMemo(() => {
+        for (const row of [...passationDemandes, ...linkableDemandes]) {
+            const code = String(row?.labo_code || '').trim().toUpperCase()
+            if (code) return code
         }
-    }, [filters, isNew])
+        return 'SP'
+    }, [passationDemandes, linkableDemandes])
+
+    const captureSitePlan = useMemo(() => {
+        const affaireUid = form.affaire_rst_id
+        if (!affaireUid || isNew) return null
+        return {
+            laboCode: passationLaboCode,
+            geocode: (address) => affairesApi.geocodeSitePlan(affaireUid, address, passationLaboCode),
+            preview: ({ lat, lon, address, zoom, width, height }) => affairesApi.previewSitePlan(affaireUid, {
+                lat, lon, address, zoom, width, height,
+            }),
+            fetchItinerary: ({ lat, lon }) => affairesApi.getSitePlanItinerary(affaireUid, { lat, lon, laboCode: passationLaboCode }),
+            save: ({ address, lat, lon, mapCenterLat, mapCenterLon, addressLabel, zoom, zones, pins, replaceStoredPath, orientation }) => affairesApi.captureSitePlan(affaireUid, {
+                address,
+                lat,
+                lon,
+                map_center_lat: mapCenterLat,
+                map_center_lon: mapCenterLon,
+                address_label: addressLabel,
+                labo_code: passationLaboCode,
+                zoom: zoom ?? 16,
+                zones: zones || [],
+                pins: pins || [],
+                replace_stored_path: replaceStoredPath || undefined,
+                capture_kind: 'plan',
+                orientation: orientation || A4_ORIENTATION_PORTRAIT,
+            }),
+            saveItinerary: ({ address, lat, lon, mapCenterLat, mapCenterLon, addressLabel, zoom, itineraryRoute, replaceStoredPath, orientation }) => affairesApi.captureSitePlan(affaireUid, {
+                address,
+                lat,
+                lon,
+                map_center_lat: mapCenterLat,
+                map_center_lon: mapCenterLon,
+                address_label: addressLabel,
+                labo_code: passationLaboCode,
+                zoom: zoom ?? 13,
+                itinerary_route: itineraryRoute || [],
+                replace_stored_path: replaceStoredPath || undefined,
+                capture_kind: 'itinerary',
+                orientation: orientation || A4_ORIENTATION_LANDSCAPE,
+            }),
+            loadMeta: (storedPath) => affairesApi.getSitePlanMeta(affaireUid, storedPath),
+        }
+    }, [form.affaire_rst_id, isNew, passationLaboCode])
+
+    const { data: linkedAffaireDetail } = useQuery({
+        queryKey: ['affaire', String(form.affaire_rst_id), passationLaboCode],
+        queryFn: () => affairesApi.get(form.affaire_rst_id, { labo_code: passationLaboCode }),
+        enabled: Boolean(form.affaire_rst_id) && !isNew,
+    })
 
     const mutation = useMutation({
         mutationFn: (payload) => (isNew ? api.post('/passations', payload) : api.put(`/passations/${uid}`, payload)),
         onSuccess: (saved) => {
             qc.invalidateQueries({ queryKey: ['passations'] })
+            qc.invalidateQueries({ queryKey: ['affaires'] })
+            if (saved?.affaire_rst_id) {
+                qc.invalidateQueries({ queryKey: ['affaire', String(saved.affaire_rst_id)] })
+            }
             if (isNew) navigate(`/passations/${saved.uid}`, { replace: true })
             else {
                 qc.setQueryData(['passation', uid], saved)
@@ -575,27 +741,164 @@ export default function PassationPage() {
         },
     })
 
+    function buildPassationPayload() {
+        const legacyNeedsPatch = buildLegacyNeedsPatch(structuredNeeds)
+        return {
+            ...form,
+            ...legacyNeedsPatch,
+            affaire_rst_id: parseInt(form.affaire_rst_id, 10),
+            ...(debutTravauxLocked
+                ? {}
+                : { date_debut_travaux_prevue: form.date_debut_travaux_prevue || null }),
+            documents: documents.filter(
+                (d) => d.document_type || d.comment || d.is_received || d.version || d.stored_path || d.uploaded_at,
+            ),
+            actions: actions.filter((a) => a.action_label || a.responsable),
+            structured_needs: serializeStructuredNeeds(structuredNeeds),
+        }
+    }
+
+    async function persistPassationAdresseOuvrage() {
+        const affaireUid = parseInt(form.affaire_rst_id, 10)
+        const previousAdresse = String(selectedAffaire?.adresse_ouvrage || '').trim()
+        const nextAdresse = String(adresseOuvrage || '').trim()
+        if (!affaireUid || nextAdresse === previousAdresse) return
+        await affairesApi.update(affaireUid, { adresse_ouvrage: nextAdresse })
+        qc.invalidateQueries({ queryKey: ['affaires'] })
+        qc.invalidateQueries({ queryKey: ['affaire', String(affaireUid)] })
+    }
+
+    const documentsMutation = useMutation({
+        mutationFn: (payload) => api.put(`/passations/${uid}`, payload),
+        onSuccess: (saved) => {
+            qc.setQueryData(['passation', uid], saved)
+            setDocuments(ensureSiteCaptureDocumentRows(saved.documents || []))
+            qc.invalidateQueries({ queryKey: ['passations'] })
+            if (saved?.affaire_rst_id) {
+                qc.invalidateQueries({ queryKey: ['affaire', String(saved.affaire_rst_id)] })
+            }
+        },
+    })
+
+    async function handleSaveDocuments(overrideDocuments) {
+        if (isNew || !form.affaire_rst_id) return
+        const docsToSave = Array.isArray(overrideDocuments) ? overrideDocuments : documents
+        const err = validatePassationSitePlan({ adresseOuvrage, documents: docsToSave })
+        if (err) {
+            window.alert(err)
+            return
+        }
+        try {
+            await persistPassationAdresseOuvrage()
+        } catch (saveErr) {
+            window.alert(saveErr?.message || 'Impossible d’enregistrer l’adresse de l’ouvrage.')
+            return
+        }
+        await documentsMutation.mutateAsync({
+            ...buildPassationPayload(),
+            documents: docsToSave.filter(
+                (d) => d.document_type || d.comment || d.is_received || d.version || d.stored_path || d.uploaded_at,
+            ),
+        })
+    }
+
+    const [generateNotice, setGenerateNotice] = useState('')
+
+    const generateDemandesMutation = useMutation({
+        mutationFn: () => passationsApi.generateDemandes(uid),
+        onSuccess: (data) => {
+            const notif = data?.notification
+            if (notif?.notified) {
+                setGenerateNotice(
+                    `Demande créée — notification envoyée à ${notif.recipient_display_name || notif.recipient_email}` +
+                        (notif.email_mock_uid ? ` (e-mail mock #${notif.email_mock_uid})` : '')
+                )
+            } else {
+                setGenerateNotice('Demande créée.')
+            }
+            qc.invalidateQueries({ queryKey: ['passation-demandes', uid] })
+            qc.invalidateQueries({ queryKey: ['passation-demandes-linkable', uid] })
+            qc.invalidateQueries({ queryKey: ['passation', uid] })
+            qc.invalidateQueries({ queryKey: ['demandes'] })
+            qc.invalidateQueries({ queryKey: ['work-inbox-summary'] })
+            qc.invalidateQueries({ queryKey: ['work-inbox-mine'] })
+        },
+    })
+
+    async function handleGenerateDemande() {
+        setGenerateNotice('')
+        if (!String(form.demande_destinataire_email || '').trim()) {
+            setGenerateNotice('Choisissez le destinataire de la demande RST avant de générer.')
+            return
+        }
+        const sitePlanErr = validatePassationSitePlan({ adresseOuvrage, documents })
+        if (sitePlanErr) {
+            setGenerateNotice(sitePlanErr)
+            return
+        }
+        try {
+            const affaireUid = parseInt(form.affaire_rst_id, 10)
+            const previousAdresse = String(selectedAffaire?.adresse_ouvrage || '').trim()
+            const nextAdresse = String(adresseOuvrage || '').trim()
+            if (affaireUid && nextAdresse !== previousAdresse) {
+                await affairesApi.update(affaireUid, { adresse_ouvrage: nextAdresse })
+                qc.invalidateQueries({ queryKey: ['affaires'] })
+                qc.invalidateQueries({ queryKey: ['affaire', String(affaireUid)] })
+            }
+            await api.put(`/passations/${uid}`, {
+                demande_destinataire_email: form.demande_destinataire_email,
+                demande_destinataire_name: form.demande_destinataire_name,
+            })
+            generateDemandesMutation.mutate()
+        } catch (error) {
+            setGenerateNotice(error?.message || 'Impossible de préparer la génération.')
+        }
+    }
+
+    const linkDemandeMutation = useMutation({
+        mutationFn: (demandeUid) => passationsApi.linkDemande(uid, { demande_uid: demandeUid }),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['passation-demandes', uid] })
+            qc.invalidateQueries({ queryKey: ['passation-demandes-linkable', uid] })
+            qc.invalidateQueries({ queryKey: ['passation', uid] })
+            qc.invalidateQueries({ queryKey: ['demandes'] })
+            setLinkDemandeUid('')
+        },
+    })
+
+    useEffect(() => {
+        if (!isNew && passation?.is_editable === false) {
+            setIsEditing(false)
+        }
+    }, [isNew, passation?.is_editable])
+
     useEffect(() => {
         setIsEditing(isNew)
     }, [isNew, uid])
 
-    function handleSave() {
+    async function handleSave() {
         if (!form.affaire_rst_id) return
 
-        const legacyNeedsPatch = buildLegacyNeedsPatch(structuredNeeds)
+        if (!isNew) {
+            const err = validatePassationSitePlan({ adresseOuvrage, documents })
+            if (err) {
+                window.alert(err)
+                return
+            }
+        }
 
-        mutation.mutate({
-            ...form,
-            ...legacyNeedsPatch,
-            affaire_rst_id: parseInt(form.affaire_rst_id),
-            documents: documents.filter((d) => d.document_type || d.comment || d.is_received),
-            actions: actions.filter((a) => a.action_label || a.responsable),
-            structured_needs: serializeStructuredNeeds(structuredNeeds),
-        })
+        try {
+            await persistPassationAdresseOuvrage()
+        } catch (err) {
+            window.alert(err?.message || 'Impossible d’enregistrer l’adresse de l’ouvrage.')
+            return
+        }
+
+        mutation.mutate(buildPassationPayload())
     }
 
     function handleStartEdit() {
-        if (isNew) return
+        if (isNew || passation?.is_editable === false) return
         setIsEditing(true)
     }
 
@@ -605,7 +908,7 @@ export default function PassationPage() {
             const { documents: docs, actions: acts, structured_needs: needs, ...rest } = passation
             const nextForm = { ...EMPTY, ...rest, affaire_rst_id: String(rest.affaire_rst_id || '') }
             setForm(nextForm)
-            setDocuments(docs || [])
+            setDocuments(ensureSiteCaptureDocumentRows(docs || []))
             setActions(acts || [])
             setStructuredNeeds(
                 Array.isArray(needs) && needs.length > 0
@@ -614,19 +917,6 @@ export default function PassationPage() {
             )
         }
         setIsEditing(false)
-    }
-
-    function addDoc() {
-        setDocuments((d) => [
-            ...d,
-            { document_type: '', is_received: false, version: '', document_date: null, comment: '' },
-        ])
-    }
-    function updateDoc(i, doc) {
-        setDocuments((d) => d.map((x, j) => (j === i ? doc : x)))
-    }
-    function removeDoc(i) {
-        setDocuments((d) => d.filter((_, j) => j !== i))
     }
 
     function addAction() {
@@ -704,6 +994,8 @@ export default function PassationPage() {
         const match = etudeRowsByNumero.get(normalizeEtudeKey(nextValue))
         if (!match) return
         const chantier = String(match?.nom_affaire || '').trim()
+        const maitreOuvrage = String(match?.maitre_ouvrage || '').trim()
+        const maitreOeuvre = String(match?.maitre_oeuvre || '').trim()
         const client = String(match?.maitre_ouvrage || '').trim()
         const entreprise = String(match?.filiale || '').trim()
         const responsable = String(match?.responsable_etude || '').trim()
@@ -711,7 +1003,9 @@ export default function PassationPage() {
             ...f,
             numero_etude: String(match?.numero_etude || nextValue || '').trim(),
             chantier: chantier || f.chantier,
-            client: client || f.client,
+            maitre_ouvrage: maitreOuvrage || f.maitre_ouvrage,
+            maitre_oeuvre: maitreOeuvre || f.maitre_oeuvre,
+            client: f.client || client,
             entreprise_responsable: entreprise || f.entreprise_responsable,
             responsable: responsable || f.responsable,
         }))
@@ -767,8 +1061,31 @@ export default function PassationPage() {
     const linkedAffaire = form.affaire_rst_id
         ? affaires.find((a) => String(a.uid) === String(form.affaire_rst_id))
         : null
-    const backTarget = linkedAffaire ? `/affaires/${linkedAffaire.uid}` : '/passations'
-    const canEdit = isNew || isEditing
+    const affaireRef = String(linkedAffaire?.reference || passation?.affaire_ref || '').trim()
+    const affaireUid = linkedAffaire?.uid || form.affaire_rst_id || passation?.affaire_rst_id || ''
+    const heroAffaire = useMemo(() => {
+        if (linkedAffaire) return linkedAffaire
+        if (!affaireRef && !form.chantier && !form.client && !passation?.chantier && !passation?.client) {
+            return null
+        }
+        return {
+            uid: affaireUid,
+            reference: affaireRef,
+            chantier: form.chantier || passation?.chantier || '',
+            client: form.client || passation?.client || '',
+            site: '',
+            responsable: form.responsable || passation?.responsable || '',
+            statut: '',
+            titulaire: '',
+            filiale: form.agence || passation?.agence || '',
+            nb_demandes_actives: null,
+            nb_demandes: null,
+            date_ouverture: null,
+        }
+    }, [linkedAffaire, affaireRef, affaireUid, form, passation])
+    const backTarget = affaireUid ? `/affaires/${affaireUid}` : '/passations'
+    const passationIsEditable = isNew || passation?.is_editable !== false
+    const canEdit = isNew || (isEditing && passationIsEditable)
 
     const metrics = {
         docs: documents.filter((d) => d.document_type).length,
@@ -860,23 +1177,34 @@ export default function PassationPage() {
                             Fiche passation
                         </div>
                         <div className="text-[15px] font-black">{title}</div>
+                        {affaireRef ? (
+                            <div className="text-[12px] font-bold text-[#003170] mt-0.5">
+                                Affaire {affaireRef}
+                            </div>
+                        ) : null}
                     </div>
 
-                    {linkedAffaire ? (
-                        <Button size="sm" onClick={() => navigate(`/affaires/${linkedAffaire.uid}`)}>
+                    {affaireUid ? (
+                        <Button size="sm" onClick={() => navigate(`/affaires/${affaireUid}`)}>
                             Affaire
                         </Button>
                     ) : null}
-                    {linkedAffaire ? (
-                        <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${linkedAffaire.uid}`)}>
+                    {affaireUid ? (
+                        <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${affaireUid}`)}>
                             Demandes
                         </Button>
                     ) : null}
-                    {!isNew && !isEditing ? (
+                    {!isNew && !isEditing && passationIsEditable ? (
                         <Button size="sm" variant="primary" onClick={handleStartEdit}>
                             Modifier
                         </Button>
-                    ) : (
+                    ) : null}
+                    {!isNew && !passationIsEditable && !isEditing ? (
+                        <span className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-[#f8fafc] text-[12px] font-bold text-[#69758a]">
+                            Lecture seule
+                        </span>
+                    ) : null}
+                    {canEdit ? (
                         <>
                             <Button size="sm" onClick={isNew ? () => navigate('/passations') : handleCancelEdit}>
                                 Annuler
@@ -890,12 +1218,12 @@ export default function PassationPage() {
                                 {mutation.isPending ? 'Enregistrement…' : isNew ? '✓ Créer' : '✓ Enregistrer'}
                             </Button>
                         </>
-                    )}
+                    ) : null}
                 </div>
             </div>
 
             <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
-                {linkedAffaire ? (
+                {heroAffaire ? (
                     <section
                         className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
                         style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
@@ -915,22 +1243,27 @@ export default function PassationPage() {
                                     RaLab 5 · Passation RST
                                 </div>
                                 <h1 className="text-[32px] font-black leading-none tracking-tight m-0">{title}</h1>
-                                <div className="mt-3 text-[20px] font-black">{linkedAffaire.chantier || '—'}</div>
+                                {affaireRef ? (
+                                    <div className="mt-2 text-[18px] font-black text-[#ffcc00]">
+                                        Affaire {affaireRef}
+                                    </div>
+                                ) : null}
+                                <div className="mt-3 text-[20px] font-black">{heroAffaire.chantier || '—'}</div>
                                 <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-2.5 text-[13px] text-white/80">
-                                    {linkedAffaire.client ? (
+                                    {heroAffaire.client ? (
                                         <span>
-                                            Client : <strong className="text-white">{linkedAffaire.client}</strong>
+                                            Client : <strong className="text-white">{heroAffaire.client}</strong>
                                         </span>
                                     ) : null}
-                                    {linkedAffaire.site ? (
+                                    {heroAffaire.site ? (
                                         <span>
-                                            Site : <strong className="text-white">{linkedAffaire.site}</strong>
+                                            Site : <strong className="text-white">{heroAffaire.site}</strong>
                                         </span>
                                     ) : null}
-                                    {linkedAffaire.responsable ? (
+                                    {heroAffaire.responsable ? (
                                         <span>
                                             Responsable :{' '}
-                                            <strong className="text-white">{linkedAffaire.responsable}</strong>
+                                            <strong className="text-white">{heroAffaire.responsable}</strong>
                                         </span>
                                     ) : null}
                                 </div>
@@ -939,32 +1272,36 @@ export default function PassationPage() {
                             <div className="min-w-[260px] max-w-[440px] rounded-[18px] border border-white/20 bg-white/[.11] p-4 text-right">
                                 <div className="flex flex-wrap justify-end gap-2">
                                     <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                                        {linkedAffaire.statut === 'En cours'
+                                        {heroAffaire.statut === 'En cours'
                                             ? 'Affaire active'
-                                            : linkedAffaire.statut || '—'}
+                                            : heroAffaire.statut || 'Affaire liée'}
                                     </span>
-                                    {linkedAffaire.titulaire ? (
+                                    {heroAffaire.titulaire ? (
                                         <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                                            {linkedAffaire.titulaire}
+                                            {heroAffaire.titulaire}
                                         </span>
                                     ) : null}
-                                    {linkedAffaire.filiale ? (
+                                    {heroAffaire.filiale ? (
                                         <span className="inline-flex items-center rounded-full border border-white/20 bg-white text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
-                                            {linkedAffaire.filiale}
+                                            {heroAffaire.filiale}
                                         </span>
                                     ) : null}
                                 </div>
-                                <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">
-                                    Demandes
-                                </div>
-                                <div className="mt-1.5 text-[13px] font-black">
-                                    {linkedAffaire.nb_demandes_actives ?? 0} active
-                                    {(linkedAffaire.nb_demandes_actives ?? 0) !== 1 ? 's' : ''} /{' '}
-                                    {linkedAffaire.nb_demandes ?? 0}
-                                </div>
-                                {linkedAffaire.date_ouverture ? (
+                                {heroAffaire.nb_demandes != null ? (
+                                    <>
+                                        <div className="mt-4 text-white/65 text-[11px] font-black tracking-[.12em] uppercase">
+                                            Demandes
+                                        </div>
+                                        <div className="mt-1.5 text-[13px] font-black">
+                                            {heroAffaire.nb_demandes_actives ?? 0} active
+                                            {(heroAffaire.nb_demandes_actives ?? 0) !== 1 ? 's' : ''} /{' '}
+                                            {heroAffaire.nb_demandes ?? 0}
+                                        </div>
+                                    </>
+                                ) : null}
+                                {heroAffaire.date_ouverture ? (
                                     <div className="mt-2 text-[12px] font-black text-white/70">
-                                        Ouverture {formatDate(linkedAffaire.date_ouverture)}
+                                        Ouverture {formatDate(heroAffaire.date_ouverture)}
                                     </div>
                                 ) : null}
                             </div>
@@ -992,6 +1329,177 @@ export default function PassationPage() {
                     </div>
                 )}
 
+                {!isNew && passation?.is_editable === false && passation?.edit_lock_reason ? (
+                    <div className="rounded-[14px] border border-[#dbe1ea] bg-[#f8fafc] px-4 py-3 text-[12px] text-[#69758a]">
+                        {passation.edit_lock_reason}
+                    </div>
+                ) : null}
+
+                {!isNew ? (
+                    <SectionCard
+                        title="Demandes associées"
+                        subtitle="Demande générée depuis cette passation"
+                        actions={
+                            !hasLinkedDemande ? (
+                                <Button
+                                    size="sm"
+                                    variant="primary"
+                                    onClick={handleGenerateDemande}
+                                    disabled={generateDemandesMutation.isPending}
+                                >
+                                    {generateDemandesMutation.isPending ? 'Génération…' : 'Générer demande'}
+                                </Button>
+                            ) : null
+                        }
+                    >
+                        {!hasLinkedDemande ? (
+                            <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                <FG label="Destinataire demande *">
+                                    <Select
+                                        value={form.demande_destinataire_email ?? ''}
+                                        onChange={(e) => {
+                                            const email = e.target.value
+                                            const user = destinataireOptions.find((entry) => entry.email === email)
+                                            setForm((current) => ({
+                                                ...current,
+                                                demande_destinataire_email: email,
+                                                demande_destinataire_name: user?.display_name || '',
+                                            }))
+                                        }}
+                                        className="w-full"
+                                        disabled={!passationIsEditable}
+                                    >
+                                        <option value="">— Choisir le destinataire —</option>
+                                        {destinataireGroups.regionalRst.length > 0 ? (
+                                            <optgroup label="RST · région ARS">
+                                                {destinataireGroups.regionalRst.map((user) => (
+                                                    <option key={user.email} value={user.email}>
+                                                        {user.display_name} — RST ARS
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        ) : null}
+                                        {destinataireGroups.laboLocal.length > 0 ? (
+                                            <optgroup label="Responsables labo locaux">
+                                                {destinataireGroups.laboLocal.map((user) => (
+                                                    <option key={user.email} value={user.email}>
+                                                        {user.display_name} ({user.service_code || 'labo'})
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        ) : null}
+                                        {destinataireGroups.other.map((user) => (
+                                            <option key={user.email} value={user.email}>
+                                                {user.display_name} ({user.email})
+                                            </option>
+                                        ))}
+                                    </Select>
+                                </FG>
+                                <div className="flex items-end pb-1 text-xs leading-relaxed text-[#69758a]">
+                                    RST région ARS ou responsable labo local (SP / PDC).
+                                    À la génération : attribution dashboard + e-mail (mock).
+                                </div>
+                            </div>
+                        ) : null}
+                        {passationDemandes.length === 0 ? (
+                            <div className="text-xs text-[#69758a] text-center py-8">
+                                Aucune demande associée à cette passation
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto rounded-2xl border border-[#dbe1ea]">
+                                <table className="w-full min-w-[1080px] border-collapse">
+                                    <thead>
+                                        <tr>
+                                            {[
+                                                'Référence',
+                                                'Nature / mission',
+                                                'Statut',
+                                                'Priorité',
+                                                'Éch.',
+                                                'Interv.',
+                                                'N° DST',
+                                                'Date demande',
+                                                'Échéance',
+                                                'Demandeur',
+                                                'MàJ',
+                                            ].map((h) => (
+                                                <th
+                                                    key={h}
+                                                    className="border-b border-[#dbe1ea] bg-[#f1f5f9] text-[#69758a] px-3.5 py-2.5 text-left text-[11px] font-black uppercase tracking-[.08em] whitespace-nowrap"
+                                                >
+                                                    {h}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {passationDemandes.map((d) => (
+                                            <tr
+                                                key={d.uid}
+                                                onClick={() =>
+                                                    navigate(buildPathWithReturnTo(`/demandes/${d.uid}`, detailReturnTo))
+                                                }
+                                                className="border-b border-[#edf1f6] cursor-pointer hover:bg-[#f8f8fc] transition-colors"
+                                            >
+                                                <td className="px-3.5 py-3 bg-white">
+                                                    <strong className="text-[#003170] text-xs font-black">
+                                                        {d.reference}
+                                                    </strong>
+                                                </td>
+                                                <td className="px-3.5 py-3 bg-white text-xs">
+                                                    <div className="font-medium">{d.nature || d.type_mission || '—'}</div>
+                                                    {d.type_mission && d.nature && d.type_mission !== d.nature ? (
+                                                        <div className="text-[10px] text-[#69758a]">{d.type_mission}</div>
+                                                    ) : null}
+                                                </td>
+                                                <td className="px-3.5 py-3 bg-white">
+                                                    <DemandeBadge statut={d.statut} />
+                                                </td>
+                                                <td className="px-3.5 py-3 bg-white text-xs">{d.priorite || '—'}</td>
+                                                <td className="px-3.5 py-3 bg-white text-xs text-center">
+                                                    {d.nb_echantillons || 0}
+                                                </td>
+                                                <td className="px-3.5 py-3 bg-white text-xs text-center">
+                                                    <div>{d.nb_interventions || 0}</div>
+                                                    {(() => {
+                                                        const summary = buildTerrainFamiliesSummary(d)
+                                                        return summary ? (
+                                                            <div className="text-[10px] text-[#69758a]">{summary}</div>
+                                                        ) : null
+                                                    })()}
+                                                </td>
+                                                <td className="px-3.5 py-3 bg-white text-xs">{d.numero_dst || '—'}</td>
+                                                <td className="px-3.5 py-3 bg-white text-xs">
+                                                    {d.date_reception ? formatDate(d.date_reception) : '—'}
+                                                </td>
+                                                <td className="px-3.5 py-3 bg-white text-xs">
+                                                    {d.date_echeance ? formatDate(d.date_echeance) : '—'}
+                                                </td>
+                                                <td className="px-3.5 py-3 bg-white text-xs">{d.demandeur || '—'}</td>
+                                                <td className="px-3.5 py-3 bg-white text-xs">
+                                                    {d.updated_at ? formatDate(d.updated_at) : '—'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {generateNotice ? (
+                            <div className="mt-4 rounded-xl border border-[#cfe0f5] bg-[#eef5fc] p-3 text-[13px] text-[#185fa5]">
+                                {generateNotice}
+                            </div>
+                        ) : null}
+
+                        {generateDemandesMutation.error ? (
+                            <div className="mt-4 rounded-xl border border-[#f0a0a0] bg-[#fcebeb] p-3 text-[13px] text-[#8c2626]">
+                                {generateDemandesMutation.error.message}
+                            </div>
+                        ) : null}
+                    </SectionCard>
+                ) : null}
+
                 <fieldset disabled={!canEdit} className="contents">
                     <SectionCard title="A - Identité" subtitle="Rattachement affaire et informations de cadrage">
                         <div className="grid grid-cols-2 gap-3.5">
@@ -1016,6 +1524,20 @@ export default function PassationPage() {
                                     onChange={(e) => set('date_passation', e.target.value)}
                                 />
                             </FG>
+                            <FG label="Date prévue début travaux">
+                                <Input
+                                    type="date"
+                                    value={debutTravauxDisplay}
+                                    disabled={debutTravauxLocked || !isEditing}
+                                    readOnly={debutTravauxLocked}
+                                    onChange={(e) => set('date_debut_travaux_prevue', e.target.value)}
+                                />
+                                {debutTravauxLocked ? (
+                                    <p className="text-[11px] text-text-muted mt-1">
+                                        Définie sur l&apos;affaire — lecture seule ici.
+                                    </p>
+                                ) : null}
+                            </FG>
                             <FG label="N° étude">
                                 <Input
                                     value={form.numero_etude}
@@ -1033,8 +1555,30 @@ export default function PassationPage() {
                             <FG label="Chantier">
                                 <Input value={form.chantier} onChange={(e) => set('chantier', e.target.value)} />
                             </FG>
+                            <FG label="Adresse ouvrage" full>
+                                <textarea
+                                    value={adresseOuvrage}
+                                    onChange={(e) => setAdresseOuvrage(e.target.value)}
+                                    placeholder="Rue et numéro — le site (commune / CP) complète la localisation carte"
+                                    rows={2}
+                                    disabled={!form.affaire_rst_id}
+                                    className="w-full px-2.5 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent disabled:opacity-60"
+                                />
+                                <div className="mt-1 text-[11px] text-text-muted">
+                                    Partagée sur l’affaire. Avec le site de l’affaire (commune / CP), sert au plan de situation.
+                                </div>
+                            </FG>
                             <FG label="Client">
                                 <Input value={form.client} onChange={(e) => set('client', e.target.value)} />
+                                <div className="mt-1 text-[11px] text-text-muted">
+                                    Peut différer du maître d’ouvrage (facturation, contact opérationnel…).
+                                </div>
+                            </FG>
+                            <FG label="Maître d'ouvrage">
+                                <Input value={form.maitre_ouvrage} onChange={(e) => set('maitre_ouvrage', e.target.value)} />
+                            </FG>
+                            <FG label="Maître d'œuvre">
+                                <Input value={form.maitre_oeuvre} onChange={(e) => set('maitre_oeuvre', e.target.value)} />
                             </FG>
                             <FG label="Entreprise responsable">
                                 <Input
@@ -1131,32 +1675,40 @@ export default function PassationPage() {
                     </datalist>
 
                     <SectionCard title="C - Documents reçus / attendus" subtitle="Pièces nécessaires pour le lancement">
-                        <div className="overflow-x-auto">
-                            <table className="w-full border-collapse text-xs mb-3">
-                                <thead>
-                                    <tr className="border-b border-border">
-                                        {['Document', 'Reçu', 'Version', 'Date', 'Commentaire', ''].map((h) => (
-                                            <th key={h} className="px-2 py-1.5 text-left font-medium text-text-muted">
-                                                {h}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {documents.map((doc, i) => (
-                                        <DocRow
-                                            key={i}
-                                            doc={doc}
-                                            onChange={(d) => updateDoc(i, d)}
-                                            onRemove={() => removeDoc(i)}
-                                        />
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        <Button size="sm" onClick={addDoc}>
-                            + Ajouter document
-                        </Button>
+                        {!isNew && !hasPlanSituationFile(documents) ? (
+                            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] leading-relaxed text-amber-950">
+                                Plan de situation obligatoire — déposez le fichier ou capturez la carte sur la ligne ci-dessous.
+                            </div>
+                        ) : null}
+                        <DocumentTrackingTable
+                            documents={documents}
+                            onChange={(next) => setDocuments(ensureSiteCaptureDocumentRows(next))}
+                            onSave={!isNew ? handleSaveDocuments : undefined}
+                            isSaving={documentsMutation.isPending}
+                            readOnly={isNew}
+                            enableFileDrop={!isNew}
+                            uploadDocument={!isNew ? uploadAffaireDocument : undefined}
+                            deleteStoredFile={!isNew ? deleteAffaireDocument : undefined}
+                            captureSitePlan={captureSitePlan}
+                            documentTypeOptions={filters.document_type_options || []}
+                            siteGeocodeParts={{
+                              adresseOuvrage: adresseOuvrage,
+                              site: selectedAffaire?.site || '',
+                            }}
+                            distanceToLab={linkedAffaireDetail?.site_geo?.distance_to_lab}
+                            fileDropDisabledMessage={
+                                isNew
+                                    ? 'Quadro C indisponible : enregistrez d’abord cette passation (choisir l’affaire, puis Enregistrer).'
+                                    : !form.affaire_rst_id
+                                        ? 'Sélectionnez une affaire pour déposer des fichiers.'
+                                        : ''
+                            }
+                            subtitle={
+                                isNew
+                                    ? 'Enregistrez la passation pour accéder au quadro C.'
+                                    : 'Le plan de situation est obligatoire. Glisser un fichier sur Version pour l’envoyer sur le serveur.'
+                            }
+                        />
                     </SectionCard>
 
                     <SectionCard title="D - Points de vigilance / contraintes" subtitle="Risques et points de suivi">
@@ -1273,14 +1825,46 @@ export default function PassationPage() {
                     <SectionCard title="G - Synthèse & notes" subtitle="Conclusion et éléments complémentaires">
                         <div className="flex flex-col gap-4">
                             <FG label="Synthèse">
-                                <TA value={form.synthese} onChange={(v) => set('synthese', v)} rows={4} />
+                                <TA value={form.synthese} onChange={(v) => set('synthese', v)} rows={18} />
                             </FG>
                             <FG label="Notes complémentaires">
-                                <TA value={form.notes} onChange={(v) => set('notes', v)} rows={4} />
+                                <TA value={form.notes} onChange={(v) => set('notes', v)} rows={6} />
                             </FG>
                         </div>
                     </SectionCard>
                 </fieldset>
+
+                {!isNew && !hasLinkedDemande && linkableDemandes.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-[#edf1f6] pt-4 text-[11px] text-[#69758a]">
+                        <span>Lier demande existante</span>
+                        <Select
+                            value={linkDemandeUid}
+                            onChange={(e) => setLinkDemandeUid(e.target.value)}
+                            className="min-w-[180px] text-xs"
+                        >
+                            <option value="">—</option>
+                            {linkableDemandes.map((item) => (
+                                <option key={item.demande_uid} value={item.demande_uid}>
+                                    {item.reference || `#${item.demande_uid}`}
+                                </option>
+                            ))}
+                        </Select>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!linkDemandeUid) return
+                                linkDemandeMutation.mutate(parseInt(linkDemandeUid, 10))
+                            }}
+                            disabled={!linkDemandeUid || linkDemandeMutation.isPending}
+                            className="font-bold text-[#003170] hover:underline disabled:opacity-40"
+                        >
+                            {linkDemandeMutation.isPending ? 'Liaison…' : 'Lier'}
+                        </button>
+                        {linkDemandeMutation.error ? (
+                            <span className="text-[#8c2626]">{linkDemandeMutation.error.message}</span>
+                        ) : null}
+                    </div>
+                ) : null}
             </div>
         </FichePageShell>
     )

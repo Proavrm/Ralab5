@@ -10,6 +10,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db_path
+from app.services.prelevement_reference_service import next_prelevement_reference
+from app.services.feuille_rapport_validation_service import (
+    assert_feuille_rapport_editable,
+    parse_resultats_payload,
+)
 from api.point_code_logic import allocate_next_point_code_for_scope, point_code_exists_in_scope
 
 router = APIRouter()
@@ -34,10 +39,17 @@ class PointTerrainPayload(BaseModel):
     venue_eau: Optional[bool] = None
     niveau_nappe: str = ''
     arret_sondage: str = ''
+    equipement: str = ''
+    equipment_id: Optional[int] = None
     ouvrage: str = ''
     notes: str = ''
     carotte_annotations: list[dict[str, Any]] = Field(default_factory=list)
     carotte_coupes: list[dict[str, Any]] = Field(default_factory=list)
+    x: Optional[float] = None
+    y: Optional[float] = None
+    z: Optional[float] = None
+    plan_canvas_x: Optional[float] = None
+    plan_canvas_y: Optional[float] = None
 
 
 class SondageCouchePayload(BaseModel):
@@ -171,6 +183,8 @@ def _default_feuille_label(code_feuille: str) -> str:
         return 'Sondage carotté'
     if normalized == 'SO':
         return 'Sondage à la pelle'
+    if normalized == 'VC':
+        return 'Feuille de visite chantier'
     return normalized or 'Feuille terrain'
 
 
@@ -380,7 +394,7 @@ def _build_point_payload(point_row: sqlite3.Row, feuille_row: sqlite3.Row) -> di
     if profondeur_finale is None:
         profondeur_finale = data.get('profondeur_bas')
 
-    return {
+    result = {
         'uid': int(data['id']),
         'source_essai_id': data.get('source_essai_id'),
         'reference': data.get('reference') or payload.get('reference') or '',
@@ -396,6 +410,8 @@ def _build_point_payload(point_row: sqlite3.Row, feuille_row: sqlite3.Row) -> di
         'venue_eau': _safe_bool(payload.get('venue_eau')),
         'niveau_nappe': payload.get('niveau_nappe') or '',
         'arret_sondage': payload.get('arret_sondage') or '',
+        'equipement': payload.get('equipement') or '',
+        'equipment_id': payload.get('equipment_id'),
         'sondeur': payload.get('sondeur') or '',
         'procede': payload.get('procede') or '',
         'diametre': payload.get('diametre') or '',
@@ -414,6 +430,11 @@ def _build_point_payload(point_row: sqlite3.Row, feuille_row: sqlite3.Row) -> di
         'couches': [],
         'prelevements': [],
     }
+    for column in ('x', 'y', 'z', 'plan_canvas_x', 'plan_canvas_y'):
+        if column in data:
+            value = data.get(column)
+            result[column] = float(value) if value is not None else None
+    return result
 
 
 def _ensure_point_references_for_feuille(conn: sqlite3.Connection, feuille_row: sqlite3.Row) -> None:
@@ -1153,6 +1174,8 @@ def create_feuille_terrain(body: FeuilleTerrainCreatePayload):
 def update_feuille_terrain(uid: int, body: FeuilleTerrainUpdatePayload):
     with _connect() as conn:
         feuille_row = _get_feuille_row(conn, uid)
+        existing_payload = parse_resultats_payload(feuille_row['resultats_json'])
+        assert_feuille_rapport_editable(existing_payload, action='modifier cette feuille')
         feuilles_columns = _table_columns(conn, 'feuilles_terrain')
         if not feuilles_columns:
             raise HTTPException(status_code=400, detail='Table feuilles_terrain indisponible')
@@ -1304,6 +1327,8 @@ def create_point_terrain(uid: int, body: PointTerrainPayload):
             'venue_eau': body.venue_eau,
             'niveau_nappe': body.niveau_nappe,
             'arret_sondage': body.arret_sondage,
+            'equipement': body.equipement,
+            'equipment_id': body.equipment_id,
             'ouvrage': body.ouvrage,
             'notes': body.notes,
             'carotte_annotations': body.carotte_annotations,
@@ -1363,6 +1388,8 @@ def update_point_terrain(uid: int, point_uid: int, body: PointTerrainPayload):
             'venue_eau': body.venue_eau,
             'niveau_nappe': body.niveau_nappe,
             'arret_sondage': body.arret_sondage,
+            'equipement': body.equipement,
+            'equipment_id': body.equipment_id,
             'ouvrage': body.ouvrage,
             'notes': body.notes,
             'carotte_annotations': body.carotte_annotations,
@@ -1384,6 +1411,10 @@ def update_point_terrain(uid: int, point_uid: int, body: PointTerrainPayload):
             'payload_json': _serialize_json(existing_payload),
             'updated_at': _now_sql(),
         }
+        for column in ('x', 'y', 'z', 'plan_canvas_x', 'plan_canvas_y'):
+            if column in point_columns and hasattr(body, column):
+                raw_value = getattr(body, column)
+                values[column] = float(raw_value) if raw_value is not None else None
         update_values = {key: value for key, value in values.items() if key in point_columns}
         clause = ', '.join(f'{key} = ?' for key in update_values)
         conn.execute(
@@ -1616,14 +1647,9 @@ def create_prelevement_for_couche(uid: int, point_uid: int, couche_uid: int, bod
         intervention_id = feuille_row['intervention_id']
         now = _now_sql()
 
-        # Generate reference
-        row_dem = conn.execute('SELECT annee, labo_code FROM demandes WHERE id = ?', (demande_id,)).fetchone() if demande_id else None
+        reference = next_prelevement_reference(conn, demande_id=demande_id)
+        row_dem = conn.execute('SELECT annee FROM demandes WHERE id = ?', (demande_id,)).fetchone() if demande_id else None
         annee = row_dem['annee'] if row_dem else datetime.now().year
-        labo = row_dem['labo_code'] if row_dem else 'SP'
-        prefix = f'{annee}-{labo}-P'
-        existing = conn.execute('SELECT reference FROM prelevements WHERE reference LIKE ?', (f'{prefix}%',)).fetchall()
-        nums = [int(r['reference'][len(prefix):]) for r in existing if r['reference'][len(prefix):].isdigit()]
-        reference = f'{prefix}{max(nums, default=0) + 1:04d}'
 
         conn.execute(
             '''INSERT INTO prelevements (

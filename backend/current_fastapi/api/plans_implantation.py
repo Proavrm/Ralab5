@@ -12,7 +12,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.core.database import get_db_path
+from app.services.essai_codes_catalog import ESSAI_CODE_CATALOG
 from api.feuilles_terrain import _next_point_reference as _terrain_next_point_reference
+from api.nivellements import ensure_nivellement_for_intervention
 from api.sc_point_schema import build_sc_point_payload
 
 router = APIRouter()
@@ -145,24 +147,164 @@ def _normalize_canvas_token(value: str) -> str:
 def _normalize_canvas_point_family(point_code: str, point_type: str) -> str:
     code = _normalize_canvas_token(point_code)
     normalized_type = _normalize_canvas_token(point_type)
-    if code.startswith('SC'):
-        return 'SC'
-    if code.startswith('SP') or code.startswith('SO'):
-        return 'SO'
-    if code.startswith('DE'):
-        return 'DE'
-    if 'CAROT' in normalized_type or 'SC' == normalized_type:
+    for prefix in (
+        'PLD', 'FWD', 'SCB', 'ITSR', 'SC', 'SO', 'DE', 'HAP', 'AMI', 'DF', 'PMT', 'ADH', 'ACO',
+        'PL', 'VC', 'GEN', 'PA', 'CFE', 'GPR', 'ORN', 'ARR', 'EXT', 'PCG', 'DS', 'QS', 'EAU', 'PER', 'INF', 'EE', 'EA',
+    ):
+        if code.startswith(prefix):
+            return prefix
+    if 'CAROT' in normalized_type or normalized_type == 'SC':
         return 'SC'
     if 'PELLE' in normalized_type or normalized_type in {'SO', 'SP'}:
         return 'SO'
     if 'DENSITE' in normalized_type or 'ENROBE' in normalized_type or normalized_type == 'DE':
         return 'DE'
+    if 'HAP' in normalized_type:
+        return 'HAP'
+    if 'AMI' in normalized_type or 'AMIANTE' in normalized_type:
+        return 'AMI'
+    if 'FWD' in normalized_type:
+        return 'FWD'
+    if 'DEFLEX' in normalized_type or normalized_type == 'DF':
+        return 'DF'
+    if 'PMT' in normalized_type or 'MACROTEXTURE' in normalized_type:
+        return 'PMT'
+    if 'ADH' in normalized_type or 'ADHER' in normalized_type:
+        return 'ADH'
+    if 'ACO' in normalized_type or 'ACOUST' in normalized_type:
+        return 'ACO'
+    if 'PLD' in normalized_type or 'DYNAPLAQUE' in normalized_type:
+        return 'PLD'
+    if 'PLAQUE' in normalized_type or normalized_type == 'PL':
+        return 'PL'
+    if 'VISITE' in normalized_type or normalized_type == 'VC':
+        return 'VC'
+    if normalized_type in {'REPERE', 'REPÈRE'}:
+        return 'REPERE'
+    if normalized_type == 'OBSERVATION':
+        return 'OBSERVATION'
     return ''
 
 
+_CANVAS_EXCLUDED_TERRAIN_CODES = frozenset({'GEN', 'VC'})
+_GENERIC_CANVAS_FAMILIES = frozenset({'REPERE', 'OBSERVATION'})
+_TERRAIN_POINT_COORD_COLUMNS = ('x', 'y', 'z', 'plan_canvas_x', 'plan_canvas_y')
+
+
+def _coerce_optional_float(value: object) -> float | None:
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _terrain_coord_select_sql(columns: set[str]) -> str:
+    selected = [f'pt.{column}' for column in _TERRAIN_POINT_COORD_COLUMNS if column in columns]
+    return f", {', '.join(selected)}" if selected else ''
+
+
+def _fetch_feuille_for_intervention(
+    conn: sqlite3.Connection,
+    feuille_id: int,
+    intervention_id: int,
+) -> sqlite3.Row | None:
+    return conn.execute(
+        '''
+        SELECT id, reference, demande_id, campagne_id, intervention_id, serie_id, code_feuille
+        FROM feuilles_terrain
+        WHERE id = ? AND intervention_id = ?
+        ''',
+        [int(feuille_id), int(intervention_id)],
+    ).fetchone()
+
+
+def _persist_terrain_point_coords(
+    conn: sqlite3.Connection,
+    point_uid: int,
+    columns: set[str],
+    *,
+    plan_canvas_x: object = None,
+    plan_canvas_y: object = None,
+    x: object = None,
+    y: object = None,
+    z: object = None,
+) -> None:
+    if not columns:
+        return
+    fields: dict[str, float | None] = {}
+    mapping = {
+        'plan_canvas_x': plan_canvas_x,
+        'plan_canvas_y': plan_canvas_y,
+        'x': x,
+        'y': y,
+        'z': z,
+    }
+    for column, raw_value in mapping.items():
+        if column not in columns:
+            continue
+        coerced = _coerce_optional_float(raw_value)
+        if coerced is None:
+            continue
+        fields[column] = coerced
+    if not fields:
+        return
+    clause = ', '.join(f'{column} = ?' for column in fields)
+    conn.execute(
+        f'UPDATE points_terrain SET {clause} WHERE id = ?',
+        [*fields.values(), int(point_uid)],
+    )
+
+
+def _resolve_canvas_allowed_type_options(feuilles_rows: list[sqlite3.Row]) -> list[dict[str, str]]:
+    feuille_codes = {
+        str(item['code_feuille'] or '').strip().upper()
+        for item in feuilles_rows
+        if str(item['code_feuille'] or '').strip()
+    }
+    options: list[dict[str, str]] = []
+    seen_codes: set[str] = set()
+    for entry in ESSAI_CODE_CATALOG:
+        if str(entry.get('domain') or '') != 'terrain':
+            continue
+        code = str(entry['code'] or '').strip().upper()
+        if not code or code in _CANVAS_EXCLUDED_TERRAIN_CODES or code in seen_codes:
+            continue
+        if feuille_codes and code not in feuille_codes:
+            continue
+        seen_codes.add(code)
+        options.append({
+            'code': code,
+            'label': str(entry['label'] or code),
+            'domain': 'terrain',
+        })
+    return options
+
+
+def _resolve_canvas_allowed_types(feuilles_rows: list[sqlite3.Row]) -> list[str]:
+    labels = [str(item['label']) for item in _resolve_canvas_allowed_type_options(feuilles_rows)]
+    seen: set[str] = set()
+    allowed: list[str] = []
+    for label in labels:
+        if label in seen:
+            continue
+        seen.add(label)
+        allowed.append(label)
+    for generic in ('Repère', 'Observation'):
+        if generic not in seen:
+            allowed.append(generic)
+            seen.add(generic)
+    if not allowed:
+        allowed = ['Repère', 'Observation']
+    return allowed
+
+
 def _normalize_canvas_point_type(point_type: str, code_feuille: str) -> str:
-    normalized_code = _normalize_canvas_token(code_feuille)
     normalized_type = _normalize_canvas_token(point_type)
+    if normalized_type in {'REPERE', 'OBSERVATION'}:
+        return 'Repère' if normalized_type == 'REPERE' else 'Observation'
+    normalized_code = _normalize_canvas_token(code_feuille)
     if normalized_code == 'SC' or 'CAROT' in normalized_type:
         return 'SONDAGE_CAROTTE'
     if normalized_code == 'SO' or 'PELLE' in normalized_type:
@@ -233,6 +375,14 @@ def _resolve_target_feuille_for_canvas_point(
         return None
 
     if preferred_feuille_id is not None:
+        if family in _GENERIC_CANVAS_FAMILIES:
+            preferred = _fetch_feuille_for_intervention(
+                conn,
+                int(preferred_feuille_id),
+                int(plan_row['intervention_id']),
+            )
+            if preferred is not None:
+                return preferred
         preferred = conn.execute(
             '''
             SELECT id, reference, demande_id, campagne_id, intervention_id, serie_id, code_feuille
@@ -794,6 +944,7 @@ def list_intervention_points_for_canvas(uid: int, feuille_id: int | None = None)
                 'intervention_reference': row['intervention_reference'] or '',
                 'intervention_type': row['type_intervention'] or '',
                 'allowed_types': ['Repère', 'Observation'],
+                'allowed_type_options': [],
                 'points': [],
             }
 
@@ -878,8 +1029,9 @@ def list_intervention_points_for_canvas(uid: int, feuille_id: int | None = None)
                 query_params.extend([int(item['id']) for item in feuilles_rows])
             point_rows = conn.execute(
                 f'''
-                SELECT pt.id, pt.point_code, pt.point_type, pt.ordre, pt.payload_json,
-                      ft.id AS feuille_id, ft.reference AS feuille_reference, ft.date_feuille AS feuille_date_essai
+                SELECT pt.id, pt.point_code, pt.point_type, pt.ordre, pt.payload_json
+                       {_terrain_coord_select_sql(pt_columns)}
+                      , ft.id AS feuille_id, ft.reference AS feuille_reference, ft.date_feuille AS feuille_date_essai
                 FROM points_terrain pt
                 LEFT JOIN series_essais_terrain st ON st.id = pt.serie_id
                 LEFT JOIN feuilles_terrain ft ON ft.serie_id = st.id
@@ -890,10 +1042,8 @@ def list_intervention_points_for_canvas(uid: int, feuille_id: int | None = None)
                 query_params,
             ).fetchall()
 
-    if intervention_type:
-        allowed_types = [intervention_type, 'Repère', 'Observation']
-    else:
-        allowed_types = ['Repère', 'Observation']
+    allowed_type_options = _resolve_canvas_allowed_type_options(feuilles_rows)
+    allowed_types = _resolve_canvas_allowed_types(feuilles_rows)
 
     points = []
     seen_keys: set[tuple[str, int | None]] = set()
@@ -908,7 +1058,7 @@ def list_intervention_points_for_canvas(uid: int, feuille_id: int | None = None)
             continue
         seen_keys.add(unique_key)
         normalized_type = _normalize_canvas_point_type(str(point_row['point_type'] or '').strip(), _normalize_canvas_point_family(code, str(point_row['point_type'] or '').strip()))
-        points.append({
+        point_payload = {
             'uid': int(point_row['id']),
             'point_code': code,
             'point_type': normalized_type,
@@ -917,7 +1067,11 @@ def list_intervention_points_for_canvas(uid: int, feuille_id: int | None = None)
             'feuille_id': int(point_row['feuille_id']) if point_row['feuille_id'] is not None else None,
             'feuille_reference': str(point_row['feuille_reference'] or '').strip() or None,
             'feuille_date_essai': str(point_row['feuille_date_essai'] or '').strip() or None,
-        })
+        }
+        for column in _TERRAIN_POINT_COORD_COLUMNS:
+            if column in point_row.keys():
+                point_payload[column] = _coerce_optional_float(point_row[column])
+        points.append(point_payload)
 
     # Temporary virtual placeholders (future logic) always available in picker.
     points.append({
@@ -940,6 +1094,7 @@ def list_intervention_points_for_canvas(uid: int, feuille_id: int | None = None)
         'intervention_reference': row['intervention_reference'] or '',
         'intervention_type': intervention_type,
         'allowed_types': allowed_types,
+        'allowed_type_options': allowed_type_options,
         'feuilles': feuilles,
         'selected_feuille_id': selected_feuille_id,
         'points': points,
@@ -1097,6 +1252,7 @@ def update_plan_canvas(uid: int, body: PlanCanvasPayload):
             raw_points = body.points if isinstance(body.points, list) else []
             used_codes: set[str] = set()
             normalized_points: list[dict[str, Any]] = []
+            point_columns = _table_columns(conn, 'points_terrain')
             for item in raw_points:
                 point = dict(item or {})
                 code = str(point.get('code') or '').strip()
@@ -1123,6 +1279,19 @@ def update_plan_canvas(uid: int, body: PlanCanvasPayload):
                         point['linked_uid'] = int(point_uid)
                         point['feuille_id'] = feuille_id
                         point['feuille_reference'] = feuille_reference
+                        linked_uid = point['linked_uid']
+
+                    if linked_uid not in (None, '', 0):
+                        _persist_terrain_point_coords(
+                            conn,
+                            int(linked_uid),
+                            point_columns,
+                            plan_canvas_x=point.get('plan_canvas_x', point.get('x')),
+                            plan_canvas_y=point.get('plan_canvas_y', point.get('y')),
+                            x=point.get('geo_x', point.get('coord_x')),
+                            y=point.get('geo_y', point.get('coord_y')),
+                            z=point.get('z'),
+                        )
 
                 normalized_points.append(point)
 
@@ -1245,6 +1414,8 @@ def create_plan_implantation(body: PlanImplantationCreatePayload):
             f'INSERT INTO plans_implantation ({sql_columns}) VALUES ({placeholders})',
             tuple(insert_values.values()),
         ).lastrowid
+        if context['intervention_id']:
+            ensure_nivellement_for_intervention(conn, int(context['intervention_id']))
         conn.commit()
 
     return get_plan_implantation(int(uid))
@@ -1321,6 +1492,32 @@ def update_plan_implantation(uid: int, body: PlanImplantationUpdatePayload):
             f'UPDATE plans_implantation SET {clause} WHERE id = ?',
             list(update_values.values()) + [uid],
         )
+        if intervention:
+            ensure_nivellement_for_intervention(conn, int(intervention['id']))
         conn.commit()
 
     return get_plan_implantation(uid)
+
+
+@router.delete('/{uid}', status_code=204)
+def delete_plan_implantation(uid: int):
+    with _connect() as conn:
+        _get_plan_row(conn, uid)
+
+        if _table_exists(conn, 'plan_implantation_points'):
+            conn.execute(
+                'DELETE FROM plan_implantation_points WHERE plan_implantation_id = ?',
+                (int(uid),),
+            )
+
+        rapport_columns = _table_columns(conn, 'rapports')
+        if 'plan_implantation_id' in rapport_columns:
+            conn.execute(
+                'UPDATE rapports SET plan_implantation_id = NULL WHERE plan_implantation_id = ?',
+                (int(uid),),
+            )
+
+        cur = conn.execute('DELETE FROM plans_implantation WHERE id = ?', (int(uid),))
+        if not cur.rowcount:
+            raise HTTPException(status_code=404, detail=f"Plan d'implantation #{uid} introuvable")
+        conn.commit()

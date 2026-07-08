@@ -15,6 +15,23 @@ TITULAIRES = [
 ]
 
 
+class DistanceToLabSchema(BaseModel):
+    labo_code: str
+    labo_label: str
+    labo_address: str = ""
+    labo_lat: float
+    labo_lon: float
+    distance_km: float
+    distance_text: str
+
+
+class AffaireSiteGeoSchema(BaseModel):
+    lat: float
+    lon: float
+    label: str = ""
+    distance_to_lab: DistanceToLabSchema
+
+
 @dataclass(slots=True)
 class AffaireRstRecord:
     uid:             int
@@ -35,9 +52,16 @@ class AffaireRstRecord:
     dossier_nom:     str
     dossier_path:    str
     site:            str = ""
+    adresse_ouvrage: str = ""
+    maitre_ouvrage:  str = ""
+    maitre_oeuvre:   str = ""
     numero_etude:    str = ""
     filiale:         str = ""
     autre_reference: str = ""
+    site_lat:        Optional[float] = None
+    site_lon:        Optional[float] = None
+    site_geocode_label: str = ""
+    date_debut_travaux_prevue: Optional[date] = None
     created_at:      str = ""
     updated_at:      str = ""
     nb_demandes:        int = 0
@@ -47,9 +71,12 @@ class AffaireRstRecord:
 class AffaireRstCreateSchema(BaseModel):
     reference:      str            = Field(..., description="Ex: 2026-RA-042")
     client:         str            = Field("Non communiqué")
+    maitre_ouvrage: str            = Field("")
+    maitre_oeuvre:  str            = Field("")
     titulaire:      str            = Field("")
     chantier:       str            = Field("Non communiqué")
     site:           str            = Field("")
+    adresse_ouvrage: str           = Field("")
     numero_etude:   str            = Field("")
     affaire_nge:    str            = Field("")
     filiale:        str            = Field("")
@@ -58,6 +85,7 @@ class AffaireRstCreateSchema(BaseModel):
     dossier_path:   str            = Field("")
     date_ouverture: date           = Field(default_factory=date.today)
     date_cloture:   Optional[date] = Field(None)
+    date_debut_travaux_prevue: Optional[date] = Field(None)
     statut:         str            = Field("À qualifier")
     statut_offre:   str            = Field("")
     responsable:    str            = Field("")
@@ -66,9 +94,12 @@ class AffaireRstCreateSchema(BaseModel):
 class AffaireRstUpdateSchema(BaseModel):
     reference:      Optional[str]  = None
     client:         Optional[str]  = None
+    maitre_ouvrage: Optional[str]  = None
+    maitre_oeuvre:  Optional[str]  = None
     titulaire:      Optional[str]  = None
     chantier:       Optional[str]  = None
     site:           Optional[str]  = None
+    adresse_ouvrage: Optional[str] = None
     numero_etude:   Optional[str]  = None
     affaire_nge:    Optional[str]  = None
     filiale:        Optional[str]  = None
@@ -77,6 +108,7 @@ class AffaireRstUpdateSchema(BaseModel):
     dossier_path:   Optional[str]  = None
     date_ouverture: Optional[date] = None
     date_cloture:   Optional[date] = None
+    date_debut_travaux_prevue: Optional[date] = None
     statut:         Optional[str]  = None
     statut_offre:   Optional[str]  = None
     responsable:    Optional[str]  = None
@@ -89,9 +121,15 @@ class AffaireRstResponseSchema(BaseModel):
     region:          str
     numero:          int
     client:          str
+    maitre_ouvrage:  str = ""
+    maitre_oeuvre:   str = ""
     titulaire:       str
     chantier:        str
     site:            str = ""
+    adresse_ouvrage: str = ""
+    site_lat:        Optional[float] = None
+    site_lon:        Optional[float] = None
+    site_geocode_label: str = ""
     numero_etude:    str = ""
     affaire_nge:     str = ""
     filiale:         str = ""
@@ -99,6 +137,10 @@ class AffaireRstResponseSchema(BaseModel):
     dossier_nom:     str = ""
     dossier_nom_prevu: str = ""
     dossier_path:    str = ""
+    site_lat:        Optional[float] = None
+    site_lon:        Optional[float] = None
+    site_geocode_label: str = ""
+    site_geo:        Optional[AffaireSiteGeoSchema] = None
     dossier_mode:    str = "pending"
     dossier_status:  str = "pending"
     dossier_root:    str = ""
@@ -108,6 +150,7 @@ class AffaireRstResponseSchema(BaseModel):
     dossier_message: str = ""
     date_ouverture:  date
     date_cloture:    Optional[date]
+    date_debut_travaux_prevue: Optional[date] = None
     statut:          str
     statut_offre:    str = ""
     responsable:     str

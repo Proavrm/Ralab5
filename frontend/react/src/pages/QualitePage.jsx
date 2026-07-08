@@ -213,6 +213,7 @@ function buildEquipmentPayload(form) {
     supplier: parseOptionalText(form.supplier),
     purchase_date: parseOptionalText(form.purchase_date),
     lieu: parseOptionalText(form.lieu),
+    labo_code: parseOptionalText(form.labo_code),
     notes: parseOptionalText(form.notes),
     etalonnage_interval: parseOptionalInt(form.etalonnage_interval),
     verification_interval: parseOptionalInt(form.verification_interval),
@@ -306,7 +307,7 @@ function StatsBar({ stats }) {
 // ═══════════════════════════════════════════════════════════════════════════
 // TAB ÉQUIPEMENTS
 // ═══════════════════════════════════════════════════════════════════════════
-function TabEquipements({ meta, onStatsChange }) {
+function TabEquipements({ meta, laboCode = '' }) {
   const qc = useQueryClient()
   const search = useSearch()
   const [cat, setCat] = useState('')
@@ -318,12 +319,13 @@ function TabEquipements({ meta, onStatsChange }) {
   const [editMetro, setEditMetro] = useState(null)
 
   const { data: rows = [], refetch } = useQuery({
-    queryKey: ['qualite-equipment', search.debounced, cat, statut],
+    queryKey: ['qualite-equipment', search.debounced, cat, statut, laboCode],
     queryFn: () => {
       const p = new URLSearchParams()
       if (search.debounced) p.set('search', search.debounced)
       if (cat) p.set('category', cat)
       if (statut) p.set('status', statut)
+      if (laboCode) p.set('labo_code', laboCode)
       return api.get('/qualite/equipment?' + p)
     },
   })
@@ -387,7 +389,7 @@ function TabEquipements({ meta, onStatsChange }) {
 
   function openCreate() {
     setEditItem(null)
-    setForm({ code:'', label:'', category:'Labo', status:'En service', domain:'', serial_number:'', supplier:'', purchase_date:'', lieu:'', etalonnage_interval:'', verification_interval:'', notes:'', m_tare:'', volume_cm3:'', division:'', precision:'', capacite:'', sensibilite:'', facteur_k:'', last_metrology:'', next_metrology:'' })
+    setForm({ code:'', label:'', category:'Labo', status:'En service', domain:'', serial_number:'', supplier:'', purchase_date:'', lieu:'', labo_code: laboCode || '', etalonnage_interval:'', verification_interval:'', notes:'', m_tare:'', volume_cm3:'', division:'', precision:'', capacite:'', sensibilite:'', facteur_k:'', last_metrology:'', next_metrology:'' })
     setModalOpen(true)
   }
   function openEdit() {
@@ -421,6 +423,11 @@ function TabEquipements({ meta, onStatsChange }) {
       {/* Table */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-border shrink-0 flex-wrap">
+          {laboCode ? (
+            <span className="text-[11px] font-medium text-accent bg-[#eeeffe] border border-[#c7d2fe] rounded-full px-2.5 py-1">
+              Labo {laboCode}
+            </span>
+          ) : null}
           <Input value={search.value} onChange={e=>search.onChange(e.target.value)}
             placeholder="Code, désignation…" className="w-[220px]" />
           <Select value={cat} onChange={e=>setCat(e.target.value)} className="text-sm">
@@ -479,6 +486,7 @@ function TabEquipements({ meta, onStatsChange }) {
             <DF label="Fournisseur" value={selected.supplier}/>
             <DF label="Date achat" value={formatDate(selected.purchase_date)}/>
             <DF label="Lieu" value={selected.lieu}/>
+            <DF label="Code labo" value={selected.labo_code}/>
             <DF label="Intervalle étalonnage" value={selected.etalonnage_interval ? `${selected.etalonnage_interval} mois` : null}/>
             <DF label="Intervalle vérification" value={selected.verification_interval ? `${selected.verification_interval} mois` : null}/>
             {selectedProfile !== 'comparateur' && (selectedProfile === 'moule' || selected.m_tare != null || selected.volume_cm3 != null) && <>
@@ -674,6 +682,7 @@ function TabEquipements({ meta, onStatsChange }) {
         })()}
           <FG label="Date d'achat"><Input type="date" value={form.purchase_date||''} onChange={e=>set('purchase_date',e.target.value)}/></FG>
           <FG label="Lieu"><Input value={form.lieu||''} onChange={e=>set('lieu',e.target.value)}/></FG>
+          <FG label="Code labo" hint="Code du référentiel Administration → Laboratoires"><Input value={form.labo_code||''} onChange={e=>set('labo_code',e.target.value)}/></FG>
           <FG label="Intervalle étalonnage (mois)"><Input type="number" value={form.etalonnage_interval||''} onChange={e=>set('etalonnage_interval',e.target.value?parseInt(e.target.value):null)}/></FG>
           <FG label="Intervalle vérification (mois)"><Input type="number" value={form.verification_interval||''} onChange={e=>set('verification_interval',e.target.value?parseInt(e.target.value):null)}/></FG>
           <div/>
@@ -1088,6 +1097,7 @@ export default function QualitePage() {
   const initialMetrologyDays = [30, 60, 90, 180].includes(Number(searchParams.get('days')))
     ? Number(searchParams.get('days'))
     : 60
+  const queryLabo = String(searchParams.get('labo') || '').trim().toUpperCase()
   const [tab, setTab] = useState(queryTab)
 
   const { data: stats } = useQuery({
@@ -1123,7 +1133,7 @@ export default function QualitePage() {
       <StatsBar stats={stats} />
 
       <div className="flex flex-1 overflow-hidden min-h-0">
-        {tab === 'equipment'  && <TabEquipements  meta={meta} />}
+        {tab === 'equipment'  && <TabEquipements  meta={meta} laboCode={queryLabo} />}
         {tab === 'metrology'  && <TabMetrologie initialDays={initialMetrologyDays} />}
         {tab === 'procedures' && <TabProcedures   meta={meta} />}
         {tab === 'standards'  && <TabNormes       meta={meta} />}

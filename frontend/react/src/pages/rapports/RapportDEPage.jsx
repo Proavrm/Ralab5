@@ -13,6 +13,7 @@ import {
     listRapportModelDefinitionsDE,
     upsertRapportModelDefinitionDE,
 } from "@/services/modelWorkLocalStore";
+import { resolveDeConformiteLabel, resolveDeResumeForReport } from "@/lib/de/runtime";
 import { hasPositionCode, normalizePositionCodes } from "@/lib/positionCodes";
 import { useReportAutoPrint } from "@/lib/reportAutoPrint";
 import "@/styles/rapport-nge.css";
@@ -282,6 +283,7 @@ function useReportSourceDE(essaiId, searchParams) {
 function buildDeReportFromSource(source, fallback) {
     const normalized = unwrapSource(source) || {};
     const meta = normalized?.meta || {};
+    const resume = resolveDeResumeForReport(normalized?.resume);
     const rawRows = Array.isArray(normalized?.points_rows)
         ? normalized.points_rows
         : Array.isArray(normalized?.results?.points)
@@ -306,7 +308,7 @@ function buildDeReportFromSource(source, fallback) {
         general: {
             ...fallback.general,
             operator: firstValue(normalized?.operateur, meta?.operateur, fallback.general.operator),
-            testDate: firstValue(meta?.date_essai, normalized?.date_debut, fallback.general.testDate),
+            testDate: firstValue(meta?.date_essai, normalized?.date_debut, normalized?.date_feuille, fallback.general.testDate),
             layer: firstValue(meta?.couche, normalized?.couche, fallback.general.layer),
             implementationDate: firstValue(meta?.date_mise_en_oeuvre, fallback.general.implementationDate),
             gammadensimeter: firstValue(meta?.gammadensimetre, fallback.general.gammadensimeter),
@@ -331,21 +333,15 @@ function buildDeReportFromSource(source, fallback) {
             points: pointsRows,
             rows: pointsRows,
             mvre: firstValue(meta?.mvre, normalized?.results?.mvre, normalized?.resume?.mvre, fallback.results.mvre),
-            averageDensity: firstValue(normalized?.resume?.average_density, fallback.results.averageDensity),
-            averageCompacity: firstValue(normalized?.resume?.average_compacity, fallback.results.averageCompacity),
-            averageVoids: firstValue(normalized?.resume?.average_voids, fallback.results.averageVoids),
-            conformityRate: firstValue(normalized?.resume?.conformity_rate, fallback.results.conformityRate),
+            averageDensity: firstValue(resume.averageDensity, fallback.results.averageDensity),
+            averageCompacity: firstValue(resume.averageCompacity, fallback.results.averageCompacity),
+            averageVoids: firstValue(resume.averageVoids, fallback.results.averageVoids),
+            conformityRate: firstValue(resume.conformityRate, fallback.results.conformityRate),
         },
         conclusion: {
             ...fallback.conclusion,
             conformityLabel: firstValue(
-                meta?.conformite === "conforme"
-                    ? "Conforme"
-                    : meta?.conformite === "non_conforme"
-                        ? "Non conforme"
-                        : meta?.conformite === "pour_info"
-                            ? "Pour info"
-                        : "",
+                resolveDeConformiteLabel(meta, normalized?.resume),
                 fallback.conclusion?.conformityLabel
             ),
             comments: firstValue(meta?.commentaires, meta?.conclusion_courte, fallback.conclusion?.comments),

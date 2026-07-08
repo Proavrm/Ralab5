@@ -5,6 +5,9 @@ import Card, { CardBody, CardHeader, CardTitle } from '@/components/ui/Card'
 import Input, { Select } from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
+import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
+import { labCodesFromCatalog } from '@/lib/laboratoireCatalog'
+import { normalizeLaboCode } from '@/lib/labGeo'
 import { buildLocationTarget, navigateWithReturnTo } from '@/lib/detailNavigation'
 import { hasRole } from '@/lib/permissions'
 import { findResponsibleLaboProfileByUser } from '@/lib/responsibleLaboProfiles'
@@ -27,10 +30,10 @@ import {
   Workflow,
 } from 'lucide-react'
 
-const KNOWN_LABOS = ['AUV', 'SP', 'PT', 'CLM', 'CHB']
-const FINISHED_ESSAI_STATUSES = new Set(['fini', 'termine'])
-const CLOSED_INTERVENTION_STATUSES = new Set(['realisee', 'annulee'])
 const DAY_MS = 24 * 60 * 60 * 1000
+
+const CLOSED_INTERVENTION_STATUSES = new Set(['realisee', 'annulee'])
+const FINISHED_ESSAI_STATUSES = new Set(['fini', 'termine'])
 
 const TONES = {
   sky: 'border-[#cfe4f6] bg-[#eef6fd] text-[#185fa5]',
@@ -213,6 +216,16 @@ function statusTone(status) {
   if (['planifiee', 'programme', 'recu', 'importe', 'importee'].includes(normalized)) return 'sky'
   if (['annulee', 'archivee'].includes(normalized)) return 'slate'
   return 'slate'
+}
+
+function dedupeByUid(rows) {
+  const seen = new Set()
+  return rows.filter((row) => {
+    const id = String(row.uid ?? '')
+    if (!id || seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
 }
 
 function buildWorkbenchPath(laboCode, extra = {}) {
@@ -458,6 +471,8 @@ export default function LaboHomePage() {
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useAuth()
+  const { catalog } = useLaboratoireCatalog()
+  const catalogLabCodes = useMemo(() => labCodesFromCatalog(catalog), [catalog])
   const [search, setSearch] = useState('')
   const detailReturnTo = buildLocationTarget(location)
 
@@ -469,7 +484,7 @@ export default function LaboHomePage() {
   const defaultLaboCode = normalizeCode(
     responsibleProfile?.laboCode
       || technicianProfile?.defaultLaboCodes?.[0]
-      || (KNOWN_LABOS.includes(serviceCode) ? serviceCode : '')
+      || (catalogLabCodes.includes(normalizeLaboCode(serviceCode)) ? normalizeLaboCode(serviceCode) : '')
   )
   const effectiveLaboCode = isAdmin ? requestedLaboCode : defaultLaboCode
   const showResponsibleBlocks = isAdmin || !!responsibleProfile
@@ -501,7 +516,9 @@ export default function LaboHomePage() {
   )
 
   const allPrelevements = useMemo(
-    () => (Array.isArray(prelevementsQuery.data) ? prelevementsQuery.data : []).map(normalizePrelevement),
+    () => dedupeByUid(
+      (Array.isArray(prelevementsQuery.data) ? prelevementsQuery.data : []).map(normalizePrelevement),
+    ),
     [prelevementsQuery.data]
   )
 
@@ -527,8 +544,8 @@ export default function LaboHomePage() {
       .map(normalizeCode)
       .filter(Boolean)
 
-    return [...new Set([...KNOWN_LABOS, ...discovered])].filter(Boolean)
-  }, [allEssais, allInterventions, allPlanning, allPrelevements, defaultLaboCode, requestedLaboCode])
+    return [...new Set([...catalogLabCodes, ...discovered])].filter(Boolean)
+  }, [allEssais, allInterventions, allPlanning, allPrelevements, catalogLabCodes, defaultLaboCode, requestedLaboCode])
 
   function openRowDestination(row) {
     if (!row?.to) return
@@ -699,19 +716,34 @@ export default function LaboHomePage() {
   }, [openInterventions, planningUnderTension])
 
   const arbitrageRows = useMemo(() => {
-    const unexpectedRows = unexpectedArrivals.slice(0, 3).map((row) => buildPrelevementEntry(row, {
-      tone: 'red',
-      badge: 'Hors prevision',
-      badgeTone: 'red',
-      extraMeta: 'Arbitrage responsable requis',
-    }))
-    const completion = receptionsToComplete.slice(0, 3).map((row) => buildPrelevementEntry(row, {
-      tone: 'amber',
-      badge: 'Reception incomplete',
-      badgeTone: 'amber',
-      extraMeta: 'Description / receptionnaire / rattachement manquants',
-    }))
-    return [...unexpectedRows, ...completion].slice(0, 6)
+    const rows = []
+    const seen = new Set()
+
+    for (const row of unexpectedArrivals) {
+      if (rows.length >= 3) break
+      if (seen.has(row.uid)) continue
+      seen.add(row.uid)
+      rows.push(buildPrelevementEntry(row, {
+        tone: 'red',
+        badge: 'Hors prevision',
+        badgeTone: 'red',
+        extraMeta: 'Arbitrage responsable requis',
+      }))
+    }
+
+    for (const row of receptionsToComplete) {
+      if (rows.length >= 6) break
+      if (seen.has(row.uid)) continue
+      seen.add(row.uid)
+      rows.push(buildPrelevementEntry(row, {
+        tone: 'amber',
+        badge: 'Reception incomplete',
+        badgeTone: 'amber',
+        extraMeta: 'Description / receptionnaire / rattachement manquants',
+      }))
+    }
+
+    return rows
   }, [receptionsToComplete, unexpectedArrivals])
 
   const technicianScopedEssais = useMemo(() => {
