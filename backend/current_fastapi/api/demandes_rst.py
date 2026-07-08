@@ -12,18 +12,55 @@ Endpoints :
 from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 from app.models.demande_rst import (
     DemandeRstCreateSchema, DemandeRstResponseSchema, DemandeRstUpdateSchema,
 )
+from app.repositories.demande_documents_repository import DemandeDocumentsRepository
+from app.repositories.demande_prestations_repository import DemandePrestationsRepository
 from app.repositories.demande_preparation_repository import DemandePreparationRepository
 from app.repositories.demandes_rst_repository import DemandesRstRepository
+from app.repositories.passations_repository import PassationsRepository
+from app.repositories.affaires_rst_repository import AffairesRstRepository
 from app.repositories.dst_repository import DstRepository
-from app.services.intervention_campaign_service import list_campaigns_for_demande
+from app.services.intervention_campaign_service import list_campaigns_for_demande, list_demande_scope_notes_techniques
+from app.services.site_plan_requirements_service import validate_demande_site_plan_requirements
 
 router = APIRouter()
 _repo  = DemandesRstRepository()
 _prep_repo = DemandePreparationRepository()
+_docs_repo = DemandeDocumentsRepository()
+_prestations_repo = DemandePrestationsRepository()
+_passations_repo = PassationsRepository()
+_affaires_repo = AffairesRstRepository()
 _dst_repo = DstRepository()
+
+
+class DemandeDocumentItemSchema(BaseModel):
+    document_type: str = ""
+    is_received: bool = False
+    version: str = ""
+    document_date: Optional[str] = None
+    comment: str = ""
+    stored_path: str = ""
+    uploaded_at: Optional[str] = None
+
+
+class DemandeDocumentsUpdateSchema(BaseModel):
+    documents: list[DemandeDocumentItemSchema] = Field(default_factory=list)
+
+
+class DemandePrestationItemSchema(BaseModel):
+    need_code: str = ""
+    need_label: str = ""
+    description: str = ""
+    request_status: str = "À confirmer"
+    quantity: str = ""
+    notes: str = ""
+
+
+class DemandePrestationsUpdateSchema(BaseModel):
+    prestations: list[DemandePrestationItemSchema] = Field(default_factory=list)
 
 
 def _first_non_empty(*values):
@@ -120,34 +157,6 @@ def _build_campaigns(demande, preparation: dict, related: dict) -> list[dict]:
     return campaigns
 
 
-def _build_default_campaign(demande, preparation: dict) -> dict:
-    return {
-        "uid": f"demande-{demande.uid}-default",
-        "code": "GEN",
-        "reference": f"{demande.reference}-C001" if demande.reference else "C001",
-        "label": "Campagne principale",
-        "designation": "Campagne de regroupement de la demande",
-        "workflow_label": "Campagne -> Preparation de l'intervention -> Intervention -> Essai -> Rapport",
-        "source_mode": "auto",
-        "source_label": "Auto-générée",
-        "target_mode": "manuel",
-        "target_label": "Cadrage manuel",
-        "intervention_count": 0,
-        "intervention_uids": [],
-        "interventions": [],
-        "report_ref": _first_non_empty(demande.rapport_ref),
-        "preparation_status": _first_non_empty(preparation.get("phase_operation"), "A cadrer"),
-        "next_step": "Structurer la campagne et rattacher les interventions au fil de l'execution.",
-        "steps": [
-            {"code": "campagne", "label": "Campagne", "status": "Initialisee"},
-            {"code": "preparation", "label": "Preparation", "status": _first_non_empty(preparation.get("phase_operation"), "A cadrer")},
-            {"code": "intervention", "label": "Interventions", "status": "A planifier"},
-            {"code": "essai", "label": "Essais", "status": "A planifier"},
-            {"code": "rapport", "label": "Rapport", "status": _first_non_empty(demande.rapport_ref, "A produire")},
-        ],
-    }
-
-
 def _find_dst_record(numero_dst: str):
     numero = _normalize_text(numero_dst)
     if not numero or not _dst_repo.is_available:
@@ -190,7 +199,7 @@ def _build_linked_items(demande_ref: str, preparation: dict, related: dict) -> l
     if preparation:
         items.append({
             "type": "Préparation",
-            "reference": demande_ref or "",
+            "reference": preparation.get("reference") or "",
             "designation": _first_non_empty(
                 preparation.get("attentes_client"),
                 preparation.get("objectifs"),
@@ -265,8 +274,8 @@ def _build_visibility(enabled_codes: set[str], has_campaigns: bool = False) -> d
     essais_terrain_visible = "essais_terrain" in enabled_codes
     return {
         "preparation": True,
-        # Keep campaign rail available whenever campaign context exists.
-        "campagnes": has_campaigns,
+        # Campagnes are created manually; keep the section visible even when empty.
+        "campagnes": "interventions" in enabled_codes or has_campaigns,
         "interventions": interventions_visible,
         "echantillons": echantillons_visible,
         "essais": essais_visible,
@@ -360,10 +369,9 @@ def get_demande_navigation(uid: int):
     modules = [item.model_dump(mode="json") for item in config.modules]
     enabled_codes = {item["module_code"] for item in modules if item.get("is_enabled")}
     campaigns = list_campaigns_for_demande(uid, preparation.get("phase_operation") or "")
+    notes_techniques = list_demande_scope_notes_techniques(uid)
     if not campaigns and related.get("interventions"):
         campaigns = _build_campaigns(r, preparation, related)
-    if not campaigns:
-        campaigns = [_build_default_campaign(r, preparation)]
     related_counts = {
         **related["counts"],
         "campagnes": len(campaigns),
@@ -376,6 +384,47 @@ def get_demande_navigation(uid: int):
         "modules_enabled": len(enabled_codes),
     }
     counts_visible = _visible_counts(related_counts, visibility, enabled_codes)
+    passation_uid = None
+    passation_reference = ""
+    with _repo._connect() as conn:
+        source_row = conn.execute("SELECT passation_source_id FROM demandes WHERE id=?", (uid,)).fetchone()
+        if source_row and source_row["passation_source_id"]:
+            passation_uid = int(source_row["passation_source_id"])
+            passation_row = conn.execute("SELECT reference FROM passations WHERE id=?", (passation_uid,)).fetchone()
+            if passation_row:
+                passation_reference = passation_row["reference"] or ""
+    documents = _docs_repo.list_for_demande(uid)
+    demande_prestations: list[dict] = []
+    passation_prestations: list[dict] = []
+    passation_date_passation = ""
+    passation_date_debut_travaux_prevue = ""
+    passation_created_at = ""
+    affaire_date_debut_travaux_prevue = ""
+    if r.affaire_rst_id:
+        affaire = _affaires_repo.get_by_uid(int(r.affaire_rst_id))
+        if affaire and affaire.date_debut_travaux_prevue:
+            affaire_date_debut_travaux_prevue = affaire.date_debut_travaux_prevue.isoformat()
+    if passation_uid:
+        passation = _passations_repo.get_by_uid(passation_uid)
+        if passation:
+            passation_date_passation = passation.date_passation.isoformat() if passation.date_passation else ""
+            if passation.date_debut_travaux_prevue:
+                passation_date_debut_travaux_prevue = passation.date_debut_travaux_prevue.isoformat()
+            passation_created_at = (passation.created_at or "")[:10]
+            passation_prestations = [
+                {
+                    "uid": item.uid,
+                    "need_code": item.need_code,
+                    "need_label": item.need_label,
+                    "description": item.description,
+                    "request_status": item.request_status,
+                    "quantity": item.quantity,
+                    "notes": item.notes,
+                }
+                for item in passation.structured_needs
+            ]
+    else:
+        demande_prestations = _prestations_repo.list_for_demande(uid)
     return {
         "demande": {**_repo.to_resp(r).model_dump(mode="json"), **_build_dst_context(r.numero_dst)},
         "preparation": preparation,
@@ -388,18 +437,32 @@ def get_demande_navigation(uid: int):
         "counts_total": counts_total,
         "campagnes": campaigns,
         "campagnes_total": campaigns,
+        "notes_techniques": notes_techniques,
         # Interventions are returned for campaign fallback/grouping on demande sheet.
         "interventions": related["interventions"],
+        "plans_implantation": related.get("plans_implantation") or [],
+        "nivellements": related.get("nivellements") or [],
         "echantillons": related["echantillons"] if visibility.get("echantillons") else [],
         "essais": related["essais"] if visibility.get("essais") else [],
         "linked_items": linked_items_visible,
         "linked_items_total": linked_items_all,
+        "passation_uid": passation_uid,
+        "passation_reference": passation_reference,
+        "passation_date_passation": passation_date_passation,
+        "passation_date_debut_travaux_prevue": passation_date_debut_travaux_prevue,
+        "passation_created_at": passation_created_at,
+        "affaire_date_debut_travaux_prevue": affaire_date_debut_travaux_prevue,
+        "passation_prestations": passation_prestations,
+        "demande_prestations": demande_prestations,
+        "documents": documents,
     }
 
 
 @router.post("", response_model=DemandeRstResponseSchema, status_code=201)
 def create_demande(body: DemandeRstCreateSchema):
     r = _repo.add(body)
+    if body.documents_fournis:
+        _docs_repo.seed_from_documents_fournis(r.uid, body.documents_fournis)
     return _repo.to_resp(r)
 
 
@@ -408,6 +471,58 @@ def update_demande(uid: int, body: DemandeRstUpdateSchema):
     if not _repo.get_by_uid(uid): raise HTTPException(404, f"Demande #{uid} introuvable")
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
     return _repo.to_resp(_repo.update(uid, fields))
+
+
+@router.put("/{uid}/prestations")
+def update_demande_prestations(uid: int, body: DemandePrestationsUpdateSchema):
+    if not _repo.get_by_uid(uid):
+        raise HTTPException(404, f"Demande #{uid} introuvable")
+    with _repo._connect() as conn:
+        source_row = conn.execute("SELECT passation_source_id FROM demandes WHERE id=?", (uid,)).fetchone()
+        if source_row and source_row["passation_source_id"]:
+            raise HTTPException(
+                409,
+                "Les prestations d'une demande issue de passation sont figées sur la passation d'origine.",
+            )
+    payload = [item.model_dump(mode="json") for item in body.prestations]
+    return {"prestations": _prestations_repo.replace_for_demande(uid, payload)}
+
+
+@router.put("/{uid}/documents")
+def update_demande_documents(uid: int, body: DemandeDocumentsUpdateSchema):
+    record = _repo.get_by_uid(uid)
+    if not record:
+        raise HTTPException(404, f"Demande #{uid} introuvable")
+    payload = [item.model_dump(mode="json") for item in body.documents]
+
+    passation_uid = None
+    passation_documents: list[dict] = []
+    with _repo._connect() as conn:
+        source_row = conn.execute(
+            "SELECT passation_source_id FROM demandes WHERE id = ?",
+            (uid,),
+        ).fetchone()
+        if source_row and source_row["passation_source_id"]:
+            passation_uid = int(source_row["passation_source_id"])
+    if passation_uid:
+        passation = _passations_repo.get_by_uid(passation_uid)
+        if passation:
+            passation_documents = [
+                {"document_type": doc.document_type, "stored_path": doc.stored_path}
+                for doc in (passation.documents or [])
+            ]
+
+    try:
+        validate_demande_site_plan_requirements(
+            adresse_ouvrage=record.adresse_ouvrage,
+            demande_documents=payload,
+            passation_uid=passation_uid,
+            passation_documents=passation_documents,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    return {"documents": _docs_repo.replace_for_demande(uid, payload)}
 
 
 @router.delete("/{uid}", status_code=204)

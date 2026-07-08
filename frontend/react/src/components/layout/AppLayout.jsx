@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { LogOut, PanelLeft, PanelLeftClose } from 'lucide-react'
 import { getUserHomeConfig } from '@/lib/userHome'
+import { getRegionalRstShortLabel, isRegionalRstUser } from '@/lib/userOrgScope'
 import { hasPermission } from '@/lib/permissions'
 import {
     findResponsibleLaboProfileByUser,
@@ -23,11 +24,14 @@ export default function AppLayout() {
 
         return window.localStorage.getItem('ralab5.sidebarOpen') !== '0'
     })
+    const chromeBarRef = useRef(null)
+    const [chromeBarHeight, setChromeBarHeight] = useState(0)
     const isEmbeddedView = new URLSearchParams(location.search).get('embed') === '1' && (
         location.pathname.startsWith('/rapports/')
         || location.pathname.startsWith('/qualite/qsse/documents/view')
     )
     const home = getUserHomeConfig(user)
+    const regionalRst = isRegionalRstUser(user)
     const ownResponsibleLaboProfile = findResponsibleLaboProfileByUser(user)
     const ownTechnicianProfile = ownResponsibleLaboProfile ? null : findTechnicianProfileByUser(user)
     const ownLegacyDashboard = ownResponsibleLaboProfile
@@ -64,6 +68,7 @@ export default function AppLayout() {
             items: [
                 { to: home.path, icon: '🏠', label: home.navLabel, end: home.path !== '/dashboard', permission: 'view_dashboard' },
                 { to: '/affaires', icon: '📋', label: 'Affaires RST' },
+                { to: '/contacts', icon: '📇', label: 'Contacts' },
                 { to: '/passations', icon: '🤝', label: 'Passations' },
                 { to: '/demandes', icon: '📂', label: 'Demandes', permission: 'view_demandes' },
                 { to: '/dst', icon: '📁', label: 'DST' },
@@ -72,12 +77,8 @@ export default function AppLayout() {
                 { to: '/planning', icon: '📅', label: 'Planning', permission: 'view_planning' },
                 { to: '/labo', icon: '🔬', label: 'Laboratoire', permission: 'view_labo' },
                 { to: '/qualite', icon: '🔍', label: 'Audits / Qualité' },
-            ]
-        },
-        {
-            section: 'À venir',
-            items: [
-                { to: null, icon: '📍', label: 'G3', disabled: true },
+                { to: '/g3', icon: '📍', label: 'G3', end: true },
+                { to: '/g3/notes-techniques', icon: '📝', label: 'Notes techniques' },
             ]
         },
         {
@@ -85,7 +86,7 @@ export default function AppLayout() {
             items: [
                 { to: '/rapports/validation', icon: '✅', label: 'Validation rapports', permission: 'view_tools' },
                 { to: '/tools', icon: '🔧', label: 'Outils', permission: 'view_tools' },
-                { to: '/admin', icon: '⚙️', label: 'Utilisateurs', permission: 'manage_users' },
+                { to: '/admin', icon: '⚙️', label: 'Administration', permission: 'manage_users' },
             ]
         },
         ...((ownLegacyDashboard || dashboardCatalogLink)
@@ -107,12 +108,28 @@ export default function AppLayout() {
         window.localStorage.setItem('ralab5.sidebarOpen', sidebarOpen ? '1' : '0')
     }, [sidebarOpen])
 
+    useLayoutEffect(() => {
+        const node = chromeBarRef.current
+        if (!node) return undefined
+        const update = () => setChromeBarHeight(node.offsetHeight)
+        update()
+        const observer = new ResizeObserver(update)
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [])
+
     if (isEmbeddedView) {
         return <Outlet />
     }
 
     return (
-        <div className="app-shell flex h-screen overflow-hidden">
+        <div
+            className="app-shell flex h-screen overflow-hidden"
+            style={{
+                '--app-sidebar-width': sidebarOpen ? '220px' : '0px',
+                '--app-chrome-top': `${chromeBarHeight}px`,
+            }}
+        >
             <aside
                 className={`app-sidebar bg-sidebar flex flex-col shrink-0 overflow-hidden transition-[width,min-width] duration-200 ease-in-out ${
                     sidebarOpen ? 'w-[220px] min-w-[220px]' : 'w-0 min-w-0'
@@ -170,7 +187,14 @@ export default function AppLayout() {
                             <p className="text-white text-[13px] font-medium truncate">
                                 {user?.display_name || user?.email || '—'}
                             </p>
-                            <p className="text-[#a0a0b8] text-[11px]">{user?.role || ''}</p>
+                            <p className="text-[#a0a0b8] text-[11px]">
+                              {regionalRst ? getRegionalRstShortLabel() : (user?.role || '')}
+                            </p>
+                            {regionalRst ? (
+                              <p className="text-[#ffcc00] text-[10px] truncate">{user?.service_code || 'ARS'}</p>
+                            ) : user?.service_code ? (
+                              <p className="text-[#a0a0b8] text-[10px] truncate">{user.service_code}</p>
+                            ) : null}
                         </div>
                     </div>
                     <button
@@ -185,7 +209,10 @@ export default function AppLayout() {
             </aside>
 
             <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-                <div className="shrink-0 flex items-center gap-2 px-3 py-1 border-b border-border bg-surface">
+                <div
+                    ref={chromeBarRef}
+                    className="shrink-0 flex items-center gap-2 px-3 py-1 border-b border-border bg-surface"
+                >
                     <button
                         type="button"
                         onClick={() => setSidebarOpen((value) => !value)}
@@ -198,7 +225,7 @@ export default function AppLayout() {
                         <span>{sidebarOpen ? 'Masquer le menu' : 'Menu'}</span>
                     </button>
                 </div>
-                <main className="app-main flex-1 overflow-y-auto overflow-x-hidden px-6 pt-6 pb-0">
+                <main className="app-main flex-1 overflow-y-auto overflow-x-clip px-6 pt-6 pb-0">
                     <Outlet />
                 </main>
             </div>

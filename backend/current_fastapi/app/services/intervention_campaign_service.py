@@ -37,7 +37,9 @@ def _normalize_code(code: object, fallback_label: object = "") -> str:
     raw = _str(code)
     if raw:
         ascii_code = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode("ascii")
-        return re.sub(r"[^A-Za-z0-9]+", "", ascii_code).upper()[:12] or "CMP"
+        normalized = re.sub(r"[^A-Za-z0-9-]+", "-", ascii_code.upper())
+        normalized = re.sub(r"-{2,}", "-", normalized).strip("-")
+        return normalized[:16] or "CMP"
 
     raw_label = _str(fallback_label)
     ascii_label = unicodedata.normalize("NFKD", raw_label).encode("ascii", "ignore").decode("ascii")
@@ -82,16 +84,67 @@ def _next_reference(conn, demande: sqlite3.Row) -> str:
     return f"{prefix}{max(indexes, default=0) + 1:03d}"
 
 
+def _is_note_technique_row(row: sqlite3.Row) -> bool:
+    type_val = _str(row["type_intervention"]).lower()
+    nature = _str(row["nature_reelle"]).lower() if "nature_reelle" in row.keys() else ""
+    return "note technique" in type_val or nature == "note technique"
+
+
+def _load_demande_scope_interventions(conn: sqlite3.Connection, demande_id: int) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT id, reference, date_intervention, date_fin, date_envoi, type_intervention, sujet, statut,
+               technicien, geotechnicien, nature_reelle, campagne_id
+        FROM interventions
+        WHERE demande_id=?
+          AND campagne_id IS NULL
+          AND (
+            LOWER(COALESCE(type_intervention, '')) LIKE '%note technique%'
+            OR LOWER(COALESCE(nature_reelle, '')) LIKE '%note technique%'
+          )
+        ORDER BY COALESCE(date_intervention, ''), COALESCE(reference, ''), id
+        """,
+        (demande_id,),
+    ).fetchall()
+
+
 def _load_interventions(conn, demande_id: int, campagne_id: int) -> list[sqlite3.Row]:
     return conn.execute(
         """
-        SELECT id, reference, date_intervention, type_intervention, sujet, statut
+        SELECT id, reference, date_intervention, date_fin, date_envoi, type_intervention, sujet, statut,
+               technicien, geotechnicien, nature_reelle, campagne_id
         FROM interventions
         WHERE demande_id=? AND campagne_id=?
         ORDER BY COALESCE(date_intervention, ''), COALESCE(reference, ''), id
         """,
         (demande_id, campagne_id),
     ).fetchall()
+
+
+def _intervention_nav_item(conn: sqlite3.Connection, intervention: sqlite3.Row) -> dict[str, Any]:
+    intervention_id = int(intervention["id"])
+    essais = _load_essais_for_intervention(conn, intervention_id)
+    count = len(essais)
+    latest = essais[0] if essais else None
+    campagne_id = intervention["campagne_id"] if "campagne_id" in intervention.keys() else None
+    return {
+        "uid": intervention_id,
+        "reference": _str(intervention["reference"]),
+        "date_intervention": _str(intervention["date_intervention"]),
+        "date_fin": _str(intervention["date_fin"]) if "date_fin" in intervention.keys() else "",
+        "date_envoi": _str(intervention["date_envoi"]) if "date_envoi" in intervention.keys() else "",
+        "type_intervention": _str(intervention["type_intervention"]),
+        "sujet": _str(intervention["sujet"]),
+        "statut": _str(intervention["statut"]),
+        "technicien": _str(intervention["technicien"]) if "technicien" in intervention.keys() else "",
+        "geotechnicien": _str(intervention["geotechnicien"]) if "geotechnicien" in intervention.keys() else "",
+        "campagne_id": int(campagne_id) if campagne_id is not None else None,
+        "is_demande_scope": _is_note_technique_row(intervention) and campagne_id is None,
+        "essai_count": count,
+        "essai_uid": int(latest["id"]) if latest else None,
+        "essai_reference": _str(latest["reference"]) if latest else "",
+        "essai_statut": _str(latest["statut"]) if latest else "",
+    }
 
 
 def _load_essais_for_intervention(conn, intervention_id: int) -> list[sqlite3.Row]:
@@ -117,27 +170,12 @@ def _campagne_to_dict(conn, demande: sqlite3.Row, campagne: sqlite3.Row) -> dict
     intervention_items = []
 
     for intervention in interventions:
-        intervention_id = int(intervention["id"])
-        essais = _load_essais_for_intervention(conn, intervention_id)
-        count = len(essais)
+        item = _intervention_nav_item(conn, intervention)
+        count = int(item.get("essai_count") or 0)
         essai_count += count
         if count:
             interventions_with_essais += 1
-        latest = essais[0] if essais else None
-        intervention_items.append(
-            {
-                "uid": intervention_id,
-                "reference": _str(intervention["reference"]),
-                "date_intervention": _str(intervention["date_intervention"]),
-                "type_intervention": _str(intervention["type_intervention"]),
-                "sujet": _str(intervention["sujet"]),
-                "statut": _str(intervention["statut"]),
-                "essai_count": count,
-                "essai_uid": int(latest["id"]) if latest else None,
-                "essai_reference": _str(latest["reference"]) if latest else "",
-                "essai_statut": _str(latest["statut"]) if latest else "",
-            }
-        )
+        intervention_items.append(item)
 
     intervention_count = len(intervention_items)
     pending_count = max(intervention_count - interventions_with_essais, 0)
@@ -181,6 +219,7 @@ def _campagne_to_dict(conn, demande: sqlite3.Row, campagne: sqlite3.Row) -> dict
         "responsable_travaux": _str(campagne_data.get("responsable_travaux", "")),
         "responsable_controle": _str(campagne_data.get("responsable_controle", "")),
         "responsable_suivi": _str(campagne_data.get("responsable_suivi", "")),
+        "intervention_plan": _str(campagne_data.get("intervention_plan", "")),
         "notes": _str(campagne_data.get("notes", "")),
         "statut": _str(campagne_data.get("statut", "")),
         "workflow_label": _str(campagne_data.get("workflow_label", "")),
@@ -208,10 +247,21 @@ def list_campaigns_for_demande(demande_id: int, preparation_phase: str = "") -> 
         if demande is None:
             raise LookupError(f"Demande #{demande_id} introuvable")
         rows = conn.execute(
-            "SELECT * FROM campagnes WHERE demande_id=? ORDER BY COALESCE(reference, ''), id",
+            """
+            SELECT * FROM campagnes
+            WHERE demande_id=? AND COALESCE(statut, '') != 'Archivée'
+            ORDER BY COALESCE(reference, ''), id
+            """,
             (demande_id,),
         ).fetchall()
         return [_campagne_to_dict(conn, demande, row) for row in rows]
+
+
+def list_demande_scope_notes_techniques(demande_id: int) -> list[dict[str, Any]]:
+    """Notes techniques rattachées à la demande (sans campagne)."""
+    with _conn() as conn:
+        rows = _load_demande_scope_interventions(conn, demande_id)
+        return [_intervention_nav_item(conn, row) for row in rows]
 
 
 def create_campaign(
@@ -267,7 +317,7 @@ def create_campaign(
                 voie, sens, cote, planche, longueur_ml, zone_transition,
                 responsable_innovation, responsable_travaux, responsable_controle, responsable_suivi,
                 notes, statut, workflow_label, created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 int(demande_id),
@@ -350,6 +400,7 @@ def update_campaign(
     responsable_travaux: object | None = None,
     responsable_controle: object | None = None,
     responsable_suivi: object | None = None,
+    intervention_plan: object | None = None,
 ) -> dict[str, Any]:
     with _conn() as conn:
         campagne = _load_campagne(conn, campaign_id)
@@ -427,6 +478,8 @@ def update_campaign(
             updates["responsable_controle"] = _str(responsable_controle)
         if responsable_suivi is not None:
             updates["responsable_suivi"] = _str(responsable_suivi)
+        if intervention_plan is not None:
+            updates["intervention_plan"] = _str(intervention_plan)
 
         if not updates:
             return _campagne_to_dict(conn, demande, campagne)
@@ -468,3 +521,47 @@ def attach_intervention_to_campaign(intervention_id: int, campaign_id: int) -> d
         )
         conn.commit()
         return {"campaign_id": campaign_id, "intervention_id": intervention_id}
+
+
+def delete_campaign(campaign_id: int) -> dict[str, Any]:
+    with _conn() as conn:
+        campagne = _load_campagne(conn, campaign_id)
+        if campagne is None:
+            raise LookupError(f"Campagne #{campaign_id} introuvable")
+        linked = conn.execute(
+            "SELECT COUNT(*) AS c FROM interventions WHERE campagne_id=?",
+            (campaign_id,),
+        ).fetchone()
+        if int(linked["c"] or 0) > 0:
+            raise ValueError(
+                "Impossible de supprimer une campagne avec des interventions rattachees. "
+                "Archivez-la ou deplacez les interventions."
+            )
+        conn.execute("DELETE FROM campagnes WHERE id=?", (campaign_id,))
+        conn.commit()
+        return {"deleted": True, "uid": campaign_id, "reference": _str(campagne["reference"])}
+
+
+def archive_campaign(campaign_id: int) -> dict[str, Any]:
+    with _conn() as conn:
+        row = conn.execute(
+            """
+            SELECT d.id, d.reference, d.annee, d.labo_code
+            FROM campagnes c
+            JOIN demandes d ON d.id = c.demande_id
+            WHERE c.id=?
+            """,
+            (campaign_id,),
+        ).fetchone()
+        campagne = _load_campagne(conn, campaign_id)
+        if campagne is None or row is None:
+            raise LookupError(f"Campagne #{campaign_id} introuvable")
+        demande = row
+        now = _now()
+        conn.execute(
+            "UPDATE campagnes SET statut=?, updated_at=? WHERE id=?",
+            ("Archivée", now, campaign_id),
+        )
+        conn.commit()
+        updated = _load_campagne(conn, campaign_id)
+        return _campagne_to_dict(conn, demande, updated)

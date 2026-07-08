@@ -15,20 +15,65 @@ from datetime import date, datetime
 from typing import Optional
 
 from app.core.database import ensure_ralab4_schema, get_db_path
+from app.repositories.intervention_type_catalog_repository import InterventionTypeCatalogRepository
 from app.services.work_assignment_service import sync_intervention_assignment
+from app.services.affaire_contact_service import AffaireContactService
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 router = APIRouter()
 DB_PATH = get_db_path()
+_intervention_type_repo = InterventionTypeCatalogRepository()
+
+
+_contacts = AffaireContactService()
+
+
+def _sync_affaire_contact_from_intervention(conn: sqlite3.Connection, intervention_id: int) -> None:
+    row = conn.execute(
+        """
+        SELECT i.reference, i.observations, d.affaire_rst_id
+        FROM interventions i
+        LEFT JOIN demandes d ON d.id = i.demande_id
+        WHERE i.id = ?
+        """,
+        (int(intervention_id),),
+    ).fetchone()
+    if not row or not row["affaire_rst_id"]:
+        return
+    _contacts.record_from_intervention(
+        conn,
+        affaire_rst_id=int(row["affaire_rst_id"]),
+        observations_raw=row["observations"],
+        intervention_id=int(intervention_id),
+        intervention_reference=str(row["reference"] or ""),
+    )
+
+
+class InterventionTypeCatalogCreate(BaseModel):
+    label: str = Field(..., min_length=2, max_length=160)
+    code: str = Field("", max_length=32)
+    description: str = Field("")
+    category: str = Field("")
+
 
 TYPES = [
     "Visite de contrôle", "Auscultation", "Levé topographique", "Prélèvement",
     "Inspection géotechnique", "Essai in situ", "Réunion de chantier", "Autre",
 ]
 STATUTS = ["Planifiée", "En cours", "Réalisée", "Annulée"]
+NOTE_TECHNIQUE_STATUTS = [
+    "Planifiée",
+    "En rédaction",
+    "En validation",
+    "Envoyée",
+    "Clôturée",
+    "Annulée",
+]
 ALERTES = ["Aucun", "Faible", "Moyen", "Élevé", "Critique"]
 DEFAULT_NATURE_REELLE = "Intervention"
+NOTE_TECHNIQUE_NATURE = "Note technique"
+NOTE_TECHNIQUE_TYPE = "Note technique"
 
 
 def _normalized_status(value: str | None) -> str:
@@ -55,6 +100,8 @@ class InterventionCreate(BaseModel):
     type_intervention: str = Field("Visite de contrôle")
     sujet: str = Field("")
     date_intervention: date = Field(default_factory=date.today)
+    date_fin: Optional[date] = Field(None)
+    date_envoi: Optional[date] = Field(None)
     duree_heures: Optional[float] = Field(None)
     geotechnicien: str = Field("")
     technicien: str = Field("")
@@ -77,6 +124,8 @@ class InterventionUpdate(BaseModel):
     type_intervention: Optional[str] = None
     sujet: Optional[str] = None
     date_intervention: Optional[date] = None
+    date_fin: Optional[date] = None
+    date_envoi: Optional[date] = None
     duree_heures: Optional[float] = None
     geotechnicien: Optional[str] = None
     technicien: Optional[str] = None
@@ -91,6 +140,25 @@ class InterventionUpdate(BaseModel):
     zone: Optional[str] = None
     heure_debut: Optional[str] = None
     heure_fin: Optional[str] = None
+
+
+def _fmt_optional_date(value: date | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value or "").strip()
+
+
+def _apply_date_fields(fields: dict) -> None:
+    for key in ("date_intervention", "date_fin", "date_envoi"):
+        if key not in fields:
+            continue
+        value = fields[key]
+        if value is None:
+            fields[key] = ""
+        elif isinstance(value, date):
+            fields[key] = value.isoformat()
 
 
 def _conn():
@@ -121,13 +189,67 @@ def _enabled_module_codes(conn: sqlite3.Connection, demande_id: int) -> set[str]
     return {str(row["module_code"]) for row in rows}
 
 
+def _is_note_technique_type(type_intervention: str | None) -> bool:
+    normalized = _normalized_status(type_intervention).replace("_", " ")
+    return normalized == "note technique" or "note technique" in normalized
+
+
 def _interventions_enabled(conn: sqlite3.Connection, demande_id: int) -> bool:
     return "interventions" in _enabled_module_codes(conn, demande_id)
+
+
+def _note_technique_modules_enabled(conn: sqlite3.Connection, demande_id: int) -> bool:
+    codes = _enabled_module_codes(conn, demande_id)
+    return bool(codes & {"g3", "etude_technique", "interventions"})
+
+
+def _is_note_technique_record(type_intervention: str | None, nature_reelle: str | None = None) -> bool:
+    if _is_note_technique_type(type_intervention):
+        return True
+    return "note technique" in str(nature_reelle or "").lower()
+
+
+def _ensure_note_technique_module(conn: sqlite3.Connection, demande_id: int) -> None:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO demande_enabled_modules
+        (demande_id, module_code, is_enabled, created_at, updated_at)
+        VALUES (?, 'etude_technique', 0, ?, ?)
+        """,
+        (demande_id, now, now),
+    )
+    conn.execute(
+        """
+        UPDATE demande_enabled_modules
+        SET is_enabled = 1, updated_at = ?
+        WHERE demande_id = ? AND module_code = 'etude_technique'
+        """,
+        (now, demande_id),
+    )
 
 
 def _require_interventions_enabled(conn: sqlite3.Connection, demande_id: int):
     if not _interventions_enabled(conn, demande_id):
         raise HTTPException(403, "Le module Interventions terrain n'est pas activé sur cette demande")
+
+
+def _require_intervention_create(conn: sqlite3.Connection, demande_id: int, type_intervention: str | None):
+    if _is_note_technique_type(type_intervention):
+        if _note_technique_modules_enabled(conn, demande_id):
+            return
+        _ensure_note_technique_module(conn, demande_id)
+        return
+    _require_interventions_enabled(conn, demande_id)
+
+
+def _require_intervention_access(conn: sqlite3.Connection, row: sqlite3.Row):
+    demande_id = int(row["demande_id"])
+    type_intervention = row["type_intervention"] if "type_intervention" in row.keys() else None
+    nature_reelle = row["nature_reelle"] if "nature_reelle" in row.keys() else None
+    if _is_note_technique_record(type_intervention, nature_reelle):
+        return
+    _require_interventions_enabled(conn, demande_id)
 
 
 def _demande_id_for_intervention(conn: sqlite3.Connection, uid: int) -> Optional[int]:
@@ -140,11 +262,44 @@ def _table_columns(conn: sqlite3.Connection, table_name: str) -> set[str]:
     return {str(row["name"] if isinstance(row, sqlite3.Row) else row[1]) for row in rows}
 
 
+def _demande_ref_context(conn: sqlite3.Connection, demande_id: int) -> tuple[int, str, str]:
+    row = conn.execute(
+        """
+        SELECT d.annee, d.labo_code, a.region, a.reference AS affaire_reference
+        FROM demandes d
+        LEFT JOIN affaires_rst a ON a.id = d.affaire_rst_id
+        WHERE d.id = ?
+        """,
+        (demande_id,),
+    ).fetchone()
+    annee = int(row["annee"]) if row and row["annee"] else datetime.now().year
+    labo = str(row["labo_code"] or "SP").strip().upper() if row else "SP"
+    region = str(row["region"] or "").strip().upper() if row else ""
+    if not region and row and row["affaire_reference"]:
+        match = re.match(r"^\d+-([A-Z0-9]+)-", str(row["affaire_reference"]))
+        if match:
+            region = match.group(1).upper()
+    if not region:
+        region = "RA"
+    return annee, region, labo
+
+
 def _next_ref(conn, demande_id: int) -> tuple[str, int, str, int]:
-    row = conn.execute("SELECT d.annee, d.labo_code FROM demandes d WHERE d.id = ?", (demande_id,)).fetchone()
-    annee = row["annee"] if row else datetime.now().year
-    labo = row["labo_code"] if row else "SP"
-    prefix = f"{annee}-{labo}-I"
+    annee, _, labo = _demande_ref_context(conn, demande_id)
+    prefix = f"{annee}-{labo}-INT"
+    rows = conn.execute("SELECT reference FROM interventions WHERE reference LIKE ?", (f"{prefix}%",)).fetchall()
+    nums = []
+    for row in rows:
+        match = re.match(rf"^{re.escape(prefix)}(\d+)$", row[0])
+        if match:
+            nums.append(int(match.group(1)))
+    number = max(nums, default=0) + 1
+    return f"{prefix}{number:04d}", annee, labo, number
+
+
+def _next_nt_ref(conn, demande_id: int) -> tuple[str, int, str, int]:
+    annee, region, labo = _demande_ref_context(conn, demande_id)
+    prefix = f"{annee}-{region}-NT"
     rows = conn.execute("SELECT reference FROM interventions WHERE reference LIKE ?", (f"{prefix}%",)).fetchall()
     nums = []
     for row in rows:
@@ -180,6 +335,13 @@ def _row_to_dict(row) -> dict:
     data["campaign_id"] = data.get("campagne_id")
     data["intervention_reelle_id"] = data["uid"]
     data["intervention_reelle_reference"] = data.get("reference") or ""
+    data["is_demande_scope"] = (
+        data.get("campagne_id") in (None, "")
+        and (
+            _is_note_technique_type(data.get("type_intervention"))
+            or str(data.get("nature_reelle") or "").strip().lower() == "note technique"
+        )
+    )
     return data
 
 
@@ -210,6 +372,8 @@ def _base_select() -> str:
 @router.get("")
 def list_interventions(
     demande_id: Optional[int] = Query(None),
+    campagne_id: Optional[int] = Query(None),
+    campaign_id: Optional[int] = Query(None),
     annee: Optional[int] = Query(None),
     labo_code: Optional[str] = Query(None),
     statut: Optional[str] = Query(None),
@@ -222,6 +386,10 @@ def list_interventions(
         if demande_id:
             sql += " AND i.demande_id = ?"
             params.append(demande_id)
+        resolved_campaign_id = campagne_id if campagne_id is not None else campaign_id
+        if resolved_campaign_id is not None:
+            sql += " AND i.campagne_id = ?"
+            params.append(resolved_campaign_id)
         if annee is not None:
             sql += " AND COALESCE(NULLIF(substr(COALESCE(i.date_intervention, ''), 1, 4), ''), CAST(i.annee AS TEXT)) = ?"
             params.append(str(annee))
@@ -236,9 +404,34 @@ def list_interventions(
     return [_row_to_dict(row) for row in rows]
 
 
+@router.get("/catalog/types")
+def list_intervention_type_catalog():
+    return _intervention_type_repo.list_active()
+
+
+@router.post("/catalog/types", status_code=201)
+def create_intervention_type_catalog(body: InterventionTypeCatalogCreate):
+    try:
+        return _intervention_type_repo.create(
+            label=body.label,
+            code=body.code,
+            description=body.description,
+            category=body.category,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        status = 409 if "existe déjà" in message else 400
+        raise HTTPException(status, message) from exc
+
+
 @router.get("/meta")
 def meta():
-    return {"types": TYPES, "statuts": STATUTS, "alertes": ALERTES}
+    return {
+        "types": TYPES,
+        "statuts": STATUTS,
+        "note_technique_statuts": NOTE_TECHNIQUE_STATUTS,
+        "alertes": ALERTES,
+    }
 
 
 @router.get("/{uid}")
@@ -247,7 +440,7 @@ def get_intervention(uid: int):
         row = conn.execute(_base_select() + " WHERE i.id = ?", (uid,)).fetchone()
         if not row:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
-        _require_interventions_enabled(conn, int(row["demande_id"]))
+        _require_intervention_access(conn, row)
     return _row_to_dict(row)
 
 
@@ -601,9 +794,11 @@ def _linked_nivellements(
             c.reference AS campagne_reference,
             owner.reference AS owner_intervention_reference,
             COALESCE((
-                SELECT COUNT(*)
-                FROM nivellement_points np
-                WHERE np.nivellement_id = n.id
+                SELECT COUNT(DISTINCT pt.id)
+                FROM points_terrain pt
+                LEFT JOIN series_essais_terrain st ON st.id = pt.serie_id
+                LEFT JOIN feuilles_terrain ft ON ft.serie_id = st.id
+                WHERE COALESCE(pt.intervention_id, st.intervention_id, ft.intervention_id) = n.intervention_id
             ), 0) AS points_count
         FROM nivellements n
         LEFT JOIN demandes d ON d.id = n.demande_id
@@ -726,7 +921,7 @@ def get_intervention_linked_chain(uid: int):
         row = conn.execute(_base_select() + " WHERE i.id = ?", (uid,)).fetchone()
         if not row:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
-        _require_interventions_enabled(conn, int(row["demande_id"]))
+        _require_intervention_access(conn, row)
 
         direct_prelevement_id = row["prelevement_id"] if "prelevement_id" in row.keys() else None
         plans_implantation = _linked_plans_implantation(conn, uid, int(row['demande_id']), row['campagne_id'])
@@ -767,28 +962,54 @@ def create_intervention(body: InterventionCreate):
             detail="Impossible de passer l'intervention à ce statut sans technicien assigné.",
         )
     with _conn() as conn:
-        _require_interventions_enabled(conn, body.demande_id)
-        requested_campaign_id = body.campagne_id or body.campaign_id
-        campagne_id = _resolve_campaign_id(conn, requested_campaign_id, body.demande_id)
-        ref, annee, labo, numero = _next_ref(conn, body.demande_id)
+        _require_intervention_create(conn, body.demande_id, body.type_intervention)
+        is_note_technique = _is_note_technique_type(body.type_intervention)
+        if is_note_technique:
+            existing = conn.execute(
+                """
+                SELECT id FROM interventions
+                WHERE demande_id = ?
+                  AND campagne_id IS NULL
+                  AND (
+                    LOWER(COALESCE(type_intervention, '')) LIKE '%note technique%'
+                    OR LOWER(COALESCE(nature_reelle, '')) LIKE '%note technique%'
+                  )
+                LIMIT 1
+                """,
+                (body.demande_id,),
+            ).fetchone()
+            if existing:
+                return get_intervention(int(existing["id"]))
+            campagne_id = None
+            ref, annee, labo, numero = _next_nt_ref(conn, body.demande_id)
+            nature_reelle = NOTE_TECHNIQUE_NATURE
+        else:
+            requested_campaign_id = body.campagne_id or body.campaign_id
+            campagne_id = _resolve_campaign_id(conn, requested_campaign_id, body.demande_id)
+            ref, annee, labo, numero = _next_ref(conn, body.demande_id)
+            nature_reelle = DEFAULT_NATURE_REELLE
         conn.execute(
             """
             INSERT INTO interventions (
                 reference, annee, labo_code, numero, demande_id, campagne_id,
-                type_intervention, sujet, date_intervention, duree_heures,
+                type_intervention, sujet, date_intervention, date_fin, date_envoi, duree_heures,
                 geotechnicien, technicien, observations, anomalie_detectee,
                 niveau_alerte, pv_ref, rapport_ref, photos_dossier, statut,
                 nature_reelle, finalite, zone, heure_debut, heure_fin,
                 tri_updated_at, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 ref, annee, labo, numero, body.demande_id, campagne_id,
-                body.type_intervention, body.sujet, body.date_intervention.isoformat(), body.duree_heures,
+                body.type_intervention, body.sujet,
+                body.date_intervention.isoformat(),
+                _fmt_optional_date(body.date_fin),
+                _fmt_optional_date(body.date_envoi),
+                body.duree_heures,
                 body.geotechnicien, body.technicien, body.observations,
                 1 if body.anomalie_detectee else 0, body.niveau_alerte,
                 body.pv_ref, body.rapport_ref, body.photos_dossier, body.statut,
-                DEFAULT_NATURE_REELLE, body.finalite, body.zone, body.heure_debut, body.heure_fin,
+                nature_reelle, body.finalite, body.zone, body.heure_debut, body.heure_fin,
                 now, now, now,
             ),
         )
@@ -802,30 +1023,30 @@ def create_intervention(body: InterventionCreate):
             """,
             (uid,),
         ).fetchone()
-        if assignment_row:
+        if assignment_row and not is_note_technique:
             sync_intervention_assignment(conn, assignment_row)
+            _sync_affaire_contact_from_intervention(conn, int(uid))
     return get_intervention(int(uid))
 
 
 @router.put("/{uid}")
 def update_intervention(uid: int, body: InterventionUpdate):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    fields = {key: value for key, value in body.model_dump().items() if value is not None}
-    if "date_intervention" in fields and isinstance(fields["date_intervention"], date):
-        fields["date_intervention"] = fields["date_intervention"].isoformat()
+    fields = {key: value for key, value in body.model_dump(exclude_unset=True).items()}
+    _apply_date_fields(fields)
     if "anomalie_detectee" in fields:
         fields["anomalie_detectee"] = 1 if fields["anomalie_detectee"] else 0
     requested_campaign_id = fields.pop("campagne_id", None) or fields.pop("campaign_id", None)
     fields["updated_at"] = now
     with _conn() as conn:
         current = conn.execute(
-            "SELECT demande_id, statut, technicien FROM interventions WHERE id = ?",
+            "SELECT demande_id, statut, technicien, type_intervention, nature_reelle FROM interventions WHERE id = ?",
             (uid,),
         ).fetchone()
         if current is None:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
         demande_id = int(current["demande_id"])
-        _require_interventions_enabled(conn, demande_id)
+        _require_intervention_access(conn, current)
 
         next_status = fields.get("statut", current["statut"])
         next_technicien = fields.get("technicien", current["technicien"])
@@ -839,7 +1060,18 @@ def update_intervention(uid: int, body: InterventionUpdate):
                     detail="Impossible de passer l'intervention à ce statut sans technicien assigné.",
                 )
 
-        if requested_campaign_id is not None:
+        current_type = conn.execute(
+            "SELECT type_intervention, nature_reelle FROM interventions WHERE id = ?",
+            (uid,),
+        ).fetchone()
+        if current_type and _is_note_technique_type(current_type["type_intervention"]):
+            if requested_campaign_id is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Une note technique reste rattachée à la demande (sans campagne).",
+                )
+            fields.pop("campagne_id", None)
+        elif requested_campaign_id is not None:
             fields["campagne_id"] = _resolve_campaign_id(conn, requested_campaign_id, demande_id)
         clause = ", ".join(f"{key} = ?" for key in fields)
         if clause:
@@ -849,6 +1081,7 @@ def update_intervention(uid: int, body: InterventionUpdate):
             UPDATE interventions
             SET nature_reelle = ?, tri_updated_at = ?
             WHERE id = ? AND COALESCE(NULLIF(nature_reelle, ''), '') = ''
+              AND LOWER(COALESCE(type_intervention, '')) NOT LIKE '%note technique%'
             """,
             (DEFAULT_NATURE_REELLE, now, uid),
         )
@@ -861,18 +1094,25 @@ def update_intervention(uid: int, body: InterventionUpdate):
             """,
             (uid,),
         ).fetchone()
-        if assignment_row:
+        if assignment_row and not (
+            current_type and _is_note_technique_type(current_type["type_intervention"])
+        ):
             sync_intervention_assignment(conn, assignment_row)
+        _sync_affaire_contact_from_intervention(conn, int(uid))
     return get_intervention(uid)
 
 
 @router.delete("/{uid}", status_code=204)
 def delete_intervention(uid: int):
     with _conn() as conn:
-        demande_id = _demande_id_for_intervention(conn, uid)
-        if demande_id is None:
+        row = conn.execute(
+            "SELECT demande_id, type_intervention, nature_reelle FROM interventions WHERE id = ?",
+            (uid,),
+        ).fetchone()
+        if row is None:
             raise HTTPException(404, f"Intervention #{uid} introuvable")
-        _require_interventions_enabled(conn, demande_id)
+        demande_id = int(row["demande_id"])
+        _require_intervention_access(conn, row)
         cur = conn.execute("DELETE FROM interventions WHERE id = ?", (uid,))
     if not cur.rowcount:
         raise HTTPException(404, f"Intervention #{uid} introuvable")
