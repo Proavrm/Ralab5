@@ -1,6 +1,6 @@
 """
 api_main.py
-FastAPI entry point for RaLab4.
+FastAPI entry point for RaLab5.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ from api.nivellements import router as nivellements_router
 from api.feuilles_terrain import router as feuilles_terrain_router
 from api.qualite import router as qualite_router
 from api.work_inbox import router as work_inbox_router
-from app.core.database import ensure_ralab4_schema
+from app.core.database import ensure_ralab5_schema
 from app.middleware.require_auth_middleware import RequireAuthMiddleware
 from api.affaires_manual_correction_simple import router as affaires_manual_correction_simple_router
 from api.reference_sources import router as reference_sources_router
@@ -179,7 +179,7 @@ if STORAGE_DIR.exists():
 
 @app.on_event("startup")
 def startup_event() -> None:
-    ensure_ralab4_schema()
+    ensure_ralab5_schema()
 
 
 @app.get("/api/status", tags=["Status"])

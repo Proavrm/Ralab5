@@ -1,6 +1,6 @@
 """
-tools/init_ralab4_db.py
-Legacy alias — préférer init_ralab5_db.py.
+tools/init_ralab5_db.py
+Initialize the bootstrap RaLab5 schema used by the current package.
 """
 from __future__ import annotations
 

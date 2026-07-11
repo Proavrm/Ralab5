@@ -1,6 +1,6 @@
 """
 app/core/database.py
-Shared database helpers for RaLab4.
+Shared database helpers for RaLab5.
 """
 from __future__ import annotations
 
@@ -11,8 +11,14 @@ from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT_DIR / "data"
-DEFAULT_DB_NAME = "ralab3.db"
+DEFAULT_DB_NAME = "ralab5.db"
+LEGACY_DB_NAME = "ralab3.db"
 DEFAULT_QSSE_DB_NAME = "qsse.db"
+
+RALAB5_DB_PATH_ENV = "RALAB5_DB_PATH"
+RALAB4_DB_PATH_ENV = "RALAB4_DB_PATH"
+RALAB5_QSSE_DB_PATH_ENV = "RALAB5_QSSE_DB_PATH"
+RALAB4_QSSE_DB_PATH_ENV = "RALAB4_QSSE_DB_PATH"
 
 PASSATION_DDL = """
 CREATE TABLE IF NOT EXISTS laboratoires (
@@ -945,17 +951,35 @@ def _seed_laboratoires_geo(conn: sqlite3.Connection) -> None:
         )
 
 
+def _env_db_path(*env_names: str) -> Path | None:
+    for name in env_names:
+        raw = os.environ.get(name, "").strip()
+        if raw:
+            return Path(raw)
+    return None
+
+
+def resolve_default_db_path() -> Path:
+    explicit = _env_db_path(RALAB5_DB_PATH_ENV, RALAB4_DB_PATH_ENV)
+    if explicit is not None:
+        return explicit
+    ralab5 = DATA_DIR / DEFAULT_DB_NAME
+    ralab3 = DATA_DIR / LEGACY_DB_NAME
+    if ralab5.exists():
+        return ralab5
+    if ralab3.exists():
+        return ralab3
+    return ralab5
+
+
 def get_db_path() -> Path:
-    env_path = os.environ.get("RALAB4_DB_PATH", "").strip()
-    if env_path:
-        return Path(env_path)
-    return DATA_DIR / DEFAULT_DB_NAME
+    return resolve_default_db_path()
 
 
 def get_qsse_db_path() -> Path:
-    env_path = os.environ.get("RALAB4_QSSE_DB_PATH", "").strip()
-    if env_path:
-        return Path(env_path)
+    explicit = _env_db_path(RALAB5_QSSE_DB_PATH_ENV, RALAB4_QSSE_DB_PATH_ENV)
+    if explicit is not None:
+        return explicit
     return DATA_DIR / DEFAULT_QSSE_DB_NAME
 
 
@@ -1409,7 +1433,7 @@ def _ensure_pmt_essais_harmonized_schema(conn: sqlite3.Connection) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
-def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
+def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
     path = db_path or get_db_path()
     with connect_db(path) as conn:
         conn.executescript(PASSATION_DDL)
@@ -1707,6 +1731,11 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
     return path
 
 
+def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
+    """Alias legacy — préférer ensure_ralab5_schema()."""
+    return ensure_ralab5_schema(db_path)
+
+
 def ensure_qsse_schema(db_path: Path | None = None) -> Path:
     path = db_path or get_qsse_db_path()
     with connect_qsse_db(path) as conn:
@@ -1718,7 +1747,7 @@ def ensure_qsse_schema(db_path: Path | None = None) -> Path:
 def list_laboratoires(db_path: Path | None = None) -> list[dict]:
     from app.repositories.laboratoires_repository import LaboratoiresRepository
 
-    ensure_ralab4_schema(db_path)
+    ensure_ralab5_schema(db_path)
     return [_laboratoire_to_dict(row) for row in LaboratoiresRepository(db_path).list_all()]
 
 

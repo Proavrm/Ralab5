@@ -16,7 +16,8 @@ python tools/<script>.py [--help]
 
 | Script | Description |
 |---|---|
-| `init_ralab4_db.py` | Initialise le schéma bootstrap RaLab4/5 |
+| `init_ralab5_db.py` | Initialise le schéma bootstrap RaLab5 |
+| `init_ralab4_db.py` | Alias legacy → `init_ralab5_db.py` |
 | `init_security_db.py` | Crée `security.db` (rôles, permissions, utilisateurs) |
 | `migrate_to_ralab3.py` | Migration legacy vers RaLab3 |
 | `migrate_to_ralab4.py` | Migration legacy vers RaLab4 |

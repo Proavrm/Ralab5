@@ -88,10 +88,12 @@ Affaire RST
 
 > ⚠️ Les fichiers .db ne sont PAS versionnés dans git (dans .gitignore).
 > Les données sont locales sur le PC de Marco.
+> Résolution automatique : `RALAB5_DB_PATH` → `RALAB4_DB_PATH` (alias) → `ralab5.db` → `ralab3.db`.
 
 | Fichier | Contenu |
 |---|---|
-| `ralab3.db` | DB principale — affaires, demandes, interventions, essais, qualité |
+| `ralab5.db` | DB principale RaLab5 (cible) — affaires, demandes, interventions, essais, G3, qualité |
+| `ralab3.db` | DB legacy — utilisée automatiquement si `ralab5.db` absent |
 | `affaires.db` | Affaires après import historique |
 | `etudes.db` | Études de référence |
 | `demandes.db` | Legacy RaLab2 (31 demandes) — ne pas modifier |
@@ -208,7 +210,7 @@ Legacy HTML : `frontend/legacy_html/` — ne pas modifier.
 | 1 | Guards permissions par route React | 🟠 Haute | Middleware backend partiel seulement |
 | 2 | Debounce PATCH frontend | 🟡 Moyenne | Passation, G3, etc. |
 | 3 | Validation FK cross-mission G3 | 🟡 Moyenne | IDOR à durcir |
-| 4 | Renommage RaLab5 DB (`RALAB5_DB_PATH`) | 🟢 Basse | Package C |
+| 4 | Renommage RaLab5 DB (`RALAB5_DB_PATH`) | ✅ Fait | Package C — alias legacy conservés |
 | 5 | CI + smoke tests routers | 🟢 Basse | Package F |
 | 6 | PostgreSQL | 🟢 Basse | Futur |
 
@@ -265,6 +267,9 @@ python -m pytest tests/ -q
 # Migration refs G3
 python tools/migrate_g3_mission_references.py
 
+# Init schéma DB
+python tools/init_ralab5_db.py
+
 # Git
 git pull && git status
 ```
@@ -278,7 +283,14 @@ Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
 
 ```
 **Data :** 2026-07-11
-**Feito nesta sessão (Pacote E — Docs) :**
+**Feito nesta sessão (Pacote C — DB RaLab5) :**
+- `RALAB5_DB_PATH` / `RALAB5_QSSE_DB_PATH` como variáveis canónicas
+- `RALAB4_*` mantidos como alias legacy
+- `ensure_ralab5_schema()` canónico, `ensure_ralab4_schema()` alias
+- Resolução auto DB : env → ralab5.db → ralab3.db → ralab5.db (novo)
+- `init_ralab5_db.py` + testes `test_database_paths.py`
+
+**Feito sessão anterior (Pacote E — Docs) :**
 - 62 HANDOFFs itératifs archivés dans docs/archive/handoffs/
 - 4 HANDOFFs actifs conservés (deploy, overview, Cloudflare)
 - 2 guides déplacés vers docs/guides/ (SC import, DE→generic)
@@ -292,8 +304,7 @@ Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
 - 7fbfb3c Phase A deploy (launch scripts, proxy default)
 
 **Prochaines étapes possibles :**
-- Commit + push Pacote E (sur demande)
-- Package C : renommage RaLab5 DB/schema
+- Commit + push Pacote C (sur demande)
 - Package D : ToolsPage/DstPage → api.js unifié
 - Package F : smoke tests routers, CI
 ```

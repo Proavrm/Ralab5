@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sqlite3
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-DATA_DIR = PROJECT_ROOT / "backend" / "current_fastapi" / "data"
+BACKEND_ROOT = PROJECT_ROOT / "backend" / "current_fastapi"
+import sys
 
-RST_DB_PATH = Path(os.environ.get("RALAB4_DB_PATH", "").strip() or (DATA_DIR / "ralab3.db"))
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+from app.core.database import get_db_path
+
+DATA_DIR = BACKEND_ROOT / "data"
+
+RST_DB_PATH = get_db_path()
 NGE_REF_DB_PATH = DATA_DIR / "affaires.db"
 ETUDES_REF_DB_PATH = DATA_DIR / "etudes.db"
 
