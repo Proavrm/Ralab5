@@ -78,6 +78,7 @@ export default function AppLayout() {
                 { to: '/labo', icon: '🔬', label: 'Laboratoire', permission: 'view_labo' },
                 { to: '/qualite', icon: '🔍', label: 'Audits / Qualité' },
                 { to: '/g3', icon: '📍', label: 'G3', end: true },
+                { to: '/g3/missions', icon: '📂', label: 'Missions G3 EXE' },
                 { to: '/g3/notes-techniques', icon: '📝', label: 'Notes techniques' },
             ]
         },

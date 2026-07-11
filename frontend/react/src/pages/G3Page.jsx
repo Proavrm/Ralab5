@@ -28,6 +28,15 @@ export default function G3Page() {
 
       <FicheMain>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <SectionCard title="Missions G3 EXE">
+            <p className="text-[13px] leading-6 text-text-muted mb-4">
+              Pilotage complet d'une mission géotechnique G3 : programme, interventions, avis et livrables.
+            </p>
+            <Button size="sm" onClick={() => navigate('/g3/missions')}>
+              📂 Ouvrir les missions G3
+            </Button>
+          </SectionCard>
+
           <SectionCard title="Notes techniques">
             <div className="flex flex-wrap items-center gap-2 mb-3">
               <Button size="sm" onClick={() => navigate('/g3/notes-techniques')}>

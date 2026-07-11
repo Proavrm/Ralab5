@@ -73,10 +73,10 @@ function buildDocumentSections(documents = []) {
   return sections
 }
 
-function SiteCaptureSectionHeader() {
+function SiteCaptureSectionHeader({ colSpan = 7 }) {
   return (
     <tr className="bg-[#eef4ff]">
-      <td colSpan={7} className="border-y border-[#c7d7fe] px-2 py-2">
+      <td colSpan={colSpan} className="border-y border-[#c7d7fe] px-2 py-2">
         <div className="flex flex-col gap-0.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3 text-[11px]">
           <span className="font-semibold text-[#1e3a8a]">Cartes chantier (OpenStreetMap)</span>
           <span className="text-[#475569] leading-relaxed">
@@ -88,10 +88,10 @@ function SiteCaptureSectionHeader() {
   )
 }
 
-function OtherDocumentsSectionHeader() {
+function OtherDocumentsSectionHeader({ colSpan = 7 }) {
   return (
     <tr>
-      <td colSpan={7} className="border-t-2 border-[#dbe1ea] bg-[#f8fafc] px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#69758a]">
+      <td colSpan={colSpan} className="border-t-2 border-[#dbe1ea] bg-[#f8fafc] px-2 py-2 text-[10px] font-semibold uppercase tracking-wide text-[#69758a]">
         Autres documents
       </td>
     </tr>
@@ -110,6 +110,7 @@ function DocumentRow({
   fileDropDisabledMessage = '',
   isRequired = false,
   inSiteCaptureGroup = false,
+  showG3TrackingColumns = false,
 }) {
   const [isUploading, setIsUploading] = useState(false)
 
@@ -197,6 +198,30 @@ function DocumentRow({
           className="w-4 h-4 accent-accent disabled:opacity-60"
         />
       </td>
+      {showG3TrackingColumns ? (
+        <td className="px-2 py-1.5 text-center">
+          <input
+            type="checkbox"
+            checked={!!doc.is_analyzed}
+            onChange={(event) => set('is_analyzed', event.target.checked)}
+            disabled={readOnly}
+            title="Document analysé"
+            className="w-4 h-4 accent-accent disabled:opacity-60"
+          />
+        </td>
+      ) : null}
+      {showG3TrackingColumns ? (
+        <td className="px-2 py-1.5 text-center">
+          <input
+            type="checkbox"
+            checked={!!doc.used_in_report}
+            onChange={(event) => set('used_in_report', event.target.checked)}
+            disabled={readOnly}
+            title="Utilisé dans le rapport G3"
+            className="w-4 h-4 accent-accent disabled:opacity-60"
+          />
+        </td>
+      ) : null}
       <td className="px-2 py-1.5 min-w-[220px]">
         <div className="flex items-center gap-1.5">
           {(storedPath && (isRequired || (isItineraryRow && isOsmCapture))) ? (
@@ -322,6 +347,8 @@ export default function DocumentTrackingTable({
   requiredDocumentTypes = [PLAN_SITUATION_TYPE],
   subtitle = 'Cartes chantier (plan + itinéraire) via capture OSM sur la ligne plan · autres pièces par glisser-déposer.',
   saveLabel = 'Enregistrer documents',
+  showDistanceToLab = true,
+  showG3TrackingColumns = false,
 }) {
   const [dropModal, setDropModal] = useState({
     open: false,
@@ -608,6 +635,17 @@ export default function DocumentTrackingTable({
   }
 
   const activeRow = dropModal.rowIndex != null ? documents[dropModal.rowIndex] : null
+  const columnCount = 7 + (showG3TrackingColumns ? 2 : 0)
+  const tableHeaders = [
+    ['Document', ''],
+    ['Reçu', ''],
+    ...(showG3TrackingColumns ? [['Analysé', 'Document analysé'], ['Rapport', 'Utilisé dans le rapport G3']] : []),
+    ['Version', 'Glisser-déposer un fichier sur cette cellule'],
+    ['Réception', 'Date de réception du document (client / MO)'],
+    ['Dépôt RaLab', 'Date de dépôt sur RaLab — remplie automatiquement au glisser-déposer'],
+    ['Commentaire', ''],
+    ['', ''],
+  ]
 
   return (
     <div className="flex flex-col gap-3">
@@ -619,32 +657,26 @@ export default function DocumentTrackingTable({
       {subtitle ? (
         <div className="text-[12px] text-[#69758a] leading-relaxed">{subtitle}</div>
       ) : null}
-      <div
-        className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-[12px] ${
-          distanceCaption
-            ? 'border-[#dbe1ea] bg-[#f6f8fb] text-text'
-            : 'border-dashed border-[#dbe1ea] bg-white/70 text-text-muted'
-        }`}
-        title="Distance du chantier au laboratoire de référence"
-      >
-        <span className="font-medium text-text-muted">Distance chantier → labo</span>
-        <span className={distanceCaption ? 'font-medium text-text' : 'italic'}>
-          {distanceCaption || 'Non calculée — renseignez l’adresse ou capturez le plan de situation.'}
-        </span>
-      </div>
+      {showDistanceToLab ? (
+        <div
+          className={`flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-[12px] ${
+            distanceCaption
+              ? 'border-[#dbe1ea] bg-[#f6f8fb] text-text'
+              : 'border-dashed border-[#dbe1ea] bg-white/70 text-text-muted'
+          }`}
+          title="Distance du chantier au laboratoire de référence"
+        >
+          <span className="font-medium text-text-muted">Distance chantier → labo</span>
+          <span className={distanceCaption ? 'font-medium text-text' : 'italic'}>
+            {distanceCaption || 'Non calculée — renseignez l’adresse ou capturez le plan de situation.'}
+          </span>
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-xs mb-1">
           <thead>
             <tr className="border-b border-border">
-              {[
-                ['Document', ''],
-                ['Reçu', ''],
-                ['Version', ''],
-                ['Réception', 'Date de réception du document (client / MO)'],
-                ['Dépôt RaLab', 'Date de dépôt sur RaLab — remplie automatiquement au glisser-déposer'],
-                ['Commentaire', ''],
-                ['', ''],
-              ].map(([heading, title]) => (
+              {tableHeaders.map(([heading, title]) => (
                 <th
                   key={heading || 'actions'}
                   title={title}
@@ -658,15 +690,15 @@ export default function DocumentTrackingTable({
           <tbody>
             {documents.length === 0 && readOnly ? (
               <tr>
-                <td colSpan={7} className="px-2 py-4 text-center text-text-muted italic">
+                <td colSpan={columnCount} className="px-2 py-4 text-center text-text-muted italic">
                   Quadro indisponible tant que la passation n’est pas enregistrée.
                 </td>
               </tr>
             ) : (
               documentSections.map((section, sectionIndex) => (
                 <Fragment key={`${section.kind}-${sectionIndex}`}>
-                  {section.kind === 'site' ? <SiteCaptureSectionHeader /> : (
-                    sectionIndex > 0 ? <OtherDocumentsSectionHeader /> : null
+                  {section.kind === 'site' ? <SiteCaptureSectionHeader colSpan={columnCount} /> : (
+                    sectionIndex > 0 ? <OtherDocumentsSectionHeader colSpan={columnCount} /> : null
                   )}
                   {section.items.map(({ doc, index }) => (
                     <DocumentRow
@@ -693,6 +725,7 @@ export default function DocumentTrackingTable({
                       fileDropDisabledMessage={fileDropDisabledMessage}
                       isRequired={isRequiredDocument(doc)}
                       inSiteCaptureGroup={section.kind === 'site'}
+                      showG3TrackingColumns={showG3TrackingColumns}
                     />
                   ))}
                 </Fragment>

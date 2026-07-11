@@ -38,6 +38,7 @@ from api.intervention_requalification import router as intervention_requalificat
 from api.passations import router as passations_router
 from api.planning import router as planning_router
 from api.feuille_mission import router as feuille_mission_router
+from api.g3 import router as g3_router
 from api.plans_implantation import router as plans_implantation_router
 from api.nivellements import router as nivellements_router
 from api.feuilles_terrain import router as feuilles_terrain_router
@@ -136,6 +137,7 @@ app.include_router(demandes_router, prefix="/api/demandes", tags=["Demandes"])
 app.include_router(dst_router, prefix="/api/dst", tags=["DST"])
 app.include_router(planning_router, prefix="/api/planning", tags=["Planning"])
 app.include_router(feuille_mission_router, prefix="/api/feuille-mission", tags=["Feuille mission"])
+app.include_router(g3_router, prefix="/api/g3", tags=["G3"])
 app.include_router(affaires_router, prefix="/api/affaires", tags=["Affaires RST"])
 app.include_router(contacts_router, prefix="/api/contacts", tags=["Contacts"])
 app.include_router(passations_router, prefix="/api/passations", tags=["Passations"])

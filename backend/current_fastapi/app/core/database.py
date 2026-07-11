@@ -543,6 +543,235 @@ CREATE INDEX IF NOT EXISTS idx_email_outbox_recipient_created
     ON email_outbox(recipient_email, created_at);
 """
 
+G3_DDL = """
+CREATE TABLE IF NOT EXISTS g3_missions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference TEXT NOT NULL UNIQUE,
+    affaire_rst_id INTEGER NOT NULL REFERENCES affaires_rst(id) ON DELETE RESTRICT,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE RESTRICT,
+    title TEXT NOT NULL DEFAULT '',
+    client TEXT NOT NULL DEFAULT '',
+    chantier TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'À préparer',
+    mission_types_json TEXT NOT NULL DEFAULT '[]',
+    description TEXT NOT NULL DEFAULT '',
+    main_objective TEXT NOT NULL DEFAULT '',
+    conducteur TEXT NOT NULL DEFAULT '',
+    chef_chantier TEXT NOT NULL DEFAULT '',
+    rst_responsible TEXT NOT NULL DEFAULT '',
+    laboratoire TEXT NOT NULL DEFAULT '',
+    lab_intervenant TEXT NOT NULL DEFAULT '',
+    geotechnicien_externe TEXT NOT NULL DEFAULT '',
+    moa TEXT NOT NULL DEFAULT '',
+    moe TEXT NOT NULL DEFAULT '',
+    bureau_controle TEXT NOT NULL DEFAULT '',
+    start_date TEXT,
+    end_date TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS g3_zones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT '',
+    risk_level TEXT NOT NULL DEFAULT 'Faible',
+    responsible TEXT NOT NULL DEFAULT '',
+    observations TEXT NOT NULL DEFAULT '',
+    plan_id TEXT NOT NULL DEFAULT '',
+    plan_object_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS g3_interventions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    zone_id INTEGER REFERENCES g3_zones(id) ON DELETE SET NULL,
+    plan_object_id TEXT NOT NULL DEFAULT '',
+    number TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT '',
+    phase TEXT NOT NULL DEFAULT 'planned',
+    date TEXT,
+    start_time TEXT NOT NULL DEFAULT '',
+    end_time TEXT NOT NULL DEFAULT '',
+    responsible TEXT NOT NULL DEFAULT '',
+    participants TEXT NOT NULL DEFAULT '',
+    objective TEXT NOT NULL DEFAULT '',
+    means TEXT NOT NULL DEFAULT '',
+    prerequisites TEXT NOT NULL DEFAULT '',
+    expected_deliverable TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    findings TEXT NOT NULL DEFAULT '',
+    decision TEXT NOT NULL DEFAULT '',
+    next_actions TEXT NOT NULL DEFAULT '',
+    comments TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'À prévoir',
+    weather TEXT NOT NULL DEFAULT '',
+    hydric_condition TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    linked_intervention_id INTEGER REFERENCES interventions(id) ON DELETE SET NULL,
+    realized_from_id INTEGER REFERENCES g3_interventions(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS g3_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    user_name TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL DEFAULT '',
+    entity_type TEXT NOT NULL DEFAULT '',
+    entity_id INTEGER,
+    comment TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_g3_missions_demande ON g3_missions(demande_id);
+CREATE INDEX IF NOT EXISTS idx_g3_missions_affaire ON g3_missions(affaire_rst_id);
+CREATE INDEX IF NOT EXISTS idx_g3_interventions_mission ON g3_interventions(mission_id, phase);
+CREATE INDEX IF NOT EXISTS idx_g3_zones_mission ON g3_zones(mission_id);
+
+CREATE TABLE IF NOT EXISTS g3_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    zone_id INTEGER REFERENCES g3_zones(id) ON DELETE SET NULL,
+    type TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    reference TEXT NOT NULL DEFAULT '',
+    version TEXT NOT NULL DEFAULT '',
+    document_date TEXT,
+    author TEXT NOT NULL DEFAULT '',
+    received INTEGER NOT NULL DEFAULT 0,
+    analyzed INTEGER NOT NULL DEFAULT 0,
+    used_in_report INTEGER NOT NULL DEFAULT 0,
+    observations TEXT NOT NULL DEFAULT '',
+    file_url TEXT NOT NULL DEFAULT '',
+    stored_path TEXT NOT NULL DEFAULT '',
+    uploaded_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS g3_objectives (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    zone_id INTEGER REFERENCES g3_zones(id) ON DELETE SET NULL,
+    label TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    priority TEXT NOT NULL DEFAULT 'Moyenne',
+    status TEXT NOT NULL DEFAULT 'À faire',
+    responsible TEXT NOT NULL DEFAULT '',
+    expected_result TEXT NOT NULL DEFAULT '',
+    comments TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_g3_documents_mission ON g3_documents(mission_id);
+CREATE INDEX IF NOT EXISTS idx_g3_objectives_mission ON g3_objectives(mission_id);
+
+CREATE TABLE IF NOT EXISTS g3_tests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    zone_id INTEGER REFERENCES g3_zones(id) ON DELETE SET NULL,
+    intervention_id INTEGER REFERENCES g3_interventions(id) ON DELETE SET NULL,
+    type TEXT NOT NULL DEFAULT '',
+    label TEXT NOT NULL DEFAULT '',
+    reference TEXT NOT NULL DEFAULT '',
+    test_date TEXT,
+    status TEXT NOT NULL DEFAULT 'En attente',
+    result TEXT NOT NULL DEFAULT '',
+    conformity TEXT NOT NULL DEFAULT 'En attente',
+    observations TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS g3_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    zone_id INTEGER REFERENCES g3_zones(id) ON DELETE SET NULL,
+    intervention_id INTEGER REFERENCES g3_interventions(id) ON DELETE SET NULL,
+    caption TEXT NOT NULL DEFAULT '',
+    stored_path TEXT NOT NULL DEFAULT '',
+    use_in_report INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    taken_at TEXT,
+    uploaded_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_g3_tests_mission ON g3_tests(mission_id);
+CREATE INDEX IF NOT EXISTS idx_g3_photos_mission ON g3_photos(mission_id, sort_order);
+
+CREATE TABLE IF NOT EXISTS g3_notices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    zone_id INTEGER REFERENCES g3_zones(id) ON DELETE SET NULL,
+    intervention_id INTEGER REFERENCES g3_interventions(id) ON DELETE SET NULL,
+    type TEXT NOT NULL DEFAULT '',
+    reference TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'Brouillon',
+    notice_date TEXT,
+    formulation TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    conditions TEXT NOT NULL DEFAULT '',
+    recommendations TEXT NOT NULL DEFAULT '',
+    transmitted_at TEXT,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS g3_hold_points (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    zone_id INTEGER REFERENCES g3_zones(id) ON DELETE SET NULL,
+    notice_id INTEGER REFERENCES g3_notices(id) ON DELETE SET NULL,
+    code TEXT NOT NULL DEFAULT '',
+    label TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'À venir',
+    due_date TEXT,
+    validated_at TEXT,
+    observations TEXT NOT NULL DEFAULT '',
+    requires_tests INTEGER NOT NULL DEFAULT 0,
+    requires_notice INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_g3_notices_mission ON g3_notices(mission_id);
+CREATE INDEX IF NOT EXISTS idx_g3_hold_points_mission ON g3_hold_points(mission_id);
+
+CREATE TABLE IF NOT EXISTS g3_deliverables (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mission_id INTEGER NOT NULL REFERENCES g3_missions(id) ON DELETE CASCADE,
+    type TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    version TEXT NOT NULL DEFAULT '1',
+    status TEXT NOT NULL DEFAULT 'À produire',
+    due_date TEXT,
+    generated_at TEXT,
+    stored_path TEXT NOT NULL DEFAULT '',
+    observations TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_g3_deliverables_mission ON g3_deliverables(mission_id);
+"""
+
 FEUILLE_MISSION_DDL = """
 CREATE TABLE IF NOT EXISTS feuille_mission_journee (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1190,7 +1419,9 @@ def ensure_ralab4_schema(db_path: Path | None = None) -> Path:
         conn.executescript(QSSE_IMPORT_DDL)
         conn.executescript(WORK_INBOX_DDL)
         conn.executescript(FEUILLE_MISSION_DDL)
+        conn.executescript(G3_DDL)
         conn.executescript(AFFAIRE_CONTACTS_DDL)
+        _ensure_column(conn, "g3_documents", "uploaded_at", "TEXT")
         conn.executescript(AFFAIRE_CONTACT_DISMISSALS_DDL)
         _ensure_generic_essais_parent_schema(conn)
         _ensure_pmt_essais_harmonized_schema(conn)
