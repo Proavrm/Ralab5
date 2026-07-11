@@ -375,12 +375,12 @@ export default function DstPage() {
   return (
     <FichePageShell>
       <FicheTopbar backLabel="← Retour" onBack={() => navigate('/')} eyebrow="Référentiel" title="DST">
-        <button type="button" onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }} className="px-3.5 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f] inline-flex items-center gap-1.5">
+        <Button type="button" variant="primary" size="sm" onClick={() => { setImportFile(null); setImportResult(null); setImportOpen(true) }} className="rounded-xl font-bold">
           <Upload size={13} /> Importer Excel
-        </button>
-        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -391,7 +391,7 @@ export default function DstPage() {
             <div className="flex items-center gap-3 flex-wrap">
               <input value={search} onChange={e => onSearch(e.target.value)}
                 placeholder="Rechercher N° chrono, projet, demandeur…"
-                className="flex-1 min-w-[220px] max-w-[360px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]" />
+                className="flex-1 min-w-[220px] max-w-[360px] px-3 py-1.5 border border-border rounded text-sm bg-white outline-none focus:border-nge" />
               {status && (
                 <div className="flex items-center gap-2 text-xs text-text-muted">
                   <span className={`w-2 h-2 rounded-full ${status.available ? 'bg-success' : 'bg-warn'}`} />
@@ -442,7 +442,7 @@ export default function DstPage() {
                     className={`border-b border-border cursor-pointer transition-colors ${
                       selected?.id === row.id ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
-                    <td className="px-3 py-1.5"><strong className="text-accent text-xs font-mono">{row['N° chrono'] || '—'}</strong></td>
+                    <td className="px-3 py-1.5"><strong className="text-nge text-xs font-mono">{row['N° chrono'] || '—'}</strong></td>
                     <td className="px-3 py-1.5 text-xs max-w-[260px] truncate" title={row['Libellé du projet'] || ''}>{row['Libellé du projet'] || '—'}</td>
                     <td className="px-3 py-1.5 text-xs">{shortName(row['Demandeur'])}</td>
                     <td className="px-3 py-1.5 text-xs">{row['Situation Géographique'] || '—'}</td>
@@ -462,7 +462,7 @@ export default function DstPage() {
           <div className="w-[360px] min-w-[320px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
-                <div className="text-[13px] font-bold text-accent">{selected['N° chrono'] || '—'}</div>
+                <div className="text-[13px] font-bold text-nge">{selected['N° chrono'] || '—'}</div>
                 <div className="text-[11px] font-semibold text-text mt-0.5">{selected['Libellé du projet'] || '—'}</div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0"><X size={14} /></button>

@@ -9,6 +9,7 @@ import { getFeuilleValidationInfo } from '@/lib/essaiValidation'
 import { feuillesTerrainApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
 import { getFeuilleTypeConfig } from '@/pages/terrain/feuilleTypeRegistry'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 const TEXTURE_OPTIONS = ['', 'argileux', 'argilo-limoneux', 'argilo-sableux', 'limono-argilo-sableux', 'limoneux', 'limono-argileux', 'limono-sableux', 'sableux', 'sablo-limoneux']
 const PROPORTION_OPTIONS = ['', '0-25 %', '25-50 %', '50-75 %', '75-90 %', '100 %']
@@ -34,25 +35,6 @@ function Card({ title, children, right }) {
                 </div>
             ) : null}
             <div className="p-4">{children}</div>
-        </div>
-    )
-}
-
-function PageHeaderBar({ backLabel, onBack, title, subtitle, actions }) {
-    return (
-        <div className="flex items-center gap-2 px-6 bg-surface border-b border-border min-h-[58px] shrink-0 sticky top-0 z-10 flex-wrap">
-            <button
-                type="button"
-                onClick={onBack}
-                className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors"
-            >
-                {backLabel}
-            </button>
-            <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-semibold text-text">{title}</div>
-                {subtitle ? <div className="truncate text-[11px] text-text-muted">{subtitle}</div> : null}
-            </div>
-            {actions}
         </div>
     )
 }
@@ -322,7 +304,7 @@ function renderChainLabo(prelevements, detailReturnTo, navigate) {
             {prelevements.map((prelevement) => (
                 <div key={prelevement.uid} className="rounded-lg border border-border bg-bg px-4 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                        <button type="button" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${prelevement.uid}`, detailReturnTo)} className="text-[13px] font-semibold text-accent hover:underline">
+                        <button type="button" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${prelevement.uid}`, detailReturnTo)} className="text-[13px] font-semibold text-nge hover:underline">
                             {prelevement.reference}
                         </button>
                         <div className="text-[11px] text-text-muted">{formatDate(prelevement.date_prelevement) || '—'}</div>
@@ -332,14 +314,14 @@ function renderChainLabo(prelevements, detailReturnTo, navigate) {
                         <div className="mt-3 ml-4 flex flex-col gap-2 border-l border-border pl-3">
                             {prelevement.echantillons.map((echantillon) => (
                                 <div key={echantillon.uid} className="rounded-lg border border-border bg-surface px-3 py-2">
-                                    <button type="button" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${echantillon.uid}`, detailReturnTo)} className="text-[12px] font-semibold text-accent hover:underline">
+                                    <button type="button" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${echantillon.uid}`, detailReturnTo)} className="text-[12px] font-semibold text-nge hover:underline">
                                         {echantillon.reference}
                                     </button>
                                     <div className="mt-1 text-[11px] text-text-muted">{echantillon.designation || echantillon.localisation || 'Échantillon'}</div>
                                     {Array.isArray(echantillon.essais) && echantillon.essais.length > 0 ? (
                                         <div className="mt-2 ml-4 flex flex-col gap-1 border-l border-border pl-3">
                                             {echantillon.essais.map((essai) => (
-                                                <button key={essai.uid} type="button" onClick={() => navigateWithReturnTo(navigate, `/essais/${essai.uid}`, detailReturnTo)} className="text-left text-[11px] text-accent hover:underline">
+                                                <button key={essai.uid} type="button" onClick={() => navigateWithReturnTo(navigate, `/essais/${essai.uid}`, detailReturnTo)} className="text-left text-[11px] text-nge hover:underline">
                                                     {(essai.essai_code || essai.type_essai || 'Essai')} · {essai.type_essai || ''}
                                                 </button>
                                             ))}
@@ -576,7 +558,7 @@ function PrelevementManagerItem({ prelevement, currentCoucheId, coucheOptions, d
                 <button
                     type="button"
                     onClick={() => navigateWithReturnTo(navigate, `/prelevements/${prelevement.uid}`, detailReturnTo)}
-                    className="text-[10px] font-semibold text-accent hover:underline"
+                    className="text-[10px] font-semibold text-nge hover:underline"
                 >
                     {prelevement.reference}
                 </button>
@@ -643,56 +625,41 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
     const pointCouches = Array.isArray(point?.couches) ? point.couches : []
 
     return (
-        <div
-            className="flex flex-col h-full -m-6 overflow-y-auto"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
-        >
-            {/* Topbar */}
-            <div
-                className="sticky top-0 z-10 border-b border-[#dbe1ea]"
-                style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+        <FichePageShell>
+            <FicheTopbar
+                backLabel="← Coupe"
+                onBack={onBackToCoupe}
+                eyebrow={`Sondage · ${data.code_feuille || 'SO'}`}
+                title={point.point_code || point.reference || `Point ${point.uid}`}
             >
-                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-                    <button
-                        onClick={onBackToCoupe}
-                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-                    >
-                        ← Coupe
-                    </button>
-                    <div className="flex-1 min-w-[220px]">
-                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Sondage · {data.code_feuille || 'SO'}</div>
-                        <div className="text-[15px] font-black">{point.point_code || point.reference || `Point ${point.uid}`}</div>
-                    </div>
-                    {data.demande_id ? <Button size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button> : null}
-                    {data.intervention_id ? <Button size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button> : null}
-                    {!pointEditing ? (
-                        <Button size="sm" variant="primary" onClick={() => setPointEditing(true)}>Modifier</Button>
-                    ) : (
-                        <>
-                            <Button size="sm" onClick={() => setPointEditing(false)}>Annuler</Button>
-                            <Button size="sm" variant="primary" onClick={handleSavePoint} disabled={updatePointPending}>Enregistrer</Button>
-                        </>
-                    )}
-                    <Button
-                        size="sm"
-                        onClick={() => {
-                            const ref = encodeURIComponent(String(data?.reference || point?.point_code || point?.uid || 'view'))
-                            const params = new URLSearchParams()
-                            params.set('embed', '1')
-                            params.set('source_family', 'terrain')
-                            if (data?.uid) params.set('source_uid', String(data.uid))
-                            if (point?.uid || point?.point_code) params.set('point', String(point.uid || point.point_code))
-                            navigate(`/rapports/so/${ref}?${params.toString()}`)
-                        }}
-                    >
-                        Imprimer / Ouvrir rapport
-                    </Button>
-                </div>
-            </div>
+                {data.demande_id ? <Button size="sm" variant="secondary" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button> : null}
+                {data.intervention_id ? <Button size="sm" variant="secondary" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button> : null}
+                {!pointEditing ? (
+                    <Button size="sm" variant="primary" onClick={() => setPointEditing(true)}>Modifier</Button>
+                ) : (
+                    <>
+                        <Button size="sm" onClick={() => setPointEditing(false)}>Annuler</Button>
+                        <Button size="sm" variant="primary" onClick={handleSavePoint} disabled={updatePointPending}>Enregistrer</Button>
+                    </>
+                )}
+                <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                        const ref = encodeURIComponent(String(data?.reference || point?.point_code || point?.uid || 'view'))
+                        const params = new URLSearchParams()
+                        params.set('embed', '1')
+                        params.set('source_family', 'terrain')
+                        if (data?.uid) params.set('source_uid', String(data.uid))
+                        if (point?.uid || point?.point_code) params.set('point', String(point.uid || point.point_code))
+                        navigate(`/rapports/so/${ref}?${params.toString()}`)
+                    }}
+                >
+                    Imprimer / Ouvrir rapport
+                </Button>
+            </FicheTopbar>
 
-            {/* Main */}
-            <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+            <FicheMain>
 
                 {deleteErrorMessage ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{deleteErrorMessage}</div>
@@ -700,7 +667,7 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
 
                 {/* Hero */}
                 <section
-                    className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
+                    className="overflow-hidden rounded-[26px] border border-border bg-white"
                     style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
                 >
                     <div
@@ -1121,8 +1088,8 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
                         <div className="text-[13px] text-text-muted">Aucun rapport lié.</div>
                     )}
                 </Card>
-            </div>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }
 
@@ -1532,21 +1499,19 @@ export default function FeuilleTerrainPage() {
     }
 
     return (
-        <div className="flex flex-col h-full -m-6 overflow-y-auto">
-            <PageHeaderBar
+        <FichePageShell>
+            <FicheTopbar
                 backLabel="← Retour"
                 onBack={() => navigateBackWithFallback(navigate, searchParams, '/demandes')}
+                eyebrow={isSondageSheet ? 'Coupe de sondages' : 'Feuille terrain'}
                 title={data.reference}
                 subtitle={[data.label, data.intervention_reference, data.demande_reference].filter(Boolean).join(' · ')}
-                actions={(
-                    <div className="flex flex-wrap gap-2">
-                        {data.demande_id ? <Button variant="secondary" size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button> : null}
-                        {data.intervention_id ? <Button variant="secondary" size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button> : null}
-                    </div>
-                )}
-            />
+            >
+                {data.demande_id ? <Button variant="secondary" size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button> : null}
+                {data.intervention_id ? <Button variant="secondary" size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button> : null}
+            </FicheTopbar>
 
-            <div className="p-6 max-w-[1400px] mx-auto w-full flex flex-col gap-5">
+            <FicheMain>
                 {deleteErrorMessage ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                         {deleteErrorMessage}
@@ -1580,7 +1545,7 @@ export default function FeuilleTerrainPage() {
                             {points.map((point) => {
                                 return (
                                 <div key={point.uid || point.point_code} className="flex flex-wrap items-center gap-2">
-                                    <button type="button" onClick={() => openPoint(point.uid)} className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-4 py-3 text-left hover:border-accent transition-colors">
+                                    <button type="button" onClick={() => openPoint(point.uid)} className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-4 py-3 text-left hover:border-nge transition-colors">
                                         <div className="flex flex-wrap items-start justify-between gap-3">
                                             <div>
                                                 <div className="text-[14px] font-semibold text-text">{point.point_code || point.uid}</div>
@@ -1610,7 +1575,7 @@ export default function FeuilleTerrainPage() {
                     )}
                     </Card>
                 ) : renderGenericView({ data, navigate, detailReturnTo })}
-            </div>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

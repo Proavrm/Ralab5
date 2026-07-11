@@ -30,7 +30,7 @@ function CampaignCard({ campaign, listReturnTo, navigate, demandeId }) {
   const ficheHref = buildPathWithReturnTo(`/campagnes/${campaign.uid}`, listReturnTo)
 
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[#dbe1ea] bg-[#fbfcfe] transition-colors hover:border-[#003170]/25">
+    <article className="overflow-hidden rounded-[18px] border border-border bg-[#fbfcfe] transition-colors hover:border-nge/25">
       <button
         type="button"
         onClick={() => navigate(ficheHref)}
@@ -40,8 +40,8 @@ function CampaignCard({ campaign, listReturnTo, navigate, demandeId }) {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[16px] font-black text-[#003170]">{campaign.reference}</span>
-              <span className="inline-flex items-center rounded-full border border-[#dbe1ea] bg-white px-2.5 py-1 text-[11px] font-bold text-[#69758a]">
+              <span className="text-[16px] font-black text-nge">{campaign.reference}</span>
+              <span className="inline-flex items-center rounded-full border border-border bg-white px-2.5 py-1 text-[11px] font-bold text-text-muted">
                 {campaign.label || 'Campagne'}
               </span>
             </div>
@@ -187,14 +187,9 @@ export default function CampagnesPage() {
             Créer via la préparation
           </Button>
         ) : null}
-        <button
-          type="button"
-          onClick={() => refetch()}
-          className="p-2 rounded-xl text-[#69758a] hover:bg-[#f3f6fb] transition-colors"
-          title="Actualiser"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-2 text-text-muted" title="Actualiser">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -230,7 +225,7 @@ export default function CampagnesPage() {
           title="Campagnes d'intervention"
           subtitle={filterDemandeId ? 'Campagnes cadrées pour cette demande' : 'Vue globale des campagnes RST'}
           chip={(
-            <span className="inline-flex items-center rounded-full border border-[#e6b900] bg-[#ffcc00] text-[#003170] px-2.5 py-1.5 text-[11px] font-black leading-none">
+            <span className="inline-flex items-center rounded-full border border-nge-yellow-dark bg-nge-yellow text-nge px-2.5 py-1.5 text-[11px] font-black leading-none">
               {filtered.length}
             </span>
           )}
@@ -239,7 +234,7 @@ export default function CampagnesPage() {
               <input
                 onChange={(event) => onSearchChange(event.target.value)}
                 placeholder="Référence, libellé, programme…"
-                className="min-w-[180px] max-w-[240px] px-3 py-1.5 border border-[#dbe1ea] rounded-lg text-sm bg-white outline-none focus:border-[#003170]"
+                className="min-w-[180px] max-w-[240px] px-3 py-1.5 border border-border rounded-lg text-sm bg-white outline-none focus:border-nge"
               />
               <Select value={statut} onChange={(event) => setStatut(event.target.value)} className="text-xs py-1.5 min-w-[120px]">
                 <option value="">Tous statuts</option>
@@ -249,7 +244,7 @@ export default function CampagnesPage() {
                 <button
                   type="button"
                   onClick={() => { setStatut(''); setSearch('') }}
-                  className="text-xs text-[#69758a] hover:text-[#a32d2d] flex items-center gap-1"
+                  className="text-xs text-text-muted hover:text-danger flex items-center gap-1"
                 >
                   <X size={11} /> Effacer
                 </button>
@@ -258,7 +253,7 @@ export default function CampagnesPage() {
           )}
         >
           {isLoading ? (
-            <div className="text-xs text-[#69758a] text-center py-12">Chargement…</div>
+            <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
           ) : filtered.length === 0 ? (
             <EmptyStateBox
               icon="📋"

@@ -15,7 +15,7 @@ import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { formatLabOrgLine } from '@/lib/laboratoireCatalog'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
-import { MetricCard, FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
+import { MetricCard, FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
 
 const STATUTS    = ['À qualifier', 'En cours', 'Terminée', 'Archivée']
 const DEFAULT_TITULAIRES = ['NGE GC', 'NGE Energie', 'NGE Routes', 'EHTP', 'NGE E.S.', 'NGE Transitions', 'Lyaudet', 'Autre']
@@ -75,27 +75,6 @@ function EditableFieldCard({ label, editing, displayValue, highlight, className 
         )}
       </div>
     </div>
-  )
-}
-
-function SectionCard({ title, subtitle, chip, actions, children, technical }) {
-  return (
-    <section className={`overflow-hidden rounded-[18px] border bg-white ${technical ? 'opacity-[.82] border-dashed border-[#dbe1ea] shadow-none' : 'border-[#dbe1ea] shadow-[0_6px_22px_rgba(0,49,112,0.06)]'}`}>
-      <div
-        className={`flex justify-between items-center gap-3.5 min-h-[52px] border-b border-[#e5e9f0] px-5 py-3.5 ${technical ? 'min-h-[44px] bg-[#f7f8fb]' : ''}`}
-        style={!technical ? { background: 'linear-gradient(90deg, #f8fafc 0%, #f8fafc 78%, #fff6cf 100%)' } : undefined}
-      >
-        <div>
-          <div className={`font-black uppercase tracking-[.12em] ${technical ? 'text-[11px] text-[#536079]' : 'text-[13px] text-[#003170]'}`}>{title}</div>
-          {subtitle && <div className="mt-0.5 text-[11px] text-[#69758a]">{subtitle}</div>}
-        </div>
-        <div className="flex items-center gap-2">
-          {chip}
-          {actions}
-        </div>
-      </div>
-      <div className={technical ? 'p-3.5' : 'p-5'}>{children}</div>
-    </section>
   )
 }
 

@@ -22,6 +22,7 @@ import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, re
 import { LABO_ESSAI_TYPES as TYPES_ESSAI } from '@/lib/laboEssaiTypes'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function Card({ title, children }) {
@@ -85,9 +86,9 @@ function getEssaiTone(status) {
   }
 
   return {
-    row: 'border-border hover:border-accent hover:bg-bg',
-    label: 'text-accent',
-    result: 'text-accent',
+    row: 'border-border hover:border-nge hover:bg-bg',
+    label: 'text-nge',
+    result: 'text-nge',
   }
 }
 
@@ -635,12 +636,18 @@ export default function EchantillonPage() {
     linkedInterventionZone,
   ])
 
-  if (!isNew && isLoading) return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+  if (!isNew && isLoading) return (
+    <FichePageShell>
+      <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+    </FichePageShell>
+  )
   if (!isNew && (isError || !ech)) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Échantillon introuvable</p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, createFallbackReturnTo)}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Échantillon introuvable</p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, createFallbackReturnTo)}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   const d = isNew ? null : ech
@@ -652,18 +659,14 @@ export default function EchantillonPage() {
   const hasParentDemande = Number.isInteger(parentDemandeId) && parentDemandeId > 0
 
   return (
-    <div className={`flex flex-col h-full overflow-y-auto ${deleteMode ? 'bg-red-50' : ''}`}>
-
-      {/* Topbar */}
-      <div className={`flex items-center gap-3 px-6 py-3 border-b border-border shrink-0 flex-wrap ${deleteMode ? 'bg-red-100' : 'bg-surface'}`}>
-        <button onClick={() => navigateBackWithFallback(navigate, searchParams, createFallbackReturnTo)}
-          className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors">
-          ← Retour
-        </button>
-        {demande && <span className="text-[13px] text-text-muted">{demande.reference} › </span>}
-        <span className="text-[14px] font-semibold flex-1 font-mono">
-          {isNew ? 'Nouvel échantillon' : (d?.reference || `ECH #${uid}`)}
-        </span>
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigateBackWithFallback(navigate, searchParams, createFallbackReturnTo)}
+        eyebrow="Laboratoire"
+        title={isNew ? 'Nouvel échantillon' : (d?.reference || `ECH #${uid}`)}
+        subtitle={demande?.reference || undefined}
+      >
         {!isNew && (
           <div className="flex items-center gap-2">
             {hasParentPrelevement ? (
@@ -710,9 +713,10 @@ export default function EchantillonPage() {
             }}>✏️ Modifier</Button>
           </div>
         )}
-      </div>
+      </FicheTopbar>
 
-      <div className={`p-5 max-w-[860px] mx-auto w-full flex flex-col gap-4 ${deleteMode ? 'bg-red-50' : ''}`}>
+      <FicheMain>
+      <div className={`max-w-[860px] mx-auto w-full flex flex-col gap-4 ${deleteMode ? 'bg-red-50 rounded-xl p-4' : ''}`}>
 
         {deleteMode && (
           <div className="bg-red-100 border border-red-300 rounded-lg p-4 mb-4">
@@ -909,6 +913,7 @@ export default function EchantillonPage() {
         )}
 
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

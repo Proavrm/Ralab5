@@ -197,13 +197,9 @@ export default function NotesTechniquesPage() {
         >
           + Rédaction pour une demande
         </button>
-        <button
-          type="button"
-          onClick={() => refetch()}
-          className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -223,7 +219,7 @@ export default function NotesTechniquesPage() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Réf. NT, demande, affaire, chantier…"
-                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#5b4b8a]"
+                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-border rounded text-sm bg-white outline-none focus:border-[#5b4b8a]"
               />
               <Select value={statut} onChange={(event) => setStatut(event.target.value)} className="text-xs py-1.5">
                 <option value="">Tous statuts</option>
@@ -233,12 +229,12 @@ export default function NotesTechniquesPage() {
                 <button
                   type="button"
                   onClick={() => { setSearch(''); setStatut('') }}
-                  className="text-xs text-[#69758a] hover:text-danger flex items-center gap-1"
+                  className="text-xs text-text-muted hover:text-danger flex items-center gap-1"
                 >
                   <X size={11} /> Effacer
                 </button>
               ) : null}
-              <span className="text-xs text-[#69758a] ml-auto">
+              <span className="text-xs text-text-muted ml-auto">
                 {filtered.length} note{filtered.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -290,7 +286,7 @@ export default function NotesTechniquesPage() {
                         <td className="px-3 py-1.5">
                           <strong className="text-[#5b4b8a] text-xs font-mono">{row.reference || '—'}</strong>
                         </td>
-                        <td className="px-3 py-1.5 text-xs font-mono text-accent">{row.demande_ref || '—'}</td>
+                        <td className="px-3 py-1.5 text-xs font-mono text-nge">{row.demande_ref || '—'}</td>
                         <td className="px-3 py-1.5 text-xs font-mono">{row.affaire_ref || '—'}</td>
                         <td className="px-3 py-1.5 text-xs max-w-[200px] truncate" title={row.chantier}>{row.chantier || '—'}</td>
                         <td className="px-3 py-1.5"><StatBadge s={row.statut} /></td>

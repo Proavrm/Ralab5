@@ -5,10 +5,58 @@
  *   nge #003170 | nge-dark #00224f | nge-deep #002C77 | nge-yellow #ffcc00
  *   border #dbe1ea | text #172033 | text-muted #69758a
  */
-import { formatDate } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import LabName from '@/components/laboratoire/LabName'
 
 export const PAGE_BG = 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)'
+
+export const DASHBOARD_HERO_GRADIENT = 'linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%)'
+
+export const DASHBOARD_HERO_BG = [
+  'radial-gradient(circle at top left, rgba(255, 204, 0, 0.16), transparent 30%)',
+  'radial-gradient(circle at 85% 100%, rgba(255, 204, 0, 0.08), transparent 42%)',
+  DASHBOARD_HERO_GRADIENT,
+].join(', ')
+
+/** Hero NGE partagé — dashboards transverse, labo, technicien, responsable. */
+export function DashboardHero({
+  eyebrow,
+  title,
+  subtitle,
+  children,
+  aside,
+  className,
+  contentClassName,
+  size = 'default',
+}) {
+  const shellClass = size === 'large' ? 'rounded-[24px] p-6' : 'rounded-[20px] p-6'
+  const titleClass = size === 'large' ? 'text-3xl' : 'text-2xl'
+
+  return (
+    <div
+      className={cn('relative overflow-hidden border border-[rgba(0,49,112,0.12)] text-white', shellClass, className)}
+      style={{
+        background: DASHBOARD_HERO_BG,
+        boxShadow: '0 10px 34px rgba(0,49,112,0.08)',
+      }}
+    >
+      <div className="absolute right-0 bottom-0 w-[270px] h-2.5 bg-[#ffcc00] rounded-tl-full" />
+      <div className={cn('relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between', contentClassName)}>
+        <div className="max-w-3xl">
+          {eyebrow ? (
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">{eyebrow}</p>
+          ) : null}
+          <h1 className={cn('mt-2 font-semibold tracking-tight', titleClass)}>{title}</h1>
+          {subtitle ? (
+            <p className="mt-2 text-sm leading-relaxed text-white/80">{subtitle}</p>
+          ) : null}
+          {children}
+        </div>
+        {aside}
+      </div>
+    </div>
+  )
+}
 
 export const DEMANDE_STAT_CLS = {
   'À qualifier': 'bg-[#f1efe8] text-[#5f5e5a]',
@@ -227,6 +275,6 @@ export function FichePageShell({ children }) {
   )
 }
 
-export function FicheMain({ children }) {
-  return <div className="w-full max-w-full mx-auto px-7 py-4 flex flex-col gap-4">{children}</div>
+export function FicheMain({ children, className }) {
+  return <div className={cn('w-full max-w-full mx-auto px-7 py-4 flex flex-col gap-4', className)}>{children}</div>
 }

@@ -26,13 +26,13 @@ import { qualiteApi } from '@/services/api'
 
 const FMT_EURO = (v) => (v >= 1000 ? `${Math.round(v / 1000)}k€` : `${v}€`)
 
-const NGE_BLUE = '#002C77'
-const NGE_YELLOW = '#d3ae43'
+const NGE_BLUE = '#003170'
+const NGE_YELLOW = '#ffcc00'
 const NGE_BLUE_MID = '#4A7DB5'
-const NGE_BLUE_LIGHT = '#E8EFF8'
-const NGE_BLUE_DARK = '#000F2B'
-const NGE_YELLOW_LIGHT = '#EAD29A'
-const NGE_YELLOW_DARK = '#B28F1B'
+const NGE_BLUE_LIGHT = '#eef5ff'
+const NGE_BLUE_DARK = '#00224f'
+const NGE_YELLOW_LIGHT = '#fff3cc'
+const NGE_YELLOW_DARK = '#e6b900'
 
 const CODIR_THEME = {
   fontFamily: 'Segoe UI Variable, Segoe UI, Inter, Roboto, sans-serif',
@@ -211,9 +211,9 @@ function ChartFilterPanel({ items, visibleItems, toggleItem, moveItem, label = "
 }
 
 const AGENCY_COLORS = [
-  '#002C77', '#1f4f95', '#3266aa', '#4a7db5', '#7098ca',
-  '#d3ae43', '#c49f2f', '#b28f1b', '#9a7b13', '#83680d',
-  '#8FA9CC', '#E8EFF8', '#EAD29A',
+  '#003170', '#1f4f95', '#3266aa', '#4a7db5', '#7098ca',
+  '#ffcc00', '#e6b900', '#c49f2f', '#9a7b13', '#83680d',
+  '#8FA9CC', '#eef5ff', '#fff3cc',
 ]
 
 const INDICATOR_COLORS = {

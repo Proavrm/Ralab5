@@ -24,6 +24,10 @@ function clearAuthSession() {
   clearAuthTokenCookie()
 }
 
+export function clearAuthSessionLocal() {
+  clearAuthSession()
+}
+
 function formatApiErrorDetail(detail) {
   if (!detail) return ''
   if (typeof detail === 'string') return detail
@@ -55,7 +59,10 @@ function buildImportFormData(file, fields = {}) {
 
 function handleUnauthorized() {
   clearAuthSession()
-  window.location.href = '/login'
+  const onLoginPage = window.location.pathname === '/login' || window.location.pathname.endsWith('/login')
+  if (!onLoginPage) {
+    window.location.href = '/login'
+  }
   throw new Error('Session expirée.')
 }
 
@@ -112,6 +119,22 @@ async function request(method, path, body = null) {
   return parseResponse(res)
 }
 
+/** GET public (login bootstrap) — sans token ni cookie session. */
+async function publicGet(path) {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'omit',
+  })
+
+  if (!res.ok) {
+    const error = await parseResponse(res).catch((parseError) => ({ detail: parseError.message || res.statusText }))
+    throw new Error(formatApiErrorDetail(error.detail) || `Erreur ${res.status}`)
+  }
+
+  return parseResponse(res)
+}
+
 export const api = {
   list: (params = {}) => api.get('/feuilles-terrain?' + new URLSearchParams(params)),
   get:    (path)         => request('GET',    path),
@@ -147,8 +170,8 @@ export const api = {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
   login:    (credentials) => api.post('/auth/login', credentials),
-  hint:     ()            => api.get('/auth/hint'),
-  users:    ()            => api.get('/auth/users'),
+  hint:     ()            => publicGet('/auth/hint'),
+  users:    ()            => publicGet('/auth/users'),
 }
 
 // ── Affaires ──────────────────────────────────────────────────────────────────

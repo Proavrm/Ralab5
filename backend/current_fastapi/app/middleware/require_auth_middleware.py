@@ -20,7 +20,7 @@ class RequireAuthMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         if path.startswith("/api/"):
-            if api_auth_required() and not is_public_api_route(request.method, path):
+            if api_auth_required() and not is_public_api_route(request.method, path, request):
                 try:
                     decode_request_token(request)
                 except HTTPException as exc:

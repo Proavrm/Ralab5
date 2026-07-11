@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { api, affairesApi } from '@/services/api'
+import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate } from '@/lib/utils'
 import { buildPathWithReturnTo } from '@/lib/detailNavigation'
@@ -146,20 +147,20 @@ export default function PassationsPage() {
       >
         {filterAffaireId ? (
           <>
-            <button type="button" onClick={() => navigate(`/affaires/${filterAffaireId}`)} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+            <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/affaires/${filterAffaireId}`)} className="rounded-xl font-bold">
               Affaire
-            </button>
-            <button type="button" onClick={() => navigate(`/demandes?affaire_id=${filterAffaireId}`)} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => navigate(`/demandes?affaire_id=${filterAffaireId}`)} className="rounded-xl font-bold">
               Demandes
-            </button>
+            </Button>
           </>
         ) : null}
-        <button type="button" onClick={() => navigate('/passations/new')} className="px-3.5 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f] inline-flex items-center gap-1.5">
+        <Button type="button" variant="primary" size="sm" onClick={() => navigate('/passations/new')} className="rounded-xl font-bold">
           <Plus size={14} /> Nouvelle passation
-        </button>
-        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -181,7 +182,7 @@ export default function PassationsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Référence, chantier, étude..."
-                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]"
+                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-border rounded text-sm bg-white outline-none focus:border-nge"
               />
               <Select value={source} onChange={(e) => setSource(e.target.value)} className="text-xs py-1.5">
                 <option value="">Toutes sources</option>
@@ -198,32 +199,32 @@ export default function PassationsPage() {
                   setSortCol(col)
                   setSortAsc(dir === 'asc')
                 }}
-                className="rounded border border-[#dbe1ea] bg-white px-3 py-1.5 text-xs outline-none focus:border-[#003170]"
+                className="rounded border border-border bg-white px-3 py-1.5 text-xs outline-none focus:border-nge"
               >
                 <option value="date_passation:desc">Date ↓</option>
                 <option value="date_passation:asc">Date ↑</option>
                 <option value="reference:asc">Référence A→Z</option>
               </select>
               {(source || type || search) ? (
-                <button type="button" onClick={() => { setSource(''); setType(''); setSearch('') }} className="text-xs text-[#69758a] hover:text-[#a32d2d] flex items-center gap-1">
+                <button type="button" onClick={() => { setSource(''); setType(''); setSearch('') }} className="text-xs text-text-muted hover:text-danger flex items-center gap-1">
                   <X size={11} /> Effacer
                 </button>
               ) : null}
-              <span className="text-xs text-[#69758a] ml-auto">{filtered.length} passation{filtered.length !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-text-muted ml-auto">{filtered.length} passation{filtered.length !== 1 ? 's' : ''}</span>
             </div>
           )}
         >
           {isLoading ? (
-            <div className="py-10 text-center text-[#69758a] text-[13px]">Chargement…</div>
+            <div className="py-10 text-center text-text-muted text-[13px]">Chargement…</div>
           ) : filtered.length === 0 ? (
             <EmptyStateBox
               icon="🤝"
               title="Aucune passation"
               description={affaire ? 'Aucune passation n’est rattachée à cette affaire pour le moment.' : 'Aucune passation ne correspond aux filtres.'}
               action={(
-                <button type="button" onClick={() => navigate('/passations/new')} className="px-4 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f]">
+                <Button type="button" variant="primary" size="sm" onClick={() => navigate('/passations/new')} className="rounded-xl font-bold">
                   Créer une passation
-                </button>
+                </Button>
               )}
             />
           ) : (
@@ -262,7 +263,7 @@ export default function PassationsPage() {
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); openPassation(p) }}
-                            className="text-accent text-xs font-mono hover:underline"
+                            className="text-nge text-xs font-mono hover:underline"
                           >
                             {p.reference}
                           </button>
@@ -291,7 +292,7 @@ export default function PassationsPage() {
                 <div className="w-[360px] min-w-[320px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
                   <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
                     <div>
-                      <div className="text-[13px] font-bold text-accent">{selected.reference}</div>
+                      <div className="text-[13px] font-bold text-nge">{selected.reference}</div>
                       <div className="text-[11px] font-semibold text-text mt-0.5">{selected.chantier || selected.client || '—'}</div>
                     </div>
                     <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0">
@@ -320,15 +321,15 @@ export default function PassationsPage() {
                   ) : null}
 
                   <div className="flex flex-wrap gap-2 px-[18px] py-3.5 border-t border-border shrink-0">
-                    <button type="button" onClick={() => openPassation(selected)} className="px-3 py-1.5 rounded-lg border border-[#dbe1ea] bg-white text-[12px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+                    <Button type="button" variant="secondary" size="sm" onClick={() => openPassation(selected)} className="rounded-lg font-bold text-nge">
                       Fiche
-                    </button>
-                    <button type="button" onClick={() => createDemandeFromPassation(selected)} className="px-3 py-1.5 rounded-lg border border-[#dbe1ea] bg-white text-[12px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+                    </Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => createDemandeFromPassation(selected)} className="rounded-lg font-bold text-nge">
                       + Demande
-                    </button>
-                    <button type="button" onClick={() => handleDelete(selected)} className="px-3 py-1.5 rounded-lg border border-[#f0c0c0] bg-[#fcebeb] text-[12px] font-bold text-[#a32d2d] hover:bg-[#fae0e0]">
+                    </Button>
+                    <Button type="button" variant="danger" size="sm" onClick={() => handleDelete(selected)} className="rounded-lg font-bold">
                       Supprimer
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : null}

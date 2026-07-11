@@ -230,12 +230,12 @@ export default function AffairesNgePage() {
   return (
     <FichePageShell>
       <FicheTopbar backLabel="← Retour" onBack={() => navigate('/')} eyebrow="Référentiel" title="Affaires NGE">
-        <button type="button" onClick={() => navigate('/tools')} className="px-3.5 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[13px] font-bold text-[#003170] hover:bg-[#f3f6fb]">
+        <Button type="button" variant="secondary" size="sm" onClick={() => navigate('/tools')} className="rounded-xl font-bold text-nge">
           🛠 Maintenance DB
-        </button>
-        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -246,8 +246,8 @@ export default function AffairesNgePage() {
             <div className="flex items-center gap-3 flex-wrap">
               <input value={search} onChange={e => onSearch(e.target.value)}
                 placeholder="Rechercher N° affaire, libellé, responsable…"
-                className="flex-1 min-w-[220px] max-w-[360px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]" />
-              <label className="px-2 py-1.5 border border-border rounded text-xs bg-bg cursor-pointer hover:border-accent">
+                className="flex-1 min-w-[220px] max-w-[360px] px-3 py-1.5 border border-border rounded text-sm bg-white outline-none focus:border-nge" />
+              <label className="px-2 py-1.5 border border-border rounded text-xs bg-bg cursor-pointer hover:border-nge">
                 📎 Choisir Excel
                 <input
                   type="file"
@@ -301,7 +301,7 @@ export default function AffairesNgePage() {
                     className={`border-b border-border cursor-pointer transition-colors ${
                       selected?.id === row.id ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
-                    <td className="px-3 py-1.5"><strong className="text-accent text-xs font-mono">{getFullCode(row) || '—'}</strong></td>
+                    <td className="px-3 py-1.5"><strong className="text-nge text-xs font-mono">{getFullCode(row) || '—'}</strong></td>
                     <td className="px-3 py-1.5 text-xs max-w-[300px] truncate">{row.libelle || '—'}</td>
                     <td className="px-3 py-1.5 text-xs">{row.code_agence || '—'}</td>
                     <td className="px-3 py-1.5 text-xs">
@@ -322,7 +322,7 @@ export default function AffairesNgePage() {
           <div className="w-[360px] min-w-[320px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
-                <div className="text-[13px] font-bold text-accent">{getFullCode(selected) || '—'}</div>
+                <div className="text-[13px] font-bold text-nge">{getFullCode(selected) || '—'}</div>
                 <div className="text-[11px] font-semibold text-text mt-0.5">{selected.libelle || '—'}</div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0"><X size={14} /></button>

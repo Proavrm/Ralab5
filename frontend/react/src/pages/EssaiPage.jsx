@@ -29,6 +29,7 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { createTerrainFeuilleForIntervention, isFeuilleTerrainEssaiCode } from '@/lib/terrainFeuilleFromIntervention'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import SondageCarotteCoupe from './SondageCarotteCoupe'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -4852,45 +4853,59 @@ export default function EssaiPage() {
     })
   }
 
-  if (!isNew && isLoading) return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+  if (!isNew && isLoading) return (
+    <FichePageShell>
+      <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+    </FichePageShell>
+  )
   if (!isNew && (isError || !essai)) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   if (isNew && !isModelo && !linkedEchantillonId && !effectiveInterventionId) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">
-        {allowsInterventionParent
-          ? 'Parent manquant (échantillon ou intervention)'
-          : 'Échantillon manquant pour ce type d’essai'}
-      </p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">
+          {allowsInterventionParent
+            ? 'Parent manquant (échantillon ou intervention)'
+            : 'Échantillon manquant pour ce type d’essai'}
+        </p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   if (isNew && (isLinkedEchantillonLoading || isLinkedInterventionLoading || redirectingToFeuille || shouldRedirectToFeuille)) {
     return (
-      <div className="text-xs text-text-muted text-center py-16">
-        {shouldRedirectToFeuille ? 'Ouverture de la feuille terrain…' : 'Chargement…'}
-      </div>
+      <FichePageShell>
+        <div className="text-xs text-text-muted text-center py-16">
+          {shouldRedirectToFeuille ? 'Ouverture de la feuille terrain…' : 'Chargement…'}
+        </div>
+      </FichePageShell>
     )
   }
 
   if (isNew && linkedEchantillonId && (isLinkedEchantillonError || !linkedEchantillon)) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Échantillon introuvable</p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Échantillon introuvable</p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   if (isNew && !linkedEchantillonId && effectiveInterventionId && (isLinkedInterventionError || !linkedIntervention)) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Intervention introuvable</p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, effectiveInterventionId ? `/interventions/${effectiveInterventionId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Intervention introuvable</p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, effectiveInterventionId ? `/interventions/${effectiveInterventionId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   const currentEssai = isNew
@@ -4975,21 +4990,20 @@ export default function EssaiPage() {
     return null
   })()
 
-  return (
-    <div className="flex flex-col h-full overflow-y-auto">
+  const essaiBreadcrumb = [
+    currentEssai.demande_ref || currentEssai.demande_reference,
+    currentEssai.ech_ref || (!currentEssai.ech_ref && currentEssai.intervention_reference ? currentEssai.intervention_reference : null),
+  ].filter(Boolean).join(' › ')
 
-      {/* Topbar */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-surface border-b border-border shrink-0 flex-wrap">
-        <button onClick={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
-          className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors" tabIndex={0}>
-          ← Retour
-        </button>
-        <span className="text-[13px] text-text-muted">
-          {(currentEssai.demande_ref || currentEssai.demande_reference) && `${currentEssai.demande_ref || currentEssai.demande_reference} › `}
-          {currentEssai.ech_ref && `${currentEssai.ech_ref} › `}
-          {!currentEssai.ech_ref && currentEssai.intervention_reference && `${currentEssai.intervention_reference} › `}
-        </span>
-        <span className="text-[14px] font-semibold flex-1">{currentEssai.type_essai || (isNew ? 'Nouvel essai' : `Essai #${uid}`)}</span>
+  return (
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
+        eyebrow="Laboratoire"
+        title={currentEssai.type_essai || (isNew ? 'Nouvel essai' : `Essai #${uid}`)}
+        subtitle={essaiBreadcrumb || undefined}
+      >
         <Badge s={displayStatus} />
         {parentEchantillonUid ? (
           <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${parentEchantillonUid}`, childReturnTo)} tabIndex={0}>
@@ -5014,9 +5028,10 @@ export default function EssaiPage() {
         ) : (
           <Button size="sm" variant="primary" onClick={openEdit} tabIndex={0}>✏️ Modifier</Button>
         )}
-      </div>
+      </FicheTopbar>
 
-      <div className="p-5 max-w-[1400px] mx-auto w-full flex flex-col gap-4">
+      <FicheMain>
+      <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-4">
 
         {/* MODELO — banner + procura */}
         {isNew && isModelo && (
@@ -5163,6 +5178,7 @@ export default function EssaiPage() {
         )}
 
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

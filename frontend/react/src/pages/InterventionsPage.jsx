@@ -192,13 +192,9 @@ export default function InterventionsPage() {
             <Button size="sm" onClick={goPreparation}>Préparation</Button>
           </>
         ) : null}
-        <button
-          type="button"
-          onClick={() => refetch()}
-          className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -220,12 +216,12 @@ export default function InterventionsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Référence, type, technicien, campagne…"
-                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]"
+                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-border rounded text-sm bg-white outline-none focus:border-nge"
               />
               <select
                 value={statutFilter}
                 onChange={(e) => setStatutFilter(e.target.value)}
-                className="text-xs py-1.5 px-2 border border-[#dbe1ea] rounded bg-white outline-none focus:border-[#003170]"
+                className="text-xs py-1.5 px-2 border border-border rounded bg-white outline-none focus:border-nge"
               >
                 <option value="">Tous statuts</option>
                 {statuts.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -242,12 +238,12 @@ export default function InterventionsPage() {
                 <button
                   type="button"
                   onClick={() => { setSearch(''); setStatutFilter(''); setMineOnly(false) }}
-                  className="text-xs text-[#69758a] hover:text-danger flex items-center gap-1"
+                  className="text-xs text-text-muted hover:text-danger flex items-center gap-1"
                 >
                   <X size={11} /> Effacer
                 </button>
               ) : null}
-              <span className="text-xs text-[#69758a] ml-auto">
+              <span className="text-xs text-text-muted ml-auto">
                 {filtered.length} intervention{filtered.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -303,7 +299,7 @@ export default function InterventionsPage() {
                         className="border-b border-border cursor-pointer transition-colors hover:bg-[#f8f8fc]"
                       >
                         <td className="px-3 py-1.5">
-                          <strong className="text-accent text-xs font-mono">{row.reference || `#${row.uid}`}</strong>
+                          <strong className="text-nge text-xs font-mono">{row.reference || `#${row.uid}`}</strong>
                         </td>
                         <td className="px-3 py-1.5 text-xs max-w-[180px] truncate" title={row.type_label}>
                           {row.type_label || '—'}

@@ -8,6 +8,7 @@ import {
     Building2,
     Calendar,
     CheckCircle2,
+    ChevronDown,
     Compass,
     Contact,
     FileText,
@@ -37,23 +38,59 @@ import {
     getTechnicianHomeRoute,
 } from '@/lib/technicianProfiles'
 
-function SidebarSection({ label, first = false }) {
-    return (
-        <div className={`px-5 ${first ? 'pt-2' : 'pt-3.5'} pb-1`}>
-            <div className="flex items-center gap-2">
-                <span className="h-3.5 w-[2px] shrink-0 rounded-full bg-nge-yellow" />
-                <p className="text-[9px] font-black uppercase tracking-[.18em] text-nge-yellow">{label}</p>
-            </div>
-        </div>
-    )
+const SIDEBAR_WIDTH = '240px'
+const SIDEBAR_SECTIONS_KEY = 'ralab5.sidebarSections'
+
+function loadCollapsedSections() {
+    if (typeof window === 'undefined') {
+        return new Set()
+    }
+
+    try {
+        const raw = window.localStorage.getItem(SIDEBAR_SECTIONS_KEY)
+        if (raw) {
+            return new Set(JSON.parse(raw))
+        }
+    } catch {
+        // ignore invalid persisted state
+    }
+
+    return new Set()
 }
 
-function SidebarSectionDivider() {
+function navItemMatchesPath(pathname, item) {
+    const target = String(item.to || '').split('#')[0]
+    if (!target) return false
+    if (item.end) return pathname === target
+    return pathname === target || pathname.startsWith(`${target}/`)
+}
+
+function SidebarSection({ label, first = false, open, onToggle }) {
+    const handleToggle = (event) => {
+        onToggle()
+        event.currentTarget.blur()
+    }
+
     return (
-        <div
-            className="mx-5 my-2 h-px"
-            style={{ background: 'linear-gradient(90deg, transparent, rgba(255,204,0,0.28) 18%, rgba(255,255,255,0.08) 82%, transparent)' }}
-        />
+        <button
+            type="button"
+            onClick={handleToggle}
+            aria-expanded={open}
+            className={`app-sidebar-section mx-3 flex w-[calc(100%-24px)] items-center gap-2 bg-transparent py-1.5 pl-0 pr-0 text-left ${
+                first ? 'mt-1' : 'mt-3'
+            }`}
+        >
+            <span className="h-3.5 w-[3px] shrink-0 rounded-full bg-[#ffcc00]" aria-hidden />
+            <span className="min-w-0 flex-1 truncate text-[10px] font-black uppercase tracking-[.14em] text-[#ffcc00]">
+                {label}
+            </span>
+            <ChevronDown
+                size={13}
+                strokeWidth={2.5}
+                aria-hidden
+                className={`shrink-0 text-[#ffcc00] transition-transform duration-150 ${open ? '' : '-rotate-90'}`}
+            />
+        </button>
     )
 }
 
@@ -62,11 +99,9 @@ function SidebarNavItem({ item }) {
 
     if (item.disabled) {
         return (
-            <div className="flex w-full cursor-not-allowed select-none items-center gap-2.5 border-l-[3px] border-transparent px-5 py-2 text-[13px] text-[#c5d4ea]/35">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-white/5 text-[#c5d4ea]/35">
-                    <Icon size={15} strokeWidth={2} aria-hidden />
-                </span>
-                <span className="truncate">{item.label}</span>
+            <div className="mx-2 flex cursor-not-allowed select-none items-center gap-2.5 rounded-lg px-3 py-2 opacity-35">
+                <Icon size={16} strokeWidth={2} aria-hidden className="shrink-0" />
+                <span className="truncate text-[13px]">{item.label}</span>
             </div>
         )
     }
@@ -76,25 +111,22 @@ function SidebarNavItem({ item }) {
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-                `group flex w-full items-center gap-2.5 border-l-[3px] px-5 py-2 text-[13px] font-medium transition-all duration-150 ${
+                `mx-2 flex items-center gap-2.5 rounded-lg border-l-[3px] px-3 py-2 text-[13px] transition-colors ${
                     isActive
-                        ? 'border-nge-yellow bg-white/10 text-white'
-                        : 'border-transparent text-[#c5d4ea] hover:border-nge-yellow/35 hover:bg-white/5 hover:text-white'
+                        ? 'border-[#ffcc00] bg-white/12 font-semibold !text-white'
+                        : 'border-transparent font-medium hover:bg-white/[0.06]'
                 }`
             }
         >
             {({ isActive }) => (
                 <>
-                    <span
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${
-                            isActive
-                                ? 'bg-nge-yellow text-nge shadow-[0_0_0_1px_rgba(255,204,0,0.35)]'
-                                : 'bg-white/5 text-[#c5d4ea] group-hover:bg-nge-yellow/12 group-hover:text-nge-yellow'
-                        }`}
-                    >
-                        <Icon size={15} strokeWidth={2} aria-hidden />
-                    </span>
-                    <span className="truncate">{item.label}</span>
+                    <Icon
+                        size={16}
+                        strokeWidth={2}
+                        aria-hidden
+                        className={`shrink-0 ${isActive ? 'text-[#ffcc00]' : 'text-[#ffcc00]/80'}`}
+                    />
+                    <span className="min-w-0 flex-1 truncate leading-snug">{item.label}</span>
                 </>
             )}
         </NavLink>
@@ -111,7 +143,9 @@ export default function AppLayout() {
 
         return window.localStorage.getItem('ralab5.sidebarOpen') !== '0'
     })
+    const [collapsedSections, setCollapsedSections] = useState(loadCollapsedSections)
     const chromeBarRef = useRef(null)
+    const prevPathRef = useRef(location.pathname)
     const [chromeBarHeight, setChromeBarHeight] = useState(0)
     const isEmbeddedView = new URLSearchParams(location.search).get('embed') === '1' && (
         location.pathname.startsWith('/rapports/')
@@ -153,36 +187,35 @@ export default function AppLayout() {
 
     const nav = [
         {
-            section: 'Accueil',
+            section: 'Pilotage',
             items: [
                 { to: home.path, icon: LayoutDashboard, label: home.navLabel, end: home.path !== '/dashboard', permission: homePermission },
-                ...(ownLegacyDashboard ? [{ ...ownLegacyDashboard, label: `Dashboard · ${ownLegacyDashboard.label}` }] : []),
-                ...(dashboardCatalogLink ? [dashboardCatalogLink] : []),
                 { to: '/planning', icon: Calendar, label: 'Planning', permission: 'view_planning' },
+                ...(ownLegacyDashboard ? [{ ...ownLegacyDashboard, label: `Dashboard · ${ownLegacyDashboard.label}` }] : []),
             ],
         },
         {
-            section: 'Dossiers RST',
+            section: 'Affaires RST',
             items: [
-                { to: '/affaires', icon: Briefcase, label: 'Affaires RST' },
+                { to: '/affaires', icon: Briefcase, label: 'Affaires' },
                 { to: '/demandes', icon: FolderOpen, label: 'Demandes', permission: 'view_demandes' },
                 { to: '/passations', icon: Handshake, label: 'Passations' },
-                { to: '/contacts', icon: Contact, label: 'Contacts' },
             ],
         },
         {
-            section: 'Chantier & études',
+            section: 'Affaires NGE & études',
             items: [
+                { to: '/affaires-nge', icon: Building2, label: 'Affaires NGE' },
                 { to: '/dst', icon: Archive, label: 'DST' },
                 { to: '/etudes', icon: BookOpen, label: 'Études', permission: 'view_etudes' },
-                { to: '/g3/notes-techniques', icon: FileText, label: 'Notes techniques' },
             ],
         },
         {
-            section: 'G3 EXE',
+            section: 'G3',
             items: [
                 { to: '/g3', icon: MapPin, label: 'Hub G3', end: true },
-                { to: '/g3/missions', icon: FolderKanban, label: 'Missions G3 EXE' },
+                { to: '/g3/missions', icon: FolderKanban, label: 'Missions EXE' },
+                { to: '/g3/notes-techniques', icon: FileText, label: 'Notes techniques' },
             ],
         },
         {
@@ -198,16 +231,12 @@ export default function AppLayout() {
             ],
         },
         {
-            section: 'Référentiel NGE',
-            items: [
-                { to: '/affaires-nge', icon: Building2, label: 'Affaires NGE' },
-            ],
-        },
-        {
             section: 'Administration',
             items: [
+                { to: '/contacts', icon: Contact, label: 'Contacts' },
                 { to: '/rapports/validation', icon: CheckCircle2, label: 'Validation rapports', permission: 'view_tools' },
                 { to: '/tools', icon: Wrench, label: 'Outils', permission: 'view_tools' },
+                ...(dashboardCatalogLink ? [dashboardCatalogLink] : []),
                 { to: '/admin', icon: Settings, label: 'Administration', permission: 'manage_users' },
             ],
         },
@@ -223,6 +252,50 @@ export default function AppLayout() {
     useEffect(() => {
         window.localStorage.setItem('ralab5.sidebarOpen', sidebarOpen ? '1' : '0')
     }, [sidebarOpen])
+
+    useEffect(() => {
+        window.localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify([...collapsedSections]))
+    }, [collapsedSections])
+
+    useEffect(() => {
+        if (prevPathRef.current === location.pathname) return
+        prevPathRef.current = location.pathname
+
+        const activeSection = visibleNav.find((group) =>
+            group.items.some((item) => navItemMatchesPath(location.pathname, item)),
+        )
+        if (!activeSection) return
+
+        setCollapsedSections((current) => {
+            if (!current.has(activeSection.section)) return current
+            const next = new Set(current)
+            next.delete(activeSection.section)
+            return next
+        })
+    }, [location.pathname, visibleNav])
+
+    const toggleSection = (section) => {
+        setCollapsedSections((current) => {
+            const next = new Set(current)
+            if (next.has(section)) {
+                next.delete(section)
+            } else {
+                next.add(section)
+            }
+            return next
+        })
+    }
+
+    const collapseAllSections = () => {
+        setCollapsedSections(new Set(visibleNav.map((group) => group.section)))
+    }
+
+    const expandAllSections = () => {
+        setCollapsedSections(new Set())
+    }
+
+    const allSectionsCollapsed = visibleNav.length > 0
+        && visibleNav.every((group) => collapsedSections.has(group.section))
 
     useLayoutEffect(() => {
         const node = chromeBarRef.current
@@ -242,71 +315,92 @@ export default function AppLayout() {
         <div
             className="app-shell flex h-screen overflow-hidden"
             style={{
-                '--app-sidebar-width': sidebarOpen ? '220px' : '0px',
+                '--app-sidebar-width': sidebarOpen ? SIDEBAR_WIDTH : '0px',
                 '--app-chrome-top': `${chromeBarHeight}px`,
             }}
         >
             <aside
-                className={`app-sidebar flex flex-col shrink-0 overflow-hidden transition-[width,min-width] duration-200 ease-in-out ${
-                    sidebarOpen ? 'w-[220px] min-w-[220px]' : 'w-0 min-w-0'
+                className={`app-sidebar flex shrink-0 flex-col overflow-hidden transition-[width,min-width] duration-200 ease-in-out ${
+                    sidebarOpen ? 'w-[240px] min-w-[240px]' : 'w-0 min-w-0'
                 }`}
             >
-                <div className="w-[220px] min-w-[220px] h-full flex flex-col">
-                    <div className="relative px-5 py-5 border-b border-white/10">
-                        <div className="absolute inset-x-0 bottom-0 h-[3px] bg-gradient-to-r from-nge-yellow via-nge-yellow/55 to-transparent" />
-                        <div className="inline-flex items-center gap-1.5 mb-2 rounded-full border border-nge-yellow/55 bg-nge-yellow/12 px-2 py-0.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-nge-yellow shadow-[0_0_0_3px_rgba(255,204,0,0.18)]" />
-                            <span className="text-[9px] font-black uppercase tracking-[.14em] text-nge-yellow">NGE</span>
-                        </div>
-                        <h1 className="text-white font-black text-lg leading-none tracking-tight">RaLab5</h1>
-                        <span className="mt-1.5 block text-[11px] text-[#c5d4ea]">Laboratoire géotechnique</span>
+                <div className="flex h-full w-[240px] min-w-[240px] flex-col">
+                    <div className="shrink-0 border-b border-white/10 px-4 pb-4 pt-3">
+                        <div className="app-chrome-stripe mb-3" />
+                        <h1 className="text-[17px] font-black leading-none tracking-tight text-white">RaLab5</h1>
+                        <p className="mt-1 text-[11px] font-semibold text-[#ffcc00]">Laboratoire géotechnique</p>
                     </div>
 
-                    <nav className="flex-1 overflow-y-auto py-2">
-                        {visibleNav.map((group, groupIndex) => (
-                            <div key={group.section}>
-                                {groupIndex > 0 ? <SidebarSectionDivider /> : null}
-                                <SidebarSection label={group.section} first={groupIndex === 0} />
-                                {group.items.map((item) => (
-                                    <SidebarNavItem key={item.to || item.label} item={item} />
-                                ))}
-                            </div>
-                        ))}
+                    <div className="flex shrink-0 items-center justify-end gap-1 border-b border-white/10 px-3 py-2">
+                        <button
+                            type="button"
+                            onClick={expandAllSections}
+                            disabled={collapsedSections.size === 0}
+                            className="rounded px-2 py-1 text-[10px] font-semibold text-white/75 transition-colors hover:bg-white/[0.06] hover:text-[#ffcc00] disabled:pointer-events-none disabled:opacity-35"
+                        >
+                            Tout ouvrir
+                        </button>
+                        <span className="text-white/20">·</span>
+                        <button
+                            type="button"
+                            onClick={collapseAllSections}
+                            disabled={allSectionsCollapsed}
+                            className="rounded px-2 py-1 text-[10px] font-semibold text-white/75 transition-colors hover:bg-white/[0.06] hover:text-[#ffcc00] disabled:pointer-events-none disabled:opacity-35"
+                        >
+                            Tout replier
+                        </button>
+                    </div>
+
+                    <nav className="flex-1 overflow-y-auto pb-3 pt-1">
+                        {visibleNav.map((group, groupIndex) => {
+                            const isOpen = !collapsedSections.has(group.section)
+
+                            return (
+                                <div key={group.section}>
+                                    <SidebarSection
+                                        label={group.section}
+                                        first={groupIndex === 0}
+                                        open={isOpen}
+                                        onToggle={() => toggleSection(group.section)}
+                                    />
+                                    {isOpen ? group.items.map((item) => (
+                                        <SidebarNavItem key={item.to || item.label} item={item} />
+                                    )) : null}
+                                </div>
+                            )
+                        })}
                     </nav>
 
-                    <div className="relative border-t border-white/10 px-5 py-4">
-                        <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-nge-yellow/70 to-transparent" />
-                        <div className="flex items-center gap-2.5 mb-3">
-                            <div className="w-9 h-9 rounded-lg bg-nge-yellow flex items-center justify-center text-nge text-xs font-black shrink-0 shadow-[0_0_0_1px_rgba(255,204,0,0.45)]">
+                    <div className="shrink-0 border-t border-white/10 px-4 py-3">
+                        <div className="mb-3 flex items-center gap-2.5">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#ffcc00] text-xs font-black text-[#003170]">
                                 {initials}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-white text-[13px] font-semibold truncate">
+                                <p className="truncate text-[13px] font-semibold text-white">
                                     {user?.display_name || user?.email || '—'}
                                 </p>
-                                <p className="text-[#c5d4ea] text-[11px]">
+                                <p className="truncate text-[11px] text-white/75">
                                     {regionalRst ? getRegionalRstShortLabel() : (user?.role || '')}
                                 </p>
-                                {regionalRst ? (
-                                    <p className="text-nge-yellow text-[10px] font-bold truncate">{user?.service_code || 'ARS'}</p>
-                                ) : user?.service_code ? (
-                                    <p className="text-[#c5d4ea]/75 text-[10px] truncate">{user.service_code}</p>
+                                {user?.service_code ? (
+                                    <p className="truncate text-[10px] font-bold text-[#ffcc00]">{user.service_code}</p>
                                 ) : null}
                             </div>
                         </div>
                         <button
                             type="button"
                             onClick={logout}
-                            className="w-full py-1.5 border border-nge-yellow/25 rounded-md text-[#c5d4ea] text-xs font-medium hover:bg-nge-yellow/10 hover:text-white hover:border-nge-yellow/45 transition-colors flex items-center justify-center gap-1.5"
+                            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/15 py-2 text-xs font-semibold text-white/85 transition-colors hover:border-[#ffcc00]/50 hover:bg-white/[0.06] hover:text-white"
                         >
-                            <LogOut size={12} />
+                            <LogOut size={13} />
                             Déconnexion
                         </button>
                     </div>
                 </div>
             </aside>
 
-            <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <div
                     ref={chromeBarRef}
                     className="shrink-0 border-b border-border bg-surface/96 backdrop-blur-sm"
@@ -317,7 +411,7 @@ export default function AppLayout() {
                         <button
                             type="button"
                             onClick={() => setSidebarOpen((value) => !value)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-xs font-semibold text-text-muted transition-colors leading-none hover:border-nge-yellow/35 hover:bg-nge-yellow/10 hover:text-nge"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-xs font-semibold leading-none text-text-muted transition-colors hover:border-[#ffcc00]/35 hover:bg-[#ffcc00]/10 hover:text-[#003170]"
                             title={sidebarOpen ? 'Masquer le menu' : 'Afficher le menu'}
                             aria-label={sidebarOpen ? 'Masquer le menu' : 'Afficher le menu'}
                             aria-expanded={sidebarOpen}

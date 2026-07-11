@@ -40,8 +40,10 @@ import {
   DEMANDE_STAT_CLS,
   FieldCard,
   FicheBadge,
+  FicheMain,
+  FichePageShell,
+  FicheTopbar,
   MetricCard,
-  PAGE_BG,
   SectionCard,
 } from '@/components/layout/FicheLayout'
 
@@ -2457,37 +2459,20 @@ export default function InterventionPage() {
 
     if (loading) {
         return (
-            <div
-                className="flex flex-col h-full -m-6 overflow-y-auto"
-                style={{ background: PAGE_BG }}
-            >
+            <FichePageShell>
                 <div className="text-xs text-text-muted text-center py-16">Chargement intervention…</div>
-            </div>
+            </FichePageShell>
         )
     }
 
     return (
-        <div
-            className="flex flex-col h-full -m-6 overflow-y-auto"
-            style={{ background: PAGE_BG }}
-        >
-            <div
-                className="sticky top-0 z-10 border-b border-[#dbe1ea]"
-                style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+        <FichePageShell>
+            <FicheTopbar
+                backLabel="← Retour"
+                onBack={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
+                eyebrow="Fiche intervention"
+                title={title}
             >
-                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-                    <button
-                        type="button"
-                        onClick={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
-                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-                    >
-                        ← Retour
-                    </button>
-                    <div className="flex-1 min-w-[220px]">
-                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche intervention</div>
-                        <div className="text-[15px] font-black font-mono">{title}</div>
-                    </div>
                     {hasParentDemande ? (
                         <Button size="sm" onClick={() => navigateWithReturnTo(navigate, parentDemandePath, childReturnTo)}>
                             Demande
@@ -2554,10 +2539,9 @@ export default function InterventionPage() {
                             </Button>
                         </>
                     ) : null}
-                </div>
-            </div>
+            </FicheTopbar>
 
-            <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+            <FicheMain>
                 <section
                     className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
                     style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
@@ -4145,7 +4129,7 @@ export default function InterventionPage() {
                     subtitle={campaignInfo.reference || campaignInfo.label || demandeInfo?.reference || ''}
                 />
                 </div>
-            </div>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

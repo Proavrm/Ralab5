@@ -507,12 +507,12 @@ export default function DemandesPage() {
         eyebrow="Demandes RST"
         title={filterAffaireRef ? `Affaire ${filterAffaireRef}` : 'Liste des demandes'}
       >
-        <button type="button" onClick={openCreate} className="px-3.5 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f] inline-flex items-center gap-1.5">
+        <Button type="button" variant="primary" size="sm" onClick={openCreate} className="rounded-xl font-bold">
           <Plus size={14} /> Nouvelle demande
-        </button>
-        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -533,7 +533,7 @@ export default function DemandesPage() {
               <input
                 onChange={e => onSearchChange(e.target.value)}
                 placeholder="Référence, chantier, client, N°DST…"
-                className="flex-1 min-w-[200px] max-w-[280px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]"
+                className="flex-1 min-w-[200px] max-w-[280px] px-3 py-1.5 border border-border rounded text-sm bg-white outline-none focus:border-nge"
               />
               <Select value={statut} onChange={e => setStatut(e.target.value)} className="text-xs py-1.5">
                 <option value="">Tous statuts</option>
@@ -547,11 +547,11 @@ export default function DemandesPage() {
                 <option value="">Toutes missions</option>
                 {MISSIONS.map(m => <option key={m}>{m}</option>)}
               </Select>
-              <label className="flex items-center gap-1.5 text-xs text-[#69758a] cursor-pointer">
+              <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer">
                 <input type="checkbox" checked={aRevoir} onChange={e => setARevoir(e.target.checked)} className="accent-[#ef9f27]" />
                 À revoir
               </label>
-              <span className="text-xs text-[#69758a] ml-auto">{demandes.length} demande{demandes.length !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-text-muted ml-auto">{demandes.length} demande{demandes.length !== 1 ? 's' : ''}</span>
             </div>
           )}
         >
@@ -597,7 +597,7 @@ export default function DemandesPage() {
                       className={`border-b border-border cursor-pointer transition-colors ${
                         selected?.uid === d.uid ? 'bg-[#eeeffe]' : d.a_revoir ? 'bg-[#fffbf2]' : 'hover:bg-[#f8f8fc]'
                       }`}>
-                      <td className="px-3 py-1.5"><strong className="text-accent text-xs font-mono">{d.reference}</strong></td>
+                      <td className="px-3 py-1.5"><strong className="text-nge text-xs font-mono">{d.reference}</strong></td>
                       <td className="px-3 py-1.5 text-xs text-text-muted">{d.affaire_ref || '—'}</td>
                       <td className="px-3 py-1.5 text-xs">{d.client || '—'}</td>
                       <td className="px-3 py-1.5 text-xs max-w-[140px] truncate">{d.chantier || '—'}</td>
@@ -622,7 +622,7 @@ export default function DemandesPage() {
           <div className="w-[360px] min-w-[320px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
-                <div className="text-[13px] font-bold text-accent">{selected.reference}</div>
+                <div className="text-[13px] font-bold text-nge">{selected.reference}</div>
                 <div className="text-[11px] font-semibold text-text mt-0.5">{selected.affaire_ref || '—'}</div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg shrink-0"><X size={14} /></button>

@@ -12,6 +12,7 @@ import { api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate } from '@/lib/utils'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 // ── Helpers UI ────────────────────────────────────────────────────────────────
 function Card({ title, children }) {
@@ -227,12 +228,18 @@ export default function EssaiDetailPage() {
     saveMut.mutate(payload)
   }
 
-  if (isLoading) return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+  if (isLoading) return (
+    <FichePageShell>
+      <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+    </FichePageShell>
+  )
   if (isError || !essai) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
-      <Button onClick={() => navigate(-1)}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
+        <Button onClick={() => navigate(-1)}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   const EssaiForm = ESSAI_COMPONENTS[essai.type_essai]
@@ -240,39 +247,39 @@ export default function EssaiDetailPage() {
   try { resultsParsed = JSON.parse(essai.resultats || '{}') } catch {}
   const wMoyen = resultsParsed.w_moyen
 
-  return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {/* Topbar */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-surface border-b border-border shrink-0">
-        <button onClick={() => navigate(-1)} className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors">
-          ← Retour
-        </button>
-        <span className="text-[13px] text-text-muted">
-          {essai.demande_ref && <span className="hover:text-text cursor-pointer" onClick={() => navigate(`/demandes/${essai.demande_ref}`)}>{essai.demande_ref}</span>}
-          {essai.ech_ref && <> › <span className="text-text-muted">{essai.ech_ref}</span></>}
-          {' › '}
-        </span>
-        <span className="text-[14px] font-semibold">{essai.type_essai || `Essai #${uid}`}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Badge s={essai.statut} />
-          {!editing && <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>}
-        </div>
-      </div>
+  const essaiSubtitle = [
+    essai.demande_ref,
+    essai.ech_ref,
+  ].filter(Boolean).join(' › ')
 
-      <div className="p-6 max-w-[900px] mx-auto w-full flex flex-col gap-4">
+  return (
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigate(-1)}
+        eyebrow="Laboratoire"
+        title={essai.type_essai || `Essai #${uid}`}
+        subtitle={essaiSubtitle || undefined}
+      >
+        <Badge s={essai.statut} />
+        {!editing && <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>}
+      </FicheTopbar>
+
+      <FicheMain>
+      <div className="max-w-[900px] mx-auto w-full flex flex-col gap-4">
 
         {/* Hero */}
         <div className="bg-surface border border-border rounded-[10px] p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-[20px] font-bold text-accent">{essai.type_essai || '—'}</div>
+              <div className="text-[20px] font-bold text-nge">{essai.type_essai || '—'}</div>
               {essai.ech_ref && <div className="text-[13px] text-text-muted mt-0.5">Échantillon : {essai.ech_ref} {essai.designation ? `— ${essai.designation}` : ''}</div>}
               {essai.demande_ref && <div className="text-[12px] text-text-muted">Demande : {essai.demande_ref}</div>}
               {essai.chantier && <div className="text-[12px] text-text-muted">{essai.chantier}{essai.client ? ` — ${essai.client}` : ''}</div>}
             </div>
             {wMoyen !== null && wMoyen !== undefined && (
               <div className="text-right shrink-0">
-                <div className="text-[28px] font-bold text-accent">{Number(wMoyen).toFixed(1)} %</div>
+                <div className="text-[28px] font-bold text-nge">{Number(wMoyen).toFixed(1)} %</div>
                 <div className="text-[11px] text-text-muted">w moyen</div>
               </div>
             )}
@@ -358,6 +365,7 @@ export default function EssaiDetailPage() {
           </div>
         )}
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }
