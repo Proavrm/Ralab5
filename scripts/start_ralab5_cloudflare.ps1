@@ -110,8 +110,12 @@ function Get-TunnelHostname {
 $serverRunning = Test-PortListening -Port 8000
 $cloudflaredRunning = [bool](Get-Process cloudflared -ErrorAction SilentlyContinue | Select-Object -First 1)
 
+if (-not $env:RALAB_AUTH_MODE) {
+    $env:RALAB_AUTH_MODE = 'proxy'
+}
+
 if (-not $serverRunning) {
-    Write-Host 'Starting RaLab5 server window...'
+    Write-Host 'Starting RaLab5 server window (RALAB_AUTH_MODE=proxy if unset)...'
     Start-Process -FilePath 'cmd.exe' -WorkingDirectory $repoRoot -ArgumentList @('/k', "`"$serverLauncher`"") | Out-Null
 }
 else {

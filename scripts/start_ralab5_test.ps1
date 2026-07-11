@@ -140,6 +140,13 @@ try {
 
     if ($UseProxyHeaders) {
         Write-Host "Proxy headers enabled; trusted forwarders: $ForwardedAllowIps"
+        if (-not $env:RALAB_AUTH_MODE) {
+            $env:RALAB_AUTH_MODE = 'proxy'
+        }
+        if ($env:RALAB_AUTH_MODE -eq 'passwordless') {
+            Write-Warning 'RALAB_AUTH_MODE=passwordless behind a reverse proxy is unsafe for internet exposure.'
+        }
+        Write-Host "Auth mode: $($env:RALAB_AUTH_MODE)"
     }
 
     if ($OpenBrowser) {
