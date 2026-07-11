@@ -2,7 +2,7 @@
 
 > **Ce fichier est la source de vérité pour toutes les IAs et sessions.**
 > Mettre à jour après chaque session de travail, avant de fermer.
-> Version : 2026-03-27
+> Version : 2026-07-11
 
 ---
 
@@ -20,8 +20,8 @@ Travaille avec Claude (Anthropic) et ChatGPT (OpenAI) en parallèle sur le même
 |---|---|---|---|
 | RaLab2 | PySide6 (desktop) | Abandonné | Ancien logiciel desktop |
 | RaLab3 | FastAPI + SQLite + HTML pur | Opérationnel | Base de référence |
-| RaLab4 | FastAPI + SQLite + HTML pur | En développement | Migration depuis RaLab3 + nouvelles features |
-| **RaLab5** | **FastAPI + SQLite + React + Vite** | **À démarrer** | Migration frontend vers React, backend inchangé |
+| RaLab4 | FastAPI + SQLite + HTML pur | Référence | Base backend héritée |
+| **RaLab5** | **FastAPI + SQLite + React + Vite** | **Opérationnel** | Frontend React, backend FastAPI étendu (G3, sécurité proxy) |
 
 ---
 
@@ -37,8 +37,9 @@ storage/
   references/     ← Fichiers de référence affaires/études
 ```
 
-**Backend** : ne pas toucher — API FastAPI déjà stable, endpoints documentés au §6.
-**Frontend** : réécriture complète en React. Les pages HTML legacy restent en `frontend/legacy_html/` comme référence.
+**Backend** : FastAPI stable, étendu (G3, contacts, feuille mission, middleware auth). Endpoints au §6.
+**Frontend** : React opérationnel — la plupart des pages migrées. Legacy HTML en `frontend/legacy_html/` comme référence.
+**Docs** : index dans `docs/README.md`, outils CLI dans `docs/TOOLS_INDEX.md`, env dans `.env.example`.
 
 ---
 
@@ -71,6 +72,7 @@ Affaire RST
 | Affaire | `YYYY-RA-NNN` | `2026-RA-042` |
 | Demande | `YYYY-SP-DNNN` | `2026-SP-D042` |
 | Intervention | `YYYY-SP-INNN` | `2026-SP-I001` |
+| Mission G3 EXE | `{affaire_ref}-D{numero}-G{NNNN}` | `2025-RA-008-D0054-G0004` |
 | Échantillon | `YYYY-SP-ENNN` | `2026-SP-E001` |
 | NC interne | `YYYY-RA-NCNNN` | `2026-RA-NC001` |
 
@@ -99,48 +101,56 @@ Affaire RST
 
 ---
 
-## 6. API — endpoints actifs (RaLab4)
+## 6. API — endpoints actifs (RaLab5)
 
 ```
-GET  /                              → status
-POST /api/auth/login                → JWT
+GET  /                              → status SPA ou JSON
+POST /api/auth/login                → JWT (cookie ralab_token + localStorage)
 GET  /api/auth/hint                 → Windows USERNAME hint
 
-GET|POST /api/affaires              → liste + création
+GET|POST /api/affaires              → affaires RST
 GET|PATCH|DELETE /api/affaires/{uid}
 GET /api/affaires/{uid}/demandes
 GET /api/affaires/next-ref
 
-GET|POST /api/demandes              → liste + création
+GET|POST /api/demandes
 GET|PATCH|DELETE /api/demandes/{uid}
 GET /api/demandes/next-ref
 GET /api/demandes/filters
 
-GET|POST /api/demandes_rst          → config modules par demande
+GET|POST /api/demandes_rst          → préparation + config modules
 GET /api/demandes_rst/{uid}
 
-GET|POST /api/passations            → passations de chantier
+GET|POST /api/passations
 GET|PATCH|DELETE /api/passations/{uid}
 
 GET|POST /api/interventions
 GET|PATCH|DELETE /api/interventions/{uid}
+GET|POST /api/intervention-campaigns
+GET|POST /api/intervention-requalification
 
 GET|POST /api/essais                → échantillons + essais labo
 GET|PATCH|DELETE /api/essais/{uid}
 
 GET /api/planning/demandes
 PATCH /api/planning/demandes/{uid}
+GET|POST /api/feuille-mission
+
+GET|POST /api/g3/missions           → module G3 EXE (zones, essais, avis, livrables)
+GET|PATCH|DELETE /api/g3/missions/{id}
+… sous-routes g3 (interventions, zones, tests, hold-points, deliverables, photos)
+
+GET|POST /api/contacts
+GET|POST /api/plans-implantation
+GET|POST /api/nivellements
+GET|POST /api/feuilles-terrain
+GET|POST /api/rapports/validation
 
 GET|POST /api/dst
 GET /api/dst/search
 POST /api/dst/import
 
-GET|POST /api/qualite/equipment
-GET|POST /api/qualite/metrology
-GET|POST /api/qualite/procedures
-GET|POST /api/qualite/standards
-GET|POST /api/qualite/nc
-GET /api/qualite/stats
+GET|POST /api/qualite/…             → équipements, métrologie, procédures, normes, NC
 
 GET|POST /api/admin/users
 GET|POST /api/admin/roles
@@ -149,73 +159,58 @@ GET /api/reference-sources
 GET /api/reference-affaires
 GET /api/reference-etudes
 
-POST /api/import-historique-labo
+POST /api/import-historique-labo    → permission view_tools
+POST /api/import-essais-de|sc|pmt
 POST /api/audit-post-import
 POST /api/regularisation-affaires
 POST /api/affaires-manual-correction-simple
 ```
 
+**Auth middleware** : en mode `proxy` ou `access_key`, JWT requis sur `/api/*` et `/storage/*` (sauf routes publiques auth). Voir `.env.example`.
+
 ---
 
-## 7. Pages frontend existantes (legacy HTML → React)
+## 7. Pages frontend React (état juillet 2026)
 
-| Page HTML | Route React cible | Statut migração |
+| Zone | Routes principales | Statut |
 |---|---|---|
-| `login.html` | `/login` | ✅ Feito |
-| `index.html` | `/` (dashboard) | ✅ Feito |
-| `affaires.html` | `/affaires` | ✅ Feito |
-| `affaire.html` | `/affaires/:uid` | ⬜ A fazer |
-| `demandes.html` | `/demandes` | ✅ Feito |
-| `demande.html` | `/demandes/:uid` | ⬜ A fazer |
-| `passations.html` | `/passations` | ⬜ A fazer |
-| `passation.html` | `/passations/:uid` | ⬜ A fazer |
-| `dst.html` | `/dst` | ⬜ A fazer |
-| `planning.html` | `/planning` | ⬜ A fazer |
-| `intervention.html` | `/interventions/:uid` | ⬜ A fazer |
-| `essai.html` | `/essais/:uid` | ⬜ A fazer |
-| `qualite.html` | `/qualite` | ⬜ A fazer |
-| `admin.html` | `/admin` | ⬜ A fazer |
-| `tools.html` | `/tools` | ⬜ A fazer |
-| `devis.html` | `/devis` | ⬜ A fazer |
-| `documents.html` | `/documents` | ⬜ A fazer |
-| `etude.html` | `/etudes/:uid` | ⬜ A fazer |
-| `references_affaires.html` | `/references/affaires` | ⬜ A fazer |
-| `references_etudes.html` | `/references/etudes` | ⬜ A fazer |
+| Auth / Dashboard | `/login`, `/`, dashboards par rôle | ✅ |
+| Affaires / Demandes | `/affaires`, `/demandes`, fiches détail | ✅ |
+| Passations / Préparation | `/passations`, `/preparation` | ✅ |
+| Interventions / Labo | `/interventions`, `/labo`, workbenches essais | ✅ |
+| Planning / Campagnes | `/planning`, `/campagnes` | ✅ |
+| Qualité / DST / QSSE | `/qualite`, `/dst`, `/qsse` | ✅ |
+| Rapports terrain | `/rapports/de`, `/rapports/sc`, PMT, SO, visite… | ✅ |
+| Modèles essais | DE, SC, PMT, CFE, MVA, visite chantier | ✅ |
+| Plans / Nivellement | plan implantation, images, feuille terrain | ✅ |
+| **G3 EXE** | `/g3`, `/g3/missions/:id` (13 onglets) | ✅ |
+| Admin / Tools | `/admin`, `/tools` | ✅ partiel |
+| Contacts affaire | `/affaires/:uid/contacts` | ✅ |
+
+Legacy HTML : `frontend/legacy_html/` — ne pas modifier.
 
 ---
 
 ## 8. Fonctionnalités à développer (backlog)
 
-### ✅ Implémenté dans RaLab4
-- Affaires RST (liste + fiche + CRUD)
-- Demandes (liste + fiche + CRUD + dossiers Windows)
-- DST (import Excel + picker)
-- Interventions G3
-- Essais + Échantillons labo
-- Planning (kanban + agenda + calendrier)
-- Qualité labo (équipements, métrologie, procédures, normes, NCs)
-- Admin (utilisateurs + rôles)
-- Passation de chantier
-- Préparation de la demande (modules activés)
-- Import historique labo
-- Audit post-import
-- Régularisation affaires
-- Sources de référence (affaires + études)
+### ✅ Implémenté dans RaLab5
+- Tout le périmètre RaLab4 (affaires, demandes, passations, préparation, interventions, essais, planning, qualité, admin)
+- Module **G3 EXE** complet (mission → zones → interventions → essais → avis → points d'arrêt → livrables → rapport)
+- Contacts affaire, feuille mission journée, plans implantation, nivellements, feuilles terrain
+- Import historique labo, import DE/SC/PMT, validation rapports
+- Auth middleware (proxy/access_key), cookie JWT + protection `/storage`
+- Déploiement Cloudflare documenté (`docs/DEPLOY_CLOUDFLARE_WINDOWS_README.md`)
 
-### 🔲 À faire dans RaLab5
+### 🔲 Backlog restant
 
 | # | Feature | Priorité | Notes |
 |---|---|---|---|
-| 1 | Migration frontend React | 🔴 Critique | Base de tout |
-| 2 | Essais terrain (field_tests) | 🟠 Haute | Table liée à intervention, pas échantillon |
-| 3 | Livrables | 🟠 Haute | Rapport, PV, note, synthèse — liés à demande |
-| 4 | Dashboard graphiques réels | 🟡 Moyenne | Par statut, mois, labo |
-| 5 | Ressources humaines | 🟡 Moyenne | Techniciens, affectation |
-| 6 | Catalogue d'essais | 🟡 Moyenne | Par famille technique, norme, scope |
-| 7 | Devis | 🟡 Moyenne | Liés à affaire/demande |
-| 8 | Essais externes | 🟡 Moyenne | Sous-traitance |
-| 9 | Alertes dashboard | 🟢 Basse | NCs ouvertes, métrologie en retard |
-| 10 | PostgreSQL migration | 🟢 Basse | Futur — garder SQLite pour l'instant |
+| 1 | Guards permissions par route React | 🟠 Haute | Middleware backend partiel seulement |
+| 2 | Debounce PATCH frontend | 🟡 Moyenne | Passation, G3, etc. |
+| 3 | Validation FK cross-mission G3 | 🟡 Moyenne | IDOR à durcir |
+| 4 | Renommage RaLab5 DB (`RALAB5_DB_PATH`) | 🟢 Basse | Package C |
+| 5 | CI + smoke tests routers | 🟢 Basse | Package F |
+| 6 | PostgreSQL | 🟢 Basse | Futur |
 
 ---
 
@@ -227,7 +222,8 @@ POST /api/affaires-manual-correction-simple
 | State management | TanStack Query | Parfait pour REST API, cache automatique |
 | UI components | shadcn/ui + Tailwind | Design system propre, customisable |
 | Routing | React Router v6 | Standard |
-| Auth | JWT dans localStorage (clé `ralab_token`) | Même que RaLab4 |
+| Auth | JWT cookie `ralab_token` + localStorage | Middleware storage + session frontend |
+| Deploy | `launch_ralab5_server.cmd` | Défaut `RALAB_AUTH_MODE=proxy` |
 | Backend | FastAPI inchangé | Déjà stable |
 | DB | SQLite pour l'instant | Migration PostgreSQL future |
 | Desktop | Web only pour RaLab5 | Tauri possible en RaLab6 |
@@ -248,45 +244,60 @@ POST /api/affaires-manual-correction-simple
 ## 11. Commandes utiles
 
 ```bash
-# Lancer le backend
+# Backend (dev)
 cd backend/current_fastapi
 uvicorn api_main:app --reload --port 8000
 
-# Lancer le frontend React (quand créé)
+# Frontend React
 cd frontend/react
 npm run dev
 
-# Git — workflow propre
-git pull
-git add .
-git commit -m "feat: description courte"
-git push
+# Build production (servi par FastAPI sur :8000)
+cd frontend/react && npm run build
 
-# Vérifier ce qui est tracké (ne pas committer les .db ou packages)
-git ls-files | grep -E "(\.db$|_package/)"
+# Lancer serveur complet (Windows)
+launch_ralab5_server.cmd
+
+# Tests backend
+cd backend/current_fastapi
+python -m pytest tests/ -q
+
+# Migration refs G3
+python tools/migrate_g3_mission_references.py
+
+# Git
+git pull && git status
 ```
+
+Variables d'environnement : voir `.env.example`.
+Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
 
 ---
 
 ## 12. Session en cours / dernière session
 
 ```
-**Data :** 2026-03-28
-**Feito nesta sessão :**
-- AffairesPage completa (painel lateral, modal criar/editar, todos os campos)
-- DemandesPage completa (painel lateral, modal, filtros: statut/labo/mission/à revoir)
-- AffairePage completa (fiche detalhe, tabela demandes, modal editar)
-- AppLayout/sidebar com todos os itens correctos (Affaires NGE, Études, À venir...)
-- App.jsx com todas as rotas
+**Data :** 2026-07-11
+**Feito nesta sessão (Pacote E — Docs) :**
+- 62 HANDOFFs itératifs archivés dans docs/archive/handoffs/
+- 4 HANDOFFs actifs conservés (deploy, overview, Cloudflare)
+- 2 guides déplacés vers docs/guides/ (SC import, DE→generic)
+- Créé docs/README.md, docs/TOOLS_INDEX.md, .env.example
+- CONTEXT.md mis à jour (statut RaLab5 opérationnel, API G3, §12)
 
-**Próxima sessão :**
-- DemandePage (fiche detalhe demande.html)
-- PassationsPage + PassationPage
-- PlanningPage
-- ToolsPage
-- Continuar pelas restantes páginas em ordem
+**Commits récents (avant Pacote E) :**
+- 39792a8 Package A+B cleanup (storage gitignore, deps npm)
+- 327634f Phase B security (middleware auth, cookie JWT)
+- 47ea533 Module G3 EXE complet
+- 7fbfb3c Phase A deploy (launch scripts, proxy default)
 
-**HTMLs de referência:** todos em /mnt/user-data/uploads/ — sempre ler antes de escrever
+**Prochaines étapes possibles :**
+- Commit + push Pacote E (sur demande)
+- Package C : renommage RaLab5 DB/schema
+- Package D : ToolsPage/DstPage → api.js unifié
+- Package F : smoke tests routers, CI
+```
+
 ---
 
 ## 13. Pour reprendre le travail après une pause
