@@ -85,6 +85,7 @@ export default function G3MissionPage() {
       setSaveMessage('Enregistré')
       window.setTimeout(() => setSaveMessage(''), 2000)
     },
+    onError: (err) => setSaveMessage(err?.message || 'Enregistrement impossible.'),
   })
 
   const demandeHref = mission?.demande_id

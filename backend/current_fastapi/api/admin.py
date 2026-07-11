@@ -366,8 +366,7 @@ def update_user(email: str, body: UserUpdateSchema, _=AdminUser):
 
 
 @router.patch("/users/{email}/active", response_model=UserOut, summary="Activar / desactivar utilizador")
-def toggle_user_active(email: str, body: ActivePatchSchema, current=Depends(get_current_user)):
-    # Não pode desactivar a si próprio
+def toggle_user_active(email: str, body: ActivePatchSchema, current=AdminUser):
     if current["sub"].lower() == email.strip().lower() and not body.is_active:
         raise HTTPException(400, "Não podes desactivar a tua própria conta.")
 

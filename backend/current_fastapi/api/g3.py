@@ -35,6 +35,7 @@ from app.models.g3 import (
     G3ZoneUpdateSchema,
 )
 from app.models.g3_catalogs import G3_CATALOGS
+from app.core.api_security import current_request_user_label
 from app.repositories.g3_repository import G3Repository
 from app.services.g3_deliverable_service import build_deliverable_html, build_g3008_html
 from app.services.g3_document_service import build_g3_documents_table_html
@@ -47,7 +48,7 @@ _repo = G3Repository()
 
 
 def _current_user_name() -> str:
-    return "Utilisateur"
+    return current_request_user_label()
 
 
 @router.get("/catalogs")

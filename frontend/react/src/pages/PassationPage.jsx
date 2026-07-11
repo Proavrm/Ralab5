@@ -14,7 +14,7 @@ import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 import { RESPONSIBLE_LAB_PROFILES } from '@/lib/responsibleLaboProfiles'
 import { partitionDestinataireUsers } from '@/lib/userOrgScope'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
-import { FichePageShell, MetricCard, SectionCard } from '@/components/layout/FicheLayout'
+import { FichePageShell, FicheTopbar, MetricCard, SectionCard } from '@/components/layout/FicheLayout'
 import DocumentTrackingTable from '@/components/demande/DocumentTrackingTable'
 import { validatePassationSitePlan, ensureSiteCaptureDocumentRows, hasPlanSituationFile } from '@/lib/sitePlanRequirements'
 import { A4_ORIENTATION_LANDSCAPE, A4_ORIENTATION_PORTRAIT } from '@/lib/sitePlanImageCoords'
@@ -458,7 +458,7 @@ export default function PassationPage() {
     }
 
     // Load existing passation
-    const { data: passation, isLoading } = useQuery({
+    const { data: passation, isLoading, isError, error: passationError } = useQuery({
         queryKey: ['passation', uid],
         queryFn: () => api.get(`/passations/${uid}`),
         enabled: !isNew,
@@ -1107,6 +1107,26 @@ export default function PassationPage() {
         }),
         [structuredNeeds]
     )
+
+    if (!isNew && isError) {
+        return (
+            <FichePageShell>
+                <FicheTopbar
+                    backLabel="← Affaires RST"
+                    onBack={() => navigate('/passations')}
+                    eyebrow="Passation"
+                    title={`Passation #${uid}`}
+                />
+                <FicheMain>
+                    <SectionCard title="Passation introuvable">
+                        <p className="text-[13px] text-[#a32d2d] font-bold">
+                            {passationError?.message || 'Impossible de charger cette passation.'}
+                        </p>
+                    </SectionCard>
+                </FicheMain>
+            </FichePageShell>
+        )
+    }
 
     if (!isNew && isLoading) {
         return (

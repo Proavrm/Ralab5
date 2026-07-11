@@ -50,7 +50,7 @@ export default function G3MissionListPage() {
       }
       const matches = await demandesApi.list({ search: ref })
       const exact = (matches || []).find((row) => String(row.reference || '').toLowerCase() === ref.toLowerCase())
-      demandeId = exact?.uid ?? exact?.id ?? matches?.[0]?.uid ?? matches?.[0]?.id
+      demandeId = exact?.uid ?? exact?.id ?? null
     }
     if (!demandeId) {
       setError('Demande introuvable.')

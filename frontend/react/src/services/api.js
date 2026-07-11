@@ -6,9 +6,46 @@
 
 const BASE_URL = '/api' // proxy Vite → http://127.0.0.1:8000
 const CLOUDFLARE_ACCESS_TITLE = 'Cloudflare Access'
+const TOKEN_COOKIE = 'ralab_token'
+const TOKEN_MAX_AGE = 12 * 60 * 60
+
+export function setAuthTokenCookie(token) {
+  if (!token) return
+  document.cookie = `${TOKEN_COOKIE}=${encodeURIComponent(token)}; path=/; max-age=${TOKEN_MAX_AGE}; SameSite=Lax`
+}
+
+export function clearAuthTokenCookie() {
+  document.cookie = `${TOKEN_COOKIE}=; path=/; max-age=0; SameSite=Lax`
+}
+
+function clearAuthSession() {
+  localStorage.removeItem('ralab_token')
+  localStorage.removeItem('ralab_user')
+  clearAuthTokenCookie()
+}
+
+function formatApiErrorDetail(detail) {
+  if (!detail) return ''
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item?.msg || item?.message || JSON.stringify(item)).join(' · ')
+  }
+  if (typeof detail === 'object') {
+    return detail.msg || detail.message || JSON.stringify(detail)
+  }
+  return String(detail)
+}
+
+function handleUnauthorized() {
+  clearAuthSession()
+  window.location.href = '/login'
+  throw new Error('Session expirée.')
+}
 
 function getToken() {
-  return localStorage.getItem('ralab_token')
+  const token = localStorage.getItem('ralab_token')
+  if (token) setAuthTokenCookie(token)
+  return token
 }
 
 function redirectToCloudflareAccess() {
@@ -47,15 +84,12 @@ async function request(method, path, body = null) {
   })
 
   if (res.status === 401) {
-    localStorage.removeItem('ralab_token')
-    localStorage.removeItem('ralab_user')
-    window.location.href = '/login'
-    return
+    handleUnauthorized()
   }
 
   if (!res.ok) {
     const error = await parseResponse(res).catch((parseError) => ({ detail: parseError.message || res.statusText }))
-    throw new Error(error.detail || `Erreur ${res.status}`)
+    throw new Error(formatApiErrorDetail(error.detail) || `Erreur ${res.status}`)
   }
 
   return parseResponse(res)
@@ -81,15 +115,12 @@ export const api = {
     })
 
     if (res.status === 401) {
-      localStorage.removeItem('ralab_token')
-      localStorage.removeItem('ralab_user')
-      window.location.href = '/login'
-      return
+      handleUnauthorized()
     }
 
     if (!res.ok) {
       const error = await parseResponse(res).catch((parseError) => ({ detail: parseError.message || res.statusText }))
-      throw new Error(error.detail || `Erreur ${res.status}`)
+      throw new Error(formatApiErrorDetail(error.detail) || `Erreur ${res.status}`)
     }
 
     return parseResponse(res)

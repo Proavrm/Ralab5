@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { authApi } from '@/services/api'
+import { authApi, setAuthTokenCookie, clearAuthTokenCookie } from '@/services/api'
 
 export function useAuth() {
   const [user, setUser] = useState(() => {
@@ -28,6 +28,7 @@ export function useAuth() {
     if (accessKey) payload.access_key = accessKey
     const data = await authApi.login(payload)
     localStorage.setItem('ralab_token', data.token)
+    setAuthTokenCookie(data.token)
     const userInfo = {
       email: data.user.email,
       display_name: data.user.display_name,
@@ -47,6 +48,7 @@ export function useAuth() {
   const logout = useCallback(() => {
     localStorage.removeItem('ralab_token')
     localStorage.removeItem('ralab_user')
+    clearAuthTokenCookie()
     setUser(null)
     window.location.href = '/login'
   }, [])

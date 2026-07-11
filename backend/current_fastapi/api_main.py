@@ -7,13 +7,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from api.auth import require_permission
 from api.admin import router as admin_router
 from api.affaires import router as affaires_router
 from api.contacts import router as contacts_router
@@ -45,6 +46,7 @@ from api.feuilles_terrain import router as feuilles_terrain_router
 from api.qualite import router as qualite_router
 from api.work_inbox import router as work_inbox_router
 from app.core.database import ensure_ralab4_schema
+from app.middleware.require_auth_middleware import RequireAuthMiddleware
 from api.affaires_manual_correction_simple import router as affaires_manual_correction_simple_router
 from api.reference_sources import router as reference_sources_router
 from api.reference_affaires import router as reference_affaires_router
@@ -130,6 +132,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequireAuthMiddleware)
+
+ToolsUser = Depends(require_permission("view_tools"))
 
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
@@ -153,15 +158,15 @@ app.include_router(nivellements_router, prefix="/api/nivellements", tags=["Nivel
 app.include_router(feuilles_terrain_router, prefix="/api/feuilles-terrain", tags=["Feuilles terrain"])
 app.include_router(qualite_router, prefix="/api/qualite", tags=["Qualité"])
 app.include_router(work_inbox_router, prefix="/api/work/inbox", tags=["Work Inbox"])
-app.include_router(import_historique_labo_router, prefix="/api/import-historique-labo", tags=["Import Historique Labo"])
-app.include_router(import_essais_de_router, prefix="/api/import-essais-de", tags=["Import Essais DE"])
-app.include_router(import_essais_sc_router)
-app.include_router(import_essais_pmt_router)
+app.include_router(import_historique_labo_router, prefix="/api/import-historique-labo", tags=["Import Historique Labo"], dependencies=[ToolsUser])
+app.include_router(import_essais_de_router, prefix="/api/import-essais-de", tags=["Import Essais DE"], dependencies=[ToolsUser])
+app.include_router(import_essais_sc_router, dependencies=[ToolsUser])
+app.include_router(import_essais_pmt_router, dependencies=[ToolsUser])
 app.include_router(pmt_essais_router, prefix="/api/pmt-essais")
 app.include_router(photos_router)
-app.include_router(audit_post_import_router, prefix="/api/audit-post-import", tags=["Audit Post-Import"])
-app.include_router(regularisation_affaires_router, prefix="/api/regularisation-affaires", tags=["Regularisation Affaires"])
-app.include_router(affaires_manual_correction_simple_router,prefix="/api/affaires-manual-correction-simple",tags=["Affaires Manual Correction Simple"],)
+app.include_router(audit_post_import_router, prefix="/api/audit-post-import", tags=["Audit Post-Import"], dependencies=[ToolsUser])
+app.include_router(regularisation_affaires_router, prefix="/api/regularisation-affaires", tags=["Regularisation Affaires"], dependencies=[ToolsUser])
+app.include_router(affaires_manual_correction_simple_router,prefix="/api/affaires-manual-correction-simple",tags=["Affaires Manual Correction Simple"],dependencies=[ToolsUser],)
 app.include_router(reference_sources_router,prefix="/api/reference-sources",tags=["Reference Sources"],)
 app.include_router(reference_affaires_router,prefix="/api/reference-affaires",tags=["Reference Affaires"],)
 app.include_router(reference_etudes_router,prefix="/api/reference-etudes",tags=["Reference Etudes"],)
