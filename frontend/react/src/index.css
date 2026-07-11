@@ -24,6 +24,8 @@
     --bg: #f8fafc;
     --sidebar: #003170;
     --sidebar-t: #c5d4ea;
+    --sidebar-gradient: linear-gradient(180deg, #003170 0%, #00224f 100%);
+    --chrome-stripe: linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%);
     --accent: #003170;
     --accent-h: #00224f;
     --surface: #ffffff;
@@ -34,6 +36,15 @@
     --success: #1d9e75;
     --warn: #ef9f27;
     --radius: 8px;
+  }
+
+  .app-sidebar {
+    background: var(--sidebar-gradient);
+  }
+
+  .app-chrome-stripe {
+    height: 1px;
+    background: var(--chrome-stripe);
   }
 }
 
