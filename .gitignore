@@ -42,3 +42,19 @@ frontend/react/dist/
 # OS
 .DS_Store
 Thumbs.db
+
+# Operational file storage (local lab data — do not version)
+storage/documents/
+storage/essais_photos/
+storage/feuilles_photos/
+storage/plans/
+storage/exports/
+storage/qsse/
+storage/references/
+
+# Duplicate / scratch filenames
+*Copie*
+* - Copie*
+
+# Root PDFs (project docs stay outside repo)
+/*.pdf

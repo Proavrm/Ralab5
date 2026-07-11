@@ -11,8 +11,6 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.51.0",
-    "@tanstack/react-query-devtools": "^5.51.0",
-    "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
     "html-to-image": "^1.11.13",
