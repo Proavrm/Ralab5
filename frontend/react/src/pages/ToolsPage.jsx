@@ -5,7 +5,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { api, essaisApi, feuillesTerrainApi } from '@/services/api'
+import { api, essaisApi, feuillesTerrainApi, dstApi, importEssaisApi, toolsApi, getApiErrorMessage } from '@/services/api'
+import { feedbackErr, feedbackOk, formatDstImportSuccess } from '@/lib/apiFeedback'
 import { useAuth } from '@/hooks/useAuth'
 import Button from '@/components/ui/Button'
 import PreviewAccessZone from '@/components/tools/PreviewAccessZone'
@@ -169,7 +170,7 @@ export default function ToolsPage() {
   })
   const { data: dstStatus } = useQuery({
     queryKey: ['dst-status'],
-    queryFn: () => api.get('/dst/status'),
+    queryFn: () => dstApi.status(),
   })
   const {
     data: feuillesTerrainPreparation = [],
@@ -257,7 +258,7 @@ export default function ToolsPage() {
       })
     } catch (e) {
       setModeleLookupMatches([])
-      setModeleLookupResult({ type: 'err', msg: `Erro na pesquisa do modelo: ${e.message}` })
+      setModeleLookupResult(feedbackErr(e, 'Erreur na pesquisa do modelo: '))
     } finally {
       setModeleLookupLoading(false)
     }
@@ -268,21 +269,12 @@ export default function ToolsPage() {
     setDstLoading(true)
     setDstResult(null)
     try {
-      const formData = new FormData()
-      formData.append('file', dstFile)
-      const token = localStorage.getItem('ralab_token')
-      const res = await fetch(`/api/dst/import?sheet_name=${encodeURIComponent(dstSheet)}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
-      if (!res.ok) throw new Error((await res.json()).detail || 'Erreur import')
-      const d = await res.json()
-      setDstResult({ type: 'ok', msg: `✓ Import terminé\nInsérés : ${d.inserted}\nMis à jour : ${d.updated}\nIgnorés : ${d.skipped}\nTotal lignes : ${d.total_rows}` })
+      const d = await dstApi.importFile(dstFile, dstSheet)
+      setDstResult(feedbackOk(formatDstImportSuccess(d)))
       qc.invalidateQueries({ queryKey: ['dst-status'] })
       qc.invalidateQueries({ queryKey: ['dst-rows'] })
     } catch (e) {
-      setDstResult({ type: 'err', msg: `Erreur : ${e.message}` })
+      setDstResult(feedbackErr(e, 'Erreur : '))
     } finally {
       setDstLoading(false)
     }
@@ -315,17 +307,27 @@ export default function ToolsPage() {
     setExportResult({ type: 'ok', msg: `✓ ${data.length} entrées exportées en ${fmt.toUpperCase()}` })
   }
 
-  async function adminAction(endpoint, setResult) {
+  async function adminAction(call, setResult) {
     setResult(null)
     try {
-      const res = await api.post(endpoint, {})
-      setResult({ type: 'ok', msg: res.message || '✓ Terminé' })
+      const res = await call()
+      setResult(feedbackOk(res.message || '✓ Terminé'))
     } catch (e) {
-      if (e.message?.includes('404')) {
+      const msg = getApiErrorMessage(e)
+      if (msg.includes('404')) {
         setResult({ type: 'info', msg: 'Fonctionnalité non encore disponible côté serveur.' })
       } else {
-        setResult({ type: 'err', msg: `Erreur : ${e.message}` })
+        setResult(feedbackErr(e, 'Erreur : '))
       }
+    }
+  }
+
+  function importContextFields() {
+    return {
+      affaire_reference: deAffaireRef.trim(),
+      affaire_nge: deAffaireNge.trim(),
+      demande_gap_days: String(Number(deDemandeGap) || 120),
+      campagne_gap_days: String(Number(deCampagneGap) || 7),
     }
   }
 
@@ -347,7 +349,7 @@ export default function ToolsPage() {
         demande_gap_days: Number(deDemandeGap) || 120,
         campagne_gap_days: Number(deCampagneGap) || 7,
       }
-      const result = await api.post('/import-essais-de/preview', payload)
+      const result = await importEssaisApi.dePreview(payload)
       setDePreview(result)
       setDeRefOverrides({})
       setDeInterventionOverrides({})
@@ -375,7 +377,7 @@ export default function ToolsPage() {
         ].join('\n'),
       })
     } catch (e) {
-      setDeResult({ type: 'err', msg: `Erreur preview DE: ${e.message}` })
+      setDeResult(feedbackErr(e, 'Erreur preview DE: '))
     } finally {
       setDeLoading(false)
     }
@@ -392,24 +394,7 @@ export default function ToolsPage() {
     setDePreview(null)
     setDeLastImport(null)
     try {
-      const formData = new FormData()
-      formData.append('file', deUploadFile)
-      formData.append('affaire_reference', deAffaireRef.trim())
-      formData.append('affaire_nge', deAffaireNge.trim())
-      formData.append('demande_gap_days', String(Number(deDemandeGap) || 120))
-      formData.append('campagne_gap_days', String(Number(deCampagneGap) || 7))
-
-      const token = localStorage.getItem('ralab_token')
-      const res = await fetch('/api/import-essais-de/preview-upload', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.detail || 'Erreur preview upload')
-      }
-      const result = await res.json()
+      const result = await importEssaisApi.dePreviewUpload(deUploadFile, importContextFields())
       setDePreview(result)
       setDeRefOverrides({})
       setDeInterventionOverrides({})
@@ -438,7 +423,7 @@ export default function ToolsPage() {
         ].join('\n'),
       })
     } catch (e) {
-      setDeResult({ type: 'err', msg: `Erreur preview upload DE: ${e.message}` })
+      setDeResult(feedbackErr(e, 'Erreur preview upload DE: '))
     } finally {
       setDeLoading(false)
     }
@@ -508,34 +493,18 @@ export default function ToolsPage() {
 
       let result
       if (deUploadFile) {
-        const formData = new FormData()
-        formData.append('file', deUploadFile)
-        formData.append('sheet_name', sheetName)
-        formData.append('affaire_reference', deAffaireRef.trim())
-        formData.append('affaire_nge', deAffaireNge.trim())
-        formData.append('demande_gap_days', String(Number(deDemandeGap) || 120))
-        formData.append('campagne_gap_days', String(Number(deCampagneGap) || 7))
-        if (demandeReferenceOverride) formData.append('demande_reference_override', demandeReferenceOverride)
-        if (campagneReferenceOverride) formData.append('campagne_reference_override', campagneReferenceOverride)
-        if (interventionReferenceOverride) formData.append('intervention_reference_override', interventionReferenceOverride)
-
-        const token = localStorage.getItem('ralab_token')
-        const res = await fetch('/api/import-essais-de/import-sheet-upload', {
-          method: 'POST',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-          body: formData,
+        result = await importEssaisApi.deImportSheetUpload(deUploadFile, {
+          ...importContextFields(),
+          sheet_name: sheetName,
+          demande_reference_override: demandeReferenceOverride,
+          campagne_reference_override: campagneReferenceOverride,
+          intervention_reference_override: interventionReferenceOverride,
         })
-        if (!res.ok) {
-          const data = await res.json().catch(async () => ({ detail: await res.text().catch(() => '') }))
-          const details = data?.detail ? `: ${data.detail}` : ''
-          throw new Error(`Erreur import feuille (upload) [HTTP ${res.status}]${details}`)
-        }
-        result = await res.json()
       } else {
         if (!deFilePath.trim()) {
           throw new Error('Indique le chemin du fichier ou utilise le drag and drop.')
         }
-        result = await api.post('/import-essais-de/import-sheet', {
+        result = await importEssaisApi.deImportSheet({
           file_path: deFilePath.trim(),
           sheet_name: sheetName,
           affaire_reference: deAffaireRef.trim(),
@@ -579,7 +548,7 @@ export default function ToolsPage() {
       })
       qc.invalidateQueries({ queryKey: ['demandes'] })
     } catch (e) {
-      setDeResult({ type: 'err', msg: `Erreur import feuille DE: ${e.message}` })
+      setDeResult(feedbackErr(e, 'Erreur import feuille DE: '))
     } finally {
       setDeImportingSheet('')
     }
@@ -600,22 +569,10 @@ export default function ToolsPage() {
     setScPreview(null)
     setScLastImport(null)
     try {
-      const formData = new FormData()
-      formData.append('file', scUploadFile)
-      formData.append('affaire_reference', deAffaireRef.trim())
-      formData.append('affaire_nge', deAffaireNge.trim())
-
-      const token = localStorage.getItem('ralab_token')
-      const res = await fetch('/api/import-sc/preview', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
+      const result = await importEssaisApi.scPreviewUpload(scUploadFile, {
+        affaire_reference: deAffaireRef.trim(),
+        affaire_nge: deAffaireNge.trim(),
       })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.detail || `HTTP ${res.status}`)
-      }
-      const result = await res.json()
       setScPreview(result)
       if (!deAffaireNge.trim() && result?.auto_defaults?.affaire_nge_suggested) {
         setDeAffaireNge(result.auto_defaults.affaire_nge_suggested)
@@ -637,7 +594,7 @@ export default function ToolsPage() {
         ].join('\n'),
       })
     } catch (e) {
-      setScResult({ type: 'err', msg: `Erreur preview SC: ${e.message}` })
+      setScResult(feedbackErr(e, 'Erreur preview SC: '))
     } finally {
       setScLoading(false)
     }
@@ -682,33 +639,17 @@ export default function ToolsPage() {
         }
       }
 
-      const formData = new FormData()
-      formData.append('file', scUploadFile)
-      formData.append('sheet_name', sheetName)
-      formData.append('affaire_reference', deAffaireRef.trim())
-      formData.append('affaire_nge', deAffaireNge.trim())
-      formData.append('demande_gap_days', String(Number(deDemandeGap) || 120))
-      formData.append('campagne_gap_days', String(Number(deCampagneGap) || 7))
-      if (Number(resolvedDemandeId) > 0) formData.append('demande_id', String(resolvedDemandeId))
-      if (Number(resolvedCampagneId) > 0) formData.append('campagne_id', String(resolvedCampagneId))
-      if (Number(resolvedInterventionId) > 0) formData.append('intervention_id', String(resolvedInterventionId))
+      const materializeFields = {
+        ...importContextFields(),
+        sheet_name: sheetName,
+      }
+      if (Number(resolvedDemandeId) > 0) materializeFields.demande_id = String(resolvedDemandeId)
+      if (Number(resolvedCampagneId) > 0) materializeFields.campagne_id = String(resolvedCampagneId)
+      if (Number(resolvedInterventionId) > 0) materializeFields.intervention_id = String(resolvedInterventionId)
       const scAffairePkMat = Number(scPreview?.affaire_context?.selected?.id)
-      if (scAffairePkMat > 0) {
-        formData.append('affaire_rst_id', String(scAffairePkMat))
-      }
+      if (scAffairePkMat > 0) materializeFields.affaire_rst_id = String(scAffairePkMat)
 
-      const token = localStorage.getItem('ralab_token')
-      const res = await fetch('/api/import-sc/materialize', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(async () => ({ detail: await res.text().catch(() => '') }))
-        const details = data?.detail ? `: ${data.detail}` : ''
-        throw new Error(`Erreur materialize SC [HTTP ${res.status}]${details}`)
-      }
-      const result = await res.json()
+      const result = await importEssaisApi.scMaterialize(scUploadFile, materializeFields)
       setScLastImport(result)
       setScPreview((prev) => {
         if (!prev?.sheets) return prev
@@ -743,7 +684,7 @@ export default function ToolsPage() {
       })
       qc.invalidateQueries({ queryKey: ['demandes'] })
     } catch (e) {
-      setScResult({ type: 'err', msg: `Erreur materialize SC: ${e.message}` })
+      setScResult(feedbackErr(e, 'Erreur materialize SC: '))
     } finally {
       setScImportingSheet('')
     }
@@ -759,19 +700,7 @@ export default function ToolsPage() {
     setPmtPreview(null)
     setPmtLastImport(null)
     try {
-      const formData = new FormData()
-      formData.append('file', pmtUploadFile)
-      const token = localStorage.getItem('ralab_token')
-      const res = await fetch('/api/import-essais-pmt/preview-upload', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.detail || `HTTP ${res.status}`)
-      }
-      const result = await res.json()
+      const result = await importEssaisApi.pmtPreviewUpload(pmtUploadFile)
       setPmtPreview(result)
       setPmtResult({
         type: 'ok',
@@ -782,7 +711,7 @@ export default function ToolsPage() {
         ].join('\n'),
       })
     } catch (e) {
-      setPmtResult({ type: 'err', msg: `Erreur preview PMT: ${e.message}` })
+      setPmtResult(feedbackErr(e, 'Erreur preview PMT: '))
     } finally {
       setPmtLoading(false)
     }
@@ -793,21 +722,7 @@ export default function ToolsPage() {
     setPmtImportingSheet(sheetName)
     setPmtResult(null)
     try {
-      const formData = new FormData()
-      formData.append('file', pmtUploadFile)
-      formData.append('sheet_name', sheetName)
-      const token = localStorage.getItem('ralab_token')
-      const res = await fetch('/api/import-essais-pmt/import-upload', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(async () => ({ detail: await res.text().catch(() => '') }))
-        const details = data?.detail ? `: ${data.detail}` : ''
-        throw new Error(`Erreur import PMT [HTTP ${res.status}]${details}`)
-      }
-      const result = await res.json()
+      const result = await importEssaisApi.pmtImportUpload(pmtUploadFile, { sheet_name: sheetName })
       const importedRow = Array.isArray(result?.imported) ? result.imported[0] : null
       setPmtLastImport(result)
       setPmtPreview((prev) => {
@@ -844,7 +759,7 @@ export default function ToolsPage() {
       })
       qc.invalidateQueries({ queryKey: ['demandes'] })
     } catch (e) {
-      setPmtResult({ type: 'err', msg: `Erreur import PMT: ${e.message}` })
+      setPmtResult(feedbackErr(e, 'Erreur import PMT: '))
     } finally {
       setPmtImportingSheet('')
     }
@@ -1673,7 +1588,7 @@ export default function ToolsPage() {
               Les utilisateurs existants ne sont <strong>pas supprimés</strong>.
             </p>
             <Button variant="warn" onClick={() => {
-              if (confirm('Resynchroniser security.db ?')) adminAction('/admin/init-security', setSecResult)
+              if (confirm('Resynchroniser security.db ?')) adminAction(() => toolsApi.initSecurityDb(), setSecResult)
             }}>⚙️ Resync security.db</Button>
             <ResultBox result={secResult} />
           </Card>
@@ -1688,7 +1603,7 @@ export default function ToolsPage() {
             </p>
             <Button variant="danger" onClick={() => {
               if (confirm('Lancer la migration ?\nLes données existantes ne seront pas supprimées.'))
-                adminAction('/admin/migrate', setMigResult)
+                adminAction(() => toolsApi.runMigration(), setMigResult)
             }}>⚠️ Lancer la migration</Button>
             <ResultBox result={migResult} />
           </Card>
@@ -1701,7 +1616,7 @@ export default function ToolsPage() {
               Parcourt la base DST et crée une affaire RST pour chaque entrée
               qui n'est pas encore liée à une affaire existante.
             </p>
-            <Button variant="primary" onClick={() => adminAction('/admin/dst-to-affaires', setSyncResult)}>
+            <Button variant="primary" onClick={() => adminAction(() => toolsApi.syncDstToAffaires(), setSyncResult)}>
               🔗 Synchroniser
             </Button>
             <ResultBox result={syncResult} />

@@ -211,8 +211,9 @@ Legacy HTML : `frontend/legacy_html/` — ne pas modifier.
 | 2 | Debounce PATCH frontend | 🟡 Moyenne | Passation, G3, etc. |
 | 3 | Validation FK cross-mission G3 | 🟡 Moyenne | IDOR à durcir |
 | 4 | Renommage RaLab5 DB (`RALAB5_DB_PATH`) | ✅ Fait | Package C — alias legacy conservés |
-| 5 | CI + smoke tests routers | 🟢 Basse | Package F |
-| 6 | PostgreSQL | 🟢 Basse | Futur |
+| 5 | ToolsPage/DstPage → api.js unifié | ✅ Fait | Package D — dstApi, importEssaisApi, toolsApi |
+| 6 | CI + smoke tests routers | 🟢 Basse | Package F |
+| 7 | PostgreSQL | 🟢 Basse | Futur |
 
 ---
 
@@ -283,7 +284,13 @@ Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
 
 ```
 **Data :** 2026-07-11
-**Feito nesta sessão (Pacote C — DB RaLab5) :**
+**Feito nesta sessão (Pacote D — API Tools/DST) :**
+- `dstApi` complet (status, list, update, importFile via postForm)
+- `importEssaisApi` (DE/SC/PMT) + `toolsApi` (admin)
+- `getApiErrorMessage()` exportado + `lib/apiFeedback.js`
+- ToolsPage e DstPage sem fetch directo / token manual
+
+**Feito sessão anterior (Pacote C — DB RaLab5) :**
 - `RALAB5_DB_PATH` / `RALAB5_QSSE_DB_PATH` como variáveis canónicas
 - `RALAB4_*` mantidos como alias legacy
 - `ensure_ralab5_schema()` canónico, `ensure_ralab4_schema()` alias
@@ -304,8 +311,7 @@ Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
 - 7fbfb3c Phase A deploy (launch scripts, proxy default)
 
 **Prochaines étapes possibles :**
-- Commit + push Pacote C (sur demande)
-- Package D : ToolsPage/DstPage → api.js unifié
+- Commit + push Pacote D (sur demande)
 - Package F : smoke tests routers, CI
 ```
 

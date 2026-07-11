@@ -36,6 +36,23 @@ function formatApiErrorDetail(detail) {
   return String(detail)
 }
 
+export function getApiErrorMessage(error, fallback = 'Erreur inconnue') {
+  if (!error) return fallback
+  if (typeof error === 'string') return error
+  if (error?.message) return error.message
+  return fallback
+}
+
+function buildImportFormData(file, fields = {}) {
+  const formData = new FormData()
+  if (file) formData.append('file', file)
+  Object.entries(fields).forEach(([key, value]) => {
+    if (value == null || value === '') return
+    formData.append(key, String(value))
+  })
+  return formData
+}
+
 function handleUnauthorized() {
   clearAuthSession()
   window.location.href = '/login'
@@ -257,13 +274,40 @@ export const passationsApi = {
 
 // ── DST ───────────────────────────────────────────────────────────────────────
 export const dstApi = {
-  list:   (params = {}) => api.get('/dst?' + new URLSearchParams(params)),
-  search: (q)           => api.get(`/dst/search?q=${encodeURIComponent(q)}`),
-  import: (formData)    => fetch(`${BASE_URL}/dst/import`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${getToken()}` },
-    body: formData,
-  }).then(r => r.json()),
+  status: () => api.get('/dst/status'),
+  list: (params = {}) => api.get('/dst?' + new URLSearchParams(params)),
+  search: (q) => api.get(`/dst/search?q=${encodeURIComponent(q)}`),
+  get: (rowId) => api.get(`/dst/${rowId}`),
+  update: (rowId, data) => api.patch(`/dst/${rowId}`, { data }),
+  importFile: (file, sheetName = 'ExcelMergeQuery') => {
+    const query = sheetName ? `?sheet_name=${encodeURIComponent(sheetName)}` : ''
+    return api.postForm(`/dst/import${query}`, buildImportFormData(file))
+  },
+}
+
+// ── Import essais terrain (Tools) ─────────────────────────────────────────────
+export const importEssaisApi = {
+  dePreview: (payload) => api.post('/import-essais-de/preview', payload),
+  dePreviewUpload: (file, fields = {}) =>
+    api.postForm('/import-essais-de/preview-upload', buildImportFormData(file, fields)),
+  deImportSheet: (payload) => api.post('/import-essais-de/import-sheet', payload),
+  deImportSheetUpload: (file, fields = {}) =>
+    api.postForm('/import-essais-de/import-sheet-upload', buildImportFormData(file, fields)),
+  scPreviewUpload: (file, fields = {}) =>
+    api.postForm('/import-sc/preview', buildImportFormData(file, fields)),
+  scMaterialize: (file, fields = {}) =>
+    api.postForm('/import-sc/materialize', buildImportFormData(file, fields)),
+  pmtPreviewUpload: (file) =>
+    api.postForm('/import-essais-pmt/preview-upload', buildImportFormData(file)),
+  pmtImportUpload: (file, fields = {}) =>
+    api.postForm('/import-essais-pmt/import-upload', buildImportFormData(file, fields)),
+}
+
+// ── Outils admin (ToolsPage) ──────────────────────────────────────────────────
+export const toolsApi = {
+  initSecurityDb: () => api.post('/admin/init-security', {}),
+  runMigration: () => api.post('/admin/migrate', {}),
+  syncDstToAffaires: () => api.post('/admin/dst-to-affaires', {}),
 }
 
 // ── Planning ──────────────────────────────────────────────────────────────────

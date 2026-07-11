@@ -10,7 +10,8 @@ import { useResizableColumns } from '@/hooks/useResizableColumns'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/services/api'
+import { api, dstApi, getApiErrorMessage } from '@/services/api'
+import { formatDstImportSuccess } from '@/lib/apiFeedback'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
@@ -96,15 +97,15 @@ export default function DstPage() {
 
   const { data: status } = useQuery({
     queryKey: ['dst-status'],
-    queryFn: () => api.get('/dst/status'),
+    queryFn: () => dstApi.status(),
   })
 
   const { data: rawRows = [], isLoading, refetch } = useQuery({
     queryKey: ['dst-rows', debouncedSearch],
     queryFn: () => {
-      const p = new URLSearchParams({ limit: '2000' })
-      if (debouncedSearch) p.set('search', debouncedSearch)
-      return api.get(`/dst?${p}`)
+      const params = { limit: '2000' }
+      if (debouncedSearch) params.search = debouncedSearch
+      return dstApi.list(params)
     },
   })
 
@@ -117,28 +118,17 @@ export default function DstPage() {
   })
 
   const importMutation = useMutation({
-    mutationFn: async ({ file, sheet }) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      const token = localStorage.getItem('ralab_token')
-      const res = await fetch(`/api/dst/import?sheet_name=${encodeURIComponent(sheet)}`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      })
-      if (!res.ok) throw new Error((await res.json()).detail || 'Erreur import')
-      return res.json()
-    },
+    mutationFn: ({ file, sheet }) => dstApi.importFile(file, sheet),
     onSuccess: (data) => {
       setImportResult({ ok: true, data })
       qc.invalidateQueries({ queryKey: ['dst-rows'] })
       qc.invalidateQueries({ queryKey: ['dst-status'] })
     },
-    onError: (e) => setImportResult({ ok: false, msg: e.message }),
+    onError: (error) => setImportResult({ ok: false, msg: getApiErrorMessage(error) }),
   })
 
   const updateDstMutation = useMutation({
-    mutationFn: async ({ rowId, data }) => api.patch(`/dst/${rowId}`, { data }),
+    mutationFn: ({ rowId, data }) => dstApi.update(rowId, data),
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['dst-rows'] })
       qc.invalidateQueries({ queryKey: ['dst-status'] })
@@ -541,7 +531,7 @@ export default function DstPage() {
           {importResult && (
             <div className={`px-3 py-2 rounded text-xs ${importResult.ok ? 'bg-[#eaf3de] text-[#3b6d11]' : 'bg-[#fcebeb] text-[#a32d2d]'}`}>
               {importResult.ok
-                ? `✓ Import terminé · ${importResult.data.inserted} insérés · ${importResult.data.updated} mis à jour · ${importResult.data.skipped} ignorés (${importResult.data.total_rows} lignes)`
+                ? formatDstImportSuccess(importResult.data).replace('\n', ' · ')
                 : `✗ ${importResult.msg}`}
             </div>
           )}
@@ -573,7 +563,7 @@ export default function DstPage() {
           </div>
           {updateDstMutation.error ? (
             <p className="text-danger text-xs bg-red-50 border border-red-200 rounded px-3 py-2">
-              {updateDstMutation.error.message}
+              {getApiErrorMessage(updateDstMutation.error)}
             </p>
           ) : null}
           <div className="flex justify-end gap-2 pt-2">
