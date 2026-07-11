@@ -11,20 +11,25 @@
 
   body {
     font-family: system-ui, -apple-system, sans-serif;
-    background-color: #f4f4f0;
-    color: #1a1a2e;
+    background-color: #f8fafc;
+    color: #172033;
   }
 
   :root {
-    --bg: #f4f4f0;
-    --sidebar: #1e1e2e;
-    --sidebar-t: #a0a0b8;
-    --accent: #5b6af0;
-    --accent-h: #4a58d4;
+    /* RaLab5 NGE — source: FicheLayout.jsx */
+    --nge: #003170;
+    --nge-dark: #00224f;
+    --nge-deep: #002C77;
+    --nge-yellow: #ffcc00;
+    --bg: #f8fafc;
+    --sidebar: #003170;
+    --sidebar-t: #c5d4ea;
+    --accent: #003170;
+    --accent-h: #00224f;
     --surface: #ffffff;
-    --border: #e2e2dc;
-    --text: #1a1a2e;
-    --text-m: #6b6b80;
+    --border: #dbe1ea;
+    --text: #172033;
+    --text-m: #69758a;
     --danger: #e24b4a;
     --success: #1d9e75;
     --warn: #ef9f27;

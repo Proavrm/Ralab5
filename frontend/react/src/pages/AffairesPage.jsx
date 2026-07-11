@@ -591,7 +591,7 @@ export default function AffairesPage() {
                       selected?.uid === a.uid ? 'bg-[#eeeffe]' : 'hover:bg-[#f8f8fc]'
                     }`}>
                     <td className="px-3 py-1.5">
-                      <strong className="text-accent text-xs font-mono">{a.reference}</strong>
+                      <strong className="text-nge text-xs font-mono">{a.reference}</strong>
                     </td>
                     <td className="px-3 py-1.5 text-xs max-w-[110px] truncate" title={a.numero_etude || ''}>
                       {a.numero_etude || '—'}
@@ -642,7 +642,7 @@ export default function AffairesPage() {
           <div className="w-[360px] min-w-[320px] bg-surface border-l border-border flex flex-col overflow-y-auto shrink-0">
             <div className="flex items-start justify-between gap-2 px-[18px] py-4 border-b border-border shrink-0">
               <div>
-                <div className="text-[13px] font-bold text-accent">{selected.reference}</div>
+                <div className="text-[13px] font-bold text-nge">{selected.reference}</div>
                 <div className="text-[11px] font-semibold text-text mt-0.5">{selected.chantier || '—'}</div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded text-text-muted hover:bg-bg hover:text-text transition-colors shrink-0">
@@ -733,7 +733,7 @@ export default function AffairesPage() {
               onChange={e => set('adresse_ouvrage', e.target.value)}
               placeholder="Rue, numéro, commune — plan de situation"
               rows={2}
-              className="w-full px-2.5 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+              className="w-full px-2.5 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge"
             />
           </div>
           <FG label="Filiale">

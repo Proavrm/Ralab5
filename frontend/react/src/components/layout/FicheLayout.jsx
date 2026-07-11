@@ -1,5 +1,9 @@
 /**
  * Composants visuels partagés — style fiche Demande / Campagnes
+ *
+ * Tokens NGE ( aussi dans index.css :root et tailwind.config.js ) :
+ *   nge #003170 | nge-dark #00224f | nge-deep #002C77 | nge-yellow #ffcc00
+ *   border #dbe1ea | text #172033 | text-muted #69758a
  */
 import { formatDate } from '@/lib/utils'
 import LabName from '@/components/laboratoire/LabName'

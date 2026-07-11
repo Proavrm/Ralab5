@@ -15,7 +15,7 @@ import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { formatLabOrgLine } from '@/lib/laboratoireCatalog'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
-import { MetricCard } from '@/components/layout/FicheLayout'
+import { MetricCard, FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 const STATUTS    = ['À qualifier', 'En cours', 'Terminée', 'Archivée']
 const DEFAULT_TITULAIRES = ['NGE GC', 'NGE Energie', 'NGE Routes', 'EHTP', 'NGE E.S.', 'NGE Transitions', 'Lyaudet', 'Autre']
@@ -63,7 +63,7 @@ function FieldCard({ label, value, highlight, className = '' }) {
   )
 }
 
-const INLINE_INPUT_CLS = 'w-full px-2.5 py-1.5 border border-[#dbe1ea] rounded-lg text-[13px] font-semibold text-[#172033] bg-white outline-none focus:border-accent'
+const INLINE_INPUT_CLS = 'w-full px-2.5 py-1.5 border border-[#dbe1ea] rounded-lg text-[13px] font-semibold text-[#172033] bg-white outline-none focus:border-nge'
 
 function EditableFieldCard({ label, editing, displayValue, highlight, className = '', children }) {
   return (
@@ -381,7 +381,7 @@ export default function AffairePage() {
   if (isError || !affaire) return (
     <div className="text-xs text-text-muted text-center py-12">
       Affaire introuvable.{' '}
-      <button onClick={() => navigate('/affaires')} className="text-accent underline">← Retour</button>
+      <button onClick={() => navigate('/affaires')} className="text-nge underline">← Retour</button>
     </div>
   )
 
@@ -392,27 +392,13 @@ export default function AffairePage() {
   const hasHighPriority = demandes.some((d) => d.priorite === 'Haute')
 
   return (
-    <div
-      className="flex flex-col h-full -m-6 overflow-y-auto"
-      style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
-    >
-      {/* ═══ Topbar ═══ */}
-      <div
-        className="sticky top-0 z-10 border-b border-[#dbe1ea]"
-        style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Affaires RST"
+        onBack={() => navigate('/affaires')}
+        eyebrow="Fiche affaire"
+        title={a.reference}
       >
-        <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-        <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-          <button
-            onClick={() => navigate('/affaires')}
-            className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-          >
-            ← Affaires RST
-          </button>
-          <div className="flex-1 min-w-[220px]">
-            <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">Fiche affaire</div>
-            <div className="text-[15px] font-black">{a.reference}</div>
-          </div>
           {isEditing ? (
             <>
               <Button size="sm" onClick={cancelEditing}>Annuler</Button>
@@ -441,11 +427,9 @@ export default function AffairePage() {
               </button>
             </>
           )}
-        </div>
-      </div>
+      </FicheTopbar>
 
-      {/* ═══ Main ═══ */}
-      <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+      <FicheMain>
 
         {/* ── Hero ── */}
         <section
@@ -790,7 +774,7 @@ export default function AffairePage() {
             )}
           </div>
         </SectionCard>
-      </div>
+      </FicheMain>
 
       {/* ═══ Modals ═══ */}
       {refEditOpen && a && (
@@ -801,7 +785,7 @@ export default function AffairePage() {
             <input
               value={refEditVal}
               onChange={e => setRefEditVal(e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent font-mono mb-4"
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge font-mono mb-4"
               placeholder="2026-RA-0042"
             />
             {refMutation.error ? (
@@ -822,6 +806,6 @@ export default function AffairePage() {
           </div>
         </div>
       )}
-    </div>
+    </FichePageShell>
   )
 }

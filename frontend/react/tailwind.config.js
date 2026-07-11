@@ -7,18 +7,24 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Design system RaLab — inspiré des CSS variables du HTML legacy
-        bg: '#f4f4f0',
-        sidebar: '#1e1e2e',
+        // RaLab5 — design system NGE (FicheLayout)
+        nge: {
+          DEFAULT: '#003170',
+          dark: '#00224f',
+          deep: '#002C77',
+          yellow: '#ffcc00',
+        },
+        bg: '#f8fafc',
+        sidebar: '#003170',
         accent: {
-          DEFAULT: '#5b6af0',
-          hover: '#4a58d4',
+          DEFAULT: '#003170',
+          hover: '#00224f',
         },
         surface: '#ffffff',
-        border: '#e2e2dc',
+        border: '#dbe1ea',
         text: {
-          DEFAULT: '#1a1a2e',
-          muted: '#6b6b80',
+          DEFAULT: '#172033',
+          muted: '#69758a',
         },
         danger: '#e24b4a',
         success: '#1d9e75',
