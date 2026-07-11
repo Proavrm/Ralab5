@@ -1,6 +1,9 @@
-from app.models.affaire_rst import AffaireRstRecord
-from app.services.affaire_site_geo_service import build_affaire_site_geo, persist_affaire_site_geo
 from datetime import date
+
+from app.models.affaire_rst import AffaireRstRecord
+from app.repositories.laboratoires_repository import LaboratoireRecord
+from app.services.affaire_site_geo_service import build_affaire_site_geo, persist_affaire_site_geo
+from app.services.lab_geo_catalog import invalidate_lab_geo_cache
 
 
 class _FakeRepo:
@@ -41,7 +44,28 @@ def _sample_affaire(**overrides) -> AffaireRstRecord:
     return AffaireRstRecord(**base)
 
 
-def test_build_affaire_site_geo() -> None:
+def _sample_lab() -> LaboratoireRecord:
+    return LaboratoireRecord(
+        id=1,
+        code="SP",
+        nom="Saint-Priest",
+        region="RA",
+        actif=True,
+        address="29-31 rue des Tâches, 69800 Saint-Priest",
+        report_header="Région Rhône Alpes - 69800 SAINT PRIEST",
+        lat=45.6969,
+        lon=4.9422,
+        coords_updated_at="2026-01-01 10:00:00",
+    )
+
+
+def test_build_affaire_site_geo(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.lab_geo_catalog.LaboratoiresRepository.list_all",
+        lambda self: [_sample_lab()],
+    )
+    invalidate_lab_geo_cache()
+
     record = _sample_affaire()
     geo = build_affaire_site_geo(record, labo_code="SP")
     assert geo is not None
