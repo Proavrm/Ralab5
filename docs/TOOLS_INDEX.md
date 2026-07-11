@@ -41,8 +41,8 @@ python tools/<script>.py [--help]
 
 | Script | Description |
 |---|---|
-| `import_historical_labo_folder.py` | Import Excel labo one-shot (v1) |
-| `import_historical_labo_folder_v2.py` | Import Excel labo groupé (v2) |
+| `import_historical_labo_folder.py` | Alias legacy → import V2 (grouped) |
+| `import_historical_labo_folder_v2.py` | Import Excel labo groupé (v2, recommandé) |
 | `audit_historical_reimport_perimeter.py` | Audit périmètre purge avant réimport |
 | `purge_historical_reimport_scope.py` | Purge données import historique legacy |
 | `reconcile_rebuilt_lab_history.py` | Copie nettoyée DB après réconciliation historique |

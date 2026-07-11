@@ -10,11 +10,11 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.services.historical_lab_import_service import HistoricalLabImportService
+from app.core.database import get_db_path
+from app.services.historical_lab_import_service_v2 import HistoricalLabImportServiceV2
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_TARGET_DB_PATH = ROOT_DIR / "data" / "ralab3.db"
 DEFAULT_AFFAIRES_DB_PATH = ROOT_DIR / "data" / "affaires.db"
 
 router = APIRouter()
@@ -35,9 +35,9 @@ class RematchRequest(BaseModel):
     limit: int = Field(default=500, ge=1, le=5000)
 
 
-def _service() -> HistoricalLabImportService:
-    return HistoricalLabImportService(
-        target_db_path=DEFAULT_TARGET_DB_PATH,
+def _service() -> HistoricalLabImportServiceV2:
+    return HistoricalLabImportServiceV2(
+        target_db_path=get_db_path(),
         affaires_db_path=DEFAULT_AFFAIRES_DB_PATH,
     )
 

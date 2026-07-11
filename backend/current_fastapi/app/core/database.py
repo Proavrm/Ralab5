@@ -20,6 +20,135 @@ RALAB4_DB_PATH_ENV = "RALAB4_DB_PATH"
 RALAB5_QSSE_DB_PATH_ENV = "RALAB5_QSSE_DB_PATH"
 RALAB4_QSSE_DB_PATH_ENV = "RALAB4_QSSE_DB_PATH"
 
+RST_CORE_DDL = """
+CREATE TABLE IF NOT EXISTS affaires_rst (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference       TEXT NOT NULL UNIQUE,
+    annee           INTEGER NOT NULL DEFAULT 2026,
+    region          TEXT NOT NULL DEFAULT 'RA',
+    numero          INTEGER NOT NULL DEFAULT 0,
+    client          TEXT NOT NULL DEFAULT '',
+    titulaire       TEXT NOT NULL DEFAULT '',
+    chantier        TEXT NOT NULL DEFAULT '',
+    affaire_nge     TEXT NOT NULL DEFAULT '',
+    date_ouverture  TEXT NOT NULL,
+    date_cloture    TEXT,
+    statut          TEXT NOT NULL DEFAULT 'À qualifier',
+    responsable     TEXT NOT NULL DEFAULT '',
+    source_legacy_id INTEGER,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS demandes (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference           TEXT NOT NULL UNIQUE,
+    annee               INTEGER NOT NULL DEFAULT 2026,
+    labo_code           TEXT NOT NULL DEFAULT 'SP',
+    numero              INTEGER NOT NULL DEFAULT 0,
+    affaire_rst_id      INTEGER NOT NULL REFERENCES affaires_rst(id) ON DELETE RESTRICT,
+    numero_dst          TEXT NOT NULL DEFAULT '',
+    type_mission        TEXT NOT NULL DEFAULT 'À définir',
+    nature              TEXT NOT NULL DEFAULT '',
+    description         TEXT NOT NULL DEFAULT '',
+    observations        TEXT NOT NULL DEFAULT '',
+    demandeur           TEXT NOT NULL DEFAULT '',
+    date_reception      TEXT NOT NULL,
+    date_echeance       TEXT,
+    date_cloture        TEXT,
+    statut              TEXT NOT NULL DEFAULT 'À qualifier',
+    priorite            TEXT NOT NULL DEFAULT 'Normale',
+    a_revoir            INTEGER NOT NULL DEFAULT 0,
+    note_reconciliation TEXT NOT NULL DEFAULT '',
+    suivi_notes         TEXT NOT NULL DEFAULT '',
+    dossier_nom         TEXT NOT NULL DEFAULT '',
+    dossier_path        TEXT NOT NULL DEFAULT '',
+    rapport_ref         TEXT NOT NULL DEFAULT '',
+    rapport_envoye      INTEGER NOT NULL DEFAULT 0,
+    date_envoi_rapport  TEXT,
+    devis_ref           TEXT NOT NULL DEFAULT '',
+    facture_ref         TEXT NOT NULL DEFAULT '',
+    source_legacy_id    INTEGER,
+    created_at          TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS echantillons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference TEXT NOT NULL UNIQUE,
+    annee INTEGER NOT NULL DEFAULT 2026,
+    labo_code TEXT NOT NULL DEFAULT 'SP',
+    numero INTEGER NOT NULL DEFAULT 0,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE RESTRICT,
+    prelevement_id INTEGER,
+    intervention_reelle_id INTEGER,
+    designation TEXT NOT NULL DEFAULT '',
+    profondeur_haut REAL,
+    profondeur_bas REAL,
+    date_prelevement TEXT,
+    localisation TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT 'Reçu',
+    date_reception_labo TEXT,
+    observations TEXT NOT NULL DEFAULT '',
+    auto_reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS essais (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    echantillon_id INTEGER REFERENCES echantillons(id) ON DELETE RESTRICT,
+    intervention_id INTEGER REFERENCES interventions(id) ON DELETE CASCADE,
+    essai_code TEXT NOT NULL DEFAULT '',
+    type_essai TEXT NOT NULL DEFAULT '',
+    norme TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT 'Programmé',
+    date_debut TEXT,
+    date_fin TEXT,
+    resultats TEXT NOT NULL DEFAULT '{}',
+    operateur TEXT NOT NULL DEFAULT '',
+    observations TEXT NOT NULL DEFAULT '',
+    source_signature TEXT NOT NULL DEFAULT '',
+    source_label TEXT NOT NULL DEFAULT '',
+    resultat_principal REAL,
+    resultat_unite TEXT NOT NULL DEFAULT '',
+    resultat_label TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK (echantillon_id IS NOT NULL OR intervention_id IS NOT NULL)
+);
+
+CREATE TABLE IF NOT EXISTS interventions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference TEXT NOT NULL UNIQUE,
+    annee INTEGER NOT NULL DEFAULT 2026,
+    labo_code TEXT NOT NULL DEFAULT 'SP',
+    numero INTEGER NOT NULL DEFAULT 0,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE RESTRICT,
+    type_intervention TEXT NOT NULL DEFAULT '',
+    sujet TEXT NOT NULL DEFAULT '',
+    date_intervention TEXT NOT NULL,
+    duree_heures REAL,
+    geotechnicien TEXT NOT NULL DEFAULT '',
+    technicien TEXT NOT NULL DEFAULT '',
+    observations TEXT NOT NULL DEFAULT '',
+    anomalie_detectee INTEGER NOT NULL DEFAULT 0,
+    niveau_alerte TEXT NOT NULL DEFAULT 'Aucun',
+    pv_ref TEXT NOT NULL DEFAULT '',
+    rapport_ref TEXT NOT NULL DEFAULT '',
+    photos_dossier TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT 'Planifiée',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_affaires_ref ON affaires_rst(reference);
+CREATE INDEX IF NOT EXISTS idx_affaires_statut ON affaires_rst(statut);
+CREATE INDEX IF NOT EXISTS idx_dem_affaire ON demandes(affaire_rst_id);
+CREATE INDEX IF NOT EXISTS idx_dem_statut ON demandes(statut);
+CREATE INDEX IF NOT EXISTS idx_dem_dst ON demandes(numero_dst);
+"""
+
 PASSATION_DDL = """
 CREATE TABLE IF NOT EXISTS laboratoires (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -797,6 +926,103 @@ CREATE INDEX IF NOT EXISTS idx_feuille_mission_journee_lookup
     ON feuille_mission_journee(demande_id, mission_date, technicien_key);
 """
 
+QUALITE_DDL = """
+CREATE TABLE IF NOT EXISTS qualite_equipment (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    code                  TEXT NOT NULL,
+    label                 TEXT NOT NULL,
+    category              TEXT NOT NULL DEFAULT 'Labo',
+    domain                TEXT,
+    status                TEXT NOT NULL DEFAULT 'En service',
+    serial_number         TEXT,
+    supplier              TEXT,
+    purchase_date         TEXT,
+    lieu                  TEXT,
+    etalonnage_interval   INTEGER,
+    verification_interval INTEGER,
+    presence              TEXT,
+    notes                 TEXT,
+    m_tare                REAL,
+    volume_cm3            REAL,
+    division              TEXT,
+    precision             TEXT,
+    capacite              REAL,
+    sensibilite           REAL,
+    facteur_k             REAL,
+    labo_code             TEXT NOT NULL DEFAULT '',
+    created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qualite_metrology (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    equipment_id  INTEGER NOT NULL REFERENCES qualite_equipment(id) ON DELETE CASCADE,
+    control_type  TEXT NOT NULL DEFAULT 'Étalonnage',
+    status        TEXT NOT NULL DEFAULT 'Valide',
+    reference     TEXT,
+    provider      TEXT,
+    performed_on  TEXT,
+    valid_until   TEXT,
+    notes         TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qualite_procedures (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    code             TEXT NOT NULL,
+    title            TEXT NOT NULL,
+    technical_family TEXT,
+    version          TEXT DEFAULT '1.0',
+    status           TEXT NOT NULL DEFAULT 'En vigueur',
+    owner            TEXT,
+    issue_date       TEXT,
+    review_date      TEXT,
+    file_path        TEXT,
+    notes            TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qualite_standards (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    code             TEXT NOT NULL,
+    title            TEXT NOT NULL,
+    technical_family TEXT,
+    issuer           TEXT,
+    version          TEXT,
+    status           TEXT NOT NULL DEFAULT 'En vigueur',
+    issue_date       TEXT,
+    notes            TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS qualite_nc (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference         TEXT NOT NULL,
+    source_type       TEXT NOT NULL DEFAULT 'Essai',
+    severity          TEXT NOT NULL DEFAULT 'Mineure',
+    status            TEXT NOT NULL DEFAULT 'Ouverte',
+    source_ref        TEXT,
+    title             TEXT,
+    description       TEXT,
+    detected_on       TEXT,
+    detected_by       TEXT,
+    action_immediate  TEXT,
+    corrective_action TEXT,
+    owner             TEXT,
+    due_date          TEXT,
+    closure_date      TEXT,
+    created_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_qe_code ON qualite_equipment(code);
+CREATE INDEX IF NOT EXISTS idx_qe_status ON qualite_equipment(status);
+CREATE INDEX IF NOT EXISTS idx_qm_eq ON qualite_metrology(equipment_id);
+CREATE INDEX IF NOT EXISTS idx_qnc_status ON qualite_nc(status);
+"""
+
 AFFAIRE_CONTACTS_DDL = """
 CREATE TABLE IF NOT EXISTS affaire_contacts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1436,6 +1662,7 @@ def _ensure_pmt_essais_harmonized_schema(conn: sqlite3.Connection) -> None:
 def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
     path = db_path or get_db_path()
     with connect_db(path) as conn:
+        conn.executescript(RST_CORE_DDL)
         conn.executescript(PASSATION_DDL)
         conn.executescript(DEMANDE_CONFIGURATION_DDL)
         conn.executescript(LAB_WORKFLOW_DDL)
@@ -1443,6 +1670,7 @@ def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
         conn.executescript(QSSE_IMPORT_DDL)
         conn.executescript(WORK_INBOX_DDL)
         conn.executescript(FEUILLE_MISSION_DDL)
+        conn.executescript(QUALITE_DDL)
         conn.executescript(G3_DDL)
         conn.executescript(AFFAIRE_CONTACTS_DDL)
         _ensure_column(conn, "g3_documents", "uploaded_at", "TEXT")
@@ -1552,15 +1780,16 @@ def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "affaires_rst", "site", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaire_contacts", "agence_code", "TEXT NOT NULL DEFAULT 'RA'")
         _ensure_column(conn, "affaire_contacts", "region_code", "TEXT NOT NULL DEFAULT 'ARS'")
-        conn.execute(
-            """
-            UPDATE affaire_contacts
-            SET agence_code = 'RA',
-                region_code = 'ARS'
-            WHERE trim(COALESCE(agence_code, '')) = ''
-               OR trim(COALESCE(region_code, '')) = ''
-            """
-        )
+        if _table_exists(conn, "affaire_contacts"):
+            conn.execute(
+                """
+                UPDATE affaire_contacts
+                SET agence_code = 'RA',
+                    region_code = 'ARS'
+                WHERE trim(COALESCE(agence_code, '')) = ''
+                   OR trim(COALESCE(region_code, '')) = ''
+                """
+            )
         _ensure_column(conn, "affaires_rst", "numero_etude", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "filiale", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "affaires_rst", "statut_offre", "TEXT NOT NULL DEFAULT ''")
@@ -1576,23 +1805,25 @@ def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "affaires_rst", "site_geocode_label", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "passations", "maitre_ouvrage", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "passations", "maitre_oeuvre", "TEXT NOT NULL DEFAULT ''")
-        conn.execute(
-            """
-            UPDATE affaires_rst
-            SET maitre_ouvrage = client
-            WHERE trim(COALESCE(maitre_ouvrage, '')) = ''
-              AND trim(COALESCE(client, '')) != ''
-              AND client != 'Non communiqué'
-            """
-        )
-        conn.execute(
-            """
-            UPDATE passations
-            SET maitre_ouvrage = client
-            WHERE trim(COALESCE(maitre_ouvrage, '')) = ''
-              AND trim(COALESCE(client, '')) != ''
-            """
-        )
+        if _table_exists(conn, "affaires_rst"):
+            conn.execute(
+                """
+                UPDATE affaires_rst
+                SET maitre_ouvrage = client
+                WHERE trim(COALESCE(maitre_ouvrage, '')) = ''
+                  AND trim(COALESCE(client, '')) != ''
+                  AND client != 'Non communiqué'
+                """
+            )
+        if _table_exists(conn, "passations"):
+            conn.execute(
+                """
+                UPDATE passations
+                SET maitre_ouvrage = client
+                WHERE trim(COALESCE(maitre_ouvrage, '')) = ''
+                  AND trim(COALESCE(client, '')) != ''
+                """
+            )
 
         _ensure_column(conn, "demandes", "domaine_etude", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "demandes", "type_prestation_attendue", "TEXT NOT NULL DEFAULT ''")

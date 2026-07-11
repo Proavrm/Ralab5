@@ -63,7 +63,11 @@ def test_demande_scope_note_not_duplicated_in_campaigns(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
 
-    monkeypatch.setenv("RALAB4_DB_PATH", str(db_path))
+    monkeypatch.setattr("app.services.intervention_campaign_service.DB_PATH", db_path)
+    monkeypatch.setattr(
+        "app.services.intervention_campaign_service.ensure_ralab4_schema",
+        lambda _path=None: db_path,
+    )
 
     notes = list_demande_scope_notes_techniques(1)
     campaigns = list_campaigns_for_demande(1)

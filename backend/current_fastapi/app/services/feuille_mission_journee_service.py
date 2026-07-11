@@ -22,6 +22,8 @@ def technicien_label_from_row(technicien: Optional[str], geotechnicien: Optional
 
 def technicien_key_from_label(label: str) -> str:
     normalized = _norm(label)
+    if normalized in {"sans technicien", "non assigne", "unassigned"}:
+        return "__unassigned__"
     return normalized or "__unassigned__"
 
 

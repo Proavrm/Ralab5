@@ -212,7 +212,7 @@ Legacy HTML : `frontend/legacy_html/` — ne pas modifier.
 | 3 | Validation FK cross-mission G3 | 🟡 Moyenne | IDOR à durcir |
 | 4 | Renommage RaLab5 DB (`RALAB5_DB_PATH`) | ✅ Fait | Package C — alias legacy conservés |
 | 5 | ToolsPage/DstPage → api.js unifié | ✅ Fait | Package D — dstApi, importEssaisApi, toolsApi |
-| 6 | CI + smoke tests routers | 🟢 Basse | Package F |
+| 6 | CI + smoke tests routers | ✅ Fait | Package F — GitHub Actions + test_router_smoke |
 | 7 | PostgreSQL | 🟢 Basse | Futur |
 
 ---
@@ -263,6 +263,7 @@ launch_ralab5_server.cmd
 
 # Tests backend
 cd backend/current_fastapi
+pip install -r requirements-dev.txt
 python -m pytest tests/ -q
 
 # Migration refs G3
@@ -277,6 +278,7 @@ git pull && git status
 
 Variables d'environnement : voir `.env.example`.
 Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
+CI : `.github/workflows/ci.yml` (pytest + build React sur push/PR main).
 
 ---
 
@@ -284,7 +286,13 @@ Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
 
 ```
 **Data :** 2026-07-11
-**Feito nesta sessão (Pacote D — API Tools/DST) :**
+**Feito nesta sessão (Pacote F — CI + smoke tests) :**
+- `tests/test_router_smoke.py` — endpoints GET publics/list sans 500
+- `.github/workflows/ci.yml` — pytest backend + build frontend
+- `requirements-dev.txt` (pytest, httpx)
+- Import historique labo API + CLI v1 → V2
+
+**Feito sessão anterior (Pacote D — API Tools/DST) :**
 - `dstApi` complet (status, list, update, importFile via postForm)
 - `importEssaisApi` (DE/SC/PMT) + `toolsApi` (admin)
 - `getApiErrorMessage()` exportado + `lib/apiFeedback.js`
@@ -311,8 +319,7 @@ Documentation : `docs/README.md`, outils CLI : `docs/TOOLS_INDEX.md`.
 - 7fbfb3c Phase A deploy (launch scripts, proxy default)
 
 **Prochaines étapes possibles :**
-- Commit + push Pacote D (sur demande)
-- Package F : smoke tests routers, CI
+- Commit + push Pacote F (sur demande)
 ```
 
 ---
