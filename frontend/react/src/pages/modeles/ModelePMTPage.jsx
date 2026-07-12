@@ -4,6 +4,7 @@ import EssaiCorrectionBanner from '@/components/essais/EssaiCorrectionBanner'
 import { getPmtValidationInfo } from '@/lib/essaiValidation'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
+import { WorksheetMain, WorksheetPageShell, WorksheetSubbar, WorksheetTopbar } from '@/components/layout/FicheLayout'
 import { pmtEssaisApi } from '../../services/api'
 import {
   listModelDefinitionsPMT,
@@ -103,7 +104,7 @@ function Select({ value, onChange, readOnly = false, children, className = '' })
       value={value || ''}
       onChange={(event) => onChange(event.target.value)}
       disabled={readOnly}
-      className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
+      className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
     >
       {children}
     </select>
@@ -117,7 +118,7 @@ function Textarea({ value, onChange, rows = 3, readOnly = false }) {
       onChange={(event) => onChange(event.target.value)}
       rows={rows}
       readOnly={readOnly}
-      className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 read-only:cursor-default read-only:opacity-80"
+      className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge disabled:cursor-not-allowed disabled:opacity-70 read-only:cursor-default read-only:opacity-80"
     />
   )
 }
@@ -495,21 +496,22 @@ export default function ModelePMTPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-3">
-      <EssaiCorrectionBanner validation={validationInfo} essaiLabel="essai PMT" />
-      <div className="sticky top-0 z-10 flex min-h-[58px] flex-wrap items-center gap-2 border-b border-border bg-surface px-6">
-        <Button variant="secondary" size="sm" onClick={goBack}>
-          ← Retour
-        </Button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold text-text">Feuille PMT de travail</div>
-          <div className="truncate text-[11px] text-text-muted">
-            {cleanModelReference(reference) || 'PMT'}
-          </div>
-        </div>
-        <div className="flex min-w-[420px] items-center gap-2">
+    <WorksheetPageShell>
+      <WorksheetTopbar
+        backLabel="← Retour"
+        onBack={goBack}
+        eyebrow="Feuille essai"
+        title="Feuille PMT"
+        subtitle={cleanModelReference(reference) || selectedEssaiRef || 'PMT'}
+      >
+        <Button variant="primary" size="sm" onClick={handleSaveModel} disabled={isModelLocked}>Enregistrer</Button>
+        <Button variant="secondary" size="sm" onClick={handleOpenRapport}>Imprimer / Rapport</Button>
+      </WorksheetTopbar>
+
+      <WorksheetSubbar>
+        <div className="flex min-w-[420px] flex-1 items-center gap-2">
           <select
-            className="h-10 w-full rounded border border-border bg-bg px-3 text-sm"
+            className="h-10 w-full rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-nge"
             value={selectedEssaiRef}
             onChange={(event) => setSelectedEssaiRef(event.target.value)}
           >
@@ -527,11 +529,16 @@ export default function ModelePMTPage() {
           >
             Ouvrir
           </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {renderContextButton('Demande', '/demandes', draft?.meta?.demande_id)}
           {renderContextButton('Intervention', '/interventions', draft?.meta?.intervention_id)}
           {renderContextButton('Campagne', '/campagnes', draft?.meta?.campagne_id || draft?.meta?.campaign_id)}
         </div>
-      </div>
+      </WorksheetSubbar>
+
+      <WorksheetMain>
+      <EssaiCorrectionBanner validation={validationInfo} essaiLabel="essai PMT" />
 
       <div className="flex flex-col gap-4">
           <StructureCard title="Identification" description="Données de réalisation de l’essai ou de l’intervention.">
@@ -739,18 +746,12 @@ export default function ModelePMTPage() {
           </StructureCard>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-3">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="primary" size="sm" onClick={handleSaveModel} disabled={isModelLocked}>Enregistrer</Button>
-          <Button variant="secondary" size="sm" onClick={handleOpenRapport}>Imprimer / Ouvrir rapport</Button>
-        </div>
-      </div>
-
       {result ? (
         <div className={`rounded border px-3 py-2 text-sm ${result.type === 'ok' ? 'border-[#b6d98b] bg-[#eaf3de] text-[#3b6d11]' : 'border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d]'}`}>
           {result.message}
         </div>
       ) : null}
-    </div>
+      </WorksheetMain>
+    </WorksheetPageShell>
   )
 }

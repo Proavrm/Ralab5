@@ -526,7 +526,7 @@ function AgendaView({
         key: 'demande',
         layer: 'demande',
         item: dossierContext.demande,
-        colors: { bg: '#e8eff8', border: '#4A7DB5', text: '#002C77' },
+        colors: { bg: '#eef5ff', border: '#4A7DB5', text: '#003170' },
       },
       {
         key: 'affaire',
@@ -538,7 +538,7 @@ function AgendaView({
         key: 'debutTravaux',
         layer: 'travaux',
         item: dossierContext.debutTravaux,
-        colors: { bg: '#fef5e0', border: '#E6A817', text: '#8A6410' },
+        colors: { bg: '#fffdf2', border: '#e6b900', text: '#8a6410' },
       },
     ]
       .filter((entry) => entry.item?.reference && entry.item?.created && entry.key !== 'affaire')
@@ -694,7 +694,7 @@ function AgendaView({
               const timelineMarkers = [...campagneMarkers, ...interventionMarkers]
               const hasBar = timelineMarkers.length > 0 || dossierTimelineBars.length > 0
               const colors = agendaDatesOnly
-                ? { bg: '#E8EFF8', border: '#003170', text: '#002C77' }
+                ? { bg: '#eef5ff', border: '#003170', text: '#003170' }
                 : itemColor(ev)
               const rowLabel = row.campaignLabel || ev.tit || 'Campagne'
               const affaireRefLabel = planningAffaireRefLabel(ev, dossierContext?.affaire?.reference || '')

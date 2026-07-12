@@ -16,6 +16,7 @@ import { findTechnicianProfileByUser } from '@/lib/technicianProfiles'
 import { cn, formatDate } from '@/lib/utils'
 import { prelevementsApi } from '@/services/api'
 import { ClipboardList, Package, RefreshCw, Search, TriangleAlert, Workflow } from 'lucide-react'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -28,7 +29,7 @@ const VIEWS = [
 ]
 
 const TONES = {
-  teal: 'border-[#c7e2de] bg-[#e8f4f2] text-[#14655d]',
+  nge: 'border-[rgba(0,49,112,0.18)] bg-[#e8eef8] text-nge',
   amber: 'border-[#ecd1a2] bg-[#fbf1e2] text-[#854f0b]',
   green: 'border-[#d4e4c1] bg-[#eef5e6] text-[#3b6d11]',
   slate: 'border-[#e4ddd3] bg-[#f4f1eb] text-[#5f5e5a]',
@@ -141,7 +142,7 @@ function rowStatus(row) {
   if (prelevementIsUnexpectedArrival(row)) return { label: 'Arbitrage', tone: 'red' }
   if (prelevementNeedsReceptionCompletion(row)) return { label: 'À compléter', tone: 'amber' }
   if (prelevementIsReadyForLab(row)) return { label: 'Prêt labo', tone: 'green' }
-  if (prelevementHasArrival(row)) return { label: 'Arrivé', tone: 'teal' }
+  if (prelevementHasArrival(row)) return { label: 'Arrivé', tone: 'nge' }
   return { label: row.status || 'À trier', tone: 'slate' }
 }
 
@@ -274,14 +275,14 @@ export default function PrelevementsPage() {
       label: 'Prélèvements visibles',
       value: scopedRows.length,
       hint: pluralize(scopedRows.length, 'prélèvement', 'prélèvements'),
-      tone: scopedRows.length > 0 ? 'teal' : 'slate',
+      tone: scopedRows.length > 0 ? 'nge' : 'slate',
       icon: Package,
     },
     {
       label: 'Arrivages du jour',
       value: arrivals.filter((row) => isSameDay(getPrelevementReferenceDate(row))).length,
       hint: pluralize(arrivals.length, 'arrivage', 'arrivages'),
-      tone: arrivals.length > 0 ? 'teal' : 'slate',
+      tone: arrivals.length > 0 ? 'nge' : 'slate',
       icon: Package,
     },
     {
@@ -308,27 +309,22 @@ export default function PrelevementsPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-4 rounded-[24px] border border-[#234e51]/15 bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Portail laboratoire</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-text">Prélèvements laboratoire</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
-              Le prélèvement est l’objet reçu au laboratoire. Il porte la réception, le contexte d’arrivée et la suite métier avant la création ou l’affectation des échantillons d’essais.
-            </p>
-          </div>
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Portail labo"
+        onBack={() => navigate('/labo')}
+        eyebrow="Portail laboratoire"
+        title="Prélèvements laboratoire"
+        subtitle="Réception, contexte d’arrivée et suite métier avant création des échantillons."
+      >
+        <Button variant="secondary" onClick={openEtiquettes}>Étiquettes</Button>
+        <Button variant="secondary" onClick={() => prelevementsQuery.refetch()} disabled={prelevementsQuery.isFetching}>
+          <RefreshCw size={14} />
+          Actualiser
+        </Button>
+      </FicheTopbar>
 
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => navigate('/labo')}>Retour portail labo</Button>
-            <Button variant="secondary" onClick={openEtiquettes}>Étiquettes</Button>
-            <Button variant="secondary" onClick={() => prelevementsQuery.refetch()} disabled={prelevementsQuery.isFetching}>
-              <RefreshCw size={14} />
-              Actualiser
-            </Button>
-          </div>
-        </div>
-
+      <FicheMain className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1.2fr_0.8fr_0.7fr]">
           <div className="relative">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
@@ -364,7 +360,6 @@ export default function PrelevementsPage() {
             <span>Seulement mes attributions</span>
           </label>
         </div>
-      </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         {metrics.map((metric) => (
@@ -396,7 +391,7 @@ export default function PrelevementsPage() {
                   onClick={() => updateParams({ view: item.key !== 'all' ? item.key : '' })}
                   className={cn(
                     'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                    requestedView === item.key ? 'border-accent bg-accent text-white' : 'border-border bg-white text-text hover:bg-bg'
+                    requestedView === item.key ? 'border-nge bg-nge text-white' : 'border-border bg-white text-text hover:bg-bg'
                   )}
                 >
                   {item.label}
@@ -420,11 +415,11 @@ export default function PrelevementsPage() {
                 key={row.uid}
                 type="button"
                 onClick={() => navigate(buildPathWithReturnTo(`/prelevements/${row.uid}`, detailReturnTo))}
-                className="flex w-full items-start justify-between gap-4 rounded-2xl border border-border bg-white px-4 py-4 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+                className="flex w-full items-start justify-between gap-4 rounded-2xl border border-border bg-white px-4 py-4 text-left transition hover:border-nge/25 hover:bg-[#f8fbff]"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-text">{row.reference}</p>
+                    <p className="text-sm font-semibold text-nge">{row.reference}</p>
                     {row.laboCode ? <StatusBadge label={row.laboCode} tone="slate" /> : null}
                   </div>
                   <p className="mt-1 text-xs text-text-muted">
@@ -452,6 +447,7 @@ export default function PrelevementsPage() {
           })}
         </CardBody>
       </Card>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

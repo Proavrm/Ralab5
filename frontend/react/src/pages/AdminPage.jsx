@@ -3,7 +3,7 @@
  * Utilisateurs · Laboratoires · Rôles & permissions
  */
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { adminApi, api } from '@/services/api'
 import Button from '@/components/ui/Button'
@@ -12,6 +12,7 @@ import Modal from '@/components/ui/Modal'
 import UserProfileModal from '@/components/admin/UserProfileModal'
 import LaboratoireGeoModal from '@/components/admin/LaboratoireGeoModal'
 import OrgAdminPanel from '@/components/admin/OrgAdminPanel'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 const ROLES = ['admin', 'labo', 'etudes', 'consult']
 const ROLE_LABEL = { admin: 'Administrateur', labo: 'Laboratoire', etudes: 'Études', consult: 'Consultation' }
@@ -131,6 +132,7 @@ const ADMIN_TABS = [
 ]
 
 export default function AdminPage() {
+  const navigate = useNavigate()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTab = ADMIN_TABS.some(([key]) => key === searchParams.get('tab'))
@@ -231,33 +233,36 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-[1100px] mx-auto py-2">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-semibold">⚙️ Administration</h1>
-          <p className="mt-1 text-[12px] text-text-muted leading-relaxed">
-            Référentiels et droits — utilisateurs, laboratoires RST, permissions.
-          </p>
-        </div>
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Accueil"
+        onBack={() => navigate('/dashboard')}
+        eyebrow="Administration"
+        title="Administration"
+        subtitle="Référentiels et droits — utilisateurs, laboratoires RST, permissions."
+      >
         {tab === 'users' && (
-          <Button variant="primary" onClick={openCreate}>+ Nouvel utilisateur</Button>
+          <Button variant="primary" size="sm" onClick={openCreate}>+ Nouvel utilisateur</Button>
         )}
         {tab === 'roles' && (
-          <div className="flex gap-2">
-            <Button onClick={resetMatrix}>↺ Annuler</Button>
-            <Button variant="primary" onClick={saveMatrix} disabled={savePermsMutation.isPending}>
+          <>
+            <Button size="sm" onClick={resetMatrix}>↺ Annuler</Button>
+            <Button variant="primary" size="sm" onClick={saveMatrix} disabled={savePermsMutation.isPending}>
               💾 Enregistrer
             </Button>
-          </div>
+          </>
         )}
-      </div>
+      </FicheTopbar>
+
+      <FicheMain>
+      <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-5">
 
       {/* Onglets */}
       <div className="flex gap-0 border-b border-border">
         {ADMIN_TABS.map(([key, label]) => (
           <button key={key} onClick={() => selectTab(key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === key ? 'border-accent text-accent' : 'border-transparent text-text-muted hover:text-text'
+              tab === key ? 'border-nge text-nge' : 'border-transparent text-text-muted hover:text-text'
             }`}>
             {label}
           </button>
@@ -286,7 +291,7 @@ export default function AdminPage() {
                 <tr key={u.email} className="border-b border-border hover:bg-bg transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-nge to-purple-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
                         {(u.display_name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                       </div>
                       <span className="text-[13px] font-medium">{u.display_name}</span>
@@ -416,7 +421,7 @@ export default function AdminPage() {
                       <input type="checkbox"
                         checked={matrixState[r.role_code]?.has(p.permission_code) || false}
                         onChange={() => togglePerm(r.role_code, p.permission_code)}
-                        className="w-4 h-4 accent-accent cursor-pointer" />
+                        className="w-4 h-4 accent-nge cursor-pointer" />
                     </td>
                   ))}
                 </tr>
@@ -428,6 +433,9 @@ export default function AdminPage() {
           </table>
         </div>
       )}
+
+      </div>
+      </FicheMain>
 
       <UserModal
         open={userModalOpen}
@@ -453,6 +461,6 @@ export default function AdminPage() {
           setProfileUserEmail(email)
         }}
       />
-    </div>
+    </FichePageShell>
   )
 }

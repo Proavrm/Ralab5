@@ -33,7 +33,7 @@ export default function RapportToolbar({ reportReference = "", feuilleTarget = "
             <button type="button" onClick={handlePrint}>Imprimer</button>
             <button type="button" disabled title="Bientôt disponible">Exporter PDF</button>
             <button type="button" disabled title="Bientôt disponible">Envoyer en relecture</button>
-            <button type="button" onClick={handleValidate}>Valider</button>
+            <button type="button" onClick={handleValidate} className="rapport-toolbar-btn-primary">Valider</button>
             <button type="button" disabled title="Bientôt disponible">Préparer mail</button>
         </div>
     );

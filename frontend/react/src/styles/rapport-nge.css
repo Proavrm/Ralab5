@@ -15,7 +15,9 @@
 .rapport-screen {
     min-height: 100vh;
     padding: 24px;
-    background: #e5e7eb;
+    background:
+        radial-gradient(circle at top right, rgba(255, 204, 0, 0.14), transparent 32%),
+        linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%);
     color: var(--rapport-text);
     font-family: "Century Gothic",  "Trebuchet MS", Arial, Helvetica, sans-serif;
 }
@@ -28,24 +30,37 @@
     max-width: 100%;
     margin: 0;
     padding: 8px;
-    border: 1px solid #dcd8d0;
+    border: 1px solid #dbe1ea;
     border-radius: 14px;
-    background: #f8f7f4;
+    background: #fbfcfe;
 }
 
 .rapport-toolbar button {
-    border: 1px solid #cbd5e1;
+    border: 1px solid #dbe1ea;
     border-radius: 10px;
     padding: 8px 14px;
     background: #ffffff;
-    color: #0f172a;
+    color: #172033;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .rapport-toolbar button:hover {
-    background: #f8fafc;
+    border-color: #003170;
+    background: #f3f7fc;
+}
+
+.rapport-toolbar button.rapport-toolbar-btn-primary {
+    border-color: #003170;
+    background: #003170;
+    color: #ffffff;
+}
+
+.rapport-toolbar button.rapport-toolbar-btn-primary:hover {
+    border-color: #00224f;
+    background: #00224f;
 }
 
 .rapport-toolbar button:disabled {
@@ -527,7 +542,9 @@
 .rapport-page-shell {
     min-height: 100vh;
     padding: 12px 0;
-    background: #f6f5f1;
+    background:
+        radial-gradient(circle at top right, rgba(255, 204, 0, 0.14), transparent 32%),
+        linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%);
     color: var(--rapport-text);
     font-family: "Century Gothic", "Trebuchet MS", Arial, Helvetica, sans-serif;
 }
@@ -550,10 +567,10 @@
 
 .rapport-work-block {
     overflow: hidden;
-    border: 1px solid #dcd8d0;
+    border: 1px solid #dbe1ea;
     border-radius: 18px;
     background: #ffffff;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 10px 34px rgba(0, 49, 112, 0.08);
 }
 
 .rapport-work-block-header {
@@ -561,13 +578,15 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    border-bottom: 1px solid #e2ded7;
-    background: #f8f7f4;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+        radial-gradient(circle at top left, rgba(255, 204, 0, 0.14), transparent 34%),
+        linear-gradient(135deg, #003170 0%, #00224f 74%, #001a3d 100%);
     padding: 16px 20px;
 }
 
 .rapport-work-block-title {
-    color: #676b82;
+    color: rgba(255, 255, 255, 0.72);
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.04em;
@@ -576,7 +595,7 @@
 
 .rapport-work-block-description {
     margin: 6px 0 0 0;
-    color: #676b82;
+    color: rgba(255, 255, 255, 0.82);
     font-size: 13px;
 }
 
@@ -584,8 +603,8 @@
     width: 100%;
     margin: 0mm 0mm 0 0mm;
     padding: 10px;
-    background: #ffffff;
-    border: 1px solid #e2ded7;
+    background: #fbfcfe;
+    border: 1px solid #dbe1ea;
     border-radius: 16px;
     display: flex;
     justify-content: center;
@@ -598,7 +617,7 @@
     display: flex;
     justify-content: center;
     padding: 18px 20px 24px 20px;
-    background: #f1efea;
+    background: #e4e9f1;
     border-radius: 0 0 18px 18px;
 }
 
@@ -606,10 +625,10 @@
 
 .rapport-management-page-header {
     overflow: hidden;
-    border: 1px solid #dcd8d0;
+    border: 1px solid #dbe1ea;
     border-radius: 18px;
     background: #ffffff;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 10px 34px rgba(0, 49, 112, 0.08);
 }
 
 .rapport-management-page-header-main {
@@ -621,7 +640,7 @@
 }
 
 .rapport-management-eyebrow {
-    color: #676b82;
+    color: #69758a;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.16em;
@@ -630,7 +649,7 @@
 
 .rapport-management-title {
     margin: 8px 0 0 0;
-    color: #1f2030;
+    color: #003170;
     font-size: 28px;
     font-weight: 650;
     line-height: 1.1;
@@ -638,7 +657,7 @@
 
 .rapport-management-description {
     margin: 14px 0 0 0;
-    color: #676b82;
+    color: #69758a;
     font-size: 16px;
     line-height: 1.45;
 }
@@ -657,10 +676,10 @@
     justify-content: center;
     min-height: 32px;
     padding: 0 14px;
-    border: 1px solid #dedbd4;
+    border: 1px solid #dbe1ea;
     border-radius: 999px;
-    background: #faf9f6;
-    color: #676b82;
+    background: #fbfcfe;
+    color: #69758a;
     font-size: 13px;
     font-weight: 700;
 }
@@ -670,18 +689,18 @@
     grid-template-columns: 320px 1fr;
     gap: 18px;
     overflow: hidden;
-    border: 1px solid #dcd8d0;
+    border: 1px solid #dbe1ea;
     border-radius: 16px;
     background: #ffffff;
     padding: 20px;
-    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 10px 34px rgba(0, 49, 112, 0.08);
 }
 
 .rapport-management-list-card,
 .rapport-management-edit-card {
-    border: 1px solid #dedbd4;
+    border: 1px solid #dbe1ea;
     border-radius: 10px;
-    background: #f8f7f4;
+    background: #fbfcfe;
     padding: 14px;
 }
 
@@ -689,7 +708,7 @@
 .rapport-management-reference-field span {
     display: block;
     margin-bottom: 10px;
-    color: #676b82;
+    color: #69758a;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.04em;
@@ -704,7 +723,7 @@
 
 .rapport-management-report-button {
     width: 100%;
-    border: 1px solid #dedbd4;
+    border: 1px solid #dbe1ea;
     border-radius: 9px;
     background: #ffffff;
     padding: 12px 14px;
@@ -713,18 +732,19 @@
 }
 
 .rapport-management-report-button-active {
-    border-color: #6665f2;
+    border-color: #003170;
+    background: linear-gradient(180deg, #fffdf2 0%, #f8fbff 100%);
 }
 
 .rapport-management-report-reference {
-    color: #1f2030;
+    color: #172033;
     font-size: 14px;
     font-weight: 800;
 }
 
 .rapport-management-report-status {
     margin-top: 4px;
-    color: #676b82;
+    color: #69758a;
     font-size: 13px;
 }
 
@@ -732,10 +752,10 @@
     width: 100%;
     min-height: 42px;
     margin-top: 14px;
-    border: 1px solid #dedbd4;
+    border: 1px solid #dbe1ea;
     border-radius: 9px;
     background: #ffffff;
-    color: #1f2030;
+    color: #172033;
     font-size: 14px;
     font-weight: 750;
     cursor: pointer;
@@ -751,24 +771,24 @@
 .rapport-management-reference-field input {
     width: 100%;
     height: 54px;
-    border: 1px solid #dedbd4;
+    border: 1px solid #dbe1ea;
     border-radius: 10px;
     background: #ffffff;
     padding: 0 16px;
-    color: #1f2030;
+    color: #172033;
     font-size: 16px;
     outline: none;
 }
 
 .rapport-management-reference-field input:focus {
-    border-color: #6665f2;
+    border-color: #003170;
 }
 
 .rapport-management-status-block {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    color: #676b82;
+    color: #69758a;
     font-size: 14px;
 }
 
@@ -789,15 +809,20 @@
 }
 
 .rapport-management-primary-button {
-    border: 1px solid #6665f2;
-    background: #6665f2;
+    border: 1px solid #003170;
+    background: #003170;
     color: #ffffff;
 }
 
+.rapport-management-primary-button:hover:not(:disabled) {
+    border-color: #00224f;
+    background: #00224f;
+}
+
 .rapport-management-secondary-button {
-    border: 1px solid #dedbd4;
+    border: 1px solid #dbe1ea;
     background: #ffffff;
-    color: #8a8c96;
+    color: #69758a;
 }
 
 .rapport-management-primary-button:disabled,
@@ -807,10 +832,10 @@
 }
 
 .rapport-management-empty {
-    border: 1px dashed #d6d2ca;
+    border: 1px dashed #dbe1ea;
     border-radius: 9px;
     padding: 18px;
-    color: #676b82;
+    color: #69758a;
     font-size: 14px;
 }
 

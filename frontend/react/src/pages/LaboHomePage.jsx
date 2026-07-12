@@ -29,6 +29,7 @@ import {
   UserRound,
   Workflow,
 } from 'lucide-react'
+import { DashboardHero, FicheMain, FichePageShell } from '@/components/layout/FicheLayout'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -38,6 +39,7 @@ const FINISHED_ESSAI_STATUSES = new Set(['fini', 'termine'])
 const TONES = {
   sky: 'border-[#cfe4f6] bg-[#eef6fd] text-[#185fa5]',
   teal: 'border-[#c7e2de] bg-[#e8f4f2] text-[#14655d]',
+  nge: 'border-[#c5d4ea] bg-[#eef3fa] text-[#003170]',
   amber: 'border-[#ecd1a2] bg-[#fbf1e2] text-[#854f0b]',
   green: 'border-[#d4e4c1] bg-[#eef5e6] text-[#3b6d11]',
   slate: 'border-[#e4ddd3] bg-[#f4f1eb] text-[#5f5e5a]',
@@ -47,6 +49,7 @@ const TONES = {
 const TONE_DOTS = {
   sky: 'bg-[#185fa5]',
   teal: 'bg-[#14655d]',
+  nge: 'bg-[#003170]',
   amber: 'bg-[#854f0b]',
   green: 'bg-[#3b6d11]',
   slate: 'bg-[#5f5e5a]',
@@ -365,7 +368,7 @@ function EntryRow({ title, subtitle, meta, tone = 'slate', trailing, onClick }) 
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+      className="flex w-full items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3 text-left transition hover:border-nge/20 hover:bg-[#f3f6fb]"
     >
       <div className={cn('mt-0.5 h-2.5 w-2.5 rounded-full', toneDotClass(tone))} />
       <div className="min-w-0 flex-1">
@@ -877,32 +880,15 @@ export default function LaboHomePage() {
   ]
 
   return (
-    <div className="flex flex-col gap-5">
-      <div
-        className="relative overflow-hidden rounded-[24px] border border-[#234e51]/15 p-6 text-white"
-        style={{
-          background: [
-            'radial-gradient(circle at top left, rgba(246, 205, 120, 0.24), transparent 28%)',
-            'radial-gradient(circle at bottom right, rgba(94, 170, 156, 0.22), transparent 34%)',
-            'linear-gradient(135deg, #17343a 0%, #24555d 46%, #8d5e32 100%)',
-          ].join(', '),
-        }}
-      >
-        <div className="relative flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">Portail laboratoire</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight">{heroTitle}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80">
-              Entree metier du laboratoire: preparation des arrivages, reception, acces direct aux essais et pilotage des sequences a lancer ou a suivre.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{modeLabel}</span>
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{scopeLabel}</span>
-              {responsibleProfile ? <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{responsibleProfile.displayName}</span> : null}
-              {technicianProfile ? <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{technicianProfile.displayName}</span> : null}
-            </div>
-          </div>
-
+    <FichePageShell>
+      <FicheMain className="gap-5">
+      <DashboardHero
+        size="large"
+        contentClassName="xl:items-end xl:justify-between"
+        eyebrow="Portail laboratoire"
+        title={heroTitle}
+        subtitle="Entree metier du laboratoire: preparation des arrivages, reception, acces direct aux essais et pilotage des sequences a lancer ou a suivre."
+        aside={(
           <div className="flex w-full max-w-[420px] flex-col gap-3 rounded-[20px] border border-white/10 bg-white/10 p-4 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold">Acces rapides</p>
@@ -925,14 +911,21 @@ export default function LaboHomePage() {
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <ActionButton label="Vue transverse" onClick={() => navigate(buildWorkbenchPath(effectiveLaboCode))} />
-                <ActionButton label="Prelevements" onClick={() => navigate(buildPrelevementsPath(effectiveLaboCode))} />
+              <ActionButton label="Prelevements" onClick={() => navigate(buildPrelevementsPath(effectiveLaboCode))} />
               <ActionButton label="Planning" onClick={() => navigate('/planning')} />
               <ActionButton label="Workbench essais" onClick={() => navigate('/essais-workbench')} />
               <ActionButton label="Essais actifs" onClick={() => navigate(buildWorkbenchPath(effectiveLaboCode, { tab: 'essais', status: '__active__' }))} />
             </div>
           </div>
+        )}
+      >
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{modeLabel}</span>
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{scopeLabel}</span>
+          {responsibleProfile ? <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{responsibleProfile.displayName}</span> : null}
+          {technicianProfile ? <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">{technicianProfile.displayName}</span> : null}
         </div>
-      </div>
+      </DashboardHero>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
         {metrics.map((metric) => (
@@ -1175,6 +1168,7 @@ export default function LaboHomePage() {
           />
         </div>
       ) : null}
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

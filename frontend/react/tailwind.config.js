@@ -12,7 +12,11 @@ export default {
           DEFAULT: '#003170',
           dark: '#00224f',
           deep: '#002C77',
-          yellow: '#ffcc00',
+          ink: '#001a3d',
+          yellow: {
+            DEFAULT: '#ffcc00',
+            dark: '#e6b900',
+          },
         },
         bg: '#f8fafc',
         sidebar: '#003170',

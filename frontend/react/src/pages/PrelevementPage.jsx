@@ -13,6 +13,7 @@ import { formatDate } from '@/lib/utils'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
 import { echantillonsApi, essaisApi, prelevementsApi } from '@/services/api'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 import { LABO_ESSAI_TYPES as TYPES_ESSAI } from '@/lib/laboEssaiTypes'
 
@@ -224,15 +225,21 @@ export default function PrelevementPage() {
     }
 
     if (prelevementQuery.isLoading) {
-        return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+        return (
+            <FichePageShell>
+                <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+            </FichePageShell>
+        )
     }
 
     if (prelevementQuery.error || !prelevement) {
         return (
-            <div className="text-center py-16">
-                <p className="text-text-muted text-sm mb-3">Prélèvement introuvable</p>
-                <Button onClick={() => navigateBackWithFallback(navigate, searchParams, '/prelevements')}>← Retour</Button>
-            </div>
+            <FichePageShell>
+                <div className="text-center py-16">
+                    <p className="text-text-muted text-sm mb-3">Prélèvement introuvable</p>
+                    <Button onClick={() => navigateBackWithFallback(navigate, searchParams, '/prelevements')}>← Retour</Button>
+                </div>
+            </FichePageShell>
         )
     }
 
@@ -244,16 +251,14 @@ export default function PrelevementPage() {
     const hasParentFeuilleTerrain = Number.isInteger(parentFeuilleTerrainId) && parentFeuilleTerrainId > 0
 
     return (
-        <div className={`flex flex-col h-full overflow-y-auto ${deleteMode ? 'bg-red-50' : ''}`}>
-            <div className={`flex items-center gap-3 px-6 py-3 border-b border-border shrink-0 flex-wrap ${deleteMode ? 'bg-red-100' : 'bg-surface'}`}>
-                <button
-                    onClick={() => navigateBackWithFallback(navigate, searchParams, '/prelevements')}
-                    className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors"
-                >
-                    ← Retour
-                </button>
-                {prelevement.demande_reference ? <span className="text-[13px] text-text-muted">{prelevement.demande_reference} › </span> : null}
-                <span className="text-[14px] font-semibold flex-1 font-mono">{prelevement.reference}</span>
+        <FichePageShell>
+            <FicheTopbar
+                backLabel="← Retour"
+                onBack={() => navigateBackWithFallback(navigate, searchParams, '/prelevements')}
+                eyebrow="Laboratoire"
+                title={prelevement.reference}
+                subtitle={prelevement.demande_reference || undefined}
+            >
                 <Badge s={prelevement.statut} />
                 <div className="flex items-center gap-2">
                     {hasParentDemande ? (
@@ -298,9 +303,10 @@ export default function PrelevementPage() {
                         </Button>
                     </>
                 )}
-            </div>
+            </FicheTopbar>
 
-            <div className={`p-5 max-w-[860px] mx-auto w-full flex flex-col gap-4 ${deleteMode ? 'bg-red-50' : ''}`}>
+            <FicheMain>
+            <div className={`max-w-[860px] mx-auto w-full flex flex-col gap-4 ${deleteMode ? 'bg-red-50 rounded-xl p-4' : ''}`}>
                 {deleteMode ? (
                     <div className="bg-red-100 border border-red-300 rounded-lg p-4">
                         <div className="flex items-center gap-2 text-red-800">
@@ -495,7 +501,7 @@ export default function PrelevementPage() {
                                 >
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[12px] font-bold font-mono text-accent">{item.reference}</span>
+                                            <span className="text-[12px] font-bold font-mono text-nge">{item.reference}</span>
                                             <Badge s={item.statut} />
                                         </div>
                                         <div className="text-[12px] text-text-muted mt-0.5">{item.designation || 'Sans désignation'}</div>
@@ -524,6 +530,7 @@ export default function PrelevementPage() {
                     ) : null}
                 </Card>
             </div>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

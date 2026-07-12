@@ -26,6 +26,15 @@ class ApiSecurityPolicyTests(unittest.TestCase):
         self.assertTrue(api_security.is_public_api_route("POST", "/api/auth/login"))
         self.assertFalse(api_security.is_public_api_route("GET", "/api/g3/missions"))
 
+    def test_users_public_on_localhost_in_proxy_mode(self):
+        from unittest.mock import Mock
+
+        request = Mock()
+        request.headers = {"host": "localhost:5173"}
+        request.client = Mock(host="127.0.0.1")
+        with patch.dict(os.environ, {"RALAB_AUTH_MODE": "proxy", "RALAB_REQUIRE_API_AUTH": ""}, clear=False):
+            self.assertTrue(api_security.is_public_api_route("GET", "/api/auth/users", request))
+
 
 if __name__ == "__main__":
     unittest.main()

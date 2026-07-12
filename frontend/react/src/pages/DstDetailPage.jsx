@@ -9,6 +9,7 @@ import { api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 const STATUT_CLS = {
   'En cours': 'bg-[#eaf3de] text-[#3b6d11]',
@@ -297,15 +298,21 @@ export default function DstDetailPage() {
   }
 
   if (isLoading) {
-    return <div className="text-xs text-text-muted text-center py-12">Chargement...</div>
+    return (
+      <FichePageShell>
+        <div className="text-xs text-text-muted text-center py-12">Chargement...</div>
+      </FichePageShell>
+    )
   }
 
   if (isError || !row) {
     return (
-      <div className="text-xs text-text-muted text-center py-12">
-        Dossier DST introuvable.{' '}
-        <button onClick={() => navigate('/dst')} className="text-accent underline">Retour DST</button>
-      </div>
+      <FichePageShell>
+        <div className="text-xs text-text-muted text-center py-12">
+          Dossier DST introuvable.{' '}
+          <Button size="sm" variant="secondary" className="inline-flex text-nge underline" onClick={() => navigate('/dst')}>Retour DST</Button>
+        </div>
+      </FichePageShell>
     )
   }
 
@@ -313,21 +320,20 @@ export default function DstDetailPage() {
   const echeance = formatDate(data['Remise souhaitée'] || data['Echéance estimée'] || data.Echéance)
 
   return (
-    <div className="flex flex-col h-full -m-6 overflow-y-auto">
-      <div className="flex items-center gap-2 px-7 bg-surface border-b border-border h-[58px] shrink-0 sticky top-0 z-10 flex-wrap">
-        <button
-          onClick={() => navigate('/dst')}
-          className="flex items-center gap-1.5 text-text-muted text-[13px] hover:bg-bg hover:text-text px-2.5 py-1.5 rounded transition-colors shrink-0"
-        >
-          ← DST
-        </button>
-        <span className="text-[15px] font-semibold flex-1">Dossier DST {data['N° chrono'] || row.row_id}</span>
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← DST"
+        onBack={() => navigate('/dst')}
+        eyebrow="Référentiel"
+        title={`Dossier DST ${data['N° chrono'] || row.row_id}`}
+      >
         <Button size="sm" variant="primary" onClick={() => setEditDstOpen(true)}>✏️ Corriger DST</Button>
         <Button size="sm" onClick={createAffaire}>📋 Créer affaire</Button>
         <Button size="sm" onClick={createDemande}>📂 Créer demande</Button>
-      </div>
+      </FicheTopbar>
 
-      <div className="p-7 max-w-[1050px] mx-auto w-full flex flex-col gap-5">
+      <FicheMain>
+      <div className="max-w-[1050px] mx-auto w-full flex flex-col gap-5">
         <Card title="Synthèse DST">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <FieldRow label="N° chrono" value={data['N° chrono']} />
@@ -358,6 +364,7 @@ export default function DstDetailPage() {
           </div>
         </Card>
       </div>
+      </FicheMain>
 
       <Modal open={editDstOpen} onClose={() => setEditDstOpen(false)} title="Corriger le dossier DST" size="sm">
         <div className="flex flex-col gap-3">
@@ -369,7 +376,7 @@ export default function DstDetailPage() {
             <input
               value={editNumeroAffaireDemandeur}
               onChange={(e) => setEditNumeroAffaireDemandeur(e.target.value)}
-              className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
+              className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge"
             />
           </div>
           {updateDstMutation.error ? (
@@ -385,6 +392,6 @@ export default function DstDetailPage() {
           </div>
         </div>
       </Modal>
-    </div>
+    </FichePageShell>
   )
 }

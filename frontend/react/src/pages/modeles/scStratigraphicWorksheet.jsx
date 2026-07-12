@@ -1,10 +1,11 @@
 // Feuille SC terrain — coupe carottée, photos et couches.
 // Monté par ModeleSCPage.jsx (données API feuilles-terrain). Logique terrain alignée sur FeuilleTerrainPage.
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import Button from "@/components/ui/Button"
 import PhotoCropModal from "@/components/ui/PhotoCropModal"
 import Input from "@/components/ui/Input"
+import { WorksheetMain, WorksheetPageShell, WorksheetTopbar } from "@/components/layout/FicheLayout"
 import { navigateWithReturnTo } from "@/lib/detailNavigation"
 import { buildScAffaireDemandeLine, buildScInterventionTitle } from "@/lib/sc/pointInheritance"
 import { renderTerrainSelectOptionExtras } from "@/lib/terrainEssaiSelectOptions"
@@ -19,7 +20,7 @@ function Select({ value, onChange, readOnly = false, children, className = "", o
             onChange={(event) => onChange(event.target.value)}
             onClick={onClick}
             disabled={readOnly}
-            className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
+            className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
         >
             {children}
         </select>
@@ -57,56 +58,6 @@ function ScCard({ title, children, right }) {
     )
 }
 
-// Barre feuille de travail SC — position fixed sous la barre « Menu » (AppLayout).
-// TODO: extraire FeuilleWorkToolbar partagée pour toutes les feuilles terrain/labo
-//       (SC, SO, PMT, DE, NT, VC, essais génériques, etc.).
-//       FicheTopbar (FicheLayout.jsx) reste le modèle visuel des fiches RST (demande, campagne…).
-function ScSheetToolbar({ backLabel, onBack, title, subtitle, actions }) {
-    const barRef = useRef(null)
-    const [barHeight, setBarHeight] = useState(72)
-
-    useLayoutEffect(() => {
-        const node = barRef.current
-        if (!node) return undefined
-        const update = () => setBarHeight(node.offsetHeight)
-        update()
-        const observer = new ResizeObserver(update)
-        observer.observe(node)
-        return () => observer.disconnect()
-    }, [backLabel, title, subtitle, actions])
-
-    return (
-        <>
-            <div aria-hidden className="-mt-6 shrink-0" style={{ height: barHeight }} />
-            <div
-                ref={barRef}
-                className="fixed z-40 border-b border-[#dbe1ea] bg-white"
-                style={{
-                    top: 'var(--app-chrome-top, 0px)',
-                    left: 'var(--app-sidebar-width, 0px)',
-                    right: 0,
-                    boxShadow: '0 6px 24px rgba(0,49,112,0.08)',
-                }}
-            >
-                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-                    <button
-                        onClick={onBack}
-                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-                    >
-                        {backLabel}
-                    </button>
-                    <div className="flex-1 min-w-[220px]">
-                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">{subtitle || 'Sondage SC'}</div>
-                        <div className="text-[15px] font-black">{title}</div>
-                    </div>
-                    {actions}
-                </div>
-            </div>
-        </>
-    )
-}
-
 function ScRow({ label, value }) {
     return (
         <div className="flex flex-col gap-0.5">
@@ -132,7 +83,7 @@ function ScTextarea({ value, onChange, rows = 3, placeholder = '' }) {
             onChange={(event) => onChange(event.target.value)}
             rows={rows}
             placeholder={placeholder}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge resize-y"
         />
     )
 }
@@ -798,7 +749,7 @@ function scRenderChainLabo(prelevements, detailReturnTo, navigate) {
             {prelevements.map((prelevement) => (
                 <div key={prelevement.uid} className="rounded-lg border border-border bg-bg px-4 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                        <button type="button" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${prelevement.uid}`, detailReturnTo)} className="text-[13px] font-semibold text-accent hover:underline">
+                        <button type="button" onClick={() => navigateWithReturnTo(navigate, `/prelevements/${prelevement.uid}`, detailReturnTo)} className="text-[13px] font-semibold text-nge hover:underline">
                             {prelevement.reference}
                         </button>
                         <div className="text-[11px] text-text-muted">{formatDate(prelevement.date_prelevement) || '—'}</div>
@@ -808,14 +759,14 @@ function scRenderChainLabo(prelevements, detailReturnTo, navigate) {
                         <div className="mt-3 ml-4 flex flex-col gap-2 border-l border-border pl-3">
                             {prelevement.echantillons.map((echantillon) => (
                                 <div key={echantillon.uid} className="rounded-lg border border-border bg-surface px-3 py-2">
-                                    <button type="button" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${echantillon.uid}`, detailReturnTo)} className="text-[12px] font-semibold text-accent hover:underline">
+                                    <button type="button" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${echantillon.uid}`, detailReturnTo)} className="text-[12px] font-semibold text-nge hover:underline">
                                         {echantillon.reference}
                                     </button>
                                     <div className="mt-1 text-[11px] text-text-muted">{echantillon.designation || echantillon.localisation || 'Échantillon'}</div>
                                     {Array.isArray(echantillon.essais) && echantillon.essais.length > 0 ? (
                                         <div className="mt-2 ml-4 flex flex-col gap-1 border-l border-border pl-3">
                                             {echantillon.essais.map((essai) => (
-                                                <button key={essai.uid} type="button" onClick={() => navigateWithReturnTo(navigate, `/essais/${essai.uid}`, detailReturnTo)} className="text-left text-[11px] text-accent hover:underline">
+                                                <button key={essai.uid} type="button" onClick={() => navigateWithReturnTo(navigate, `/essais/${essai.uid}`, detailReturnTo)} className="text-left text-[11px] text-nge hover:underline">
                                                     {(essai.essai_code || essai.type_essai || 'Essai')} · {essai.type_essai || ''}
                                                 </button>
                                             ))}
@@ -1079,11 +1030,11 @@ function ScNewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSav
     })
     function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
 
-    const iStyle = 'text-[10px] border border-accent rounded px-1 py-0 bg-white w-full'
-    const tdC = 'px-1 py-1 border-r border-border bg-[#f0f8ff]'
+    const iStyle = 'text-[10px] border border-nge rounded px-1 py-0 bg-white w-full'
+    const tdC = 'px-1 py-1 border-r border-border bg-[#e8eef8]'
     const depthInputClass = isSCFeuille
-        ? 'w-full min-w-0 text-xs border border-accent rounded px-1.5 py-0.5 bg-white'
-        : 'w-10 text-[10px] border border-accent rounded px-1 py-0 bg-white'
+        ? 'w-full min-w-0 text-xs border border-nge rounded px-1.5 py-0.5 bg-white'
+        : 'w-10 text-[10px] border border-nge rounded px-1 py-0 bg-white'
     const depthGroupClass = isSCFeuille
         ? 'flex min-w-[180px] items-center gap-1.5'
         : 'flex items-center gap-0.5'
@@ -1139,7 +1090,7 @@ function ScNewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSav
 
     if (isSCFeuille) {
         return (
-            <tr ref={rowRef} className="border-b-2 border-accent bg-[#f0f8ff]">
+            <tr ref={rowRef} className="border-b-2 border-nge bg-[#e8eef8]">
                 {showEmbeddedScPhoto ? <td className={tdC}></td> : null}
                 <td className={tdC}></td>
                 <td className={tdC}>
@@ -1158,13 +1109,13 @@ function ScNewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSav
                     {liveThicknessCm || '—'}
                 </td>
                 <td className={tdC}>
-                    <input value={form.description_libre} onChange={e => set('description_libre', e.target.value)} className="text-sm border-2 border-accent rounded px-2 py-1 bg-white w-full shadow-sm" placeholder="Description" />
+                    <input value={form.description_libre} onChange={e => set('description_libre', e.target.value)} className="text-sm border-2 border-nge rounded px-2 py-1 bg-white w-full shadow-sm" placeholder="Description" />
                 </td>
                 <td className={`${tdC} text-center text-text-muted`}>—</td>
                 <td className={`${tdC} text-center text-text-muted`}>—</td>
                 <td className={`${tdC} text-center text-text-muted`}>—</td>
                 <td className={`${tdC} text-center text-text-muted`}>—</td>
-                <td className="px-1 py-1 text-center bg-[#f0f8ff]">
+                <td className="px-1 py-1 text-center bg-[#e8eef8]">
                     <div className="flex gap-1 justify-center">
                         <Button variant="primary" size="sm" onClick={submitOrClose} disabled={saving}>✓</Button>
                         <Button variant="secondary" size="sm" onClick={() => setNewCoucheRow(null)}>✕</Button>
@@ -1175,7 +1126,7 @@ function ScNewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSav
     }
 
     return (
-        <tr ref={rowRef} className="border-b-2 border-accent bg-[#f0f8ff]">
+        <tr ref={rowRef} className="border-b-2 border-nge bg-[#e8eef8]">
             <td className={tdC}></td>
             <td className={tdC}>
                 <div className={depthGroupClass}>
@@ -1221,7 +1172,7 @@ function ScNewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSav
             <td className={tdC}><InlineSelect field="horizon" opts={HORIZON_OPTIONS} /></td>
             <td className={tdC}></td>
             <td className={tdC}><input value={form.description_libre} onChange={e => set('description_libre', e.target.value)} className={iStyle} /></td>
-            <td className="px-1 py-1 text-center bg-[#f0f8ff]">
+            <td className="px-1 py-1 text-center bg-[#e8eef8]">
                 <div className="flex gap-1 justify-center">
                     <Button variant="primary" size="sm" onClick={() => onSave(form)} disabled={saving}>✓</Button>
                     <Button variant="secondary" size="sm" onClick={() => setNewCoucheRow(null)}>✕</Button>
@@ -1248,7 +1199,7 @@ function ScPrelevementManagerItem({ prelevement, currentCoucheId, coucheOptions,
                 <button
                     type="button"
                     onClick={() => navigateWithReturnTo(navigate, `/prelevements/${prelevement.uid}`, detailReturnTo)}
-                    className="text-[10px] font-semibold text-accent hover:underline"
+                    className="text-[10px] font-semibold text-nge hover:underline"
                 >
                     {prelevement.reference}
                 </button>
@@ -2325,46 +2276,42 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
     const displayPointType = scDisplayPointType(pointForm.point_type || point?.point_type, isSCFeuille)
 
     return (
-        <div
-            className="flex flex-col h-full -mx-6 -mb-6"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
-        >
-            <ScSheetToolbar
+        <WorksheetPageShell>
+            <WorksheetTopbar
                 backLabel="← Coupe"
                 onBack={onBackToCoupe}
-                title={pointDisplayTitle}
-                subtitle={[
+                eyebrow={[
                     affaireDemandeLine,
                     isDraftPoint ? 'Non enregistré' : null,
-                ].filter(Boolean).join(' · ')}
-                actions={(
-                    <div className="flex flex-wrap items-center gap-2">
-                        {sheetToolbarActions}
-                        <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>
-                            {updatePointPending ? 'Enregistrement…' : 'Enregistrer'}
-                        </Button>
-                        <button
-                            onClick={() => {
-                                const message = isDraftPoint
-                                    ? 'Abandonner ce sondage non enregistré ?'
-                                    : 'Supprimer ce sondage et toutes ses couches / prélèvements ?'
-                                if (window.confirm(message)) handleDeletePoint(point.uid)
-                            }}
-                            className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
-                        >
-                            {isDraftPoint ? 'Abandonner' : 'Supprimer'}
-                        </button>
-                    </div>
-                )}
-            />
+                ].filter(Boolean).join(' · ') || 'Sondage SC'}
+                title={pointDisplayTitle}
+            >
+                <div className="flex flex-wrap items-center gap-2">
+                    {sheetToolbarActions}
+                    <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>
+                        {updatePointPending ? 'Enregistrement…' : 'Enregistrer'}
+                    </Button>
+                    <button
+                        onClick={() => {
+                            const message = isDraftPoint
+                                ? 'Abandonner ce sondage non enregistré ?'
+                                : 'Supprimer ce sondage et toutes ses couches / prélèvements ?'
+                            if (window.confirm(message)) handleDeletePoint(point.uid)
+                        }}
+                        className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
+                    >
+                        {isDraftPoint ? 'Abandonner' : 'Supprimer'}
+                    </button>
+                </div>
+            </WorksheetTopbar>
 
             {topBanner ? (
-                <div className="w-full max-w-[1900px] mx-auto px-7 pt-4">
+                <div className="mx-auto w-full max-w-[1900px] px-6 pt-4">
                     {topBanner}
                 </div>
             ) : null}
 
-            <div className="w-full max-w-[1900px] mx-auto px-7 py-7 flex flex-col gap-5">
+            <WorksheetMain className="max-w-[1900px] gap-5 py-6">
                 {deleteErrorMessage ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{deleteErrorMessage}</div>
                 ) : null}
@@ -2609,7 +2556,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                 return (
                                                     <div
                                                         key={photo.stored_name}
-                                                        className={`grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-2 py-2 transition ${isActive ? 'border-accent bg-[#eef7ff]' : 'border-border bg-surface hover:border-accent/40 hover:bg-bg'}`}
+                                                        className={`grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border px-2 py-2 transition ${isActive ? 'border-nge bg-[#e8eef8]' : 'border-border bg-surface hover:border-nge/40 hover:bg-bg'}`}
                                                     >
                                                         <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-lg border border-border bg-bg">
                                                             <img src={scPhotoItemUrl(photo, photoVersion)} alt={photo.original_name || photo.filename} className="h-full w-full object-cover" />
@@ -2631,7 +2578,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                 <span className="truncate text-[12px] font-medium text-text" title={photo.stored_name || photo.filename}>
                                                                     {photo.stored_name || photo.filename}
                                                                 </span>
-                                                                {photo.is_primary ? <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">Active</span> : null}
+                                                                {photo.is_primary ? <span className="rounded-full bg-nge/10 px-2 py-0.5 text-[10px] font-semibold text-nge">Active</span> : null}
                                                             </div>
                                                             <div className="mt-1 text-[11px] text-text-muted">
                                                                 {photo.original_name && photo.original_name !== photo.stored_name
@@ -2683,7 +2630,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                 return (
                                                     <div
                                                         key={coupe.id}
-                                                        className={`rounded-xl border p-3 transition ${isActive ? 'border-accent bg-[#eef7ff]' : 'border-border bg-bg'}`}
+                                                        className={`rounded-xl border p-3 transition ${isActive ? 'border-nge bg-[#e8eef8]' : 'border-border bg-bg'}`}
                                                     >
                                                         <div
                                                             role="button"
@@ -2708,7 +2655,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                         </div>
 
                                                         <div
-                                                            className={`mt-3 rounded-xl border border-dashed px-3 py-3 transition ${isDropActive ? 'border-accent bg-[#eef7ff]' : 'border-border bg-surface'}`}
+                                                            className={`mt-3 rounded-xl border border-dashed px-3 py-3 transition ${isDropActive ? 'border-nge bg-[#e8eef8]' : 'border-border bg-surface'}`}
                                                             onClick={(event) => event.stopPropagation()}
                                                             onDragEnter={(event) => {
                                                                 event.preventDefault()
@@ -2835,7 +2782,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                         {carotteAnnotations.length ? carotteAnnotations.map((annotation, index) => {
                                             const isSelected = annotation.id === selectedAnnotationId
                                             return (
-                                                <div key={annotation.id} className={`rounded-lg border p-3 ${isSelected ? 'border-accent bg-[#eef7ff]' : 'border-border bg-bg'}`}>
+                                                <div key={annotation.id} className={`rounded-lg border p-3 ${isSelected ? 'border-nge bg-[#e8eef8]' : 'border-border bg-bg'}`}>
                                                     <div className="flex items-center justify-between gap-3">
                                                         <button type="button" className="text-left" onClick={() => setSelectedAnnotationId(annotation.id)}>
                                                             <div className="text-[12px] font-semibold text-text">Repère {index + 1}</div>
@@ -2945,7 +2892,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                     <span
                                                         role="separator"
                                                         aria-label={`Redimensionner ${column.label || `colonne ${index + 1}`}`}
-                                                        className="absolute top-0 right-0 h-full w-2 cursor-col-resize select-none hover:bg-accent/20"
+                                                        className="absolute top-0 right-0 h-full w-2 cursor-col-resize select-none hover:bg-nge/20"
                                                         onMouseDown={(event) => startColumnResize(index, event)}
                                                     />
                                                 </th>
@@ -3055,7 +3002,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                 </td>
                                                             ) : null}
                                                             <td className="px-1 py-1 w-6 border-r border-border text-center">
-                                                                <input type="radio" name="couche-select" checked={selectedCoucheRow === couche.uid} onChange={() => setSelectedCoucheRow(selectedCoucheRow === couche.uid ? null : couche.uid)} className="cursor-pointer accent-accent" />
+                                                                <input type="radio" name="couche-select" checked={selectedCoucheRow === couche.uid} onChange={() => setSelectedCoucheRow(selectedCoucheRow === couche.uid ? null : couche.uid)} className="cursor-pointer accent-nge" />
                                                             </td>
                                                             <td
                                                                 className="px-1.5 py-1 whitespace-nowrap border-r border-border text-text cursor-pointer overflow-hidden"
@@ -3087,10 +3034,10 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                             }}
                                                                             onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()}
                                                                             autoFocus={editingCell?.field === 'z_haut'}
-                                                                            className="w-[74px] max-w-full min-w-0 text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm"
+                                                                            className="w-[74px] max-w-full min-w-0 text-sm border-2 border-nge rounded px-2 py-1 bg-white shadow-sm"
                                                                         />
                                                                     ) : (
-                                                                        <span className="truncate hover:text-accent">{couche?.z_haut == null || couche?.z_haut === '' ? '—' : couche.z_haut}</span>
+                                                                        <span className="truncate hover:text-nge">{couche?.z_haut == null || couche?.z_haut === '' ? '—' : couche.z_haut}</span>
                                                                     )}
                                                                     <span className="shrink-0">→</span>
                                                                     {editingCell?.coucheUid === couche.uid && (editingCell?.field === 'z_haut' || editingCell?.field === 'z_bas') ? (
@@ -3109,10 +3056,10 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                             }}
                                                                             onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()}
                                                                             autoFocus={editingCell?.field === 'z_bas'}
-                                                                            className="w-[74px] max-w-full min-w-0 text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm"
+                                                                            className="w-[74px] max-w-full min-w-0 text-sm border-2 border-nge rounded px-2 py-1 bg-white shadow-sm"
                                                                         />
                                                                     ) : (
-                                                                        <span className="truncate hover:text-accent">{couche?.z_bas == null || couche?.z_bas === '' ? '—' : couche.z_bas}</span>
+                                                                        <span className="truncate hover:text-nge">{couche?.z_bas == null || couche?.z_bas === '' ? '—' : couche.z_bas}</span>
                                                                     )}
                                                                 </div>
                                                             </td>
@@ -3124,14 +3071,14 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                         onBlur={effectiveSaveCellEdit}
                                                                         onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()}
                                                                         autoFocus
-                                                                        className="w-24 max-w-full text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm"
+                                                                        className="w-24 max-w-full text-sm border-2 border-nge rounded px-2 py-1 bg-white shadow-sm"
                                                                         placeholder="cm"
                                                                     />
                                                                 ) : (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => startEditCell(couche.uid, 'thickness_cm', scComputeScCoucheThicknessCm(couche) ?? '')}
-                                                                        className="hover:text-accent"
+                                                                        className="hover:text-nge"
                                                                         title="Éditer l'épaisseur en cm"
                                                                     >
                                                                         {scComputeScCoucheThicknessCm(couche) == null ? '—' : scComputeScCoucheThicknessCm(couche).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}
@@ -3171,33 +3118,33 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                                 effectiveSaveCellEdit()
                                                                             }
                                                                         }}
-                                                                        className="block h-full w-full max-w-full min-w-0 whitespace-pre-wrap break-words rounded-sm border border-transparent bg-transparent px-1.5 py-1 text-sm leading-tight outline-none focus:border-accent/40 focus:bg-white"
+                                                                        className="block h-full w-full max-w-full min-w-0 whitespace-pre-wrap break-words rounded-sm border border-transparent bg-transparent px-1.5 py-1 text-sm leading-tight outline-none focus:border-nge/40 focus:bg-white"
                                                                     >
                                                                         {editingCellValue}
                                                                     </div>
                                                                 ) : (
-                                                                    <span className="block h-full whitespace-normal break-words px-1.5 py-1 leading-tight hover:text-accent" title={couche.description_libre || ''}>{couche.description_libre || '—'}</span>
+                                                                    <span className="block h-full whitespace-normal break-words px-1.5 py-1 leading-tight hover:text-nge" title={couche.description_libre || ''}>{couche.description_libre || '—'}</span>
                                                                 )}
                                                             </td>
                                                             <td className="px-1.5 py-1 border-r border-border text-text text-center cursor-pointer overflow-hidden" onClick={() => startEditCell(couche.uid, 'd', couche.d)}>
                                                                 {editingCell?.coucheUid === couche.uid && editingCell?.field === 'd' ? (
-                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={effectiveSaveCellEdit} onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()} autoFocus className="w-20 max-w-full text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm" />
+                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={effectiveSaveCellEdit} onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()} autoFocus className="w-20 max-w-full text-sm border-2 border-nge rounded px-2 py-1 bg-white shadow-sm" />
                                                                 ) : (
-                                                                    <span className="block truncate hover:text-accent">{scFormatResult(couche.d, '') || '—'}</span>
+                                                                    <span className="block truncate hover:text-nge">{scFormatResult(couche.d, '') || '—'}</span>
                                                                 )}
                                                             </td>
                                                             <td className="px-1.5 py-1 border-r border-border text-text text-center cursor-pointer overflow-hidden" onClick={() => startEditCell(couche.uid, 'vide', couche.vide)}>
                                                                 {editingCell?.coucheUid === couche.uid && editingCell?.field === 'vide' ? (
-                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={effectiveSaveCellEdit} onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()} autoFocus className="w-20 max-w-full text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm" />
+                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={effectiveSaveCellEdit} onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()} autoFocus className="w-20 max-w-full text-sm border-2 border-nge rounded px-2 py-1 bg-white shadow-sm" />
                                                                 ) : (
-                                                                    <span className="block truncate hover:text-accent">{scFormatResult(couche.vide, '') || '—'}</span>
+                                                                    <span className="block truncate hover:text-nge">{scFormatResult(couche.vide, '') || '—'}</span>
                                                                 )}
                                                             </td>
                                                             <td className="px-1.5 py-1 border-r border-border text-text text-center cursor-pointer overflow-hidden" onClick={() => startEditCell(couche.uid, 'compacite', couche.compacite)}>
                                                                 {editingCell?.coucheUid === couche.uid && editingCell?.field === 'compacite' ? (
-                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={effectiveSaveCellEdit} onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()} autoFocus className="w-24 max-w-full text-sm border-2 border-accent rounded px-2 py-1 bg-white shadow-sm" />
+                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={effectiveSaveCellEdit} onKeyDown={e => e.key === 'Enter' && effectiveSaveCellEdit()} autoFocus className="w-24 max-w-full text-sm border-2 border-nge rounded px-2 py-1 bg-white shadow-sm" />
                                                                 ) : (
-                                                                    <span className="block truncate hover:text-accent">{scFormatResult(couche.compacite, '') || '—'}</span>
+                                                                    <span className="block truncate hover:text-nge">{scFormatResult(couche.compacite, '') || '—'}</span>
                                                                 )}
                                                             </td>
                                                             <td className="px-1.5 py-1 border-r border-border">
@@ -3217,7 +3164,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                         />
                                                                     ))}
                                                                     {prelevCoucheId === couche.uid ? (
-                                                                        <div className="rounded-md border border-dashed border-accent/40 bg-[#f7fbff] p-2">
+                                                                        <div className="rounded-md border border-dashed border-nge/40 bg-[#f7fbff] p-2">
                                                                             <div className="flex flex-col gap-1">
                                                                                 <Input value={prelevForm.profondeur} onChange={(e) => setPrelevForm(f => ({ ...f, profondeur: e.target.value }))} placeholder="prof. m" className="h-6 px-1 py-0.5 text-[10px]" />
                                                                                 <Input value={prelevForm.quantite} onChange={(e) => setPrelevForm(f => ({ ...f, quantite: e.target.value }))} placeholder="qté" className="h-6 px-1 py-0.5 text-[10px]" />
@@ -3228,7 +3175,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                             </div>
                                                                         </div>
                                                                     ) : (
-                                                                        <button type="button" onClick={() => setPrelevCoucheId(couche.uid)} className="text-left text-[10px] text-accent hover:underline">+ prél.</button>
+                                                                        <button type="button" onClick={() => setPrelevCoucheId(couche.uid)} className="text-left text-[10px] text-nge hover:underline">+ prél.</button>
                                                                     )}
                                                                 </div>
                                                             </td>
@@ -3242,20 +3189,20 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                     ) : (
                                                     <>
                                                         <td className="px-1 py-1 w-6 border-r border-border text-center">
-                                                            <input type="radio" name="couche-select" checked={selectedCoucheRow === couche.uid} onChange={() => setSelectedCoucheRow(selectedCoucheRow === couche.uid ? null : couche.uid)} className="cursor-pointer accent-accent" />
+                                                            <input type="radio" name="couche-select" checked={selectedCoucheRow === couche.uid} onChange={() => setSelectedCoucheRow(selectedCoucheRow === couche.uid ? null : couche.uid)} className="cursor-pointer accent-nge" />
                                                         </td>
                                                         <td className="px-1.5 py-1 whitespace-nowrap border-r border-border text-text">
                                                             <div className="flex items-center gap-0.5 font-mono text-[10px]">
                                                                 {editingCell?.coucheUid === couche.uid && editingCell?.field === 'z_haut' ? (
-                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-accent rounded px-1 py-0 bg-white" />
+                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-nge rounded px-1 py-0 bg-white" />
                                                                 ) : (
-                                                                    <span className="cursor-pointer hover:text-accent" onClick={() => startEditCell(couche.uid, 'z_haut', couche.z_haut)}>{couche.z_haut ?? '—'}</span>
+                                                                    <span className="cursor-pointer hover:text-nge" onClick={() => startEditCell(couche.uid, 'z_haut', couche.z_haut)}>{couche.z_haut ?? '—'}</span>
                                                                 )}
                                                                 <span>→</span>
                                                                 {editingCell?.coucheUid === couche.uid && editingCell?.field === 'z_bas' ? (
-                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-accent rounded px-1 py-0 bg-white" />
+                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-nge rounded px-1 py-0 bg-white" />
                                                                 ) : (
-                                                                    <span className="cursor-pointer hover:text-accent" onClick={() => startEditCell(couche.uid, 'z_bas', couche.z_bas)}>{couche.z_bas ?? '—'}</span>
+                                                                    <span className="cursor-pointer hover:text-nge" onClick={() => startEditCell(couche.uid, 'z_bas', couche.z_bas)}>{couche.z_bas ?? '—'}</span>
                                                                 )}
                                                                 <span>m</span>
                                                             </div>
@@ -3263,124 +3210,124 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'texture_matrice', couche.texture_matrice)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'texture_matrice' ? (
                                                                 <>
-                                                                    <input list="dl-texture-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                    <input list="dl-texture-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                                     <datalist id="dl-texture-matrice">{getOptions('texture_matrice', TEXTURE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.texture_matrice || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.texture_matrice || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'proportion_matrice', couche.proportion_matrice)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'proportion_matrice' ? (
                                                                 <>
-                                                                    <input list="dl-proportion-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-proportion-matrice">{getOptions('proportion_matrice', PROPORTION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                    <input list="dl-proportion-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-proportion-matrice">{getOptions('proportion_matrice', PROPORTION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.proportion_matrice || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.proportion_matrice || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'elements_grossiers', couche.elements_grossiers)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'elements_grossiers' ? (
                                                                 <>
-                                                                    <input list="dl-elements-grossiers" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                    <input list="dl-elements-grossiers" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                                     <datalist id="dl-elements-grossiers">{getOptions('elements_grossiers', ELEMENTS_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.elements_grossiers || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.elements_grossiers || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'granulo_elements', couche.granulo_elements)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'granulo_elements' ? (
-                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.granulo_elements || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.granulo_elements || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'petrographie', couche.petrographie)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'petrographie' ? (
                                                                 <>
-                                                                    <input list="dl-petrographie" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                    <input list="dl-petrographie" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                                     <datalist id="dl-petrographie">{getOptions('petrographie', PETROGRAPHIE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.petrographie || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.petrographie || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'structure', couche.structure)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'structure' ? (
                                                                 <>
-                                                                <input list="dl-structure" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-structure">{getOptions('structure', STRUCTURE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-structure" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-structure">{getOptions('structure', STRUCTURE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.structure || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.structure || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'matiere_organique', couche.matiere_organique)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'matiere_organique' ? (
                                                                 <>
-                                                                <input list="dl-matiere-organique" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-matiere-organique">{getOptions('matiere_organique', ORGANIQUE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-matiere-organique" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-matiere-organique">{getOptions('matiere_organique', ORGANIQUE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.matiere_organique || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.matiere_organique || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'couleur', couche.couleur)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'couleur' ? (
                                                                 <>
-                                                                <input list="dl-couleur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-couleur">{getOptions('couleur', COULEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-couleur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-couleur">{getOptions('couleur', COULEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.couleur || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.couleur || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'odeur', couche.odeur)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'odeur' ? (
                                                                 <>
-                                                                <input list="dl-odeur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-odeur">{getOptions('odeur', ODEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-odeur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-odeur">{getOptions('odeur', ODEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.odeur || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.odeur || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'consistance', couche.consistance)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'consistance' ? (
                                                                 <>
-                                                                <input list="dl-consistance" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-consistance">{getOptions('consistance', CONSISTANCE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-consistance" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-consistance">{getOptions('consistance', CONSISTANCE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.consistance || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.consistance || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'cohesion', couche.cohesion)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'cohesion' ? (
                                                                 <>
-                                                                <input list="dl-cohesion" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-cohesion">{getOptions('cohesion', COHESION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-cohesion" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-cohesion">{getOptions('cohesion', COHESION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.cohesion || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.cohesion || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'oxydo_reduction', couche.oxydo_reduction)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'oxydo_reduction' ? (
                                                                 <>
-                                                                <input list="dl-oxydo-reduction" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-oxydo-reduction">{getOptions('oxydo_reduction', OXYDO_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-oxydo-reduction" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-oxydo-reduction">{getOptions('oxydo_reduction', OXYDO_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.oxydo_reduction || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.oxydo_reduction || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'eau_porosite', couche.eau_porosite)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'eau_porosite' ? (
                                                                 <>
-                                                                <input list="dl-eau-porosite" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-eau-porosite">{getOptions('eau_porosite', EAU_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-eau-porosite" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-eau-porosite">{getOptions('eau_porosite', EAU_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.eau_porosite || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.eau_porosite || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted">
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'profondeur_eau' ? (
-                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-16" placeholder="m" />
+                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-16" placeholder="m" />
                                                             ) : (
                                                                 <button
                                                                     type="button"
@@ -3399,10 +3346,10 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'horizon', couche.horizon)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'horizon' ? (
                                                                 <>
-                                                                <input list="dl-horizon" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-horizon">{getOptions('horizon', HORIZON_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-horizon" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-horizon">{getOptions('horizon', HORIZON_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.horizon || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.horizon || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border">
@@ -3422,7 +3369,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                     />
                                                                 ))}
                                                                 {prelevCoucheId === couche.uid ? (
-                                                                    <div className="rounded-md border border-dashed border-accent/40 bg-[#f7fbff] p-2">
+                                                                    <div className="rounded-md border border-dashed border-nge/40 bg-[#f7fbff] p-2">
                                                                         <div className="flex flex-col gap-1">
                                                                             <Input value={prelevForm.profondeur} onChange={(e) => setPrelevForm(f => ({ ...f, profondeur: e.target.value }))} placeholder="prof. m" className="h-6 px-1 py-0.5 text-[10px]" />
                                                                             <Input value={prelevForm.quantite} onChange={(e) => setPrelevForm(f => ({ ...f, quantite: e.target.value }))} placeholder="qté" className="h-6 px-1 py-0.5 text-[10px]" />
@@ -3433,7 +3380,7 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                                                                         </div>
                                                                     </div>
                                                                 ) : (
-                                                                    <button type="button" onClick={() => setPrelevCoucheId(couche.uid)} className="text-left text-[10px] text-accent hover:underline">+ prél.</button>
+                                                                    <button type="button" onClick={() => setPrelevCoucheId(couche.uid)} className="text-left text-[10px] text-nge hover:underline">+ prél.</button>
                                                                 )}
                                                             </div>
                                                         </td>
@@ -3530,10 +3477,10 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                         <div className="text-[13px] text-text-muted">Aucun rapport lié.</div>
                     )}
                 </ScCard>
-            </div>
-        </div>
+            </WorksheetMain>
+        </WorksheetPageShell>
     )
 }
 
 
-export { ScPointDetailView, ScSheetToolbar, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload, scBuildDefaultScCoupe }
+export { ScPointDetailView, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload, scBuildDefaultScCoupe }

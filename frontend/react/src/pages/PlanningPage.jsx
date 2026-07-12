@@ -25,6 +25,7 @@ import {
 import PlanningItemPopupActions from '@/components/planning/PlanningItemPopupActions'
 import AnalyserPlanningChip from '@/components/planning/AnalyserPlanningChip'
 import { missionFeuilleStatusMeta } from '@/lib/feuilleMissionJournee'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import './planning.css'
 
 const D7 = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -33,7 +34,7 @@ const ACTIVE = ['A planifier', 'Planifie', 'En cours']
 const ARCHIVED = ['Termine', 'Annule']
 const STATUS_META = {
     'A planifier': { dot: '#888780', bg: '#f1efe8', fg: '#5f5e5a' },
-    Planifie: { dot: '#4A7DB5', bg: '#E8EFF8', fg: '#002C77' },
+    Planifie: { dot: '#4A7DB5', bg: '#eef5ff', fg: '#003170' },
     'En cours': { dot: '#1d9e75', bg: '#eaf3de', fg: '#3b6d11' },
     Termine: { dot: '#0f6e56', bg: '#E1F5EE', fg: '#0f6e56' },
     Annule: { dot: '#e24b4a', bg: '#fcebeb', fg: '#a32d2d' },
@@ -150,7 +151,7 @@ function colorClass(n, u) {
 
 function itemBorderColor(item) {
     if (item.urg === 'late') return '#e24b4a'
-    if (item.urg === 'soon') return '#E6A817'
+    if (item.urg === 'soon') return '#e6b900'
     return '#4A7DB5'
 }
 
@@ -1084,7 +1085,15 @@ export default function PlanningPage() {
     const currentContext = demandeContextId ? filtered.find((d) => d.kind === 'demande' && String(d.uid) === String(demandeContextId)) : null
 
     return (
-        <div className="planning-page">
+        <FichePageShell>
+            <FicheTopbar
+                eyebrow="Organisation · RaLab 5"
+                title="Planning"
+                subtitle="Organiser, agendas demandes/labo et analyse transverse"
+            />
+
+            <FicheMain className="flex min-h-0 flex-1 flex-col gap-4 pb-5">
+            <div className="planning-page min-h-0 flex-1">
             <div className="planning-topbar">
                 <div className="tb-tabs">
                     <button className={`tb-tab ${tab === 1 ? 'on' : ''}`} onClick={() => setTab(1)}>🗂 Organiser</button>
@@ -1244,6 +1253,8 @@ export default function PlanningPage() {
                     onOpenPreparation={openPreparation}
                 />
             ) : null}
-        </div>
+            </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

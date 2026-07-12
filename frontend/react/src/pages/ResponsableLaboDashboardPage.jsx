@@ -17,10 +17,12 @@ import {
   Waves,
 } from 'lucide-react'
 import { getResponsibleLaboProfileBySlug } from '@/lib/responsibleLaboProfiles'
+import { DashboardHero, FicheMain, FichePageShell } from '@/components/layout/FicheLayout'
 
 const TONES = {
   sky: 'border-[#cfe4f6] bg-[#eef6fd] text-[#185fa5]',
   teal: 'border-[#c7e2de] bg-[#e8f4f2] text-[#14655d]',
+  nge: 'border-[#c5d4ea] bg-[#eef3fa] text-[#003170]',
   amber: 'border-[#ecd1a2] bg-[#fbf1e2] text-[#854f0b]',
   green: 'border-[#d4e4c1] bg-[#eef5e6] text-[#3b6d11]',
   slate: 'border-[#e4ddd3] bg-[#f4f1eb] text-[#5f5e5a]',
@@ -30,6 +32,7 @@ const TONES = {
 const TONE_DOTS = {
   sky: 'bg-[#185fa5]',
   teal: 'bg-[#14655d]',
+  nge: 'bg-[#003170]',
   amber: 'bg-[#854f0b]',
   green: 'bg-[#3b6d11]',
   slate: 'bg-[#5f5e5a]',
@@ -270,7 +273,7 @@ function ActionButton({ label, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2 text-sm font-medium text-text transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+      className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2 text-sm font-medium text-text transition hover:border-nge/20 hover:bg-[#f3f6fb]"
     >
       {label}
       <ArrowRight size={14} />
@@ -283,7 +286,7 @@ function EntryRow({ title, subtitle, meta, tone = 'slate', trailing, onClick }) 
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+      className="flex w-full items-start gap-3 rounded-2xl border border-border bg-white px-4 py-3 text-left transition hover:border-nge/20 hover:bg-[#f3f6fb]"
     >
       <div className={cn('mt-0.5 h-2.5 w-2.5 rounded-full', toneDotClass(tone))} />
       <div className="min-w-0 flex-1">
@@ -665,49 +668,39 @@ export default function ResponsableLaboDashboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div
-        className="relative overflow-hidden rounded-[20px] border border-[#234e51]/20 p-6 text-white"
-        style={{
-          background: [
-            'radial-gradient(circle at top left, rgba(246, 205, 120, 0.24), transparent 28%)',
-            'radial-gradient(circle at bottom right, rgba(94, 170, 156, 0.22), transparent 34%)',
-            'linear-gradient(135deg, #17343a 0%, #24555d 46%, #8d5e32 100%)',
-          ].join(', '),
-        }}
-      >
-        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">Dashboard responsable labo</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">{profile.displayName}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-white/80">{profile.summary}</p>
-            <p className="mt-3 text-sm text-white/70">{profile.title} - {profile.location}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                {profile.roleLabel}
-              </span>
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                Labo {profile.laboCode}
-              </span>
-              {profile.focusAreas.map((item) => (
-                <span key={item} className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                  {item}
-                </span>
-              ))}
-              {!hasOperationalData ? (
-                <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                  Import en attente
-                </span>
-              ) : null}
-            </div>
-          </div>
-
+    <FichePageShell>
+      <FicheMain className="gap-5">
+      <DashboardHero
+        eyebrow="Dashboard responsable labo"
+        title={profile.displayName}
+        subtitle={profile.summary}
+        aside={(
           <div className="flex flex-wrap gap-2">
             <ActionButton label="Vue labo transverse" onClick={() => navigate(`/labo/workbench?labo=${profile.laboCode}`)} />
             <ActionButton label="Ouvrir le planning" onClick={() => navigate('/planning')} />
           </div>
+        )}
+      >
+        <p className="mt-3 text-sm text-white/70">{profile.title} - {profile.location}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+            {profile.roleLabel}
+          </span>
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+            Labo {profile.laboCode}
+          </span>
+          {profile.focusAreas.map((item) => (
+            <span key={item} className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+              {item}
+            </span>
+          ))}
+          {!hasOperationalData ? (
+            <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+              Import en attente
+            </span>
+          ) : null}
         </div>
-      </div>
+      </DashboardHero>
 
       {dataIssues.length > 0 ? (
         <Card className="border-[#efc2bf] bg-[#fdf7f6]">
@@ -925,6 +918,7 @@ export default function ResponsableLaboDashboardPage() {
           </CardBody>
         </Card>
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

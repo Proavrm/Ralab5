@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { DashboardHero, FicheMain, FichePageShell } from '@/components/layout/FicheLayout'
 import {
   Building2,
   FlaskConical,
@@ -87,7 +88,7 @@ function StatCard({ label, value, hint, icon: Icon }) {
           <div className="text-2xl font-semibold mt-1">{value}</div>
           {hint ? <div className="text-[11px] text-text-muted mt-1">{hint}</div> : null}
         </div>
-        {Icon ? <Icon className="w-5 h-5 text-accent shrink-0" /> : null}
+        {Icon ? <Icon className="w-5 h-5 text-nge shrink-0" /> : null}
       </div>
     </div>
   )
@@ -168,8 +169,8 @@ function AdminListView({ selected, onSelect }) {
               ) : null}
             </div>
             <div className="flex gap-2 flex-wrap">
-              <Link to="/admin?tab=labs" className="text-accent hover:underline">→ Admin réel</Link>
-              <Link to={`/qualite?tab=equipment&labo=${selected.code}`} className="text-accent hover:underline">→ Qualité filtrée</Link>
+              <Link to="/admin?tab=labs" className="text-nge hover:underline">→ Admin réel</Link>
+              <Link to={`/qualite?tab=equipment&labo=${selected.code}`} className="text-nge hover:underline">→ Qualité filtrée</Link>
             </div>
           </div>
         ) : (
@@ -192,7 +193,7 @@ function DashboardView() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Building2 className="w-6 h-6 text-accent" />
+        <Building2 className="w-6 h-6 text-nge" />
         <div>
           <div className="text-lg font-semibold">Laboratoire {d.laboCode} — Saint-Priest</div>
           <div className="text-xs text-text-muted">Vue responsable · périmètre filtré par labo_code / service_code</div>
@@ -209,13 +210,13 @@ function DashboardView() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-surface border border-border rounded-xl overflow-hidden">
           <div className="px-4 py-3 border-b border-border font-medium text-sm flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-accent" /> Demandes du labo SP
+            <Building2 className="w-4 h-4 text-nge" /> Demandes du labo SP
           </div>
           <div className="divide-y divide-border">
             {d.demandesLabo.map((row) => (
               <div key={row.ref} className="px-4 py-3 flex items-center justify-between gap-2">
                 <div>
-                  <div className="font-mono text-[12px] text-accent">{row.ref}</div>
+                  <div className="font-mono text-[12px] text-nge">{row.ref}</div>
                   <div className="text-xs text-text-muted">{row.client} · éch. {row.echeance}</div>
                 </div>
                 <Badge tone={row.tone}>{row.statut}</Badge>
@@ -232,7 +233,7 @@ function DashboardView() {
             {d.demandesPartagees.map((row) => (
               <div key={row.ref} className="px-4 py-3 flex items-center justify-between gap-2">
                 <div>
-                  <div className="font-mono text-[12px] text-accent">{row.ref}</div>
+                  <div className="font-mono text-[12px] text-nge">{row.ref}</div>
                   <div className="text-xs text-text-muted">{row.client} · {row.labo}</div>
                 </div>
                 <Badge tone={row.tone}>{row.statut}</Badge>
@@ -333,32 +334,27 @@ export default function LaboratoiresAdminMockupPage() {
   const [selectedLab, setSelectedLab] = useState(MOCK_LABS[0])
 
   return (
-    <div className="flex flex-col h-full -m-6 overflow-hidden bg-bg">
-      <div className="bg-[#003275] text-white px-6 py-4 shrink-0">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-widest text-blue-200">Mockup v1 · 2026-06-18</div>
-            <h1 className="text-xl font-semibold mt-1">Laboratoires RST — Administration & périmètre dashboard</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-blue-100">
-              Référentiel central des labos, personnel via utilisateurs, équipements par code labo,
-              et vision du dashboard filtré (labo propre + demandes partagées).
-            </p>
+    <FichePageShell>
+      <DashboardHero
+        eyebrow="Mockup v1 · 2026-06-18"
+        title="Laboratoires RST — Administration & périmètre dashboard"
+        subtitle="Référentiel central des labos, personnel via utilisateurs, équipements par code labo, et vision du dashboard filtré (labo propre + demandes partagées)."
+        aside={(
+          <div className="flex flex-wrap gap-2">
+            <Link to="/admin?tab=labs" className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold hover:bg-white/20">Admin réel</Link>
+            <span className="rounded-lg bg-white/10 px-3 py-2 text-xs text-white/70">HTML : docs/MOCKUP_LABORATOIRES_ADMIN_20260618.md</span>
           </div>
-          <div className="flex gap-2">
-            <Link to="/admin?tab=labs" className="text-xs bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2">Admin réel</Link>
-            <span className="text-xs bg-white/10 rounded-lg px-3 py-2 text-blue-200">HTML : docs/MOCKUP_LABORATOIRES_ADMIN_20260618.md</span>
-          </div>
-        </div>
-      </div>
+        )}
+      />
 
-      <div className="flex items-center gap-0 px-6 bg-surface border-b border-border shrink-0">
+      <div className="flex shrink-0 items-center gap-0 border-b border-border bg-surface px-7">
         {VIEWS.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setView(item.id)}
-            className={`px-4 h-11 text-[13px] font-medium border-b-2 transition-colors ${
-              view === item.id ? 'border-accent text-accent' : 'border-transparent text-text-muted hover:text-text'
+            className={`h-11 border-b-2 px-4 text-[13px] font-medium transition-colors ${
+              view === item.id ? 'border-nge text-nge' : 'border-transparent text-text-muted hover:text-text'
             }`}
           >
             {item.label}
@@ -366,11 +362,11 @@ export default function LaboratoiresAdminMockupPage() {
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 min-h-0">
+      <FicheMain className="min-h-0 flex-1 overflow-y-auto">
         {view === 'admin' && <AdminListView selected={selectedLab} onSelect={setSelectedLab} />}
         {view === 'dashboard' && <DashboardView />}
         {view === 'scope' && <ScopeView />}
-      </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

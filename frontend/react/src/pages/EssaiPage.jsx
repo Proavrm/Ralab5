@@ -29,6 +29,7 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { createTerrainFeuilleForIntervention, isFeuilleTerrainEssaiCode } from '@/lib/terrainFeuilleFromIntervention'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import SondageCarotteCoupe from './SondageCarotteCoupe'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -277,7 +278,7 @@ function TeneurEnEau({ res, onChange, readOnly }) {
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">M3<br/><span className="font-normal opacity-60">+Sec (g)</span></th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">M eau (g)</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">M sol sec (g)</th>
-                <th className="px-3 py-2 text-right text-[11px] font-bold text-accent">w (%)</th>
+                <th className="px-3 py-2 text-right text-[11px] font-bold text-nge">w (%)</th>
               </tr>
             </thead>
             <tbody>
@@ -288,7 +289,7 @@ function TeneurEnEau({ res, onChange, readOnly }) {
                     <td className="px-2 py-1.5 text-center">
                       <input type="checkbox" checked={d.actif}
                         onChange={e => setDet(i, 'actif', e.target.checked)}
-                        disabled={readOnly} className="accent-accent" tabIndex={0} />
+                        disabled={readOnly} className="accent-nge" tabIndex={0} />
                     </td>
                     <td className="px-2 py-1.5 text-[12px] text-text-muted">{d.id}</td>
                     <td className="px-1 py-1.5">
@@ -296,7 +297,7 @@ function TeneurEnEau({ res, onChange, readOnly }) {
                         ? <span className="text-[12px]">{d.boite || '—'}</span>
                         : <input value={d.boite} onChange={e => setDet(i, 'boite', e.target.value)}
                             disabled={!d.actif} placeholder="ex: B-12"
-                            className="w-[65px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent disabled:opacity-40" tabIndex={0} />
+                            className="w-[65px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge disabled:opacity-40" tabIndex={0} />
                       }
                     </td>
                     {['m1','m2','m3'].map(k => (
@@ -306,13 +307,13 @@ function TeneurEnEau({ res, onChange, readOnly }) {
                           : <input type="number" step="0.01" value={d[k]}
                               onChange={e => setDet(i, k, e.target.value)}
                               disabled={!d.actif}
-                              className="w-[90px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-40" tabIndex={0} />
+                              className="w-[90px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right disabled:opacity-40" tabIndex={0} />
                         }
                       </td>
                     ))}
                     <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{c.m_eau ?? '—'}</td>
                     <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{c.m_sol_sec ?? '—'}</td>
-                    <td className={`px-3 py-1.5 text-right font-bold ${c.w !== null && d.actif ? 'text-accent text-[14px]' : 'text-text-muted text-[12px]'}`}>
+                    <td className={`px-3 py-1.5 text-right font-bold ${c.w !== null && d.actif ? 'text-nge text-[14px]' : 'text-text-muted text-[12px]'}`}>
                       {c.w ?? '—'}
                     </td>
                   </tr>
@@ -640,7 +641,7 @@ function GRTamisTable({ title, rows, ms, onSetR, allowEdit = true, onAdd, onRemo
                 <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Tamis</th>
                 <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Refus (g)</th>
                 <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Rc%</th>
-                <th className="px-2 py-2 text-right text-[11px] font-bold text-accent">Pass%</th>
+                <th className="px-2 py-2 text-right text-[11px] font-bold text-nge">Pass%</th>
                 <th className="w-5"></th>
               </tr>
             </thead>
@@ -655,7 +656,7 @@ function GRTamisTable({ title, rows, ms, onSetR, allowEdit = true, onAdd, onRemo
                         step="0.01"
                         value={t.r}
                         onChange={e => onSetR(t.d, e.target.value)}
-                        className="w-[80px] px-2 py-0.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right"
+                        className="w-[80px] px-2 py-0.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right"
                         tabIndex={0}
                       />
                     ) : (
@@ -663,7 +664,7 @@ function GRTamisTable({ title, rows, ms, onSetR, allowEdit = true, onAdd, onRemo
                     )}
                   </td>
                   <td className="px-2 py-1 text-right text-[11px] text-text-muted">{t.rc_pct ?? '—'}</td>
-                  <td className="px-2 py-1 text-right font-bold text-[12px] text-accent">{t.passant ?? '—'}</td>
+                  <td className="px-2 py-1 text-right font-bold text-[12px] text-nge">{t.passant ?? '—'}</td>
                   <td className="px-1 py-1 text-center">
                     {allowEdit && !!onRemove && (
                       <button onClick={() => onRemove(t.d)} className="text-[10px] text-text-muted hover:text-danger" tabIndex={-1}>×</button>
@@ -678,7 +679,7 @@ function GRTamisTable({ title, rows, ms, onSetR, allowEdit = true, onAdd, onRemo
           <div className="mt-2">
             {showAdd ? (
               <div className="flex items-center gap-2">
-                <select value={tamisToAdd} onChange={e => setTamisToAdd(e.target.value)} className="px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}>
+                <select value={tamisToAdd} onChange={e => setTamisToAdd(e.target.value)} className="px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}>
                   <option value="">— Tamis —</option>
                   {availableTamis.map(d => <option key={d} value={d}>{d} mm</option>)}
                 </select>
@@ -686,7 +687,7 @@ function GRTamisTable({ title, rows, ms, onSetR, allowEdit = true, onAdd, onRemo
                 <Button size="sm" onClick={() => { setShowAdd(false); setTamisToAdd('') }} tabIndex={0}>✕</Button>
               </div>
             ) : (
-              <button onClick={() => setShowAdd(true)} className="text-[12px] text-accent hover:underline" tabIndex={0}>+ Ajouter un tamis</button>
+              <button onClick={() => setShowAdd(true)} className="text-[12px] text-nge hover:underline" tabIndex={0}>+ Ajouter un tamis</button>
             )}
           </div>
         )}
@@ -1094,13 +1095,13 @@ function Granulometrie({ res, onChange, readOnly }) {
           <select
             value={modePreparation}
             onChange={e => applyCutoffMode(e.target.value)}
-            className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent font-medium"
+            className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge font-medium"
             tabIndex={0}
           >
             <option value="directe">Directe</option>
             <option value="coupures">Avec coupure(s)</option>
           </select>
-          <select value={modele} onChange={e => applyModele(e.target.value)} className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent font-medium" tabIndex={0}>
+          <select value={modele} onChange={e => applyModele(e.target.value)} className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge font-medium" tabIndex={0}>
             {Object.keys(GR_MODELES).map(m => <option key={m}>{m}</option>)}
           </select>
           <span className="text-[12px] text-text-muted">{GR_MODELES[modele].length} tamis de base</span>
@@ -1112,24 +1113,24 @@ function Granulometrie({ res, onChange, readOnly }) {
           <Card title="Teneur en eau — NF P 94-050">
             <div className="grid grid-cols-4 gap-3 mb-3">
               <FG label="M1 — Récipient vide (g)">
-                <input type="number" step="0.01" value={m1} onChange={e => onM1(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                <input type="number" step="0.01" value={m1} onChange={e => onM1(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
               </FG>
               <FG label="M2 — +Sol humide (g)">
-                <input type="number" step="0.01" value={m2} onChange={e => onM2(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                <input type="number" step="0.01" value={m2} onChange={e => onM2(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
               </FG>
               <FG label="M3 — +Sol sec (g)">
-                <input type="number" step="0.01" value={m3} onChange={e => onM3(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                <input type="number" step="0.01" value={m3} onChange={e => onM3(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
               </FG>
               <FG label="w calculé (%)">
-                <input readOnly value={directWater.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                <input readOnly value={directWater.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
               </FG>
             </div>
             <div className="grid grid-cols-4 gap-3">
               <FG label="Masse humide totale Mh (g)">
-                <input type="number" step="0.01" value={mh} onChange={e => onMh(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                <input type="number" step="0.01" value={mh} onChange={e => onMh(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
               </FG>
               <FG label="Masse sèche Ms — calculée (g)">
-                <input readOnly value={directWater.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                <input readOnly value={directWater.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
               </FG>
             </div>
           </Card>
@@ -1148,7 +1149,7 @@ function Granulometrie({ res, onChange, readOnly }) {
                         <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Tamis</th>
                         <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Refus (g)</th>
                         <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Rc%</th>
-                        <th className="px-2 py-2 text-right text-[11px] font-bold text-accent">Pass%</th>
+                        <th className="px-2 py-2 text-right text-[11px] font-bold text-nge">Pass%</th>
                         <th className="w-5"></th>
                       </tr>
                     </thead>
@@ -1158,13 +1159,13 @@ function Granulometrie({ res, onChange, readOnly }) {
                           <td className="px-2 py-1 font-mono text-[12px] font-bold">{t.d}</td>
                           <td className="px-1 py-1">
                             <input type="number" step="0.01" value={t.r} onChange={e => setR(t.d, e.target.value)} disabled={!directWater.ms}
-                              className="w-[80px] px-2 py-0.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-30" tabIndex={0} />
+                              className="w-[80px] px-2 py-0.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right disabled:opacity-30" tabIndex={0} />
                           </td>
                           <td className="px-2 py-1 text-right text-[11px] text-text-muted">{t.rc_pct ?? '—'}</td>
-                          <td className={`px-2 py-1 text-right font-bold text-[12px] ${t.passant !== null ? 'text-accent' : 'text-text-muted'}`}>
+                          <td className={`px-2 py-1 text-right font-bold text-[12px] ${t.passant !== null ? 'text-nge' : 'text-text-muted'}`}>
                             {showPassantEditor && t.passant !== null && directWater.ms ? (
                               <input type="number" step="0.1" min="0" max="100" value={t.passant} onChange={e => setPassant(t.d, e.target.value)}
-                                className="w-[60px] px-1 py-0.5 border border-accent rounded text-[12px] bg-bg outline-none text-right" tabIndex={0} />
+                                className="w-[60px] px-1 py-0.5 border border-nge rounded text-[12px] bg-bg outline-none text-right" tabIndex={0} />
                             ) : (
                               t.passant ?? '—'
                             )}
@@ -1180,7 +1181,7 @@ function Granulometrie({ res, onChange, readOnly }) {
                 <div className="mt-2">
                   {showAdd ? (
                     <div className="flex items-center gap-2">
-                      <select value={tamisToAdd} onChange={e => setTamisToAdd(e.target.value)} className="px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}>
+                      <select value={tamisToAdd} onChange={e => setTamisToAdd(e.target.value)} className="px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}>
                         <option value="">— Tamis —</option>
                         {ALL_TAMIS.filter(d => !tamis.find(t => t.d === d)).map(d => <option key={d} value={d}>{d} mm</option>)}
                       </select>
@@ -1188,7 +1189,7 @@ function Granulometrie({ res, onChange, readOnly }) {
                       <Button size="sm" onClick={() => setShowAdd(false)} tabIndex={0}>✕</Button>
                     </div>
                   ) : (
-                    <button onClick={() => setShowAdd(true)} className="text-[12px] text-accent hover:underline" tabIndex={0}>+ Ajouter un tamis</button>
+                    <button onClick={() => setShowAdd(true)} className="text-[12px] text-nge hover:underline" tabIndex={0}>+ Ajouter un tamis</button>
                   )}
                 </div>
               </div>
@@ -1244,34 +1245,34 @@ function Granulometrie({ res, onChange, readOnly }) {
           <Card title="Paramètres des coupures">
             <div className="grid grid-cols-4 gap-3">
               <FG label="Coupure D1 (mm)">
-                <select value={d1} onChange={e => updateD1(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}>
+                <select value={d1} onChange={e => updateD1(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}>
                   {ALL_TAMIS.filter(d => d >= 0.08).map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </FG>
               <FG label="2ème coupure">
                 <div className="flex items-center gap-2 h-[42px]">
                   <input type="checkbox" checked={hasD2} onChange={e => updateD2Enabled(e.target.checked)} />
-                  <select value={d2} onChange={e => updateD2(e.target.value)} disabled={!hasD2} className="flex-1 px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent disabled:opacity-50" tabIndex={0}>
+                  <select value={d2} onChange={e => updateD2(e.target.value)} disabled={!hasD2} className="flex-1 px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge disabled:opacity-50" tabIndex={0}>
                     {ALL_TAMIS.filter(d => Number(d) < Number(d1 || 0)).map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
               </FG>
               <FG label="Massa > D1 calculée (g sec)">
-                <input readOnly value={cutoffGlobal.massGtD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                <input readOnly value={cutoffGlobal.massGtD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
               </FG>
             </div>
             <div className="grid grid-cols-4 gap-3 mt-3">
               <FG label="Masse < D1 calculée (g sec)">
-                <input readOnly value={cutoffGlobal.massLtD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                <input readOnly value={cutoffGlobal.massLtD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
               </FG>
               <FG label="Masse totale calculée (g sec)">
-                <input readOnly value={cutoffGlobal.msTotal ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                <input readOnly value={cutoffGlobal.msTotal ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
               </FG>
               <FG label="Passant D1 (%)">
-                <input readOnly value={cutoffGlobal.passingD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                <input readOnly value={cutoffGlobal.passingD1 ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
               </FG>
               <FG label="Passant D2 (%)">
-                <input readOnly value={hasD2 ? (cutoffGlobal.passingD2 ?? '') : ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                <input readOnly value={hasD2 ? (cutoffGlobal.passingD2 ?? '') : ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
               </FG>
             </div>
           </Card>
@@ -1290,24 +1291,24 @@ function Granulometrie({ res, onChange, readOnly }) {
             <Card title={`Fraction passante < ${d1} mm — WE / masse de travail`}>
               <div className="grid grid-cols-4 gap-3 mb-3">
                 <FG label="M1 — Récipient vide (g)">
-                  <input type="number" step="0.01" value={frac1.m1} onChange={e => updateFrac('frac1', 'm1', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  <input type="number" step="0.01" value={frac1.m1} onChange={e => updateFrac('frac1', 'm1', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                 </FG>
                 <FG label="M2 — +Sol humide (g)">
-                  <input type="number" step="0.01" value={frac1.m2} onChange={e => updateFrac('frac1', 'm2', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  <input type="number" step="0.01" value={frac1.m2} onChange={e => updateFrac('frac1', 'm2', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                 </FG>
                 <FG label="M3 — +Sol sec (g)">
-                  <input type="number" step="0.01" value={frac1.m3} onChange={e => updateFrac('frac1', 'm3', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  <input type="number" step="0.01" value={frac1.m3} onChange={e => updateFrac('frac1', 'm3', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                 </FG>
                 <FG label="w calculé (%)">
-                  <input readOnly value={frac1Water.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                  <input readOnly value={frac1Water.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
                 </FG>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <FG label={`Masse humide de la fraction < ${d1} (g)`}>
-                  <input type="number" step="0.01" value={frac1.mh} onChange={e => updateFrac('frac1', 'mh', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                  <input type="number" step="0.01" value={frac1.mh} onChange={e => updateFrac('frac1', 'mh', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                 </FG>
                 <FG label={`Masse sèche de la fraction < ${d1} (g)`}>
-                  <input readOnly value={frac1Water.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                  <input readOnly value={frac1Water.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
                 </FG>
               </div>
             </Card>
@@ -1328,24 +1329,24 @@ function Granulometrie({ res, onChange, readOnly }) {
               <Card title={`Fraction passante < ${d2} mm — WE / masse de travail`}>
                 <div className="grid grid-cols-4 gap-3 mb-3">
                   <FG label="M1 — Récipient vide (g)">
-                    <input type="number" step="0.01" value={frac2.m1} onChange={e => updateFrac('frac2', 'm1', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                    <input type="number" step="0.01" value={frac2.m1} onChange={e => updateFrac('frac2', 'm1', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                   </FG>
                   <FG label="M2 — +Sol humide (g)">
-                    <input type="number" step="0.01" value={frac2.m2} onChange={e => updateFrac('frac2', 'm2', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                    <input type="number" step="0.01" value={frac2.m2} onChange={e => updateFrac('frac2', 'm2', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                   </FG>
                   <FG label="M3 — +Sol sec (g)">
-                    <input type="number" step="0.01" value={frac2.m3} onChange={e => updateFrac('frac2', 'm3', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                    <input type="number" step="0.01" value={frac2.m3} onChange={e => updateFrac('frac2', 'm3', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                   </FG>
                   <FG label="w calculé (%)">
-                    <input readOnly value={frac2Water.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                    <input readOnly value={frac2Water.w ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
                   </FG>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <FG label={`Masse humide de la fraction < ${d2} (g)`}>
-                    <input type="number" step="0.01" value={frac2.mh} onChange={e => updateFrac('frac2', 'mh', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0} />
+                    <input type="number" step="0.01" value={frac2.mh} onChange={e => updateFrac('frac2', 'mh', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0} />
                   </FG>
                   <FG label={`Masse sèche de la fraction < ${d2} (g)`}>
-                    <input readOnly value={frac2Water.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1} />
+                    <input readOnly value={frac2Water.ms ?? ''} placeholder="—" className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1} />
                   </FG>
                 </div>
               </Card>
@@ -1374,7 +1375,7 @@ function Granulometrie({ res, onChange, readOnly }) {
                       <tr className="bg-bg border-b border-border">
                         <th className="px-2 py-2 text-left text-[11px] font-medium text-text-muted">Tamis</th>
                         <th className="px-2 py-2 text-right text-[11px] font-medium text-text-muted">Rc total %</th>
-                        <th className="px-2 py-2 text-right text-[11px] font-bold text-accent">Passant total %</th>
+                        <th className="px-2 py-2 text-right text-[11px] font-bold text-nge">Passant total %</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1382,7 +1383,7 @@ function Granulometrie({ res, onChange, readOnly }) {
                         <tr key={row.d} className="border-b border-border">
                           <td className="px-2 py-1 font-mono text-[12px] font-bold">{row.d}</td>
                           <td className="px-2 py-1 text-right text-[11px] text-text-muted">{row.rc_pct ?? '—'}</td>
-                          <td className="px-2 py-1 text-right font-bold text-[12px] text-accent">{row.passant ?? '—'}</td>
+                          <td className="px-2 py-1 text-right font-bold text-[12px] text-nge">{row.passant ?? '—'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1834,7 +1835,7 @@ function BleuMethylene({ res, onChange, readOnly, essai }) {
             {type === 'sols' && !isMB && (
               <div className="col-span-4 flex items-center gap-4 px-3 py-2 bg-bg border border-border rounded-lg flex-wrap">
                 <label className="flex items-center gap-2 text-[12px] cursor-pointer">
-                  <input type="checkbox" checked={useManualDryMass} onChange={e=>onManualDryMassMode(e.target.checked)} className="accent-accent"/>
+                  <input type="checkbox" checked={useManualDryMass} onChange={e=>onManualDryMassMode(e.target.checked)} className="accent-nge"/>
                     Saisir directement la masse sèche pour chaque détermination sans utiliser la teneur en eau
                 </label>
               </div>
@@ -1842,7 +1843,7 @@ function BleuMethylene({ res, onChange, readOnly, essai }) {
             {isMB && (
               <div className="col-span-4 flex items-center gap-4 px-3 py-2 bg-bg border border-border rounded-lg flex-wrap">
                 <label className="flex items-center gap-2 text-[12px] cursor-pointer">
-                  <input type="checkbox" checked={useManualMs} onChange={e=>onManualMode(e.target.checked)} className="accent-accent"/>
+                  <input type="checkbox" checked={useManualMs} onChange={e=>onManualMode(e.target.checked)} className="accent-nge"/>
                     Saisir directement la masse sèche Ms sans utiliser la teneur en eau
                 </label>
               </div>
@@ -1873,11 +1874,11 @@ function BleuMethylene({ res, onChange, readOnly, essai }) {
                 </FG>
                 <FG label="Ms — calculée (g)">
                   <input readOnly value={moisture.ms??''} placeholder="—"
-                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1}/>
+                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1}/>
                 </FG>
                 <FG label="w — calculé (%)">
                   <input readOnly value={moisture.w??''} placeholder="—"
-                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-accent font-bold" tabIndex={-1}/>
+                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg text-nge font-bold" tabIndex={-1}/>
                 </FG>
                 <p className="col-span-4 text-[11px] text-text-muted italic">
                   Meau = M2−M3 · Ms = M3−M1 · w = Meau/Ms × 100
@@ -1912,18 +1913,18 @@ function BleuMethylene({ res, onChange, readOnly, essai }) {
               <div className="grid grid-cols-3 gap-3">
                 <FG label="V1 — Volume bleu total (mL)">
                   <input type="number" step="0.5" value={v1} onChange={e=>onV1(e.target.value)}
-                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
+                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}/>
                 </FG>
               </div>
               <div className="flex items-center gap-4 px-3 py-2 bg-bg border border-border rounded-lg flex-wrap">
                 <label className="flex items-center gap-2 text-[12px] cursor-pointer">
-                  <input type="checkbox" checked={useKao} onChange={e=>onKao(e.target.checked)} className="accent-accent"/>
+                  <input type="checkbox" checked={useKao} onChange={e=>onKao(e.target.checked)} className="accent-nge"/>
                   Correction kaolinite — {mbLabel} = ((V1−V&apos;) × 10) / Ms
                 </label>
                 {useKao && (
                   <FG label="V' — Volume kaolinite (mL)">
                     <input type="number" step="0.5" value={vPrime} onChange={e=>onVp(e.target.value)}
-                      className="w-[90px] px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent"/>
+                      className="w-[90px] px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-nge"/>
                   </FG>
                 )}
               </div>
@@ -2054,7 +2055,7 @@ function VBSForm({ type, determinations, humidityPercent, coeffCFromGR, useManua
                     </td>
                   )}
                   <td className="px-3 py-2">
-                    <span className={`text-sm font-bold ${result ? 'text-accent' : 'text-text-muted'}`}>
+                    <span className={`text-sm font-bold ${result ? 'text-nge' : 'text-text-muted'}`}>
                       {result || '—'}
                     </span>
                   </td>
@@ -2105,7 +2106,7 @@ function VBSDisplay({ type, determinations, useManualDryMass }) {
                 <td className="px-3 py-2 text-sm">{det.v_bleu}</td>
                 <td className="px-3 py-2 text-sm">{det.c_bleu}</td>
                 {type === 'sols' && !useManualDryMass && <td className="px-3 py-2 text-sm">{det.m_seche}</td>}
-                <td className="px-3 py-2"><span className="text-sm font-bold text-accent">{type === 'granulats' ? det.vbs : det.vb}</span></td>
+                <td className="px-3 py-2"><span className="text-sm font-bold text-nge">{type === 'granulats' ? det.vbs : det.vb}</span></td>
               </tr>
             ))}
           </tbody>
@@ -2202,7 +2203,7 @@ function MouleSelect({ value, onSelect, disabled, placeholder = 'Choisir…' }) 
 
   return (
     <select value={value || ''} onChange={handleChange} disabled={disabled}
-      className="w-full px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent disabled:opacity-40"
+      className="w-full px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge disabled:opacity-40"
       title="Choisir un moule depuis Matériel">
       <option value="">{moules.length === 0 ? '— aucun équipement —' : placeholder}</option>
       {moules.map(m => (
@@ -2303,7 +2304,7 @@ function AnnauSelect({ value, onSelect, disabled, placeholder = 'Anneau…' }) {
       const found = anneaux.find(a => a.code === code)
       onSelect({ code, facteur_k: found?.facteur_k ?? null, capacite: found?.capacite ?? null, label: found?.label ?? '' })
     }} disabled={disabled}
-      className="w-full px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent disabled:opacity-40">
+      className="w-full px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge disabled:opacity-40">
       <option value="">{anneaux.length === 0 ? '— aucun anneau —' : placeholder}</option>
       {anneaux.map(a => (
         <option key={a.code} value={a.code}>
@@ -2683,7 +2684,7 @@ function Proctor({ res, onChange, readOnly, essai }) {
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">w (%)</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">M tot (g)</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">ρh (g/cm³)</th>
-                <th className="px-3 py-2 text-right text-[11px] font-bold text-accent">ρd (Mg/m³)</th>
+                <th className="px-3 py-2 text-right text-[11px] font-bold text-nge">ρd (Mg/m³)</th>
               </tr>
             </thead>
             <tbody>
@@ -2694,7 +2695,7 @@ function Proctor({ res, onChange, readOnly, essai }) {
                   <td className="px-3 py-1.5 text-right text-[12px]">{p.w??'—'}</td>
                   <td className="px-3 py-1.5 text-right text-[12px]">{p.m_tot||'—'}</td>
                   <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{p.rho_h??'—'}</td>
-                  <td className={`px-3 py-1.5 text-right font-bold ${p.rho_d!==null?'text-accent text-[14px]':'text-text-muted text-[12px]'}`}>{p.rho_d??'—'}</td>
+                  <td className={`px-3 py-1.5 text-right font-bold ${p.rho_d!==null?'text-nge text-[14px]':'text-text-muted text-[12px]'}`}>{p.rho_d??'—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -2726,11 +2727,11 @@ function Proctor({ res, onChange, readOnly, essai }) {
           </FG>
           <FG label="M_moule (g)">
             <input type="number" step="0.1" value={mMoule} onChange={e=>onMM(e.target.value)} placeholder="peser"
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}/>
           </FG>
           <FG label="V_moule (cm³)">
             <input type="number" step="1" value={vMoule} onChange={e=>onVM(e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}/>
           </FG>
         </div>
         <p className="text-[11px] text-text-muted italic">
@@ -2753,11 +2754,11 @@ function Proctor({ res, onChange, readOnly, essai }) {
           </FG>
           <FG label="Gs matériau fin (ligne Sr)">
             <input type="number" step="0.01" value={gsFin} onChange={e=>onGsFin(e.target.value)} placeholder="2.70"
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}/>
           </FG>
           <FG label="Gs éléments grossiers (correction)">
             <input type="number" step="0.01" value={gsGros} onChange={e=>onGsGros(e.target.value)} placeholder="2.65"
-              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
+              className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}/>
           </FG>
           <div className="flex flex-col justify-end pb-2">
             <p className="text-[11px] text-text-muted font-medium">{config.couches} couches × {config.coups} coups/couche</p>
@@ -2813,7 +2814,7 @@ function Proctor({ res, onChange, readOnly, essai }) {
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">w calc.<br/><span className="font-normal opacity-60">(%)</span></th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">M_tot (g)<br/><span className="font-normal opacity-60">moule+sol</span></th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">ρh<br/><span className="font-normal opacity-60">(g/cm³)</span></th>
-                <th className="px-3 py-2 text-right text-[11px] font-bold text-accent">ρd (Mg/m³)</th>
+                <th className="px-3 py-2 text-right text-[11px] font-bold text-nge">ρd (Mg/m³)</th>
               </tr>
             </thead>
             <tbody>
@@ -2827,7 +2828,7 @@ function Proctor({ res, onChange, readOnly, essai }) {
                 return (
                   <tr key={i} className={`border-b border-border ${!p.actif?'opacity-30':''}`}>
                     <td className="px-2 py-1.5 text-center">
-                      <input type="checkbox" checked={p.actif} onChange={e=>setP(i,'actif',e.target.checked)} className="accent-accent" tabIndex={0}/>
+                      <input type="checkbox" checked={p.actif} onChange={e=>setP(i,'actif',e.target.checked)} className="accent-nge" tabIndex={0}/>
                     </td>
                     <td className="px-2 py-1.5 text-[12px] text-text-muted">{p.id}</td>
                     <td className="px-1 py-1.5" style={{minWidth:'120px'}}>
@@ -2843,35 +2844,35 @@ function Proctor({ res, onChange, readOnly, essai }) {
                     <td className="px-1 py-1.5">
                       <input type="number" step="0.1" value={p.m_moule} onChange={e=>setP(i,'m_moule',e.target.value)}
                         disabled={!p.actif} placeholder={mMoule||'—'}
-                        className="w-[72px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-40" tabIndex={0}/>
+                        className="w-[72px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right disabled:opacity-40" tabIndex={0}/>
                     </td>
                     <td className="px-1 py-1.5">
                       <input type="number" step="1" value={p.v_moule} onChange={e=>setP(i,'v_moule',e.target.value)}
                         disabled={!p.actif} placeholder={vMoule||'—'}
-                        className="w-[62px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-40" tabIndex={0}/>
+                        className="w-[62px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right disabled:opacity-40" tabIndex={0}/>
                     </td>
                     <td className="px-1 py-1.5">
                       <input type="number" step="0.1" value={p.w} onChange={e=>setP(i,'w',e.target.value)}
                         disabled={!p.actif} placeholder="—"
-                        className="w-[64px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-40" tabIndex={0}/>
+                        className="w-[64px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right disabled:opacity-40" tabIndex={0}/>
                     </td>
                     {['m1','m2','m3'].map(k=>(
                       <td key={k} className="px-1 py-1.5">
                         <input type="number" step="0.01" value={p[k]} onChange={e=>setP(i,k,e.target.value)}
                           disabled={!p.actif} placeholder="—"
-                          className="w-[76px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-40" tabIndex={0}/>
+                          className="w-[76px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right disabled:opacity-40" tabIndex={0}/>
                       </td>
                     ))}
-                    <td className={`px-3 py-1.5 text-right font-medium text-[12px] ${wFromPesee!==null?'text-accent':'text-text-muted opacity-50'}`}>
+                    <td className={`px-3 py-1.5 text-right font-medium text-[12px] ${wFromPesee!==null?'text-nge':'text-text-muted opacity-50'}`}>
                       {wFromPesee!==null ? wFromPesee : (c.w!==null ? c.w : '—')}
                     </td>
                     <td className="px-1 py-1.5">
                       <input type="number" step="0.1" value={p.m_tot} onChange={e=>setP(i,'m_tot',e.target.value)}
                         disabled={!p.actif} placeholder="—"
-                        className="w-[86px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent text-right disabled:opacity-40" tabIndex={0}/>
+                        className="w-[86px] px-2 py-1 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge text-right disabled:opacity-40" tabIndex={0}/>
                     </td>
                     <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{c.rho_h??'—'}</td>
-                    <td className={`px-3 py-1.5 text-right font-bold ${c.rho_d!==null&&p.actif?'text-accent text-[14px]':'text-text-muted text-[12px]'}`}>{c.rho_d??'—'}</td>
+                    <td className={`px-3 py-1.5 text-right font-bold ${c.rho_d!==null&&p.actif?'text-nge text-[14px]':'text-text-muted text-[12px]'}`}>{c.rho_d??'—'}</td>
                   </tr>
                 )
               })}
@@ -3604,7 +3605,7 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">CBR 5.0</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">CBR 2.5 corr.</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">CBR 5.0 corr.</th>
-                <th className="px-3 py-2 text-right text-[11px] font-bold text-accent">IPI (%)</th>
+                <th className="px-3 py-2 text-right text-[11px] font-bold text-nge">IPI (%)</th>
               </tr>
             </thead>
             <tbody>
@@ -3621,7 +3622,7 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                     <td className="px-3 py-1.5 text-right text-[12px]">{c.cbr50??'—'}</td>
                     <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{(c.delta0_used||0)>0?c.cbr25c??'—':'—'}</td>
                     <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{(c.delta0_used||0)>0?c.cbr50c??'—':'—'}</td>
-                    <td className={`px-3 py-1.5 text-right font-bold text-[14px] ${c.ipi!==null?'text-accent':'text-text-muted'}`}>{c.ipi??'—'}</td>
+                    <td className={`px-3 py-1.5 text-right font-bold text-[14px] ${c.ipi!==null?'text-nge':'text-text-muted'}`}>{c.ipi??'—'}</td>
                   </tr>
                 )
               })}
@@ -3675,7 +3676,7 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                               const pt=pnPoints.find(p=>String(p.id)===pid)
                               setTestBatch(testIdx,{pn_point_id:pid,pn_point_w:pt?.w??null,pn_point_rho_d:pt?.rho_d??null,moule_ref:pt?.moule_ref||t.moule_ref})
                             }}
-                            className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}>
+                            className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}>
                             <option value="">— choisir —</option>
                             {pnPoints.map(p=>(
                               <option key={p.id} value={String(p.id)}>
@@ -3685,7 +3686,7 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                           </select>
                         ) : (
                           <input value={t.pn_point_id} onChange={e=>setTestField(testIdx,'pn_point_id',e.target.value)}
-                            placeholder="N° point" className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/>
+                            placeholder="N° point" className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/>
                         )}
                       </FG>
                       {t.pn_point_w!==null && (
@@ -3709,11 +3710,11 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                       {/* Mode saisie: kN direct ou divisions */}
                       <div className="flex gap-1">
                         <button onClick={()=>setTestField(testIdx,'mode_saisie','kn')}
-                          className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${(t.mode_saisie||'kn')==='kn'?'bg-accent text-white border-accent':'border-border text-text-muted'}`}>
+                          className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${(t.mode_saisie||'kn')==='kn'?'bg-nge text-white border-nge':'border-border text-text-muted'}`}>
                           kN direct
                         </button>
                         <button onClick={()=>setTestField(testIdx,'mode_saisie','mm')}
-                          className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${t.mode_saisie==='mm'?'bg-accent text-white border-accent':'border-border text-text-muted'}`}
+                          className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${t.mode_saisie==='mm'?'bg-nge text-white border-nge':'border-border text-text-muted'}`}
                           disabled={facteurK===null} title={facteurK===null?'Sélectionner un anneau avec facteur k':undefined}>
                           mm (comparateur)
                         </button>
@@ -3732,7 +3733,7 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                               setTestField(testIdx, 'correction_mode', newMode)
                             }
                           }}
-                          className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}>
+                          className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}>
                           <option value="auto">Auto</option>
                           <option value="delta0">δ₀ manuel</option>
                           <option value="line">Droite manuelle</option>
@@ -3742,7 +3743,7 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                         <FG label="δ₀ manuel (mm)">
                           <input type="number" step="0.01" min="0" value={t.delta0_manual||''} placeholder="0"
                             onChange={e=>setTestField(testIdx,'delta0_manual',e.target.value)}
-                            className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/>
+                            className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/>
                         </FG>
                       )}
                       {(t.correction_mode||'auto')==='line' && (
@@ -3750,12 +3751,12 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                           <FG label="Point bas (mm)">
                             <input type="number" step="0.1" min="0" value={t.correction_low ?? ''}
                               onChange={e=>setTestField(testIdx,'correction_low',e.target.value)}
-                              className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/>
+                              className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/>
                           </FG>
                           <FG label="Point haut (mm)">
                             <input type="number" step="0.1" min="0" value={t.correction_high ?? ''}
                               onChange={e=>setTestField(testIdx,'correction_high',e.target.value)}
-                              className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/>
+                              className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/>
                           </FG>
                         </div>
                       )}
@@ -3795,17 +3796,17 @@ function IPIForm({ res, onChange, readOnly, essai }) {
                                       : l.depth===5.0&&fKn!==null ? rnd(fKn/F_REF_5_0*100,1) : null
                             return (
                               <tr key={depthIdx} className={`border-b border-border ${isKey?'bg-[#f0f7ff]':isKeyCorr?'bg-[#fef3c7]':isCorrHelper?'bg-[#f8f8f6]':''}`}>
-                                <td className={`px-2 py-0.5 text-[11px] ${isKey?'font-bold text-accent':isKeyCorr?'text-[#854f0b]':isCorrHelper?'text-text-muted italic':'text-text-muted'}`}>
+                                <td className={`px-2 py-0.5 text-[11px] ${isKey?'font-bold text-nge':isKeyCorr?'text-[#854f0b]':isCorrHelper?'text-text-muted italic':'text-text-muted'}`}>
                                   {l.depth}{isKey&&<span className="ml-0.5 text-[9px]">★</span>}{isCorrHelper&&<span className="ml-0.5 text-[9px] opacity-50">c</span>}
                                 </td>
                                 <td className="px-1 py-0.5">
                                   <input type="number" step="0.01" value={rawVal}
                                     onChange={e=>setLecture(testIdx,depthIdx,e.target.value)}
                                     placeholder="—"
-                                    className={`w-full px-2 py-1 border rounded text-[12px] bg-bg outline-none text-right ${isKey?'border-accent':'border-border'} focus:border-accent`}
+                                    className={`w-full px-2 py-1 border rounded text-[12px] bg-bg outline-none text-right ${isKey?'border-nge':'border-border'} focus:border-nge`}
                                     tabIndex={0}/>
                                 </td>
-                                <td className={`px-2 py-0.5 text-right text-[11px] font-bold ${cbr!==null?'text-accent':'text-text-muted opacity-30'}`}>
+                                <td className={`px-2 py-0.5 text-right text-[11px] font-bold ${cbr!==null?'text-nge':'text-text-muted opacity-30'}`}>
                                   {cbr??''}
                                 </td>
                               </tr>
@@ -4060,11 +4061,11 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
     <Card title="Conditions d'essai">
       <div className="grid grid-cols-3 gap-3">
         <FG label="Surcharge (kg)">
-          <input type="number" step="0.1" value={surchargeKg} onChange={e => onChangeGlobalSurcharge(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
+          <input type="number" step="0.1" value={surchargeKg} onChange={e => onChangeGlobalSurcharge(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}/>
         </FG>
         {isImmersed ? (
           <FG label="Immersion (jours)">
-            <input type="number" step="1" min="1" value={soakDays} onChange={e => onChangeGlobalSoakDays(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" tabIndex={0}/>
+            <input type="number" step="1" min="1" value={soakDays} onChange={e => onChangeGlobalSoakDays(e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" tabIndex={0}/>
           </FG>
         ) : (
           <div className="flex items-end pb-2 text-[12px] text-text-muted">Essai immédiat avec surcharge, sans immersion.</div>
@@ -4105,7 +4106,7 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">CBR 5.0</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">CBR 2.5 corr.</th>
                 <th className="px-3 py-2 text-right text-[11px] font-medium text-text-muted">CBR 5.0 corr.</th>
-                <th className="px-3 py-2 text-right text-[11px] font-bold text-accent">{mode} (%)</th>
+                <th className="px-3 py-2 text-right text-[11px] font-bold text-nge">{mode} (%)</th>
               </tr>
             </thead>
             <tbody>
@@ -4123,7 +4124,7 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                     <td className="px-3 py-1.5 text-right text-[12px]">{c.cbr50 ?? '—'}</td>
                     <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{(c.delta0_used || 0) > 0 ? c.cbr25c ?? '—' : '—'}</td>
                     <td className="px-3 py-1.5 text-right text-[12px] text-text-muted">{(c.delta0_used || 0) > 0 ? c.cbr50c ?? '—' : '—'}</td>
-                    <td className={`px-3 py-1.5 text-right font-bold text-[14px] ${c.cbr !== null ? 'text-accent' : 'text-text-muted'}`}>{c.cbr ?? '—'}</td>
+                    <td className={`px-3 py-1.5 text-right font-bold text-[14px] ${c.cbr !== null ? 'text-nge' : 'text-text-muted'}`}>{c.cbr ?? '—'}</td>
                   </tr>
                 )
               })}
@@ -4173,7 +4174,7 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                               pn_point_rho_d: pt?.rho_d ?? null,
                               moule_ref: pt?.moule_ref || t.moule_ref,
                             })
-                          }} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}>
+                          }} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}>
                             <option value="">— choisir —</option>
                             {pnPoints.map(p => (
                               <option key={p.id} value={String(p.id)}>
@@ -4182,7 +4183,7 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                             ))}
                           </select>
                         ) : (
-                          <input value={t.pn_point_id} onChange={e => setTestField(testIdx, 'pn_point_id', e.target.value)} placeholder="N° point" className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/>
+                          <input value={t.pn_point_id} onChange={e => setTestField(testIdx, 'pn_point_id', e.target.value)} placeholder="N° point" className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/>
                         )}
                       </FG>
                       {t.pn_point_w !== null && (
@@ -4200,20 +4201,20 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                       )}
 
                       <div className="flex gap-1">
-                        <button onClick={() => setTestField(testIdx, 'mode_saisie', 'kn')} className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${(t.mode_saisie || 'kn') === 'kn' ? 'bg-accent text-white border-accent' : 'border-border text-text-muted'}`}>kN direct</button>
-                        <button onClick={() => setTestField(testIdx, 'mode_saisie', 'mm')} className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${t.mode_saisie === 'mm' ? 'bg-accent text-white border-accent' : 'border-border text-text-muted'}`} disabled={facteurK === null} title={facteurK === null ? 'Sélectionner un anneau avec facteur k' : undefined}>mm (comparateur)</button>
+                        <button onClick={() => setTestField(testIdx, 'mode_saisie', 'kn')} className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${(t.mode_saisie || 'kn') === 'kn' ? 'bg-nge text-white border-nge' : 'border-border text-text-muted'}`}>kN direct</button>
+                        <button onClick={() => setTestField(testIdx, 'mode_saisie', 'mm')} className={`flex-1 text-[10px] py-0.5 rounded border transition-colors ${t.mode_saisie === 'mm' ? 'bg-nge text-white border-nge' : 'border-border text-text-muted'}`} disabled={facteurK === null} title={facteurK === null ? 'Sélectionner un anneau avec facteur k' : undefined}>mm (comparateur)</button>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
-                        <FG label="M_tot (g)"><input type="number" step="0.1" value={t.m_tot} onChange={e => setTestField(testIdx, 'm_tot', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/></FG>
-                        <FG label="w (%)"><input type="number" step="0.1" value={t.w} onChange={e => setTestField(testIdx, 'w', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/></FG>
+                        <FG label="M_tot (g)"><input type="number" step="0.1" value={t.m_tot} onChange={e => setTestField(testIdx, 'm_tot', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/></FG>
+                        <FG label="w (%)"><input type="number" step="0.1" value={t.w} onChange={e => setTestField(testIdx, 'w', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/></FG>
                       </div>
                       <div className="text-[10px] text-text-muted px-1">ρh={c.rho_h ?? '—'} · ρd={c.rho_d ?? '—'}</div>
 
                       {isImmersed ? (
                         <div className="grid grid-cols-2 gap-2">
-                          <FG label="Gonf. ini (mm)"><input type="number" step="0.01" value={t.gonf_ini} onChange={e => setTestField(testIdx, 'gonf_ini', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" /></FG>
-                          <FG label="Gonf. fin (mm)"><input type="number" step="0.01" value={t.gonf_fin} onChange={e => setTestField(testIdx, 'gonf_fin', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" /></FG>
+                          <FG label="Gonf. ini (mm)"><input type="number" step="0.01" value={t.gonf_ini} onChange={e => setTestField(testIdx, 'gonf_ini', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" /></FG>
+                          <FG label="Gonf. fin (mm)"><input type="number" step="0.01" value={t.gonf_fin} onChange={e => setTestField(testIdx, 'gonf_fin', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" /></FG>
                         </div>
                       ) : (
                         <div className="text-[10px] text-text-muted px-1">Essai immédiat avec surcharge, sans immersion.</div>
@@ -4231,7 +4232,7 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                             } else {
                               setTestField(testIdx, 'correction_mode', newMode)
                             }
-                          }} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}>
+                          }} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}>
                           <option value="auto">Auto</option>
                           <option value="delta0">δ₀ manuel</option>
                           <option value="line">Droite manuelle</option>
@@ -4239,13 +4240,13 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                       </FG>
                       {(t.correction_mode || 'auto') === 'delta0' && (
                         <FG label="δ₀ manuel (mm)">
-                          <input type="number" step="0.01" min="0" value={t.delta0_manual || ''} onChange={e => setTestField(testIdx, 'delta0_manual', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/>
+                          <input type="number" step="0.01" min="0" value={t.delta0_manual || ''} onChange={e => setTestField(testIdx, 'delta0_manual', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/>
                         </FG>
                       )}
                       {(t.correction_mode || 'auto') === 'line' && (
                         <div className="grid grid-cols-2 gap-2">
-                          <FG label="Point bas (mm)"><input type="number" step="0.1" min="0" value={t.correction_low ?? ''} onChange={e => setTestField(testIdx, 'correction_low', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/></FG>
-                          <FG label="Point haut (mm)"><input type="number" step="0.1" min="0" value={t.correction_high ?? ''} onChange={e => setTestField(testIdx, 'correction_high', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-accent" tabIndex={0}/></FG>
+                          <FG label="Point bas (mm)"><input type="number" step="0.1" min="0" value={t.correction_low ?? ''} onChange={e => setTestField(testIdx, 'correction_low', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/></FG>
+                          <FG label="Point haut (mm)"><input type="number" step="0.1" min="0" value={t.correction_high ?? ''} onChange={e => setTestField(testIdx, 'correction_high', e.target.value)} className="w-full px-2 py-1.5 border border-border rounded text-[12px] bg-bg outline-none focus:border-nge" tabIndex={0}/></FG>
                         </div>
                       )}
                       {(c?.correction_line?.x1 !== null && c?.correction_line?.x2 !== null) && (
@@ -4275,13 +4276,13 @@ function IPICBRForm({ res, onChange, readOnly, essai, forcedMode = null }) {
                               : l.depth === 5.0 && fKn !== null ? rnd(fKn / F_REF_5_0 * 100, 1) : null
                             return (
                               <tr key={depthIdx} className={`border-b border-border ${isKey ? 'bg-[#f0f7ff]' : isKeyCorr ? 'bg-[#fef3c7]' : isCorrHelper ? 'bg-[#f8f8f6]' : ''}`}>
-                                <td className={`px-2 py-0.5 text-[11px] ${isKey ? 'font-bold text-accent' : isKeyCorr ? 'text-[#854f0b]' : isCorrHelper ? 'text-text-muted italic' : 'text-text-muted'}`}>
+                                <td className={`px-2 py-0.5 text-[11px] ${isKey ? 'font-bold text-nge' : isKeyCorr ? 'text-[#854f0b]' : isCorrHelper ? 'text-text-muted italic' : 'text-text-muted'}`}>
                                   {l.depth}{isKey && <span className="ml-0.5 text-[9px]">★</span>}
                                 </td>
                                 <td className="px-1 py-0.5">
-                                  <input type="number" step="0.01" value={rawVal} onChange={e => setLecture(testIdx, depthIdx, e.target.value)} placeholder="—" className={`w-full px-2 py-1 border rounded text-[12px] bg-bg outline-none text-right ${isKey ? 'border-accent' : 'border-border'} focus:border-accent`} tabIndex={0}/>
+                                  <input type="number" step="0.01" value={rawVal} onChange={e => setLecture(testIdx, depthIdx, e.target.value)} placeholder="—" className={`w-full px-2 py-1 border rounded text-[12px] bg-bg outline-none text-right ${isKey ? 'border-nge' : 'border-border'} focus:border-nge`} tabIndex={0}/>
                                 </td>
-                                <td className={`px-2 py-0.5 text-right text-[11px] font-bold ${localCbr !== null ? 'text-accent' : 'text-text-muted opacity-30'}`}>{localCbr ?? ''}</td>
+                                <td className={`px-2 py-0.5 text-right text-[11px] font-bold ${localCbr !== null ? 'text-nge' : 'text-text-muted opacity-30'}`}>{localCbr ?? ''}</td>
                               </tr>
                             )
                           })}
@@ -4351,7 +4352,7 @@ function CompatibilityPanel({ title, fields, readOnly, values, onFieldChange, su
                                     onChange={event => onFieldChange(field.key, event.target.value, field.type)}
                                     rows={field.rows || 3}
                                     disabled={readOnly}
-                                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y disabled:opacity-60"
+                                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y disabled:opacity-60"
                                 />
                             ) : (
                                 <Input
@@ -4852,45 +4853,59 @@ export default function EssaiPage() {
     })
   }
 
-  if (!isNew && isLoading) return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+  if (!isNew && isLoading) return (
+    <FichePageShell>
+      <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+    </FichePageShell>
+  )
   if (!isNew && (isError || !essai)) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   if (isNew && !isModelo && !linkedEchantillonId && !effectiveInterventionId) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">
-        {allowsInterventionParent
-          ? 'Parent manquant (échantillon ou intervention)'
-          : 'Échantillon manquant pour ce type d’essai'}
-      </p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">
+          {allowsInterventionParent
+            ? 'Parent manquant (échantillon ou intervention)'
+            : 'Échantillon manquant pour ce type d’essai'}
+        </p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   if (isNew && (isLinkedEchantillonLoading || isLinkedInterventionLoading || redirectingToFeuille || shouldRedirectToFeuille)) {
     return (
-      <div className="text-xs text-text-muted text-center py-16">
-        {shouldRedirectToFeuille ? 'Ouverture de la feuille terrain…' : 'Chargement…'}
-      </div>
+      <FichePageShell>
+        <div className="text-xs text-text-muted text-center py-16">
+          {shouldRedirectToFeuille ? 'Ouverture de la feuille terrain…' : 'Chargement…'}
+        </div>
+      </FichePageShell>
     )
   }
 
   if (isNew && linkedEchantillonId && (isLinkedEchantillonError || !linkedEchantillon)) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Échantillon introuvable</p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Échantillon introuvable</p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, linkedEchantillonId ? `/echantillons/${linkedEchantillonId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   if (isNew && !linkedEchantillonId && effectiveInterventionId && (isLinkedInterventionError || !linkedIntervention)) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Intervention introuvable</p>
-      <Button onClick={() => navigateBackWithFallback(navigate, searchParams, effectiveInterventionId ? `/interventions/${effectiveInterventionId}` : '')} tabIndex={0}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Intervention introuvable</p>
+        <Button onClick={() => navigateBackWithFallback(navigate, searchParams, effectiveInterventionId ? `/interventions/${effectiveInterventionId}` : '')} tabIndex={0}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   const currentEssai = isNew
@@ -4975,21 +4990,20 @@ export default function EssaiPage() {
     return null
   })()
 
-  return (
-    <div className="flex flex-col h-full overflow-y-auto">
+  const essaiBreadcrumb = [
+    currentEssai.demande_ref || currentEssai.demande_reference,
+    currentEssai.ech_ref || (!currentEssai.ech_ref && currentEssai.intervention_reference ? currentEssai.intervention_reference : null),
+  ].filter(Boolean).join(' › ')
 
-      {/* Topbar */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-surface border-b border-border shrink-0 flex-wrap">
-        <button onClick={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
-          className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors" tabIndex={0}>
-          ← Retour
-        </button>
-        <span className="text-[13px] text-text-muted">
-          {(currentEssai.demande_ref || currentEssai.demande_reference) && `${currentEssai.demande_ref || currentEssai.demande_reference} › `}
-          {currentEssai.ech_ref && `${currentEssai.ech_ref} › `}
-          {!currentEssai.ech_ref && currentEssai.intervention_reference && `${currentEssai.intervention_reference} › `}
-        </span>
-        <span className="text-[14px] font-semibold flex-1">{currentEssai.type_essai || (isNew ? 'Nouvel essai' : `Essai #${uid}`)}</span>
+  return (
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
+        eyebrow="Laboratoire"
+        title={currentEssai.type_essai || (isNew ? 'Nouvel essai' : `Essai #${uid}`)}
+        subtitle={essaiBreadcrumb || undefined}
+      >
         <Badge s={displayStatus} />
         {parentEchantillonUid ? (
           <Button size="sm" variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/echantillons/${parentEchantillonUid}`, childReturnTo)} tabIndex={0}>
@@ -5014,9 +5028,10 @@ export default function EssaiPage() {
         ) : (
           <Button size="sm" variant="primary" onClick={openEdit} tabIndex={0}>✏️ Modifier</Button>
         )}
-      </div>
+      </FicheTopbar>
 
-      <div className="p-5 max-w-[1400px] mx-auto w-full flex flex-col gap-4">
+      <FicheMain>
+      <div className="max-w-[1400px] mx-auto w-full flex flex-col gap-4">
 
         {/* MODELO — banner + procura */}
         {isNew && isModelo && (
@@ -5036,7 +5051,7 @@ export default function EssaiPage() {
                 onChange={(e) => setModeloSearchQ(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); loadModeloData() } }}
                 placeholder="Número, código ou referência de essai existente para carregar dados…"
-                className="flex-1 px-2 py-1.5 border border-[#d5c9a8] rounded text-xs bg-white outline-none focus:border-accent"
+                className="flex-1 px-2 py-1.5 border border-[#d5c9a8] rounded text-xs bg-white outline-none focus:border-nge"
               />
               <button
                 type="button"
@@ -5090,7 +5105,7 @@ export default function EssaiPage() {
           ) : (
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-[18px] font-bold text-accent font-mono">
+                <div className="text-[18px] font-bold text-nge font-mono">
                   {buildDisplayEssaiReference(currentEssai, uid, isNew)}
                 </div>
                 <div className="flex flex-col gap-0.5 mt-1">
@@ -5102,7 +5117,7 @@ export default function EssaiPage() {
                         <button
                           type="button"
                           onClick={() => navigateWithReturnTo(navigate, `/echantillons/${parentEchantillonUid}`, childReturnTo)}
-                          className="ml-2 text-accent hover:underline"
+                          className="ml-2 text-nge hover:underline"
                         >
                           Ouvrir
                         </button>
@@ -5117,7 +5132,7 @@ export default function EssaiPage() {
                         <button
                           type="button"
                           onClick={() => navigateWithReturnTo(navigate, `/interventions/${parentInterventionUid}`, childReturnTo)}
-                          className="ml-2 text-accent hover:underline"
+                          className="ml-2 text-nge hover:underline"
                         >
                           Ouvrir
                         </button>
@@ -5137,7 +5152,7 @@ export default function EssaiPage() {
                 <Badge s={currentEssai.statut} />
                 {heroResult && (
                   <div className="text-right">
-                    <div className="text-[26px] font-bold text-accent leading-none">{heroResult.value}</div>
+                    <div className="text-[26px] font-bold text-nge leading-none">{heroResult.value}</div>
                     <div className="text-[11px] text-text-muted">{heroResult.label}</div>
                   </div>
                 )}
@@ -5163,6 +5178,7 @@ export default function EssaiPage() {
         )}
 
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

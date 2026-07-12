@@ -12,6 +12,7 @@ import { api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { formatDate } from '@/lib/utils'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 // ── Helpers UI ────────────────────────────────────────────────────────────────
 function Card({ title, children }) {
@@ -121,7 +122,7 @@ function TeneurEnEau({ resultats, onChange, readOnly }) {
                   <td className="px-3 py-2">
                     <input type="checkbox" checked={d.actif}
                       onChange={e => setDet(i, 'actif', e.target.checked)}
-                      disabled={readOnly} className="accent-accent" />
+                      disabled={readOnly} className="accent-nge" />
                   </td>
                   {['m_recipient', 'm_recip_sol_humide', 'm_recip_sol_sec'].map(key => (
                     <td key={key} className="px-2 py-1.5">
@@ -129,12 +130,12 @@ function TeneurEnEau({ resultats, onChange, readOnly }) {
                         type="number" step="0.01" value={d[key]}
                         onChange={e => setDet(i, key, e.target.value)}
                         disabled={readOnly || !d.actif}
-                        className="w-[100px] px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent text-right disabled:bg-bg/50" />
+                        className="w-[100px] px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-nge text-right disabled:bg-bg/50" />
                     </td>
                   ))}
                   <td className="px-3 py-2 text-right text-[12px] text-text-muted">{g(c.m_eau)}</td>
                   <td className="px-3 py-2 text-right text-[12px] text-text-muted">{g(c.m_sol_sec)}</td>
-                  <td className={`px-3 py-2 text-right text-[13px] font-bold ${c.w !== null ? 'text-accent' : 'text-text-muted'}`}>{pct(c.w)}</td>
+                  <td className={`px-3 py-2 text-right text-[13px] font-bold ${c.w !== null ? 'text-nge' : 'text-text-muted'}`}>{pct(c.w)}</td>
                 </tr>
               )
             })}
@@ -142,7 +143,7 @@ function TeneurEnEau({ resultats, onChange, readOnly }) {
           <tfoot>
             <tr className="bg-bg border-t-2 border-border">
               <td colSpan={7} className="px-3 py-2.5 text-[12px] font-bold text-right">w moyen :</td>
-              <td className={`px-3 py-2.5 text-right text-[15px] font-bold ${w_moyen !== null ? 'text-accent' : 'text-text-muted'}`}>
+              <td className={`px-3 py-2.5 text-right text-[15px] font-bold ${w_moyen !== null ? 'text-nge' : 'text-text-muted'}`}>
                 {pct(w_moyen)}
               </td>
             </tr>
@@ -227,12 +228,18 @@ export default function EssaiDetailPage() {
     saveMut.mutate(payload)
   }
 
-  if (isLoading) return <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+  if (isLoading) return (
+    <FichePageShell>
+      <div className="text-xs text-text-muted text-center py-16">Chargement…</div>
+    </FichePageShell>
+  )
   if (isError || !essai) return (
-    <div className="text-center py-16">
-      <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
-      <Button onClick={() => navigate(-1)}>← Retour</Button>
-    </div>
+    <FichePageShell>
+      <div className="text-center py-16">
+        <p className="text-text-muted text-sm mb-3">Essai introuvable</p>
+        <Button onClick={() => navigate(-1)}>← Retour</Button>
+      </div>
+    </FichePageShell>
   )
 
   const EssaiForm = ESSAI_COMPONENTS[essai.type_essai]
@@ -240,39 +247,39 @@ export default function EssaiDetailPage() {
   try { resultsParsed = JSON.parse(essai.resultats || '{}') } catch {}
   const wMoyen = resultsParsed.w_moyen
 
-  return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {/* Topbar */}
-      <div className="flex items-center gap-3 px-6 py-3 bg-surface border-b border-border shrink-0">
-        <button onClick={() => navigate(-1)} className="text-text-muted text-[13px] hover:text-text px-2 py-1 rounded transition-colors">
-          ← Retour
-        </button>
-        <span className="text-[13px] text-text-muted">
-          {essai.demande_ref && <span className="hover:text-text cursor-pointer" onClick={() => navigate(`/demandes/${essai.demande_ref}`)}>{essai.demande_ref}</span>}
-          {essai.ech_ref && <> › <span className="text-text-muted">{essai.ech_ref}</span></>}
-          {' › '}
-        </span>
-        <span className="text-[14px] font-semibold">{essai.type_essai || `Essai #${uid}`}</span>
-        <div className="ml-auto flex items-center gap-2">
-          <Badge s={essai.statut} />
-          {!editing && <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>}
-        </div>
-      </div>
+  const essaiSubtitle = [
+    essai.demande_ref,
+    essai.ech_ref,
+  ].filter(Boolean).join(' › ')
 
-      <div className="p-6 max-w-[900px] mx-auto w-full flex flex-col gap-4">
+  return (
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Retour"
+        onBack={() => navigate(-1)}
+        eyebrow="Laboratoire"
+        title={essai.type_essai || `Essai #${uid}`}
+        subtitle={essaiSubtitle || undefined}
+      >
+        <Badge s={essai.statut} />
+        {!editing && <Button size="sm" variant="primary" onClick={openEdit}>✏️ Modifier</Button>}
+      </FicheTopbar>
+
+      <FicheMain>
+      <div className="max-w-[900px] mx-auto w-full flex flex-col gap-4">
 
         {/* Hero */}
         <div className="bg-surface border border-border rounded-[10px] p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-[20px] font-bold text-accent">{essai.type_essai || '—'}</div>
+              <div className="text-[20px] font-bold text-nge">{essai.type_essai || '—'}</div>
               {essai.ech_ref && <div className="text-[13px] text-text-muted mt-0.5">Échantillon : {essai.ech_ref} {essai.designation ? `— ${essai.designation}` : ''}</div>}
               {essai.demande_ref && <div className="text-[12px] text-text-muted">Demande : {essai.demande_ref}</div>}
               {essai.chantier && <div className="text-[12px] text-text-muted">{essai.chantier}{essai.client ? ` — ${essai.client}` : ''}</div>}
             </div>
             {wMoyen !== null && wMoyen !== undefined && (
               <div className="text-right shrink-0">
-                <div className="text-[28px] font-bold text-accent">{Number(wMoyen).toFixed(1)} %</div>
+                <div className="text-[28px] font-bold text-nge">{Number(wMoyen).toFixed(1)} %</div>
                 <div className="text-[11px] text-text-muted">w moyen</div>
               </div>
             )}
@@ -320,7 +327,7 @@ export default function EssaiDetailPage() {
               <FG label="Date fin"><Input type="date" value={form.date_fin} onChange={e => set('date_fin', e.target.value)}/></FG>
               <FG label="Observations" full>
                 <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={2}
-                  className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"/>
+                  className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"/>
               </FG>
             </div>
           </Card>
@@ -358,6 +365,7 @@ export default function EssaiDetailPage() {
           </div>
         )}
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

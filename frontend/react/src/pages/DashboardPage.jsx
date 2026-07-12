@@ -41,6 +41,7 @@ import { getRegionalRstShortLabel, getUserOrgScope, recordMatchesOrgScope } from
 import { buildLaboratoireCatalog } from '@/lib/laboratoireCatalog'
 import { hasPermission } from '@/lib/permissions'
 import { useDashboardPreferences } from '@/hooks/useDashboardPreferences'
+import { DashboardHero, FicheMain, FichePageShell } from '@/components/layout/FicheLayout'
 
 const DOMAIN_BADGES = [
   'Affaires',
@@ -83,6 +84,12 @@ const TONES = {
     dot: 'bg-[#2a8a80]',
     soft: 'bg-[#d3ebe7]',
     value: 'text-[#14655d]',
+  },
+  nge: {
+    panel: 'border-[#c5d4ea] bg-[#eef3fa] text-[#003170]',
+    dot: 'bg-[#003170]',
+    soft: 'bg-[#dce8f5]',
+    value: 'text-[#003170]',
   },
   slate: {
     panel: 'border-[#e4ddd3] bg-[#f4f1eb] text-[#5f5e5a]',
@@ -127,7 +134,7 @@ const DASHBOARD_SHORTCUTS = [
     title: 'Affaires',
     desc: 'Pilotage client, chantier et charge active',
     to: '/affaires',
-    tone: 'teal',
+    tone: 'nge',
     icon: Briefcase,
   },
   {
@@ -178,7 +185,7 @@ const DASHBOARD_SHORTCUTS = [
     title: 'Outils terrain & essais',
     desc: 'Ouvrir directement une feuille terrain ou un essai par numero ou reference',
     to: '/tools#feuilles-preparation',
-    tone: 'teal',
+    tone: 'nge',
     icon: FileText,
   },
 ]
@@ -593,7 +600,7 @@ function QuickLink({ title, desc, stat, note, badge, badgeTone = 'slate', to, to
     <button
       type="button"
       onClick={() => navigate(to)}
-      className="group flex h-full items-start gap-3 rounded-[18px] border border-border bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+      className="group flex h-full items-start gap-3 rounded-[18px] border border-border bg-surface p-4 text-left transition hover:-translate-y-0.5 hover:border-nge/20 hover:bg-[#f3f6fb]"
     >
       <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border', tonePanel(tone))}>
         <Icon size={18} />
@@ -684,7 +691,7 @@ function ListRow({ title, subtitle, meta, trailing, leadingTone = 'slate', onCli
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-left transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+      className="w-full rounded-2xl border border-border bg-white px-4 py-3 text-left transition hover:border-nge/20 hover:bg-[#f3f6fb]"
     >
       <div className="flex items-start gap-3">
         <span className={cn('mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full', toneDot(leadingTone))} />
@@ -709,8 +716,8 @@ function WidgetToggle({ widget, active, onToggle }) {
       className={cn(
         'flex items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition',
         active
-          ? 'border-[#d8e6e1] bg-[#f8fbfa]'
-          : 'border-border bg-white hover:border-[#d8e6e1] hover:bg-[#f8fbfa]'
+          ? 'border-nge/20 bg-[#f3f6fb]'
+          : 'border-border bg-white hover:border-nge/20 hover:bg-[#f3f6fb]'
       )}
     >
       <div>
@@ -720,7 +727,7 @@ function WidgetToggle({ widget, active, onToggle }) {
       <span
         className={cn(
           'inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold',
-          active ? tonePanel('teal') : tonePanel('slate')
+          active ? tonePanel('nge') : tonePanel('slate')
         )}
       >
         {active ? 'Visible' : 'Masque'}
@@ -1931,50 +1938,17 @@ export default function DashboardPage() {
   if (heroHighlights.length === 0) heroHighlights.push('Chargement des indicateurs...')
 
   return (
-    <div className="flex flex-col gap-5">
-      <div
-        className="relative overflow-hidden rounded-[20px] border border-[#234e51]/20 p-6 text-white"
-        style={{
-          background: [
-            'radial-gradient(circle at top left, rgba(246, 205, 120, 0.24), transparent 28%)',
-            'radial-gradient(circle at bottom right, rgba(94, 170, 156, 0.22), transparent 34%)',
-            'linear-gradient(135deg, #17343a 0%, #24555d 46%, #8d5e32 100%)',
-          ].join(', '),
-        }}
-      >
-        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">Vue opérationnelle</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-              {greeting}{displayName ? `, ${displayName}` : ''}
-            </h2>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/80">
-              {orgScope.isRegionalRst
-                ? homeConfig.description
-                : 'Pilotage transversal des affaires, du planning, du laboratoire, du terrain et de la conformité.'}
-            </p>
-            {orgScope.isRegionalRst ? (
-              <p className="mt-2 text-xs font-medium text-[#ffcc00]">
-                {getRegionalRstShortLabel()} · labos {orgScope.labCodes.join(' + ')}
-              </p>
-            ) : null}
-            <p className="mt-3 text-sm text-white/70">
-              {now.toLocaleDateString('fr-FR', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {heroHighlights.map((label) => (
-                <span key={label} className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
-                  {label}
-                </span>
-              ))}
-            </div>
-          </div>
-
+    <FichePageShell>
+      <FicheMain className="gap-5">
+      <DashboardHero
+        eyebrow="Vue opérationnelle"
+        title={`${greeting}${displayName ? `, ${displayName}` : ''}`}
+        subtitle={
+          orgScope.isRegionalRst
+            ? homeConfig.description
+            : 'Pilotage transversal des affaires, du planning, du laboratoire, du terrain et de la conformité.'
+        }
+        aside={(
           <div className="rounded-[18px] border border-white/15 bg-white/10 p-4 backdrop-blur-sm lg:max-w-md">
             <div className="flex items-center gap-2 text-white/85">
               <ShieldAlert size={15} />
@@ -1988,8 +1962,29 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
+        )}
+      >
+        {orgScope.isRegionalRst ? (
+          <p className="mt-2 text-xs font-medium text-[#ffcc00]">
+            {getRegionalRstShortLabel()} · labos {orgScope.labCodes.join(' + ')}
+          </p>
+        ) : null}
+        <p className="mt-3 text-sm text-white/70">
+          {now.toLocaleDateString('fr-FR', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {heroHighlights.map((label) => (
+            <span key={label} className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur-sm">
+              {label}
+            </span>
+          ))}
         </div>
-      </div>
+      </DashboardHero>
 
       {dataIssues.length > 0 ? (
         <Card className="border-[#efc2bf] bg-[#fdf7f6]">
@@ -2014,12 +2009,12 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <TonePill tone="teal">{activeWidgetCount}/{availableWidgets.length} widgets</TonePill>
+            <TonePill tone="nge">{activeWidgetCount}/{availableWidgets.length} widgets</TonePill>
             <TonePill tone="slate">{dashboardPresetLabel}</TonePill>
             <button
               type="button"
               onClick={() => setIsWidgetPickerOpen((current) => !current)}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-medium text-text transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-medium text-text transition hover:border-nge/20 hover:bg-[#f3f6fb]"
             >
               <SlidersHorizontal size={13} />
               {isWidgetPickerOpen ? 'Fermer' : 'Configurer'}
@@ -2027,7 +2022,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={resetWidgets}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-medium text-text transition hover:border-[#d8e6e1] hover:bg-[#f8fbfa]"
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-medium text-text transition hover:border-nge/20 hover:bg-[#f3f6fb]"
             >
               <RotateCcw size={13} />
               Reinitialiser
@@ -2798,6 +2793,7 @@ export default function DashboardPage() {
           ) : null}
         </div>
       ) : null}
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

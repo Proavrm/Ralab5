@@ -500,12 +500,12 @@ export default function AffairesPage() {
         eyebrow="Affaires RST"
         title="Portefeuille et suivi"
       >
-        <button type="button" onClick={openCreate} className="px-3.5 py-2 rounded-xl bg-[#003170] text-white text-[13px] font-bold hover:bg-[#00224f] inline-flex items-center gap-1.5">
+        <Button type="button" variant="primary" size="sm" onClick={openCreate} className="rounded-xl font-bold">
           <Plus size={14} /> Nouvelle affaire
-        </button>
-        <button type="button" onClick={() => refetch()} className="px-3 py-2 rounded-xl border border-[#dbe1ea] bg-white text-[#69758a] hover:bg-[#f3f6fb]">
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </FicheTopbar>
 
       <FicheMain>
@@ -524,7 +524,7 @@ export default function AffairesPage() {
               <input
                 value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Référence, chantier, client, N°étude…"
-                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-[#dbe1ea] rounded text-sm bg-white outline-none focus:border-[#003170]"
+                className="flex-1 min-w-[220px] max-w-[320px] px-3 py-1.5 border border-border rounded text-sm bg-white outline-none focus:border-nge"
               />
               <Select value={statut} onChange={e => setStatut(e.target.value)} className="text-xs py-1.5">
                 <option value="">Tous statuts</option>
@@ -536,11 +536,11 @@ export default function AffairesPage() {
               </Select>
               {(search || statut || titulaire) && (
                 <button onClick={() => { setSearch(''); setStatut(''); setTitulaire('') }}
-                  className="text-xs text-[#69758a] hover:text-danger flex items-center gap-1">
+                  className="text-xs text-text-muted hover:text-danger flex items-center gap-1">
                   <X size={11} /> Effacer
                 </button>
               )}
-              <span className="text-xs text-[#69758a] ml-auto">
+              <span className="text-xs text-text-muted ml-auto">
                 {filtered.length} affaire{filtered.length !== 1 ? 's' : ''}
               </span>
             </div>
@@ -784,7 +784,7 @@ export default function AffairesPage() {
         </datalist>
 
         {isCreating && dossierNomPrevu ? (
-          <div className="mt-4 rounded-xl border border-[#dbe1ea] bg-[#f8fafc] px-4 py-3">
+          <div className="mt-4 rounded-xl border border-border bg-[#f8fafc] px-4 py-3">
             <div className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">Nom dossier prévu</div>
             <div className="mt-1 text-[13px] font-semibold text-[#172033] leading-snug">{dossierNomPrevu}</div>
             <div className="mt-1.5 text-[11px] text-text-muted leading-relaxed">

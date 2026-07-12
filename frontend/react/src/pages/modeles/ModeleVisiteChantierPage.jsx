@@ -19,13 +19,14 @@ import {
   mergeVisiteChantierPayload,
   VISITE_CHANTIER_LABEL,
 } from '@/lib/modeleVisiteChantierContent'
+import { WorksheetMain, WorksheetPageShell, WorksheetTopbar } from '@/components/layout/FicheLayout'
 
 const META_CHIP_TONES = {
   neutral: 'border-[#dbe1ea] bg-[#f8fafc] text-[#475569]',
   draft: 'border-[#dbe1ea] bg-[#f8fafc] text-[#475569]',
   pending: 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]',
   validated: 'border-[#bbf7d0] bg-[#ecfdf5] text-[#047857]',
-  issued: 'border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]',
+  issued: 'border-[rgba(0,49,112,0.18)] bg-[#e8eef8] text-nge',
   correction: 'border-[#fcd34d] bg-[#fffbeb] text-[#92400e]',
   rejected: 'border-[#fecaca] bg-[#fef2f2] text-[#b91c1c]',
 }
@@ -349,34 +350,21 @@ export default function ModeleVisiteChantierPage() {
   }
 
   return (
-    <div
-      className="flex flex-col h-full -m-6 overflow-y-auto"
-      style={{ background: 'linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
-    >
-      <div className="sticky top-0 z-10 border-b border-[#dbe1ea] bg-white/95 backdrop-blur px-6 py-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigateBackWithFallback(navigate, returnTo)}
-          className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb]"
-        >
-          ← Retour
-        </button>
-        <div className="flex-1 min-w-[220px]">
-          <div className="text-[10px] font-black uppercase tracking-[.12em] text-[#8a95a8]">
-            Terrain · Visite chantier
-          </div>
-          <div className="text-[15px] font-black text-[#003170]">
-            {document.meta.reference || VISITE_CHANTIER_LABEL}
-          </div>
-        </div>
+    <WorksheetPageShell>
+      <WorksheetTopbar
+        backLabel="← Retour"
+        onBack={() => navigateBackWithFallback(navigate, returnTo)}
+        eyebrow="Terrain · Visite chantier"
+        title={document.meta.reference || VISITE_CHANTIER_LABEL}
+      >
         {isPreview ? (
-          <span className="inline-flex items-center rounded-full border border-[#dbe1ea] bg-[#f8fafc] px-2.5 py-1 text-[11px] font-bold text-[#475569]">
+          <span className="inline-flex items-center rounded-full border border-border bg-bg px-2.5 py-1 text-[11px] font-bold text-text-muted">
             Modèle — aperçu
           </span>
         ) : (
           <>
             {isFormLocked ? (
-              <span className="inline-flex items-center rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-2.5 py-1 text-[11px] font-bold text-[#1d4ed8]">
+              <span className="inline-flex items-center rounded-full border border-[rgba(0,49,112,0.18)] bg-[#e8eef8] px-2.5 py-1 text-[11px] font-bold text-nge">
                 Rapport {rapportStatusLabel}
               </span>
             ) : null}
@@ -393,9 +381,9 @@ export default function ModeleVisiteChantierPage() {
             ) : null}
           </>
         )}
-      </div>
+      </WorksheetTopbar>
 
-      <div className="mx-auto w-full max-w-[980px] px-6 py-6 flex flex-col gap-5">
+      <WorksheetMain className="max-w-[980px] gap-5 py-6">
         {feuilleError ? (
           <div className="rounded-[18px] border border-[#f2c6c6] bg-[#fcebeb] px-5 py-4 text-[13px] text-[#a32d2d]">
             {feuilleError.message || 'Impossible de charger la feuille'}
@@ -531,7 +519,7 @@ export default function ModeleVisiteChantierPage() {
             </button>
           </div>
         ) : null}
-      </div>
-    </div>
+      </WorksheetMain>
+    </WorksheetPageShell>
   )
 }

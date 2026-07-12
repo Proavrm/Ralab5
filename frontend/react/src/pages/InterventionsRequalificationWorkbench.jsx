@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import { interventionRequalificationApi } from '@/services/api'
 
 const NATURE_OPTIONS = [
@@ -368,33 +369,26 @@ export default function InterventionsRequalificationWorkbench() {
     const selectedRawIds = selectedRows.map((row) => Number(row.uid))
 
     return (
-        <div className="flex flex-col gap-4 h-full">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-[18px] font-bold">Workbench interventions 2026 → requalification</h1>
-                    <p className="text-[13px] text-text-muted mt-1">
-                        Persistent version. Essai terrain / sondage can go directly to an intervention. Prélèvement goes through prélèvement first.
-                    </p>
-                </div>
+        <FichePageShell>
+            <FicheTopbar
+                backLabel="← Retour"
+                onBack={() => navigate(-1)}
+                eyebrow="Workbench requalification"
+                title="Interventions 2026 → requalification"
+                subtitle="Version persistante. Essai terrain / sondage → intervention directe. Prélèvement passe d’abord par prélèvement."
+            >
+                <Button size="sm" variant="ghost" onClick={() => refreshAll()}>Recharger</Button>
+            </FicheTopbar>
 
-                <div className="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => navigate(-1)}>
-                        Retour
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => refreshAll()}>
-                        Recharger
-                    </Button>
-                </div>
-            </div>
-
+            <FicheMain className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
             {actionError ? (
                 <div className="text-danger text-sm border border-red-200 bg-red-50 rounded-lg px-3 py-2">
                     {actionError}
                 </div>
             ) : null}
 
-            <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-border bg-bg">
+            <div className="overflow-hidden rounded-[10px] border border-border bg-surface">
+                <div className="border-b border-border bg-bg px-4 py-2.5">
                     <div className="grid grid-cols-[1.4fr_180px_180px_180px] gap-3 items-end">
                         <FieldGroup label="Recherche">
                             <Input
@@ -743,7 +737,7 @@ export default function InterventionsRequalificationWorkbench() {
                             <div className="grid grid-cols-2 gap-3">
                                 {prelevements.map((item) => (
                                     <div key={item.uid} className="border border-border rounded-lg px-3 py-2 bg-bg">
-                                        <div className="text-[12px] font-bold text-accent font-mono">{item.reference}</div>
+                                        <div className="text-[12px] font-bold text-nge font-mono">{item.reference}</div>
                                         <div className="text-[12px] text-text-muted mt-1">{item.raw_count} ligne(s)</div>
                                     </div>
                                 ))}
@@ -766,7 +760,7 @@ export default function InterventionsRequalificationWorkbench() {
                             <div className="grid grid-cols-2 gap-3">
                                 {interventionsReelles.map((item) => (
                                     <div key={item.uid} className="border border-border rounded-lg px-3 py-2 bg-bg">
-                                        <div className="text-[12px] font-bold text-accent font-mono">{item.reference}</div>
+                                        <div className="text-[12px] font-bold text-nge font-mono">{item.reference}</div>
                                         <div className="text-[12px] text-text-muted mt-1">
                                             {item.raw_count} ligne(s) · {item.prelevement_count} prélèvement(s)
                                         </div>
@@ -777,6 +771,7 @@ export default function InterventionsRequalificationWorkbench() {
                     </div>
                 </div>
             </div>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

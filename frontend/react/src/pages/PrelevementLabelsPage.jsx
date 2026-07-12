@@ -9,6 +9,7 @@ import { getPrelevementReferenceDate, normalizePrelevement, prelevementHasArriva
 import { prelevementsApi } from '@/services/api'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { labCodesFromCatalog } from '@/lib/laboratoireCatalog'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import { Printer, Search } from 'lucide-react'
 import JsBarcode from 'jsbarcode'
 import QRCode from 'qrcode'
@@ -304,29 +305,24 @@ export default function PrelevementLabelsPage() {
   }
 
   return (
-    <div className="labels-print-page flex flex-col gap-5">
-      <div className="screen-only flex flex-col gap-4 rounded-[24px] border border-[#234e51]/15 bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Étiquetage métier</p>
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-text">Étiquettes prélèvements</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
-              Prépare des étiquettes physiques pour l’arrivée laboratoire ou le marquage terrain des prélèvements. La vue permet de filtrer, sélectionner puis imprimer plusieurs exemplaires par prélèvement.
-            </p>
-          </div>
+    <FichePageShell>
+      <FicheTopbar
+        eyebrow="Étiquetage métier"
+        title="Étiquettes prélèvements"
+        subtitle="Filtre, sélectionne puis imprime plusieurs exemplaires par prélèvement."
+      >
+        <Button variant="secondary" onClick={() => navigate('/prelevements')}>Retour prélèvements</Button>
+        <Button variant="secondary" onClick={() => prelevementsQuery.refetch()} disabled={prelevementsQuery.isFetching}>
+          Actualiser
+        </Button>
+        <Button variant="primary" onClick={printLabels} disabled={!labelRows.length}>
+          <Printer size={14} />
+          Imprimer
+        </Button>
+      </FicheTopbar>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => navigate('/prelevements')}>Retour prélèvements</Button>
-            <Button variant="secondary" onClick={() => prelevementsQuery.refetch()} disabled={prelevementsQuery.isFetching}>
-              Actualiser
-            </Button>
-            <Button variant="primary" onClick={printLabels} disabled={!labelRows.length}>
-              <Printer size={14} />
-              Imprimer
-            </Button>
-          </div>
-        </div>
-
+      <FicheMain className="labels-print-page flex flex-col gap-5">
+      <div className="screen-only flex flex-col gap-4 rounded-[24px] border border-[#dbe1ea] bg-white p-6">
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-7">
           <div className="relative xl:col-span-2">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
@@ -415,7 +411,7 @@ export default function PrelevementLabelsPage() {
                   }}
                   className={cn(
                     'rounded-2xl border px-4 py-3 transition cursor-pointer',
-                    isSelected ? 'border-accent bg-[#eef5ff]' : 'border-border bg-white hover:border-[#d8e6e1] hover:bg-[#f8fbfa]'
+                    isSelected ? 'border-nge bg-[#e8eef8]' : 'border-border bg-white hover:border-[#d8e6e1] hover:bg-[#f8fbfa]'
                   )}
                 >
                   <div className="flex items-start gap-3">
@@ -424,7 +420,7 @@ export default function PrelevementLabelsPage() {
                       checked={isSelected}
                       onChange={() => toggleSelection(row.uid)}
                       onClick={(event) => event.stopPropagation()}
-                      className="mt-1 h-4 w-4 rounded border-border text-accent focus:ring-accent"
+                      className="mt-1 h-4 w-4 rounded border-border accent-nge focus:ring-nge"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -513,6 +509,7 @@ export default function PrelevementLabelsPage() {
           )}
         </div>
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

@@ -6,6 +6,7 @@ import Input from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { nivellementsApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 function Card({ title, children }) {
     return (
@@ -45,7 +46,7 @@ function Textarea({ value, onChange, rows = 3, placeholder = '' }) {
             onChange={(event) => onChange(event.target.value)}
             rows={rows}
             placeholder={placeholder}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge resize-y"
         />
     )
 }
@@ -261,19 +262,25 @@ export default function NivellementPage() {
     }
 
     if (!isNew && isLoading) {
-        return <div className="py-12 text-center text-sm text-text-muted">Chargement du nivellement…</div>
+        return (
+            <FichePageShell>
+                <div className="py-12 text-center text-sm text-text-muted">Chargement du nivellement…</div>
+            </FichePageShell>
+        )
     }
 
     if (!isNew && (error || !data)) {
         return (
-            <div className="flex flex-col gap-4">
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700">
-                    Impossible de charger cette fiche nivellement.
+            <FichePageShell>
+                <div className="flex flex-col gap-4">
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700">
+                        Impossible de charger cette fiche nivellement.
+                    </div>
+                    <div>
+                        <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, '/demandes')}>Retour</Button>
+                    </div>
                 </div>
-                <div>
-                    <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, '/demandes')}>Retour</Button>
-                </div>
-            </div>
+            </FichePageShell>
         )
     }
 
@@ -282,43 +289,47 @@ export default function NivellementPage() {
     const currentDemandeId = Number.parseInt(String(current?.demande_id || form.demande_id || ''), 10)
 
     return (
-        <div className="flex flex-col gap-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="max-w-3xl">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Fiche support de campagne</p>
-                    <h1 className="mt-2 text-3xl font-semibold tracking-tight text-text">{isNew ? 'Nouveau nivellement' : current.reference}</h1>
-                    <p className="mt-3 max-w-2xl text-sm leading-relaxed text-text-muted">
-                        Nivellement initial et rattachement altimétrique des points de campagne avant exploitation terrain.
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-2 text-xs text-text-muted">
-                        {(current?.demande_reference || form.demande_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Demande {current?.demande_reference || form.demande_reference}</span> : null}
-                        {(current?.campagne_reference || form.campagne_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Campagne {current?.campagne_reference || form.campagne_reference}</span> : null}
-                        {(current?.intervention_reference || form.intervention_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Intervention {current?.intervention_reference || form.intervention_reference}</span> : null}
-                        <span className="rounded-full border border-border bg-bg px-3 py-1">Scope {editing ? form.scope : (current?.ownership_scope || form.scope)}</span>
-                    </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}>Retour</Button>
-                    {Number.isInteger(currentDemandeId) && currentDemandeId > 0 ? <Button variant="secondary" onClick={() => navigate(`/demandes/${currentDemandeId}`)}>Ouvrir la demande</Button> : null}
-                    {Number.isInteger(currentInterventionId) && currentInterventionId > 0 ? <Button variant="secondary" onClick={() => navigate(`/interventions/${currentInterventionId}`)}>Ouvrir l’intervention</Button> : null}
-                    {editing ? (
-                        <>
-                            <Button variant="secondary" onClick={handleCancel}>Annuler</Button>
-                            <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending || !form.demande_id}>{saveMutation.isPending ? '…' : 'Enregistrer'}</Button>
-                        </>
-                    ) : (
-                        <>
-                            <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
-                            <Button variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
-                                {deleteMutation.isPending ? '…' : 'Supprimer'}
-                            </Button>
-                        </>
-                    )}
-                </div>
+        <FichePageShell>
+            <FicheTopbar
+                backLabel="← Retour"
+                onBack={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
+                eyebrow="Fiche support de campagne"
+                title={isNew ? 'Nouveau nivellement' : current.reference}
+                subtitle="Nivellement initial et rattachement altimétrique des points de campagne."
+            >
+                {Number.isInteger(currentDemandeId) && currentDemandeId > 0 ? (
+                    <Button size="sm" variant="secondary" onClick={() => navigate(`/demandes/${currentDemandeId}`)}>Demande</Button>
+                ) : null}
+                {Number.isInteger(currentInterventionId) && currentInterventionId > 0 ? (
+                    <Button size="sm" variant="secondary" onClick={() => navigate(`/interventions/${currentInterventionId}`)}>Intervention</Button>
+                ) : null}
+                {editing ? (
+                    <>
+                        <Button size="sm" variant="secondary" onClick={handleCancel}>Annuler</Button>
+                        <Button size="sm" variant="primary" onClick={handleSave} disabled={saveMutation.isPending || !form.demande_id}>
+                            {saveMutation.isPending ? '…' : 'Enregistrer'}
+                        </Button>
+                    </>
+                ) : (
+                    <>
+                        <Button size="sm" variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
+                        <Button size="sm" variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
+                            {deleteMutation.isPending ? '…' : 'Supprimer'}
+                        </Button>
+                    </>
+                )}
+            </FicheTopbar>
+
+            <FicheMain className="flex flex-col gap-5">
+            <div className="flex flex-wrap gap-2 text-xs text-text-muted">
+                {(current?.demande_reference || form.demande_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Demande {current?.demande_reference || form.demande_reference}</span> : null}
+                {(current?.campagne_reference || form.campagne_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Campagne {current?.campagne_reference || form.campagne_reference}</span> : null}
+                {(current?.intervention_reference || form.intervention_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Intervention {current?.intervention_reference || form.intervention_reference}</span> : null}
+                <span className="rounded-full border border-border bg-bg px-3 py-1">Scope {editing ? form.scope : (current?.ownership_scope || form.scope)}</span>
             </div>
 
             {isNew ? (
-                <div className="rounded-lg border border-[#cfe4f6] bg-[#eef6fd] px-4 py-3 text-sm text-[#185fa5]">
+                <div className="rounded-lg border border-[rgba(0,49,112,0.18)] bg-[#e8eef8] px-4 py-3 text-sm text-nge">
                     Ce nivellement n’est pas encore enregistré. Prépare la fiche puis enregistre-la seulement quand elle est prête.
                 </div>
             ) : null}
@@ -336,7 +347,7 @@ export default function NivellementPage() {
                             <select
                                 value={form.scope}
                                 onChange={(event) => setField('scope', event.target.value)}
-                                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+                                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge"
                             >
                                 <option value="demande">Demande</option>
                                 <option value="campagne">Campagne</option>
@@ -488,6 +499,7 @@ export default function NivellementPage() {
                     <div className="text-[13px] text-text-muted">Aucun rapport lié.</div>
                 )}
             </Card>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

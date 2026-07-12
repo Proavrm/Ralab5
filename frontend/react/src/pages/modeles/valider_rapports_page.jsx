@@ -1759,9 +1759,14 @@ export default function ValiderRapportsPage() {
 
 const styles = `
 .vrp-page {
+    --vrp-nge: #003170;
+    --vrp-nge-dark: #00224f;
+    --vrp-nge-yellow: #ffcc00;
     min-height: 100vh;
-    background: #020617;
-    color: #0f172a;
+    background:
+        radial-gradient(circle at top right, rgba(255, 204, 0, 0.14), transparent 32%),
+        linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%);
+    color: #172033;
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -1789,7 +1794,7 @@ const styles = `
     gap: 12px;
     min-height: 0;
     padding: 12px;
-    background: #020617;
+    background: linear-gradient(180deg, var(--vrp-nge) 0%, var(--vrp-nge-dark) 100%);
     color: #fff;
     border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -1802,9 +1807,9 @@ const styles = `
     height: 48px;
     margin-bottom: 8px;
     border-radius: 18px;
-    color: white;
-    background: #2563eb;
-    box-shadow: 0 16px 30px rgba(30, 64, 175, 0.35);
+    color: var(--vrp-nge);
+    background: var(--vrp-nge-yellow);
+    box-shadow: 0 12px 24px rgba(0, 49, 112, 0.28);
 }
 
 .vrp-sidebar-button {
@@ -1813,19 +1818,19 @@ const styles = `
     justify-content: center;
     width: 44px;
     height: 44px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.14);
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.88);
     cursor: pointer;
     transition: 0.18s ease;
 }
 
 .vrp-sidebar-button:hover,
 .vrp-sidebar-button-active {
-    border-color: #60a5fa;
-    background: #2563eb;
-    color: white;
+    border-color: var(--vrp-nge-yellow);
+    background: rgba(255, 204, 0, 0.16);
+    color: #fff;
 }
 
 .vrp-sidebar-button-bottom {
@@ -1860,7 +1865,7 @@ const styles = `
     margin: 0;
     font-size: 19px;
     font-weight: 900;
-    color: #020617;
+    color: var(--vrp-nge);
 }
 
 .vrp-column-head p {
@@ -1879,10 +1884,10 @@ const styles = `
     align-items: center;
     gap: 8px;
     padding: 10px 12px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid #dbe1ea;
     border-radius: 16px;
     background: white;
-    color: #94a3b8;
+    color: #69758a;
 }
 
 .vrp-search-box input {
@@ -1944,9 +1949,9 @@ const styles = `
 
 .vrp-rail-card:hover,
 .vrp-rail-card-selected {
-    border-color: #3b82f6;
-    background: #eff6ff;
-    box-shadow: 0 10px 24px rgba(30, 64, 175, 0.08);
+    border-color: var(--vrp-nge);
+    background: linear-gradient(180deg, #fffdf2 0%, #f8fbff 100%);
+    box-shadow: 0 10px 24px rgba(0, 49, 112, 0.08);
 }
 
 .vrp-rail-card-head,
@@ -1982,7 +1987,7 @@ const styles = `
 }
 
 .vrp-type-box-selected {
-    background: #1d4ed8;
+    background: var(--vrp-nge);
     color: white;
 }
 
@@ -2077,9 +2082,9 @@ const styles = `
 }
 
 .vrp-status-info {
-    border-color: #bfdbfe;
-    background: #dbeafe;
-    color: #1e40af;
+    border-color: rgba(0, 49, 112, 0.18);
+    background: #e8eef8;
+    color: var(--vrp-nge);
 }
 
 .vrp-main {
@@ -2087,7 +2092,7 @@ const styles = `
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    background: #111827;
+    background: #dbe1ea;
 }
 
 .vrp-main-head {
@@ -2096,8 +2101,10 @@ const styles = `
     justify-content: space-between;
     gap: 16px;
     padding: 16px 20px;
-    border-bottom: 1px solid #1f2937;
-    background: #020617;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background:
+        radial-gradient(circle at top left, rgba(255, 204, 0, 0.14), transparent 34%),
+        linear-gradient(135deg, var(--vrp-nge) 0%, var(--vrp-nge-dark) 74%, #001a3d 100%);
     color: white;
 }
 
@@ -2134,8 +2141,8 @@ const styles = `
 .vrp-main-type-chip {
     padding: 6px 10px;
     border-radius: 14px;
-    background: #2563eb;
-    color: white;
+    background: var(--vrp-nge-yellow);
+    color: var(--vrp-nge);
     font-size: 13px;
     font-weight: 900;
 }
@@ -2260,8 +2267,8 @@ const styles = `
     justify-content: space-between;
     gap: 12px;
     padding: 12px 16px;
-    border-bottom: 1px solid #1f2937;
-    background: #020617;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--vrp-nge-dark);
     color: white;
 }
 
@@ -2287,10 +2294,10 @@ const styles = `
 
 .vrp-toolbar-mode {
     padding: 7px 12px;
-    border: 1px solid rgba(96, 165, 250, 0.3);
+    border: 1px solid rgba(255, 204, 0, 0.45);
     border-radius: 999px;
-    background: rgba(59, 130, 246, 0.1);
-    color: #bfdbfe;
+    background: rgba(255, 204, 0, 0.12);
+    color: #fff8df;
     font-size: 12px;
     font-weight: 900;
     letter-spacing: 0.04em;
@@ -2302,19 +2309,19 @@ const styles = `
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
-    background: #2563eb;
-    color: white;
+    background: var(--vrp-nge-yellow);
+    color: var(--vrp-nge);
 }
 
 .vrp-next-button:hover {
-    background: #1d4ed8;
+    background: #f5c400;
 }
 
 .vrp-reader-area {
     min-height: 0;
     flex: 1;
     overflow: hidden;
-    background: radial-gradient(circle at top, #334155 0, #111827 45%, #020617 100%);
+    background: radial-gradient(circle at top, #c5d4ea 0, #dbe1ea 45%, #eef3fa 100%);
 }
 
 .vrp-reader-pdf-wrap {
@@ -2584,7 +2591,7 @@ const styles = `
 
 .vrp-validation-head h2 {
     margin: 3px 0 0;
-    color: #020617;
+    color: var(--vrp-nge);
     font-size: 21px;
     font-weight: 950;
 }
@@ -2621,7 +2628,7 @@ const styles = `
     width: 34px;
     height: 34px;
     border-radius: 999px;
-    background: linear-gradient(135deg, #003170 0%, #1d4ed8 100%);
+    background: linear-gradient(135deg, var(--vrp-nge) 0%, var(--vrp-nge-dark) 100%);
     color: #fff;
     font-size: 12px;
     font-weight: 950;
@@ -2750,9 +2757,9 @@ const styles = `
     gap: 12px;
     width: 100%;
     padding: 14px 16px;
-    border: 1px solid #dbeafe;
+    border: 1px solid #dbe1ea;
     border-radius: 14px;
-    background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+    background: linear-gradient(180deg, #fbfcfe 0%, #f3f6fb 100%);
     color: #0f172a;
     text-align: left;
     cursor: pointer;
@@ -2760,8 +2767,8 @@ const styles = `
 }
 
 .vrp-issue-option:hover:not(:disabled) {
-    border-color: #93c5fd;
-    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.12);
+    border-color: rgba(0, 49, 112, 0.28);
+    box-shadow: 0 8px 24px rgba(0, 49, 112, 0.1);
     transform: translateY(-1px);
 }
 
@@ -2881,9 +2888,9 @@ const styles = `
 }
 
 .vrp-gauge-issued {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #1d4ed8;
+    border-color: rgba(0, 49, 112, 0.18);
+    background: #e8eef8;
+    color: var(--vrp-nge);
 }
 
 .vrp-gauge-validated {
@@ -2928,7 +2935,7 @@ const styles = `
     align-items: center;
     gap: 8px;
     margin: 0;
-    color: #020617;
+    color: var(--vrp-nge);
     font-size: 15px;
     font-weight: 950;
 }
@@ -3039,7 +3046,7 @@ const styles = `
 }
 
 .vrp-comment-area:focus {
-    border-color: #60a5fa;
+    border-color: var(--vrp-nge);
     background: white;
 }
 
@@ -3112,11 +3119,11 @@ const styles = `
 }
 
 .vrp-primary-action {
-    background: #1d4ed8;
+    background: var(--vrp-nge);
 }
 
 .vrp-primary-action:hover {
-    background: #1e40af;
+    background: var(--vrp-nge-dark);
 }
 
 .vrp-issue-action {
@@ -3157,8 +3164,8 @@ button:disabled {
 .vrp-spinner {
     width: 28px;
     height: 28px;
-    border: 3px solid #dbeafe;
-    border-top-color: #2563eb;
+    border: 3px solid rgba(0, 49, 112, 0.14);
+    border-top-color: var(--vrp-nge);
     border-radius: 999px;
     animation: vrp-spin 0.8s linear infinite;
 }

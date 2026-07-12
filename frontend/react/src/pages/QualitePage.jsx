@@ -4,13 +4,14 @@
  */
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { api } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
 import TabQSSE from './components/TabQSSE'
+import { FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const STAT_CLS = {
@@ -73,7 +74,7 @@ function FG({ label, children, full }) {
 }
 function TA({ value, onChange, rows = 2 }) {
   return <textarea value={value||''} onChange={e=>onChange(e.target.value)} rows={rows}
-    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"/>
+    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"/>
 }
 function DF({ label, value }) {
   return (
@@ -424,7 +425,7 @@ function TabEquipements({ meta, laboCode = '' }) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-border shrink-0 flex-wrap">
           {laboCode ? (
-            <span className="text-[11px] font-medium text-accent bg-[#eeeffe] border border-[#c7d2fe] rounded-full px-2.5 py-1">
+            <span className="text-[11px] font-medium text-nge bg-[#eeeffe] border border-[#c7d2fe] rounded-full px-2.5 py-1">
               Labo {laboCode}
             </span>
           ) : null}
@@ -454,7 +455,7 @@ function TabEquipements({ meta, laboCode = '' }) {
               ) : rows.map(r=>(
                 <tr key={r.uid} onClick={()=>setSelected(r)}
                   className={`border-b border-border cursor-pointer transition-colors ${selected?.uid===r.uid?'bg-[#eeeffe]':'hover:bg-bg'}`}>
-                  <td className="px-3 py-2 font-mono text-[12px] text-accent font-bold">{r.code}</td>
+                  <td className="px-3 py-2 font-mono text-[12px] text-nge font-bold">{r.code}</td>
                   <td className="px-3 py-2 max-w-[200px] truncate">{r.label}</td>
                   <td className="px-3 py-2"><Badge s={normalizeEquipmentCategory(r.category ?? r.categorie)} map={CAT_CLS}/></td>
                   <td className="px-3 py-2 text-xs text-text-muted">{r.domain||'—'}</td>
@@ -473,7 +474,7 @@ function TabEquipements({ meta, laboCode = '' }) {
       <DetailPanel visible={!!selected} onClose={()=>setSelected(null)}>
         {selected && <>
           <div>
-            <div className="text-accent font-bold font-mono">{selected.code}</div>
+            <div className="text-nge font-bold font-mono">{selected.code}</div>
             <div className="text-[14px] font-semibold mt-0.5">{selected.label}</div>
             <div className="flex gap-1.5 mt-2 flex-wrap">
               <Badge s={normalizeEquipmentStatus(selected.status ?? selected.statut)} map={STAT_CLS}/>
@@ -525,7 +526,7 @@ function TabEquipements({ meta, laboCode = '' }) {
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Badge s={m.status} map={{Valide:'bg-[#eaf3de] text-[#3b6d11]','Non conforme':'bg-[#fcebeb] text-[#a32d2d]','En cours':'bg-[#faeeda] text-[#854f0b]'}}/>
-                  <button onClick={()=>openMetro(m)} className="text-[11px] text-accent hover:underline">✏</button>
+                  <button onClick={()=>openMetro(m)} className="text-[11px] text-nge hover:underline">✏</button>
                   <button onClick={()=>{ if(confirm('Supprimer?')) delMetroMut.mutate(m.uid) }} className="text-[11px] text-danger hover:underline">✕</button>
                 </div>
               </div>
@@ -750,7 +751,7 @@ function TabMetrologie({ initialDays = 60 }) {
         <span className="text-sm text-text-muted">Horizon :</span>
         {[30,60,90,180].map(d=>(
           <button key={d} onClick={()=>setDays(d)}
-            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${days===d?'bg-accent text-white':'bg-bg border border-border hover:border-accent'}`}>
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${days===d?'bg-nge text-white':'bg-bg border border-border hover:border-nge'}`}>
             {d} jours
           </button>
         ))}
@@ -771,7 +772,7 @@ function TabMetrologie({ initialDays = 60 }) {
             const diff = m.valid_until ? Math.round((new Date(m.valid_until)-new Date())/86400000) : null
             return (
               <tr key={m.uid} className={`border-b border-border ${isLate?'bg-[#fff5f5]':''}`}>
-                <td className="px-3 py-2 font-mono text-[12px] text-accent font-bold">{m.eq_code}</td>
+                <td className="px-3 py-2 font-mono text-[12px] text-nge font-bold">{m.eq_code}</td>
                 <td className="px-3 py-2 max-w-[200px] truncate">{m.eq_label}</td>
                 <td className="px-3 py-2"><Badge s={m.eq_category} map={CAT_CLS}/></td>
                 <td className="px-3 py-2 text-xs">{m.control_type}</td>
@@ -865,7 +866,7 @@ function TabProcedures({ meta }) {
               : rows.map(r=>(
                 <tr key={r.uid} onClick={()=>setSelected(r)}
                   className={`border-b border-border cursor-pointer transition-colors ${selected?.uid===r.uid?'bg-[#eeeffe]':'hover:bg-bg'} ${r.review_due?'border-l-2 border-l-warn':''}`}>
-                  <td className="px-3 py-2 font-bold text-accent text-[12px]">{r.code}</td>
+                  <td className="px-3 py-2 font-bold text-nge text-[12px]">{r.code}</td>
                   <td className="px-3 py-2 max-w-[200px] truncate">{r.title}</td>
                   <td className="px-3 py-2 text-xs">{r.technical_family||'—'}</td>
                   <td className="px-3 py-2 text-xs">{r.version}</td>
@@ -883,7 +884,7 @@ function TabProcedures({ meta }) {
       <DetailPanel visible={!!selected} onClose={()=>setSelected(null)}>
         {selected && <>
           <div>
-            <div className="text-accent font-bold">{selected.code}</div>
+            <div className="text-nge font-bold">{selected.code}</div>
             <div className="text-[14px] font-semibold mt-0.5">{selected.title}</div>
             <div className="flex gap-1.5 mt-2"><Badge s={selected.status} map={DOC_CLS}/></div>
           </div>
@@ -1005,7 +1006,7 @@ function TabNormes({ meta }) {
               : rows.map(r=>(
                 <tr key={r.uid} onClick={()=>setSelected(r)}
                   className={`border-b border-border cursor-pointer transition-colors ${selected?.uid===r.uid?'bg-[#eeeffe]':'hover:bg-bg'}`}>
-                  <td className="px-3 py-2 font-bold text-accent text-[12px]">{r.code}</td>
+                  <td className="px-3 py-2 font-bold text-nge text-[12px]">{r.code}</td>
                   <td className="px-3 py-2 max-w-[220px] truncate">{r.title}</td>
                   <td className="px-3 py-2 text-xs">{r.technical_family||'—'}</td>
                   <td className="px-3 py-2 text-xs">{r.issuer||'—'}</td>
@@ -1021,7 +1022,7 @@ function TabNormes({ meta }) {
       <DetailPanel visible={!!selected} onClose={()=>setSelected(null)}>
         {selected && <>
           <div>
-            <div className="text-accent font-bold">{selected.code}</div>
+            <div className="text-nge font-bold">{selected.code}</div>
             <div className="text-[14px] font-semibold mt-0.5">{selected.title}</div>
             <div className="flex gap-1.5 mt-2"><Badge s={selected.status} map={DOC_CLS}/></div>
           </div>
@@ -1092,6 +1093,7 @@ const TABS = [
 ]
 
 export default function QualitePage() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const queryTab = TABS.some((item) => item.id === searchParams.get('tab')) ? searchParams.get('tab') : 'equipment'
   const initialMetrologyDays = [30, 60, 90, 180].includes(Number(searchParams.get('days')))
@@ -1113,21 +1115,26 @@ export default function QualitePage() {
   })
 
   return (
-    <div className="flex flex-col h-full -m-6 overflow-hidden">
-      {/* Header tabs */}
-      <div className="flex items-center justify-between gap-4 px-6 bg-surface border-b border-border shrink-0 min-h-[48px]">
-        <div className="flex items-center gap-0 overflow-x-auto">
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Accueil"
+        onBack={() => navigate('/dashboard')}
+        eyebrow="Qualité"
+        title="Qualité"
+        subtitle="Équipements, métrologie, procédures, normes et QSSE."
+      />
+
+      <div className="flex items-center gap-0 px-6 bg-surface border-b border-border shrink-0 overflow-x-auto">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 h-full text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
+            className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap ${
               tab === t.id
-                ? 'border-accent text-accent'
+                ? 'border-nge text-nge'
                 : 'border-transparent text-text-muted hover:text-text'
             }`}>
             {t.label}
           </button>
         ))}
-        </div>
       </div>
 
       <StatsBar stats={stats} />
@@ -1139,6 +1146,6 @@ export default function QualitePage() {
         {tab === 'standards'  && <TabNormes       meta={meta} />}
         {tab === 'qsse'       && <TabQSSE forcedWorkspaceMode="register" analysisHref="/qualite/qsse/analyse" />}
       </div>
-    </div>
+    </FichePageShell>
   )
 }

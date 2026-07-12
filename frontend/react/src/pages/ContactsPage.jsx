@@ -323,7 +323,7 @@ export default function ContactsPage() {
           </span>
         </Button>
         {refreshMessage ? (
-          <span className="text-[11px] font-bold text-[#69758a] max-w-[280px] leading-snug">
+          <span className="text-[11px] font-bold text-text-muted max-w-[280px] leading-snug">
             {refreshMessage}
           </span>
         ) : null}
@@ -337,14 +337,14 @@ export default function ContactsPage() {
           <AffaireHero affaire={filteredAffaire} badgeLabel="RaLab 5 · Contacts dossier" />
         ) : (
           <section
-            className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white px-[30px] py-7"
+            className="overflow-hidden rounded-[26px] border border-border bg-white px-[30px] py-7"
             style={{ boxShadow: '0 10px 34px rgba(0,49,112,0.08)' }}
           >
-            <div className="text-[11px] font-black tracking-[.12em] uppercase text-[#69758a]">
+            <div className="text-[11px] font-black tracking-[.12em] uppercase text-text-muted">
               RaLab 5 · Annuaire contacts
             </div>
-            <h1 className="mt-2 text-[28px] font-black text-[#003170] m-0">Contacts chantier et dossier</h1>
-            <p className="mt-2 text-[14px] text-[#69758a] max-w-[720px] leading-6">
+            <h1 className="mt-2 text-[28px] font-black text-nge m-0">Contacts chantier et dossier</h1>
+            <p className="mt-2 text-[14px] text-text-muted max-w-[720px] leading-6">
               Recherche globale par nom, fonction, entreprise ou affaire. Actualiser importe uniquement les nouveaux contacts depuis les affaires, demandes, préparations, campagnes, passations et interventions — sans modifier ceux déjà présents.
             </p>
           </section>
@@ -388,7 +388,7 @@ export default function ContactsPage() {
           title="Contacts"
           subtitle="Annuaire unique — nom, fonction, entreprise, téléphone, email"
           actions={(
-            <span className={`text-[11px] font-bold ${isRefreshing ? 'text-[#003170]' : 'text-[#69758a]'}`}>
+            <span className={`text-[11px] font-bold ${isRefreshing ? 'text-nge' : 'text-text-muted'}`}>
               {isRefreshing
                 ? 'Actualisation en cours…'
                 : `${contacts.length} contact${contacts.length !== 1 ? 's' : ''}`}
@@ -424,11 +424,11 @@ export default function ContactsPage() {
           </div>
 
           {contactsLoading && !contacts.length ? (
-            <div className="text-[13px] text-[#69758a] py-8 text-center">Chargement des contacts…</div>
+            <div className="text-[13px] text-text-muted py-8 text-center">Chargement des contacts…</div>
           ) : contacts.length ? (
             <div className={`overflow-x-auto rounded-[14px] border border-[#e4e9f1] ${isRefreshing ? 'opacity-60 pointer-events-none' : ''}`}>
               <table className="w-full min-w-[760px] text-left border-collapse">
-                <thead className="bg-[#f1f5f9] text-[10px] font-black uppercase tracking-[.06em] text-[#69758a]">
+                <thead className="bg-[#f1f5f9] text-[10px] font-black uppercase tracking-[.06em] text-text-muted">
                   <tr>
                     <th className="px-3 py-2">Nom</th>
                     <th className="px-3 py-2">Fonction</th>
@@ -460,7 +460,7 @@ export default function ContactsPage() {
                         <td className="px-3 py-2 text-[12px] text-[#475569]">{contact.role_label || '—'}</td>
                         <td className="px-3 py-2 text-[12px] text-[#475569]">{contact.organisation || '—'}</td>
                         <td
-                          className="px-3 py-2 text-[12px] font-semibold text-[#003170] whitespace-nowrap"
+                          className="px-3 py-2 text-[12px] font-semibold text-nge whitespace-nowrap"
                           title={[contact.region_label, contact.agence_label].filter(Boolean).join(' · ')}
                         >
                           {contact.region_code || 'ARS'} · {contact.agence_code || 'RA'}
@@ -474,7 +474,7 @@ export default function ContactsPage() {
                           <div className="flex flex-wrap gap-1">
                             <button
                               type="button"
-                              className="rounded-lg border border-[#dbe1ea] px-2 py-1 text-[11px] font-bold text-[#003170] hover:bg-[#f3f6fb]"
+                              className="rounded-lg border border-border px-2 py-1 text-[11px] font-bold text-nge hover:bg-bg"
                               onClick={() => startEdit(contact)}
                             >
                               Modifier

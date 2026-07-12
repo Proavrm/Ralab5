@@ -13,6 +13,7 @@ import PreviewAccessZone from '@/components/tools/PreviewAccessZone'
 import { RefreshCw } from 'lucide-react'
 import { RESPONSIBLE_LAB_PROFILES, getResponsibleLaboHomeRoute } from '@/lib/responsibleLaboProfiles'
 import { TECHNICIAN_PROFILES, getTechnicianHomeRoute } from '@/lib/technicianProfiles'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 function Card({ icon, title, desc, children, headerRight }) {
   return (
@@ -56,7 +57,7 @@ function FileInput({ label, accept, onFile }) {
     <div>
       <div
         onClick={() => ref.current?.click()}
-        className="flex items-center gap-2 px-3 py-2 border border-dashed border-border rounded cursor-pointer hover:border-accent hover:bg-bg transition-colors text-xs text-text-muted">
+        className="flex items-center gap-2 px-3 py-2 border border-dashed border-border rounded cursor-pointer hover:border-nge hover:bg-bg transition-colors text-xs text-text-muted">
         <span>📎</span>
         <span>{name || label}</span>
       </div>
@@ -987,18 +988,21 @@ export default function ToolsPage() {
   }, [location.hash])
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1100px] mx-auto py-2">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">🔧 Outils</h1>
-          <p className="text-xs text-text-muted mt-0.5">
-            {isAdmin ? 'Mode administrateur activé' : 'Certaines actions sont réservées à l\'administration'}
-          </p>
-        </div>
+    <FichePageShell>
+      <FicheTopbar
+        backLabel="← Accueil"
+        onBack={() => navigate('/dashboard')}
+        eyebrow="Outils"
+        title="Outils"
+        subtitle={isAdmin ? 'Mode administrateur activé' : 'Certaines actions sont réservées à l\'administration'}
+      >
         <Button size="sm" variant="ghost" onClick={() => qc.invalidateQueries()}>
           <RefreshCw size={13} /> Actualiser tout
         </Button>
-      </div>
+      </FicheTopbar>
+
+      <FicheMain>
+      <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6">
 
       <div className="grid grid-cols-2 gap-4">
 
@@ -1067,7 +1071,7 @@ export default function ToolsPage() {
                 value={modeleLookup}
                 onChange={(event) => setModeleLookup(event.target.value)}
                 placeholder="Ex.: 245, 2026-SP-DE0012, DE25001..."
-                className="flex-1 px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                className="flex-1 px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
               />
               <Button type="submit" variant="primary" disabled={modeleLookupLoading}>
                 {modeleLookupLoading ? 'Abrindo…' : 'Abrir modelo'}
@@ -1107,7 +1111,7 @@ export default function ToolsPage() {
                       key={t.key}
                       type="button"
                       onClick={() => navigate(t.openPath)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded border text-left text-[11px] hover:border-accent hover:bg-bg transition-colors ${
+                      className={`flex items-center gap-2 px-3 py-2 rounded border text-left text-[11px] hover:border-nge hover:bg-bg transition-colors ${
                         t.family === 'terrain'
                           ? 'border-[#d5c9a8] bg-[#fdfaf2]'
                           : 'border-border bg-surface'
@@ -1182,7 +1186,7 @@ export default function ToolsPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted shrink-0">Feuille :</span>
             <input value={dstSheet} onChange={e => setDstSheet(e.target.value)}
-              className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent w-44" />
+              className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge w-44" />
           </div>
           <Button variant="primary" onClick={importDst} disabled={!dstFile || dstLoading}>
             {dstLoading ? 'Import en cours…' : '⬆️ Importer'}
@@ -1196,7 +1200,7 @@ export default function ToolsPage() {
             <select
               value={importEssaiType}
               onChange={(event) => setImportEssaiType(event.target.value)}
-              className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+              className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
             >
               <option value="DE">DE - Densités (gammadensimètre)</option>
               <option value="SC">SC - Sondage carotté</option>
@@ -1216,13 +1220,13 @@ export default function ToolsPage() {
               setDeDragActive(false)
             }}
             onDrop={handleDropDEFile}
-            className={`rounded border border-dashed px-3 py-3 text-xs transition-colors ${deDragActive ? 'border-accent bg-bg' : 'border-border bg-surface'}`}
+            className={`rounded border border-dashed px-3 py-3 text-xs transition-colors ${deDragActive ? 'border-nge bg-bg' : 'border-border bg-surface'}`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-text-muted">
                 Glisser-déposer le fichier Excel ici. Le type (DE/SC/PMT) sera proposé automatiquement.
               </div>
-              <label className="inline-flex items-center gap-2 px-2 py-1 border border-border rounded cursor-pointer hover:border-accent hover:bg-bg">
+              <label className="inline-flex items-center gap-2 px-2 py-1 border border-border rounded cursor-pointer hover:border-nge hover:bg-bg">
                 <span>📎 Choisir</span>
                 <input
                   type="file"
@@ -1249,7 +1253,7 @@ export default function ToolsPage() {
               value={deFilePath}
               onChange={(e) => setDeFilePath(e.target.value)}
               placeholder="C:\\...\\Densités - PPI Réseaux vélo express.xlsx"
-              className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+              className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
             />
           </div>
 
@@ -1260,7 +1264,7 @@ export default function ToolsPage() {
                 value={deAffaireRef}
                 onChange={(e) => setDeAffaireRef(e.target.value)}
                 placeholder="Auto"
-                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -1269,7 +1273,7 @@ export default function ToolsPage() {
                 value={deAffaireNge}
                 onChange={(e) => setDeAffaireNge(e.target.value)}
                 placeholder="Auto"
-                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -1278,7 +1282,7 @@ export default function ToolsPage() {
                 value={deDemandeGap}
                 onChange={(e) => setDeDemandeGap(e.target.value)}
                 placeholder="120"
-                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -1287,7 +1291,7 @@ export default function ToolsPage() {
                 value={deCampagneGap}
                 onChange={(e) => setDeCampagneGap(e.target.value)}
                 placeholder="7"
-                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                className="px-2 py-1.5 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
               />
             </div>
           </div>
@@ -1306,17 +1310,17 @@ export default function ToolsPage() {
               <div className="grid grid-cols-4 gap-2">
                 <div className="rounded border border-border bg-surface px-2 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-text-muted">Demandes</div>
-                  <div className="text-[16px] font-semibold text-accent">{activePreview.proposals?.demandes_count ?? 0}</div>
+                  <div className="text-[16px] font-semibold text-nge">{activePreview.proposals?.demandes_count ?? 0}</div>
                 </div>
                 <div className="rounded border border-border bg-surface px-2 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-text-muted">Campagnes</div>
-                  <div className="text-[16px] font-semibold text-accent">
+                  <div className="text-[16px] font-semibold text-nge">
                     {(activePreview.proposals?.demandes || []).reduce((sum, demande) => sum + Number(demande?.campagnes_count || 0), 0)}
                   </div>
                 </div>
                 <div className="rounded border border-border bg-surface px-2 py-2">
                   <div className="text-[10px] uppercase tracking-wide text-text-muted">Interventions</div>
-                  <div className="text-[16px] font-semibold text-accent">
+                  <div className="text-[16px] font-semibold text-nge">
                     {(activePreview.proposals?.demandes || []).reduce((sum, demande) => sum + Number(demande?.interventions_count || 0), 0)}
                   </div>
                 </div>
@@ -1404,7 +1408,7 @@ export default function ToolsPage() {
                               {ci === 0 && (
                                 <td className="px-2 py-1 align-top" rowSpan={campagnes.length}>
                                   <input
-                                    className="w-full border border-border rounded px-1 py-0.5 font-mono bg-bg outline-none focus:border-accent"
+                                    className="w-full border border-border rounded px-1 py-0.5 font-mono bg-bg outline-none focus:border-nge"
                                     value={dVal}
                                     onChange={(e) => setDeRefOverrides(prev => ({ ...prev, [dKey]: e.target.value }))}
                                     title="Référence demande prédite (éditable)"
@@ -1417,7 +1421,7 @@ export default function ToolsPage() {
                               )}
                               <td className="px-2 py-1 align-top">
                                 <input
-                                  className="w-full border border-border rounded px-1 py-0.5 font-mono bg-bg outline-none focus:border-accent"
+                                  className="w-full border border-border rounded px-1 py-0.5 font-mono bg-bg outline-none focus:border-nge"
                                   value={cVal}
                                   onChange={(e) => setDeRefOverrides(prev => ({ ...prev, [cKey]: e.target.value }))}
                                   title="Référence campagne prédite (éditable)"
@@ -1474,7 +1478,7 @@ export default function ToolsPage() {
                                 ? (sheet.existing_intervention_reference || (sheet.existing_intervention_id ? `#${sheet.existing_intervention_id}` : '—'))
                                 : (
                                   <input
-                                    className="w-36 border border-border rounded px-1 py-0.5 font-mono text-[10px] bg-bg outline-none focus:border-accent"
+                                    className="w-36 border border-border rounded px-1 py-0.5 font-mono text-[10px] bg-bg outline-none focus:border-nge"
                                     value={deInterventionOverrides[sheet.sheet] ?? (sheet.predicted_intervention_reference || '')}
                                     onChange={(e) => setDeInterventionOverrides(prev => ({ ...prev, [sheet.sheet]: e.target.value }))}
                                     title="Référence intervention prédite (éditable)"
@@ -1624,6 +1628,8 @@ export default function ToolsPage() {
         )}
 
       </div>
-    </div>
+      </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

@@ -9,7 +9,7 @@ export const ACTIVE = ['A planifier', 'Planifie', 'En cours']
 export const ARCHIVED = ['Termine', 'Annule']
 export const STATUS_META = {
   'A planifier': { dot: '#888780', bg: '#f1efe8', fg: '#5f5e5a' },
-  Planifie: { dot: '#4A7DB5', bg: '#E8EFF8', fg: '#002C77' },
+  Planifie: { dot: '#4A7DB5', bg: '#eef5ff', fg: '#003170' },
   'En cours': { dot: '#1d9e75', bg: '#eaf3de', fg: '#3b6d11' },
   Termine: { dot: '#0f6e56', bg: '#E1F5EE', fg: '#0f6e56' },
   Annule: { dot: '#e24b4a', bg: '#fcebeb', fg: '#a32d2d' },
@@ -157,7 +157,7 @@ export function colorClass(n, u) {
 export function itemBorderColor(item) {
   if (isNoteTechniqueIntervention(item)) return '#5b4b8a'
   if (item.urg === 'late') return '#e24b4a'
-  if (item.urg === 'soon') return '#E6A817'
+  if (item.urg === 'soon') return '#e6b900'
   return KIND_COLORS[item.kind] || '#4A7DB5'
 }
 

@@ -20,10 +20,16 @@
     --nge: #003170;
     --nge-dark: #00224f;
     --nge-deep: #002C77;
+    --nge-ink: #001a3d;
     --nge-yellow: #ffcc00;
+    --nge-yellow-dark: #e6b900;
     --bg: #f8fafc;
     --sidebar: #003170;
     --sidebar-t: #c5d4ea;
+    --sidebar-gradient:
+      radial-gradient(circle at 100% 0%, rgba(255, 204, 0, 0.1) 0%, transparent 38%),
+      linear-gradient(165deg, #003170 0%, #002C77 32%, #00224f 68%, #001a3d 100%);
+    --chrome-stripe: linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%);
     --accent: #003170;
     --accent-h: #00224f;
     --surface: #ffffff;
@@ -34,6 +40,43 @@
     --success: #1d9e75;
     --warn: #ef9f27;
     --radius: 8px;
+  }
+
+  .app-sidebar {
+    background-color: var(--nge-ink);
+    background-image: var(--sidebar-gradient);
+  }
+
+  .app-sidebar nav a {
+    color: rgba(255, 255, 255, 0.92);
+    text-decoration: none;
+  }
+
+  .app-sidebar nav a:hover {
+    color: #ffcc00;
+  }
+
+  .app-sidebar-section {
+    border: 0;
+    outline: none;
+    box-shadow: none;
+    appearance: none;
+  }
+
+  .app-sidebar-section:hover,
+  .app-sidebar-section:focus {
+    background: transparent;
+  }
+
+  .app-sidebar-section:focus-visible {
+    outline: 1px solid rgba(255, 204, 0, 0.45);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  .app-chrome-stripe {
+    height: 1px;
+    background: var(--chrome-stripe);
   }
 }
 
