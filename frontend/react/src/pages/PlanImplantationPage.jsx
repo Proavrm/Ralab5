@@ -6,6 +6,7 @@ import Input from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { plansImplantationApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 function normalizePlanImagePath(rawPath) {
     let path = String(rawPath || '').trim()
@@ -239,7 +240,7 @@ function Textarea({ value, onChange, rows = 3, placeholder = '' }) {
             onChange={(event) => onChange(event.target.value)}
             rows={rows}
             placeholder={placeholder}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge resize-y"
         />
     )
 }
@@ -527,19 +528,25 @@ export default function PlanImplantationPage() {
     }
 
     if (!isNew && isLoading) {
-        return <div className="py-12 text-center text-sm text-text-muted">Chargement du plan d’implantation…</div>
+        return (
+            <FichePageShell>
+                <div className="py-12 text-center text-sm text-text-muted">Chargement du plan d’implantation…</div>
+            </FichePageShell>
+        )
     }
 
     if (!isNew && (error || !data)) {
         return (
-            <div className="flex flex-col gap-4">
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700">
-                    Impossible de charger cette fiche plan d’implantation.
+            <FichePageShell>
+                <div className="flex flex-col gap-4">
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-sm text-red-700">
+                        Impossible de charger cette fiche plan d’implantation.
+                    </div>
+                    <div>
+                        <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, '/demandes')}>Retour</Button>
+                    </div>
                 </div>
-                <div>
-                    <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, '/demandes')}>Retour</Button>
-                </div>
-            </div>
+            </FichePageShell>
         )
     }
 
@@ -565,57 +572,62 @@ export default function PlanImplantationPage() {
     const implantedCount = mergedPoints.filter((item) => item.already_in_plan).length
 
     return (
-        <div className="flex flex-col gap-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="max-w-3xl">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-text-muted">Plan d&apos;implantation</p>
-                    <h1 className="mt-2 text-3xl font-semibold tracking-tight text-text">{isNew ? "Nouveau plan d'implantation" : current.reference}</h1>
-                    {!isNew && current?.titre ? (
-                        <p className="mt-2 text-sm text-text-muted">{current.titre}</p>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-muted">
-                        {(current?.demande_reference || form.demande_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Demande {current?.demande_reference || form.demande_reference}</span> : null}
-                        {(current?.campagne_reference || form.campagne_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Campagne {current?.campagne_reference || form.campagne_reference}</span> : null}
-                        {(current?.intervention_reference || form.intervention_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Intervention {current?.intervention_reference || form.intervention_reference}</span> : null}
-                        {!isNew ? <span className="rounded-full border border-border bg-bg px-3 py-1">{implantedCount} point{implantedCount > 1 ? 's' : ''} implanté{implantedCount > 1 ? 's' : ''}</span> : null}
-                    </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    <Button variant="secondary" onClick={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}>Retour</Button>
-                    {Number.isInteger(currentDemandeId) && currentDemandeId > 0 ? <Button variant="secondary" onClick={() => navigate(`/demandes/${currentDemandeId}`)}>Ouvrir la demande</Button> : null}
-                    {Number.isInteger(currentInterventionId) && currentInterventionId > 0 ? <Button variant="secondary" onClick={() => navigate(`/interventions/${currentInterventionId}`)}>Ouvrir l’intervention</Button> : null}
-                    {!isNew ? (
-                        <Button
-                            variant={isConsultationMode ? 'primary' : 'secondary'}
-                            onClick={openCanvas}
-                        >
-                            🖼 Canevas
+        <FichePageShell>
+            <FicheTopbar
+                backLabel="← Retour"
+                onBack={() => navigateBackWithFallback(navigate, searchParams, fallbackReturnTo)}
+                eyebrow="Plan d'implantation"
+                title={isNew ? "Nouveau plan d'implantation" : current.reference}
+                subtitle={!isNew && current?.titre ? current.titre : undefined}
+            >
+                {Number.isInteger(currentDemandeId) && currentDemandeId > 0 ? (
+                    <Button size="sm" variant="secondary" onClick={() => navigate(`/demandes/${currentDemandeId}`)}>Demande</Button>
+                ) : null}
+                {Number.isInteger(currentInterventionId) && currentInterventionId > 0 ? (
+                    <Button size="sm" variant="secondary" onClick={() => navigate(`/interventions/${currentInterventionId}`)}>Intervention</Button>
+                ) : null}
+                {!isNew ? (
+                    <Button
+                        size="sm"
+                        variant={isConsultationMode ? 'primary' : 'secondary'}
+                        onClick={openCanvas}
+                    >
+                        Canevas
+                    </Button>
+                ) : null}
+                {editing ? (
+                    <>
+                        <Button size="sm" variant="secondary" onClick={handleCancel}>Annuler</Button>
+                        <Button size="sm" variant="primary" onClick={handleSave} disabled={saveMutation.isPending || !form.demande_id}>
+                            {saveMutation.isPending ? '…' : 'Enregistrer'}
                         </Button>
-                    ) : null}
-                    {editing ? (
-                        <>
-                            <Button variant="secondary" onClick={handleCancel}>Annuler</Button>
-                            <Button variant="primary" onClick={handleSave} disabled={saveMutation.isPending || !form.demande_id}>{saveMutation.isPending ? '…' : 'Enregistrer'}</Button>
-                        </>
-                    ) : !isConsultationMode ? (
-                        <>
-                            <Button variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
-                            <Button variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
-                                {deleteMutation.isPending ? '…' : 'Supprimer'}
-                            </Button>
-                        </>
-                    ) : null}
-                </div>
+                    </>
+                ) : !isConsultationMode ? (
+                    <>
+                        <Button size="sm" variant="primary" onClick={() => setEditing(true)}>Modifier</Button>
+                        <Button size="sm" variant="danger" onClick={handleDelete} disabled={deleteMutation.isPending}>
+                            {deleteMutation.isPending ? '…' : 'Supprimer'}
+                        </Button>
+                    </>
+                ) : null}
+            </FicheTopbar>
+
+            <FicheMain className="flex flex-col gap-5">
+            <div className="flex flex-wrap gap-2 text-xs text-text-muted">
+                {(current?.demande_reference || form.demande_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Demande {current?.demande_reference || form.demande_reference}</span> : null}
+                {(current?.campagne_reference || form.campagne_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Campagne {current?.campagne_reference || form.campagne_reference}</span> : null}
+                {(current?.intervention_reference || form.intervention_reference) ? <span className="rounded-full border border-border bg-bg px-3 py-1">Intervention {current?.intervention_reference || form.intervention_reference}</span> : null}
+                {!isNew ? <span className="rounded-full border border-border bg-bg px-3 py-1">{implantedCount} point{implantedCount > 1 ? 's' : ''} implanté{implantedCount > 1 ? 's' : ''}</span> : null}
             </div>
 
             {isConsultationMode ? (
-                <div className="rounded-lg border border-[#cfe4f6] bg-[#eef6fd] px-4 py-3 text-sm text-[#185fa5]">
+                <div className="rounded-lg border border-[rgba(0,49,112,0.18)] bg-[#e8eef8] px-4 py-3 text-sm text-nge">
                     Consultation seule du cadre — choisissez le fond de plan et implantez les points via le canevas.
                 </div>
             ) : null}
 
             {isNew ? (
-                <div className="rounded-lg border border-[#cfe4f6] bg-[#eef6fd] px-4 py-3 text-sm text-[#185fa5]">
+                <div className="rounded-lg border border-[rgba(0,49,112,0.18)] bg-[#e8eef8] px-4 py-3 text-sm text-nge">
                     Ce plan d’implantation n’est pas encore enregistré. Prépare la fiche puis enregistre-la seulement quand elle est prête.
                 </div>
             ) : null}
@@ -749,7 +761,8 @@ export default function PlanImplantationPage() {
                     </div>
             </Card>
             ) : null}
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }
 
