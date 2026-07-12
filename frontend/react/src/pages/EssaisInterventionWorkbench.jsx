@@ -18,6 +18,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import { useAuth } from '@/hooks/useAuth'
 import { api } from '@/services/api'
 
@@ -571,27 +572,20 @@ export default function EssaisInterventionWorkbench() {
     }
 
     return (
-        <div className="flex flex-col gap-4 h-full">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-[18px] font-bold">Workbench essais → prélèvements → interventions</h1>
-                    <p className="text-[13px] text-text-muted mt-1">
-                        Preview pour trier les actes unitaires, les regrouper d’abord en prélèvements, puis seulement après en interventions.
-                    </p>
-                </div>
+        <FichePageShell>
+            <FicheTopbar
+                backLabel="← Retour"
+                onBack={() => navigate(-1)}
+                eyebrow="Workbench preview"
+                title="Essais → prélèvements → interventions"
+                subtitle="Preview pour trier les actes unitaires, les regrouper en prélèvements puis en interventions."
+            >
+                <Button size="sm" variant="ghost" onClick={() => refetch()}>Recharger</Button>
+            </FicheTopbar>
 
-                <div className="flex items-center gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => navigate(-1)}>
-                        Retour
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => refetch()}>
-                        Recharger
-                    </Button>
-                </div>
-            </div>
-
-            <div className="bg-surface border border-border rounded-[10px] overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-border bg-bg">
+            <FicheMain className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+            <div className="overflow-hidden rounded-[10px] border border-border bg-surface">
+                <div className="border-b border-border bg-bg px-4 py-2.5">
                     <div className="grid grid-cols-[1.4fr_180px_180px_180px] gap-3 items-end">
                         <FieldGroup label="Recherche">
                             <Input
@@ -885,7 +879,7 @@ export default function EssaisInterventionWorkbench() {
                             <div className="grid grid-cols-2 gap-3">
                                 {prelevements.map((item) => (
                                     <div key={item.key} className="border border-border rounded-lg px-3 py-2 bg-bg">
-                                        <div className="text-[12px] font-bold text-accent font-mono">{item.reference}</div>
+                                        <div className="text-[12px] font-bold text-nge font-mono">{item.reference}</div>
                                         <div className="text-[12px] text-text-muted mt-1">
                                             {item.rowCount} essai(s) · {item.interventionCount} intervention(s)
                                         </div>
@@ -910,7 +904,7 @@ export default function EssaisInterventionWorkbench() {
                             <div className="grid grid-cols-2 gap-3">
                                 {interventions.map((item) => (
                                     <div key={item.key} className="border border-border rounded-lg px-3 py-2 bg-bg">
-                                        <div className="text-[12px] font-bold text-accent font-mono">{item.reference}</div>
+                                        <div className="text-[12px] font-bold text-nge font-mono">{item.reference}</div>
                                         <div className="text-[12px] text-text-muted mt-1">
                                             {item.rowCount} essai(s) · {item.prelevementCount} prélèvement(s)
                                         </div>
@@ -921,6 +915,7 @@ export default function EssaisInterventionWorkbench() {
                     </div>
                 </div>
             </div>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

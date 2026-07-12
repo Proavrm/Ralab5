@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import { qualiteApi } from '@/services/api'
 import { formatDate } from '@/lib/utils'
 
@@ -112,30 +113,30 @@ export default function QsseFncWorkspacePage({ context = 'qualite' }) {
   }, [context])
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-hidden bg-bg p-5">
-      <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-text">{pageMeta.title}</h1>
-            <p className="mt-1 text-sm text-text-muted">{pageMeta.subtitle}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              to={pageMeta.switchTo}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-muted hover:bg-bg hover:text-text"
-            >
-              {pageMeta.switchLabel}
-            </Link>
-            <Button
-              variant="primary"
-              onClick={() => refreshLiveMutation.mutate()}
-              disabled={refreshLiveMutation.isPending}
-            >
-              {refreshLiveMutation.isPending ? 'Atualizando…' : 'Atualizar fonte 2026'}
-            </Button>
-          </div>
-        </div>
+    <FichePageShell>
+      <FicheTopbar
+        eyebrow="Qualité · QSSE"
+        title={pageMeta.title}
+        subtitle={pageMeta.subtitle}
+      >
+        <Link
+          to={pageMeta.switchTo}
+          className="rounded-xl border border-border px-3 py-2 text-xs font-bold text-text-muted transition-colors hover:bg-bg hover:text-text"
+        >
+          {pageMeta.switchLabel}
+        </Link>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => refreshLiveMutation.mutate()}
+          disabled={refreshLiveMutation.isPending}
+        >
+          {refreshLiveMutation.isPending ? 'Atualizando…' : 'Atualizar fonte 2026'}
+        </Button>
+      </FicheTopbar>
 
+      <FicheMain className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+      <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
         {notice ? (
           <div
             className={`mt-3 rounded-md border px-3 py-2 text-sm ${
@@ -276,6 +277,7 @@ export default function QsseFncWorkspacePage({ context = 'qualite' }) {
           </table>
         </div>
       </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }

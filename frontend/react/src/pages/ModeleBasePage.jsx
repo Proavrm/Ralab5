@@ -19,6 +19,7 @@ import {
 import Button from '@/components/ui/Button'
 import PhotoCropModal from '@/components/ui/PhotoCropModal'
 import Input from '@/components/ui/Input'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import { navigateWithReturnTo } from '@/lib/detailNavigation'
 import { formatDate } from '@/lib/utils'
 import {
@@ -218,7 +219,7 @@ function Textarea({ value, onChange, rows = 3, readOnly = false }) {
             onChange={(event) => onChange(event.target.value)}
             rows={rows}
             readOnly={readOnly}
-            className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 read-only:cursor-default read-only:opacity-80"
+            className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge disabled:cursor-not-allowed disabled:opacity-70 read-only:cursor-default read-only:opacity-80"
         />
     )
 }
@@ -229,7 +230,7 @@ function Select({ value, onChange, readOnly = false, children, className = '' })
             value={value || ''}
             onChange={(event) => onChange(event.target.value)}
             disabled={readOnly}
-            className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
+            className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
         >
             {children}
         </select>
@@ -1288,52 +1289,26 @@ export default function ModeleBasePage() {
     }
 
     return (
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-4 py-3">
-        {/*
-            MODEL ADMINISTRATIVE HEADER
+        <FichePageShell>
+            <FicheTopbar
+                eyebrow="Modèle de base"
+                title={`Modèle de base — ${code || 'SANS-CODE'}`}
+                subtitle="Paramétrage et contrôle du formulaire d’essai."
+            >
+                <Badge className="border-border bg-bg text-text-muted">Famille : {family}</Badge>
+                {isStructuredModel ? (
+                    <Badge className={getStatusClass(modelStatus)}>{getStatusLabel(modelStatus)}</Badge>
+                ) : null}
+                {isStructuredModel ? (
+                    <Badge className={getStatusClass(rapportStatus)}>Rapport {getStatusLabel(rapportStatus)}</Badge>
+                ) : null}
+                {isStructuredModel && modelStatus === 'approved' ? (
+                    <Badge className="border-[#abc3e8] bg-[#eef5ff] text-[#315b97]">Lecture seule</Badge>
+                ) : null}
+            </FicheTopbar>
 
-            This section is the common administrative header for the model page.
-            It is not linked to the DE sheet, the SC sheet, the terrain page,
-            the core drilling coupe view, or the report rendering.
-
-            It only manages the model identity and status:
-            - model title
-            - family badge
-            - draft / approved status
-            - report draft / report approved status
-            - reference import helper
-            - model approval / draft reset controls
-
-            DE and future structured models must use the same header logic.
-            The specific model body starts below this common header.
-        */}
+            <FicheMain className="max-w-[1280px] gap-4">
             <>
-                    <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="min-w-0">
-                                <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted">Modèle de base</div>
-                                <h1 className="mt-1 text-2xl font-semibold text-text">
-                                    Modèle de base — {code || 'SANS-CODE'}
-                                </h1>
-                                <p className="mt-2 max-w-3xl text-sm text-text-muted">
-                                    Cette page regroupe les données de référence nécessaires au paramétrage et au contrôle du formulaire d’essai.
-                                </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                <Badge className="border-border bg-bg text-text-muted">Famille : {family}</Badge>
-                                {isStructuredModel ? (
-                                    <Badge className={getStatusClass(modelStatus)}>{getStatusLabel(modelStatus)}</Badge>
-                                ) : null}
-                                {isStructuredModel ? (
-                                    <Badge className={getStatusClass(rapportStatus)}>Rapport {getStatusLabel(rapportStatus)}</Badge>
-                                ) : null}
-                                {isStructuredModel && modelStatus === 'approved' ? (
-                                    <Badge className="border-[#abc3e8] bg-[#eef5ff] text-[#315b97]">Lecture seule</Badge>
-                                ) : null}
-                            </div>
-                        </div>
-                    </div>
-
                     {isModelLocked ? (
                         <div className="rounded-xl border border-[#abc3e8] bg-[#f3f8ff] px-4 py-3 text-sm text-[#315b97]">
                             Modèle approuvé : l’édition est verrouillée. Utilise « Repasser en brouillon » pour modifier la structure.
@@ -1350,7 +1325,7 @@ export default function ModeleBasePage() {
                                 onChange={(event) => setReference(event.target.value)}
                                 placeholder={`Ex. : MODELE-${code || 'XX'}-001`}
                                 readOnly={isModelLocked}
-                                className="rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent read-only:cursor-default read-only:opacity-80"
+                                className="rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge read-only:cursor-default read-only:opacity-80"
                             />
                         </label>
                         {isStructuredModel ? (
@@ -1381,7 +1356,7 @@ export default function ModeleBasePage() {
                                     <select
                                         value={selectedModelId || ''}
                                         onChange={(event) => setSelectedModelId(String(event.target.value || ''))}
-                                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-nge"
                                     >
                                         <option value="">Sélectionner un modèle…</option>
                                         {modelDefinitions.map((item) => (
@@ -1411,7 +1386,7 @@ export default function ModeleBasePage() {
                                 onChange={(event) => setLookup(event.target.value)}
                                 placeholder={`Ex. : 2022-SP-${code || 'XX'}0003`}
                                 readOnly={isModelLocked}
-                                className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent read-only:cursor-default read-only:opacity-80"
+                                className="flex-1 rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge read-only:cursor-default read-only:opacity-80"
                             />
                             <Button variant="primary" onClick={importValuesFromSource} disabled={loading || isModelLocked}>
                                 {loading ? 'Import en cours...' : 'Importer'}
@@ -1516,7 +1491,7 @@ export default function ModeleBasePage() {
                             const parsed = safeParseJson(event.target.value)
                             if (parsed) setValues(parsed)
                         }}
-                        className="h-[320px] w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs outline-none focus:border-accent"
+                        className="h-[320px] w-full rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs outline-none focus:border-nge"
                     />
                 )}
             </Card>
@@ -1559,7 +1534,7 @@ export default function ModeleBasePage() {
                                         key={item.uid}
                                         type="button"
                                         onClick={() => handlePickSheetPoint(item)}
-                                        className="rounded-lg border border-border bg-bg px-3 py-2 text-left text-sm hover:border-accent"
+                                        className="rounded-lg border border-border bg-bg px-3 py-2 text-left text-sm hover:border-nge"
                                     >
                                         <div className="font-semibold text-text">{item.pointCode}</div>
                                         <div className="text-[11px] text-text-muted">item_uid: {item.uid}</div>
@@ -1573,6 +1548,7 @@ export default function ModeleBasePage() {
                     </div>
                 </div>
             ) : null}
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { DashboardHero, FicheMain, FichePageShell } from '@/components/layout/FicheLayout'
 
 const eventRows = [
   {
@@ -745,24 +746,22 @@ export default function QsseFncRaLabMockupPage() {
   ]
 
   return (
-    <div className="min-h-screen w-full bg-slate-100 p-6 text-slate-900">
-      <div className="w-full">
-        <header className="mb-5 rounded-3xl bg-blue-950 p-5 text-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.24em] text-blue-200">RaLab</div>
-              <h1 className="mt-1 text-3xl font-black tracking-tight">QSSE / FNC / FAE / BP / Infos</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-blue-100">Mockup d un module capable de gerer les non-conformites, actions ou evenements environnement, bonnes pratiques, remontees d infos, imports historiques et REX.</p>
-            </div>
-            <div className="rounded-2xl bg-white/10 p-3 text-right backdrop-blur">
-              <div className="text-xs uppercase tracking-wide text-blue-100">Vue actuelle</div>
-              <div className="text-lg font-black">{cleanView ? 'Hors backlog' : 'Registre complet'}</div>
-            </div>
+    <FichePageShell>
+      <DashboardHero
+        eyebrow="RaLab · Mockup QSSE"
+        title="QSSE / FNC / FAE / BP / Infos"
+        subtitle="Mockup d’un module capable de gérer les non-conformités, actions ou événements environnement, bonnes pratiques, remontées d’infos, imports historiques et REX."
+        aside={(
+          <div className="rounded-2xl border border-white/20 bg-white/10 p-3 text-right backdrop-blur">
+            <div className="text-xs uppercase tracking-wide text-white/70">Vue actuelle</div>
+            <div className="text-lg font-black">{cleanView ? 'Hors backlog' : 'Registre complet'}</div>
           </div>
-        </header>
+        )}
+      />
 
-        <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <nav className="rounded-3xl border border-slate-200 bg-white p-2 shadow-sm xl:col-span-6">
+      <FicheMain className="flex flex-col gap-5">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+          <nav className="rounded-3xl border border-border bg-white p-2 shadow-sm xl:col-span-6">
             <div className="flex flex-wrap gap-2">
               {tabs.map((tab) => (
                 <button
@@ -770,8 +769,8 @@ export default function QsseFncRaLabMockupPage() {
                   onClick={() => setActiveTab(tab.key)}
                   className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${
                     activeTab === tab.key
-                      ? 'bg-blue-950 text-white shadow-sm'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-nge text-white shadow-sm'
+                      : 'text-text-muted hover:bg-bg'
                   }`}
                 >
                   {tab.label}
@@ -780,12 +779,12 @@ export default function QsseFncRaLabMockupPage() {
             </div>
           </nav>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm xl:col-span-6">
+          <div className="rounded-3xl border border-border bg-white p-3 shadow-sm xl:col-span-6">
             <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
               <select
                 value={registerFilter}
                 onChange={(event) => setRegisterFilter(event.target.value)}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none"
+                className="rounded-2xl border border-border bg-bg px-3 py-2 text-sm font-semibold text-text outline-none focus:border-nge"
               >
                 <option value="ALL">Tous registres</option>
                 <option value="FNC">Registre FNC</option>
@@ -796,7 +795,7 @@ export default function QsseFncRaLabMockupPage() {
               <select
                 value={dateMode}
                 onChange={(event) => setDateMode(event.target.value)}
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none"
+                className="rounded-2xl border border-border bg-bg px-3 py-2 text-sm font-semibold text-text outline-none focus:border-nge"
               >
                 <option>date de saisie</option>
                 <option>date du fait</option>
@@ -825,7 +824,7 @@ export default function QsseFncRaLabMockupPage() {
         {activeTab === 'actions' && <ActionsView />}
         {activeTab === 'rex' && <RexView />}
         {activeTab === 'workflow' && <WorkflowView />}
-      </div>
-    </div>
+      </FicheMain>
+    </FichePageShell>
   )
 }
