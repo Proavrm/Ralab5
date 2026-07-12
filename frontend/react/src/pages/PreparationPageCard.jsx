@@ -326,7 +326,7 @@ export default function PreparationPageCard() {
                                         value={form.objectif_mission}
                                         onChange={(e) => setF('objectif_mission', e.target.value)}
                                         rows={3}
-                                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+                                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
                                     />
                                 </FG>
                             </div>
@@ -337,7 +337,7 @@ export default function PreparationPageCard() {
                                         value={form.remarques}
                                         onChange={(e) => setF('remarques', e.target.value)}
                                         rows={4}
-                                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+                                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
                                     />
                                 </FG>
                             </div>
@@ -378,13 +378,13 @@ export default function PreparationPageCard() {
                             {(catalog?.modules || modules).map((m) => (
                                 <label
                                     key={m.module_code}
-                                    className="flex items-start gap-2.5 p-2.5 border border-border rounded bg-bg cursor-pointer hover:border-accent transition-colors"
+                                    className="flex items-start gap-2.5 p-2.5 border border-border rounded bg-bg cursor-pointer hover:border-nge transition-colors"
                                 >
                                     <input
                                         type="checkbox"
                                         checked={mods[m.module_code] || false}
                                         onChange={(e) => setMods((prev) => ({ ...prev, [m.module_code]: e.target.checked }))}
-                                        className="mt-0.5 accent-accent"
+                                        className="mt-0.5 accent-nge"
                                     />
                                     <div>
                                         <div className="text-[13px] font-semibold">{m.label}</div>

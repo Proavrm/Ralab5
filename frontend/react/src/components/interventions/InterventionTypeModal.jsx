@@ -104,7 +104,7 @@ export default function InterventionTypeModal({
                     key={item.value}
                     type="button"
                     onClick={() => onSelect?.(item.value)}
-                    className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-left transition-colors hover:border-accent hover:bg-surface"
+                    className="w-full rounded-lg border border-border bg-bg px-3 py-3 text-left transition-colors hover:border-nge hover:bg-surface"
                   >
                     <div className="text-[13px] font-semibold text-text">{item.value}</div>
                     <div className="mt-1 text-[12px] leading-5 text-text-muted">{item.description}</div>

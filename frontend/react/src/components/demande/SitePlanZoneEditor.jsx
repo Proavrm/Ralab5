@@ -96,7 +96,7 @@ export default function SitePlanZonePanel({
                   : 'border-[#3b5bdb] bg-[#eef4ff] font-semibold text-[#1e3a8a]'
                 : tool.accent
                   ? 'border-[#fde68a] bg-white text-[#92400e] hover:border-[#f59e0b]'
-                  : 'border-border bg-white text-[#334155] hover:border-accent'
+                  : 'border-border bg-white text-[#334155] hover:border-nge'
             }`}
           >
             {tool.label}

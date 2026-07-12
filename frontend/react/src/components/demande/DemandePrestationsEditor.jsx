@@ -16,7 +16,7 @@ function Textarea({ value, onChange, rows = 3, placeholder = '' }) {
       onChange={(event) => onChange(event.target.value)}
       rows={rows}
       placeholder={placeholder}
-      className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent resize-y"
+      className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge resize-y"
     />
   )
 }

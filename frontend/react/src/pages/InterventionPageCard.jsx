@@ -439,7 +439,7 @@ export default function InterventionPageCard() {
                                 value={form.objectif_intervention || ''}
                                 onChange={(e) => setForm(f => ({ ...f, objectif_intervention: e.target.value }))}
                                 rows={3}
-                                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+                                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
                             />
                         </FG>
 
@@ -448,7 +448,7 @@ export default function InterventionPageCard() {
                                 value={form.notes_terrain || ''}
                                 onChange={(e) => setForm(f => ({ ...f, notes_terrain: e.target.value }))}
                                 rows={4}
-                                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+                                className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
                             />
                         </FG>
                     </div>
@@ -514,7 +514,7 @@ export default function InterventionPageCard() {
                                         <button
                                             type="button"
                                             onClick={() => navigate(`/echantillons/${echantillon.uid}`)}
-                                            className="text-left text-[12px] font-bold text-accent font-mono hover:underline"
+                                            className="text-left text-[12px] font-bold text-nge font-mono hover:underline"
                                         >
                                             {echantillon.reference || `ECH-${echantillon.uid}`}
                                         </button>
@@ -538,12 +538,12 @@ export default function InterventionPageCard() {
                                             {essais.map((e) => (
                                                 <div
                                                     key={e.uid}
-                                                    className="flex items-center justify-between gap-3 px-3 py-2 border border-border rounded-lg cursor-pointer hover:border-accent hover:bg-bg transition-colors"
+                                                    className="flex items-center justify-between gap-3 px-3 py-2 border border-border rounded-lg cursor-pointer hover:border-nge hover:bg-bg transition-colors"
                                                     onClick={() => navigate(`/essais/${e.uid}`)}
                                                 >
                                                     <div className="min-w-0">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-[12px] font-bold text-accent font-mono">
+                                                            <span className="text-[12px] font-bold text-nge font-mono">
                                                                 {e.essai_code || e.type_essai || `ESSAI-${e.uid}`}
                                                             </span>
                                                             {e.reference ? (

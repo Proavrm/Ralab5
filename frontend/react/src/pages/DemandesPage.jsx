@@ -320,11 +320,11 @@ function DemandeModal({ open, onClose, prefill, sourceMeta, affaires = [], editD
         <FS title="Description" />
         <FG label="Description" full>
           <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={3}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y" />
         </FG>
         <FG label="Observations" full>
           <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={2}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y" />
+            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y" />
         </FG>
 
         <FS title="Suivi" />

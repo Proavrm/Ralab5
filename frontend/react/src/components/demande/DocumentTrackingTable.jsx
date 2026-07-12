@@ -34,7 +34,7 @@ function DocumentStoredPreview({ storedPath, onOpen }) {
       type="button"
       onClick={onOpen}
       title="Ouvrir le fichier"
-      className="shrink-0 overflow-hidden rounded border border-[#dbe1ea] bg-white hover:border-accent"
+      className="shrink-0 overflow-hidden rounded border border-[#dbe1ea] bg-white hover:border-nge"
     >
       {isImage ? (
         <img
@@ -169,7 +169,7 @@ function DocumentRow({
               value={doc.document_type ?? ''}
               onChange={(event) => set('document_type', event.target.value)}
               disabled={readOnly || isRequired || (inSiteCaptureGroup && isItineraryRow)}
-              className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent disabled:opacity-60"
+              className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge disabled:opacity-60"
             />
             {isRequired ? (
               <span
@@ -195,7 +195,7 @@ function DocumentRow({
           checked={!!doc.is_received}
           onChange={(event) => set('is_received', event.target.checked)}
           disabled={readOnly}
-          className="w-4 h-4 accent-accent disabled:opacity-60"
+          className="w-4 h-4 accent-nge disabled:opacity-60"
         />
       </td>
       {showG3TrackingColumns ? (
@@ -206,7 +206,7 @@ function DocumentRow({
             onChange={(event) => set('is_analyzed', event.target.checked)}
             disabled={readOnly}
             title="Document analysé"
-            className="w-4 h-4 accent-accent disabled:opacity-60"
+            className="w-4 h-4 accent-nge disabled:opacity-60"
           />
         </td>
       ) : null}
@@ -218,7 +218,7 @@ function DocumentRow({
             onChange={(event) => set('used_in_report', event.target.checked)}
             disabled={readOnly}
             title="Utilisé dans le rapport G3"
-            className="w-4 h-4 accent-accent disabled:opacity-60"
+            className="w-4 h-4 accent-nge disabled:opacity-60"
           />
         </td>
       ) : null}
@@ -238,14 +238,14 @@ function DocumentRow({
             title={pathHoverText}
             placeholder={isUploading ? 'Envoi…' : 'Version ou fichier…'}
             disabled={readOnly || isUploading}
-            className="min-w-[10rem] flex-1 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent disabled:opacity-60"
+            className="min-w-[10rem] flex-1 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge disabled:opacity-60"
           />
           <button
             type="button"
             onClick={() => openStoredDocument(storedPath)}
             disabled={readOnly || !storedPath}
             title={storedPath ? `Ouvrir le fichier\n${storedPath}` : 'Aucun fichier enregistré'}
-            className="shrink-0 px-1.5 py-1 border border-border rounded text-[10px] leading-none hover:border-accent disabled:opacity-40"
+            className="shrink-0 px-1.5 py-1 border border-border rounded text-[10px] leading-none hover:border-nge disabled:opacity-40"
           >
             Ouvrir
           </button>
@@ -254,7 +254,7 @@ function DocumentRow({
             onClick={() => copyDocumentPathText(storedPath)}
             disabled={readOnly || !storedPath}
             title={storedPath ? `Copier le chemin serveur\n${storedPath}` : 'Aucun chemin serveur'}
-            className="shrink-0 px-1.5 py-1 border border-border rounded text-[10px] leading-none hover:border-accent disabled:opacity-40"
+            className="shrink-0 px-1.5 py-1 border border-border rounded text-[10px] leading-none hover:border-nge disabled:opacity-40"
           >
             Chemin
           </button>
@@ -293,7 +293,7 @@ function DocumentRow({
           onChange={(event) => set('document_date', event.target.value || null)}
           disabled={readOnly}
           title="Date de réception du document (client / MO)"
-          className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent disabled:opacity-60"
+          className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge disabled:opacity-60"
         />
       </td>
       <td className="px-2 py-1.5">
@@ -316,7 +316,7 @@ function DocumentRow({
           value={doc.comment ?? ''}
           onChange={(event) => set('comment', event.target.value)}
           disabled={readOnly}
-          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent disabled:opacity-60"
+          className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge disabled:opacity-60"
         />
       </td>
       <td className="px-2 py-1.5">

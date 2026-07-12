@@ -822,7 +822,7 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
               className={cn(
                 'inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors',
                 activeTab === key
-                  ? 'border-accent bg-[#eef6fd] text-accent'
+                  ? 'border-nge bg-[#eef6fd] text-nge'
                   : 'border-border bg-surface text-text-muted hover:text-text'
               )}
             >
@@ -1055,7 +1055,7 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
                       step="5"
                       value={clampNumber(profileForm.signature_scale_percent, 30, 200, 100)}
                       onChange={(event) => setSignatureSetting('signature_scale_percent', event.target.value, 30, 200, 100)}
-                      className="flex-1 accent-accent"
+                      className="flex-1 accent-nge"
                     />
                     <Input
                       type="number"
@@ -1077,7 +1077,7 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
                       step="2"
                       value={clampNumber(profileForm.signature_offset_x, -160, 160, 0)}
                       onChange={(event) => setSignatureSetting('signature_offset_x', event.target.value, -160, 160, 0)}
-                      className="flex-1 accent-accent"
+                      className="flex-1 accent-nge"
                     />
                     <Input
                       type="number"
@@ -1099,7 +1099,7 @@ export default function UserProfileModal({ open, onClose, user, employmentLevels
                       step="2"
                       value={clampNumber(profileForm.signature_offset_y, -120, 120, 0)}
                       onChange={(event) => setSignatureSetting('signature_offset_y', event.target.value, -120, 120, 0)}
-                      className="flex-1 accent-accent"
+                      className="flex-1 accent-nge"
                     />
                     <Input
                       type="number"

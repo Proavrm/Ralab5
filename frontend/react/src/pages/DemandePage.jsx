@@ -707,7 +707,7 @@ function InterventionAccordion({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[12px] font-semibold text-accent">{intervention.reference || 'Intervention'}</span>
+              <span className="text-[12px] font-semibold text-nge">{intervention.reference || 'Intervention'}</span>
               <span className="text-[11px] text-text-muted">{formatDate(intervention.date_intervention) || 'Date à préciser'}</span>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-bg text-[11px] font-medium text-text-muted">
                 {intervention.statut || '—'}
@@ -775,7 +775,7 @@ function CampaignAccordion({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="text-[14px] font-semibold text-accent">{campaign.reference || campaign.label}</div>
+              <div className="text-[14px] font-semibold text-nge">{campaign.reference || campaign.label}</div>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full border border-border bg-surface text-[11px] font-medium text-text-muted">
                 {campaign.label}
               </span>
@@ -840,7 +840,7 @@ function CampaignAccordion({
             <div className="mt-2 flex flex-col gap-3">
               {campaignSupportGroups.map((group) => (
                 <div key={group.intervention_uid || group.intervention_reference} className="flex flex-col gap-2">
-                  <div className="text-[11px] font-semibold text-accent">{group.intervention_reference}</div>
+                  <div className="text-[11px] font-semibold text-nge">{group.intervention_reference}</div>
                   <div className="flex flex-col gap-2">
                     {group.objects.map((item) => (
                       <RelatedObjectNode
@@ -1035,7 +1035,7 @@ function ConfigModal({ open, onClose, uid, nav }) {
             <div className="flex flex-wrap gap-2">
               {mods.map(m => (
                 <label key={m.module_code} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
-                  m.is_enabled ? 'border-accent bg-[#eeeffe] text-accent' : 'border-border text-text-muted'
+                  m.is_enabled ? 'border-nge bg-[#eeeffe] text-nge' : 'border-border text-text-muted'
                 }`}>
                   <input type="checkbox" checked={!!m.is_enabled} onChange={() => toggleMod(m.module_code)} className="hidden" />
                   {m.is_enabled ? '✓' : '○'} {m.label || m.module_code}
@@ -1801,7 +1801,7 @@ export default function DemandePage() {
                 </EditableFieldCard>
                 <EditableFieldCard label="Rapport envoyé" editing={isEditing} displayValue={d.rapport_envoye ? 'Oui' : '—'}>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={!!editForm.rapport_envoye} onChange={e => patchEditField('rapport_envoye', e.target.checked)} className="w-4 h-4 accent-accent" />
+                    <input type="checkbox" checked={!!editForm.rapport_envoye} onChange={e => patchEditField('rapport_envoye', e.target.checked)} className="w-4 h-4 accent-nge" />
                     <span className="text-sm font-semibold text-[#172033]">Rapport envoyé</span>
                   </label>
                 </EditableFieldCard>

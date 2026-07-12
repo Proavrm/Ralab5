@@ -246,7 +246,7 @@ function CoucheRow({ couche, index, onEdit, onDelete, readOnly }) {
                     <div className="flex gap-1 shrink-0">
                         <button
                             onClick={onEdit}
-                            className="px-2 py-1 rounded border border-border hover:border-accent text-xs font-medium text-text-muted hover:text-text transition"
+                            className="px-2 py-1 rounded border border-border hover:border-nge text-xs font-medium text-text-muted hover:text-text transition"
                         >
                             ✏️
                         </button>
@@ -275,7 +275,7 @@ function EditCoucheForm({ couche, onChange, onSave, onCancel, readOnly }) {
                     value={couche.description || ""}
                     onChange={(e) => onChange({ ...couche, description: e.target.value })}
                     rows={3}
-                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+                    className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
                     disabled={readOnly}
                 />
             </div>
@@ -290,7 +290,7 @@ function EditCoucheForm({ couche, onChange, onSave, onCancel, readOnly }) {
                         step="0.1"
                         value={couche.d ?? ""}
                         onChange={(e) => onChange({ ...couche, d: e.target.value ? parseFloat(e.target.value) : null })}
-                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
+                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge"
                         disabled={readOnly}
                     />
                 </div>
@@ -303,7 +303,7 @@ function EditCoucheForm({ couche, onChange, onSave, onCancel, readOnly }) {
                         step="0.1"
                         value={couche.vide ?? ""}
                         onChange={(e) => onChange({ ...couche, vide: e.target.value ? parseFloat(e.target.value) : null })}
-                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
+                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge"
                         disabled={readOnly}
                     />
                 </div>
@@ -316,7 +316,7 @@ function EditCoucheForm({ couche, onChange, onSave, onCancel, readOnly }) {
                         step="0.1"
                         value={couche.compacite ?? ""}
                         onChange={(e) => onChange({ ...couche, compacite: e.target.value ? parseFloat(e.target.value) : null })}
-                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
+                        className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge"
                         disabled={readOnly}
                     />
                 </div>

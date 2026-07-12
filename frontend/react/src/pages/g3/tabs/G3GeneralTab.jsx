@@ -20,7 +20,7 @@ function TA({ value, onChange, rows = 3, placeholder }) {
       onChange={(e) => onChange(e.target.value)}
       rows={rows}
       placeholder={placeholder}
-      className="w-full px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+      className="w-full px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
     />
   )
 }
