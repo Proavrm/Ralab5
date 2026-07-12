@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { plansImplantationApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import { WorksheetPageShell, WorksheetSubbar, WorksheetTopbar } from '@/components/layout/FicheLayout'
 import { resolveReturnTo } from '@/lib/detailNavigation'
 import {
     buildAllowedPointFamilies,
@@ -245,7 +246,7 @@ function ToolBtn({ active, onClick, title, children }) {
             title={title}
             className={`flex items-center justify-center w-9 h-9 rounded-lg text-[13px] font-medium transition-colors ${
                 active
-                    ? 'bg-accent text-white shadow-sm'
+                    ? 'bg-nge text-white shadow-sm'
                     : 'bg-bg border border-border text-text-muted hover:bg-surface hover:text-text'
             }`}
         >
@@ -927,26 +928,32 @@ export default function PlanImplantationCanvasPage() {
         })
         .sort((a, b) => String(a.point_code || '').localeCompare(String(b.point_code || ''), 'fr', { numeric: true, sensitivity: 'base' }))
 
-    if (isLoading) return <div className="py-12 text-center text-sm text-text-muted">Chargement…</div>
-    if (error) return <div className="py-8 text-center text-sm text-red-600">Impossible de charger ce plan.</div>
+    if (isLoading) {
+        return (
+            <WorksheetPageShell>
+                <div className="py-10 text-center text-sm text-text-muted">Chargement…</div>
+            </WorksheetPageShell>
+        )
+    }
+    if (error) {
+        return (
+            <WorksheetPageShell>
+                <div className="mx-auto max-w-[1280px] px-6 py-6">
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">Impossible de charger ce plan.</div>
+                </div>
+            </WorksheetPageShell>
+        )
+    }
 
     return (
-        <div className="flex flex-col bg-bg" style={{ height: '100vh', overflow: 'hidden' }}>
-
-            {/* ── Top bar ── */}
-            <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border bg-surface shrink-0 no-print">
-                <div className="flex items-center gap-3 min-w-0">
-                    <Button variant="secondary" onClick={handleTrueBack}>
-                        ← Retour
-                    </Button>
-                    <div className="min-w-0">
-                        <p className="text-[10px] text-text-muted uppercase tracking-wide">Canevas d'implantation</p>
-                        <p className="text-[13px] font-semibold text-text truncate">{plan?.reference || `Plan #${planUid}`}</p>
-                    </div>
-                </div>
-
-                {/* ── Tool bar ── */}
-                <div className="flex items-center gap-1.5 flex-wrap">
+        <WorksheetPageShell className="overflow-hidden">
+            <WorksheetTopbar
+                backLabel="← Retour"
+                onBack={handleTrueBack}
+                eyebrow="Canevas d'implantation"
+                title={plan?.reference || `Plan #${planUid}`}
+            >
+                <div className="flex flex-wrap items-center gap-1.5">
                     <ToolBtn active={mode === 'pan'} onClick={() => setMode('pan')} title="Déplacer / zoomer [V]">✋</ToolBtn>
                     <ToolBtn active={mode === 'calibrate'} onClick={() => setMode('calibrate')} title="Étalonnage: tracer une ligne de référence [C]">📏</ToolBtn>
                     <ToolBtn active={mode === 'zone'} onClick={enterZoneMode} title="Zone d'intervention: délimiter un rectangle [Z]">⬜</ToolBtn>
@@ -973,7 +980,7 @@ export default function PlanImplantationCanvasPage() {
                                 setPendingPlacement(null)
                                 setPointPickerError('')
                             }}
-                            className="h-9 min-w-[210px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-accent"
+                            className="h-9 min-w-[210px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-nge"
                             title="Feuille active du canvas"
                         >
                             {feuilleOptions.length > 1 ? <option value="">Selecionar feuille...</option> : null}
@@ -991,7 +998,7 @@ export default function PlanImplantationCanvasPage() {
                             const item = availableExistingPoints.find((p) => String(p.uid ?? p.point_code) === selectedUid)
                             if (item) chooseExistingInterventionPoint(item)
                         }}
-                        className="h-9 min-w-[250px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-accent"
+                        className="h-9 min-w-[250px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-nge"
                         title="Selecionar ponto existente da intervenção"
                         disabled={feuilleOptions.length > 1 && selectedFeuilleId == null}
                     >
@@ -1015,7 +1022,7 @@ export default function PlanImplantationCanvasPage() {
                     <select
                         value={newPointDraft.type}
                         onChange={(e) => setNewPointDraft((v) => ({ ...v, type: e.target.value }))}
-                        className="h-9 min-w-[220px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-accent"
+                        className="h-9 min-w-[220px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-nge"
                         title="Tipo do novo ponto"
                     >
                         {pointTypeOptions.map((item) => (
@@ -1050,7 +1057,7 @@ export default function PlanImplantationCanvasPage() {
                             setImageLoadError('')
                             setFittedImagePath('')
                         }}
-                        className="h-9 min-w-[320px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-accent"
+                        className="h-9 min-w-[320px] rounded-lg border border-border bg-bg px-3 text-sm outline-none focus:border-nge"
                         title="Selecionar imagem de fundo a partir dos ficheiros do dossier da affaire"
                     >
                         <option value="">Selecionar ficheiro em {imageFilesData?.directory || 'Plans/...'}...</option>
@@ -1112,11 +1119,10 @@ export default function PlanImplantationCanvasPage() {
                         {saveMutation.isPending ? '…' : dirty ? '💾 Enregistrer' : '✓ Sauvegardé'}
                     </Button>
                 </div>
-            </div>
+            </WorksheetTopbar>
 
-            {/* ── Status bar ── */}
-            <div className="flex items-center gap-3 px-4 py-1 border-b border-border bg-bg text-[11px] text-text-muted shrink-0 no-print">
-                <span className="font-medium" style={{ color: 'var(--color-accent)' }}>{modeHints[mode]}</span>
+            <WorksheetSubbar className="no-print text-[11px] text-text-muted">
+                <span className="font-medium text-nge">{modeHints[mode]}</span>
                 <span className="text-border">·</span>
                 <span>{calibLabel}</span>
                 <span className="text-border">·</span>
@@ -1136,10 +1142,10 @@ export default function PlanImplantationCanvasPage() {
                 {pointPickerError ? (
                     <span className="ml-auto text-red-500">{pointPickerError}</span>
                 ) : null}
-            </div>
+            </WorksheetSubbar>
 
             {/* ── Canvas wrapper ── */}
-            <div className="relative flex-1 overflow-hidden">
+            <div className="relative min-h-0 flex-1 overflow-hidden">
 
                 {/* ── Dark canvas area ── */}
                 <div
@@ -1370,7 +1376,7 @@ export default function PlanImplantationCanvasPage() {
                                     const label = `${feuilleRef || `Feuille #${feuilleId}`} ${selPt.code || ''}`.trim()
                                     return (
                                         <button
-                                            className="text-left text-[12px] text-accent hover:underline font-medium"
+                                            className="text-left text-[12px] text-nge hover:underline font-medium"
                                             onClick={() => navigate(dest)}
                                         >
                                             → {label}
@@ -1380,7 +1386,7 @@ export default function PlanImplantationCanvasPage() {
                                 if (plan?.intervention_id) {
                                     return (
                                         <button
-                                            className="text-left text-[12px] text-accent hover:underline font-medium"
+                                            className="text-left text-[12px] text-nge hover:underline font-medium"
                                             onClick={() => navigate(`/interventions/${plan.intervention_id}`)}
                                         >
                                             → {plan?.intervention_reference || `Intervention #${plan.intervention_id}`}
@@ -1438,7 +1444,7 @@ export default function PlanImplantationCanvasPage() {
                             <select
                                 value={dlgValues.type || POINT_TYPES[0]}
                                 onChange={(e) => setDlgValues((v) => ({ ...v, type: e.target.value }))}
-                                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
+                                className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge"
                             >
                                 {POINT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                             </select>
@@ -1483,6 +1489,6 @@ export default function PlanImplantationCanvasPage() {
                     .calibration-line { display: none !important; }
                 }
             `}</style>
-        </div>
+        </WorksheetPageShell>
     )
 }

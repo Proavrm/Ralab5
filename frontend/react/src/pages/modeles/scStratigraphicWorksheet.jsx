@@ -1,10 +1,11 @@
 // Feuille SC terrain — coupe carottée, photos et couches.
 // Monté par ModeleSCPage.jsx (données API feuilles-terrain). Logique terrain alignée sur FeuilleTerrainPage.
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import Button from "@/components/ui/Button"
 import PhotoCropModal from "@/components/ui/PhotoCropModal"
 import Input from "@/components/ui/Input"
+import { WorksheetMain, WorksheetPageShell, WorksheetTopbar } from "@/components/layout/FicheLayout"
 import { navigateWithReturnTo } from "@/lib/detailNavigation"
 import { buildScAffaireDemandeLine, buildScInterventionTitle } from "@/lib/sc/pointInheritance"
 import { renderTerrainSelectOptionExtras } from "@/lib/terrainEssaiSelectOptions"
@@ -54,56 +55,6 @@ function ScCard({ title, children, right }) {
             ) : null}
             <div className="p-4">{children}</div>
         </div>
-    )
-}
-
-// Barre feuille de travail SC — position fixed sous la barre « Menu » (AppLayout).
-// TODO: extraire FeuilleWorkToolbar partagée pour toutes les feuilles terrain/labo
-//       (SC, SO, PMT, DE, NT, VC, essais génériques, etc.).
-//       FicheTopbar (FicheLayout.jsx) reste le modèle visuel des fiches RST (demande, campagne…).
-function ScSheetToolbar({ backLabel, onBack, title, subtitle, actions }) {
-    const barRef = useRef(null)
-    const [barHeight, setBarHeight] = useState(72)
-
-    useLayoutEffect(() => {
-        const node = barRef.current
-        if (!node) return undefined
-        const update = () => setBarHeight(node.offsetHeight)
-        update()
-        const observer = new ResizeObserver(update)
-        observer.observe(node)
-        return () => observer.disconnect()
-    }, [backLabel, title, subtitle, actions])
-
-    return (
-        <>
-            <div aria-hidden className="-mt-6 shrink-0" style={{ height: barHeight }} />
-            <div
-                ref={barRef}
-                className="fixed z-40 border-b border-[#dbe1ea] bg-white"
-                style={{
-                    top: 'var(--app-chrome-top, 0px)',
-                    left: 'var(--app-sidebar-width, 0px)',
-                    right: 0,
-                    boxShadow: '0 6px 24px rgba(0,49,112,0.08)',
-                }}
-            >
-                <div style={{ height: '4px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-                <div className="w-full max-w-full mx-auto px-7 flex flex-wrap items-center gap-2.5 py-3">
-                    <button
-                        onClick={onBack}
-                        className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb] hover:text-[#172033] transition-colors shrink-0"
-                    >
-                        {backLabel}
-                    </button>
-                    <div className="flex-1 min-w-[220px]">
-                        <div className="text-[#8a95a8] text-[11px] font-bold tracking-[.14em] uppercase">{subtitle || 'Sondage SC'}</div>
-                        <div className="text-[15px] font-black">{title}</div>
-                    </div>
-                    {actions}
-                </div>
-            </div>
-        </>
     )
 }
 
@@ -2325,46 +2276,42 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
     const displayPointType = scDisplayPointType(pointForm.point_type || point?.point_type, isSCFeuille)
 
     return (
-        <div
-            className="flex flex-col h-full -mx-6 -mb-6"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
-        >
-            <ScSheetToolbar
+        <WorksheetPageShell>
+            <WorksheetTopbar
                 backLabel="← Coupe"
                 onBack={onBackToCoupe}
-                title={pointDisplayTitle}
-                subtitle={[
+                eyebrow={[
                     affaireDemandeLine,
                     isDraftPoint ? 'Non enregistré' : null,
-                ].filter(Boolean).join(' · ')}
-                actions={(
-                    <div className="flex flex-wrap items-center gap-2">
-                        {sheetToolbarActions}
-                        <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>
-                            {updatePointPending ? 'Enregistrement…' : 'Enregistrer'}
-                        </Button>
-                        <button
-                            onClick={() => {
-                                const message = isDraftPoint
-                                    ? 'Abandonner ce sondage non enregistré ?'
-                                    : 'Supprimer ce sondage et toutes ses couches / prélèvements ?'
-                                if (window.confirm(message)) handleDeletePoint(point.uid)
-                            }}
-                            className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
-                        >
-                            {isDraftPoint ? 'Abandonner' : 'Supprimer'}
-                        </button>
-                    </div>
-                )}
-            />
+                ].filter(Boolean).join(' · ') || 'Sondage SC'}
+                title={pointDisplayTitle}
+            >
+                <div className="flex flex-wrap items-center gap-2">
+                    {sheetToolbarActions}
+                    <Button variant="primary" size="sm" onClick={handleSavePoint} disabled={updatePointPending}>
+                        {updatePointPending ? 'Enregistrement…' : 'Enregistrer'}
+                    </Button>
+                    <button
+                        onClick={() => {
+                            const message = isDraftPoint
+                                ? 'Abandonner ce sondage non enregistré ?'
+                                : 'Supprimer ce sondage et toutes ses couches / prélèvements ?'
+                            if (window.confirm(message)) handleDeletePoint(point.uid)
+                        }}
+                        className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
+                    >
+                        {isDraftPoint ? 'Abandonner' : 'Supprimer'}
+                    </button>
+                </div>
+            </WorksheetTopbar>
 
             {topBanner ? (
-                <div className="w-full max-w-[1900px] mx-auto px-7 pt-4">
+                <div className="mx-auto w-full max-w-[1900px] px-6 pt-4">
                     {topBanner}
                 </div>
             ) : null}
 
-            <div className="w-full max-w-[1900px] mx-auto px-7 py-7 flex flex-col gap-5">
+            <WorksheetMain className="max-w-[1900px] gap-5 py-6">
                 {deleteErrorMessage ? (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{deleteErrorMessage}</div>
                 ) : null}
@@ -3530,10 +3477,10 @@ function ScPointDetailView({ data, point, interventionData = null, isDraftPoint 
                         <div className="text-[13px] text-text-muted">Aucun rapport lié.</div>
                     )}
                 </ScCard>
-            </div>
-        </div>
+            </WorksheetMain>
+        </WorksheetPageShell>
     )
 }
 
 
-export { ScPointDetailView, ScSheetToolbar, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload, scBuildDefaultScCoupe }
+export { ScPointDetailView, scBuildPointForm, scBuildCoucheForm, scToPointPayload, scToCouchePayload, scBuildDefaultScCoupe }

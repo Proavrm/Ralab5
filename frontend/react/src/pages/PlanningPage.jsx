@@ -25,6 +25,7 @@ import {
 import PlanningItemPopupActions from '@/components/planning/PlanningItemPopupActions'
 import AnalyserPlanningChip from '@/components/planning/AnalyserPlanningChip'
 import { missionFeuilleStatusMeta } from '@/lib/feuilleMissionJournee'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 import './planning.css'
 
 const D7 = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -1084,7 +1085,15 @@ export default function PlanningPage() {
     const currentContext = demandeContextId ? filtered.find((d) => d.kind === 'demande' && String(d.uid) === String(demandeContextId)) : null
 
     return (
-        <div className="planning-page">
+        <FichePageShell>
+            <FicheTopbar
+                eyebrow="Organisation · RaLab 5"
+                title="Planning"
+                subtitle="Organiser, agendas demandes/labo et analyse transverse"
+            />
+
+            <FicheMain className="flex min-h-0 flex-1 flex-col gap-4 pb-5">
+            <div className="planning-page min-h-0 flex-1">
             <div className="planning-topbar">
                 <div className="tb-tabs">
                     <button className={`tb-tab ${tab === 1 ? 'on' : ''}`} onClick={() => setTab(1)}>🗂 Organiser</button>
@@ -1244,6 +1253,8 @@ export default function PlanningPage() {
                     onOpenPreparation={openPreparation}
                 />
             ) : null}
-        </div>
+            </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

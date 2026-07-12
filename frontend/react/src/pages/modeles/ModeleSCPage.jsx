@@ -3,13 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import Button from "@/components/ui/Button"
 import EssaiCorrectionBanner from "@/components/essais/EssaiCorrectionBanner"
+import { WorksheetMain, WorksheetPageShell, WorksheetTopbar } from "@/components/layout/FicheLayout"
 import { getFeuilleValidationInfo } from "@/lib/essaiValidation"
 import { feuillesTerrainApi, interventionsApi, qualiteApi } from "@/services/api"
 import { formatDate } from "@/lib/utils"
 import { applyOperatorSondeurCrossFill, mergeInheritedScPointFields } from "@/lib/sc/pointInheritance"
 import {
     ScPointDetailView,
-    ScSheetToolbar,
     scBuildPointForm,
     scBuildCoucheForm,
     scToPointPayload,
@@ -589,25 +589,33 @@ export default function ModeleSCPage() {
 
     if (!sourceUid) {
         return (
-            <div className="mx-auto max-w-[980px] p-6">
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    Source SC manquante (`source_uid`).
+            <WorksheetPageShell>
+                <div className="mx-auto max-w-[1280px] px-6 py-6">
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        Source SC manquante (`source_uid`).
+                    </div>
                 </div>
-            </div>
+            </WorksheetPageShell>
         )
     }
 
     if (isLoading) {
-        return <div className="py-12 text-center text-sm text-text-muted">Chargement de la feuille SC…</div>
+        return (
+            <WorksheetPageShell>
+                <div className="py-10 text-center text-sm text-text-muted">Chargement de la feuille SC…</div>
+            </WorksheetPageShell>
+        )
     }
 
     if (error || !data) {
         return (
-            <div className="mx-auto max-w-[980px] p-6">
-                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    Impossible de charger la feuille SC.
+            <WorksheetPageShell>
+                <div className="mx-auto max-w-[1280px] px-6 py-6">
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        Impossible de charger la feuille SC.
+                    </div>
                 </div>
-            </div>
+            </WorksheetPageShell>
         )
     }
 
@@ -615,30 +623,22 @@ export default function ModeleSCPage() {
     const totalPrelev = points.reduce((sum, p) => sum + (p.prelevements?.length || 0), 0)
 
     return (
-        <div
-            className="flex flex-col h-full -mx-6 -mb-6"
-            style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}
-        >
-            {/* ═══ Topbar ═══ */}
-            <ScSheetToolbar
+        <WorksheetPageShell>
+            <WorksheetTopbar
                 backLabel="← Retour"
                 onBack={() => navigate(returnTo || "/tools")}
+                eyebrow="Feuille SC · Coupe de sondages"
                 title={data?.reference || sourceUid}
-                subtitle="Feuille SC · Coupe de sondages"
-                actions={(
-                    <>
-                        {data?.demande_id ? (
-                            <Button size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button>
-                        ) : null}
-                        {data?.intervention_id ? (
-                            <Button size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button>
-                        ) : null}
-                    </>
-                )}
-            />
+            >
+                {data?.demande_id ? (
+                    <Button size="sm" onClick={() => navigate(`/demandes/${data.demande_id}`)}>Demande</Button>
+                ) : null}
+                {data?.intervention_id ? (
+                    <Button size="sm" onClick={() => navigate(`/interventions/${data.intervention_id}`)}>Intervention</Button>
+                ) : null}
+            </WorksheetTopbar>
 
-            {/* ═══ Main ═══ */}
-            <div className="w-full max-w-full mx-auto px-7 py-7 flex flex-col gap-5">
+            <WorksheetMain className="gap-5 py-6">
                 <EssaiCorrectionBanner validation={validationInfo} essaiLabel="feuille SC" />
 
                 {/* ── Hero ── */}
@@ -776,7 +776,7 @@ export default function ModeleSCPage() {
                         )}
                     </div>
                 </section>
-            </div>
-        </div>
+            </WorksheetMain>
+        </WorksheetPageShell>
     )
 }

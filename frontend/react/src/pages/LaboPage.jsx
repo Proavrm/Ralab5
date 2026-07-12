@@ -14,6 +14,7 @@ import { getPrelevementReferenceDate, normalizePrelevement, prelevementHasArriva
 import { interventionsApi, echantillonsApi, essaisApi, prelevementsApi } from '@/services/api'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { labCodesFromCatalog, labDisplayLine } from '@/lib/laboratoireCatalog'
+import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
 
 const TABS = [
     { key: 'interventions', label: 'Interventions', icon: Truck },
@@ -86,7 +87,7 @@ function TabButton({ active, icon: Icon, label, onClick }) {
             onClick={onClick}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border text-sm transition-colors ${
                 active
-                    ? 'bg-accent text-white border-accent'
+                    ? 'bg-nge text-white border-nge'
                     : 'bg-surface text-text border-border hover:bg-bg'
             }`}
         >
@@ -122,7 +123,7 @@ function SortHeader({ col, sortKey, sortDir, onSort }) {
         >
             <span>{col.label}</span>
             {col.sortable === false ? null : (
-                <span className={`text-[10px] ${active ? 'text-accent' : 'text-text-muted'}`}>
+                <span className={`text-[10px] ${active ? 'text-nge' : 'text-text-muted'}`}>
                     {arrow}
                 </span>
             )}
@@ -193,7 +194,7 @@ function DetailSection({ title, children }) {
 function ActionFooterButton({ label, onClick, disabled = false, tone = 'secondary' }) {
     const base = 'inline-flex items-center justify-center px-3 py-2 rounded-lg text-xs font-medium border transition-colors'
     const tones = {
-        primary: 'bg-accent text-white border-accent hover:brightness-95',
+        primary: 'bg-nge text-white border-nge hover:brightness-95',
         secondary: 'bg-white text-text border-border hover:bg-bg',
         muted: 'bg-bg text-text-muted border-border hover:bg-white',
     }
@@ -435,7 +436,7 @@ function InterventionsView({ rows, sortKey, sortDir, onSort, selectedUid, onSele
                         onClick={() => onSelect(row.uid)}
                         onDoubleClick={() => onOpen(row.uid)}
                     >
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-accent">
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-nge">
                             <button
                                 type="button"
                                 onClick={(event) => {
@@ -498,7 +499,7 @@ function EchantillonsView({ rows, sortKey, sortDir, onSort, selectedUid, onSelec
                         onClick={() => onSelect(row.uid)}
                         onDoubleClick={() => onOpen(row.uid)}
                     >
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-accent">
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-nge">
                             <button
                                 type="button"
                                 onClick={(event) => {
@@ -563,7 +564,7 @@ function PrelevementsView({ rows, sortKey, sortDir, onSort, selectedUid, onSelec
                         onClick={() => onSelect(row.uid)}
                         onDoubleClick={() => onOpen(row.uid)}
                     >
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-accent">
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-nge">
                             <button
                                 type="button"
                                 onClick={(event) => {
@@ -630,7 +631,7 @@ function EssaisView({ rows, sortKey, sortDir, onSort, selectedUid, onSelect, onO
                         onClick={() => onSelect(row.uid)}
                         onDoubleClick={() => onOpen(row.uid)}
                     >
-                        <td className="px-3.5 py-2.5 text-xs font-semibold text-accent">
+                        <td className="px-3.5 py-2.5 text-xs font-semibold text-nge">
                             <button
                                 type="button"
                                 onClick={(event) => {
@@ -1268,34 +1269,28 @@ export default function LaboPage() {
         )
     }
 
+    function refreshAllData() {
+        loadInterventions()
+        loadPrelevements()
+        loadEchantillons()
+        loadEssais()
+    }
+
     return (
-        <div className="flex flex-col h-full -m-6">
-            <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0">
-                <span className="text-[15px] font-semibold flex-1">Laboratoire</span>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                        loadInterventions()
-                        loadPrelevements()
-                        loadEchantillons()
-                        loadEssais()
-                    }}
-                >
+        <FichePageShell>
+            <FicheTopbar
+                eyebrow="Portail laboratoire"
+                title="Vue opérationnelle"
+                subtitle="Recherche transverse pour retrouver une intervention, un prélèvement, un échantillon ou un essai."
+            >
+                <Button variant="ghost" size="sm" onClick={refreshAllData}>
                     <RefreshCw size={13} />
                 </Button>
-            </div>
+            </FicheTopbar>
 
-            <div className="px-6 py-4 bg-bg border-b border-border">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                    <div>
-                        <div className="text-lg font-bold text-text">Vue opérationnelle laboratoire</div>
-                        <div className="text-xs text-text-muted mt-1">
-                            Page transverse de recherche et consultation pour retrouver une intervention, un prélèvement, un échantillon ou un essai dans l’ensemble du laboratoire.
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 flex-wrap">
+            <div className="shrink-0 border-b border-border bg-white/90 px-7 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex flex-wrap gap-3">
                         <StatCard
                             label="Interventions"
                             value={loadingInterventions ? '…' : String(stats.interventions)}
@@ -1320,7 +1315,7 @@ export default function LaboPage() {
                 </div>
             </div>
 
-            <div className="px-6 py-3 bg-surface border-b border-border flex items-center gap-2 flex-wrap">
+            <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-border bg-surface px-7 py-3">
                 {TABS.map((tab) => (
                     <TabButton
                         key={tab.key}
@@ -1332,7 +1327,7 @@ export default function LaboPage() {
                 ))}
             </div>
 
-            <div className="px-6 py-3 bg-surface border-b border-border flex items-center gap-3 flex-wrap">
+            <div className="shrink-0 flex flex-wrap items-center gap-3 border-b border-border bg-surface px-7 py-3">
                 <div className="relative min-w-[240px] flex-1 max-w-[320px]">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                     <Input
@@ -1387,9 +1382,9 @@ export default function LaboPage() {
                 </span>
             </div>
 
-            <div className="flex-1 overflow-hidden p-6 bg-bg">
-                <div className="flex h-full overflow-hidden">
-                    <div className="flex-1 min-w-0 overflow-hidden">
+            <FicheMain className="flex min-h-0 flex-1 flex-col p-0">
+            <div className="flex h-full min-h-0 flex-1 overflow-hidden px-7 py-6">
+                    <div className="min-w-0 flex-1 overflow-hidden">
                         {renderCurrentView()}
                     </div>
                     {detailOpenByTab[activeTab] && selectedItem && (
@@ -1406,8 +1401,8 @@ export default function LaboPage() {
                             onOpenInterventionPreview={openInterventionPreview}
                         />
                     )}
-                </div>
             </div>
-        </div>
+            </FicheMain>
+        </FichePageShell>
     )
 }

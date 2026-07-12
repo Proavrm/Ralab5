@@ -15,8 +15,8 @@
 
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 112px);
-    min-height: 680px;
+    flex: 1;
+    min-height: 0;
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 10px;
