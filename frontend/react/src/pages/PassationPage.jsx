@@ -54,7 +54,7 @@ function TA({ value, onChange, rows = 3, placeholder }) {
             onChange={(e) => onChange(e.target.value)}
             rows={rows}
             placeholder={placeholder}
-            className="w-full px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+            className="w-full px-3 py-1.5 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
         />
     )
 }
@@ -314,7 +314,7 @@ function RstPrestationCard({ item, onChange, onRemove }) {
                 <select
                     value={item.request_status ?? 'À confirmer'}
                     onChange={(e) => set('request_status', e.target.value)}
-                    className="rounded-xl border border-[#cfd7e4] bg-white px-2.5 py-1.5 text-xs font-bold text-[#334155] outline-none focus:border-accent"
+                    className="rounded-xl border border-[#cfd7e4] bg-white px-2.5 py-1.5 text-xs font-bold text-[#334155] outline-none focus:border-nge"
                 >
                     {RST_NEED_STATUS_OPTIONS.map((status) => (
                         <option key={status} value={status}>
@@ -354,7 +354,7 @@ function RstPrestationCard({ item, onChange, onRemove }) {
                             type="checkbox"
                             checked={item.create_demande !== false}
                             onChange={(e) => set('create_demande', e.target.checked)}
-                            className="h-4 w-4 accent-accent"
+                            className="h-4 w-4 accent-nge"
                         />
                         Préparer une demande
                     </label>
@@ -381,14 +381,14 @@ function ActionRow({ action, onChange, onRemove, priorites, statuts }) {
                 <input
                     value={action.action_label ?? ''}
                     onChange={(e) => set('action_label', e.target.value)}
-                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
                 />
             </td>
             <td className="px-2 py-1.5">
                 <input
                     value={action.responsable ?? ''}
                     onChange={(e) => set('responsable', e.target.value)}
-                    className="w-28 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                    className="w-28 px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
                 />
             </td>
             <td className="px-2 py-1.5">
@@ -396,14 +396,14 @@ function ActionRow({ action, onChange, onRemove, priorites, statuts }) {
                     type="date"
                     value={action.echeance ?? ''}
                     onChange={(e) => set('echeance', e.target.value || null)}
-                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
                 />
             </td>
             <td className="px-2 py-1.5">
                 <select
                     value={action.priorite ?? 'Normale'}
                     onChange={(e) => set('priorite', e.target.value)}
-                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
                 >
                     {(priorites || ['Basse', 'Normale', 'Haute', 'Critique']).map((p) => (
                         <option key={p}>{p}</option>
@@ -414,7 +414,7 @@ function ActionRow({ action, onChange, onRemove, priorites, statuts }) {
                 <select
                     value={action.statut ?? 'À lancer'}
                     onChange={(e) => set('statut', e.target.value)}
-                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                    className="px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
                 >
                     {(statuts || ['À lancer', 'En cours', 'Fait', 'Annulé']).map((s) => (
                         <option key={s}>{s}</option>
@@ -425,7 +425,7 @@ function ActionRow({ action, onChange, onRemove, priorites, statuts }) {
                 <input
                     value={action.commentaire ?? ''}
                     onChange={(e) => set('commentaire', e.target.value)}
-                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-accent"
+                    className="w-full px-2 py-1 border border-border rounded text-xs bg-bg outline-none focus:border-nge"
                 />
             </td>
             <td className="px-2 py-1.5">
@@ -1582,7 +1582,7 @@ export default function PassationPage() {
                                     placeholder="Rue et numéro — le site (commune / CP) complète la localisation carte"
                                     rows={2}
                                     disabled={!form.affaire_rst_id}
-                                    className="w-full px-2.5 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent disabled:opacity-60"
+                                    className="w-full px-2.5 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge disabled:opacity-60"
                                 />
                                 <div className="mt-1 text-[11px] text-text-muted">
                                     Partagée sur l’affaire. Avec le site de l’affaire (commune / CP), sert au plan de situation.

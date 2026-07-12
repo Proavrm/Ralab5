@@ -77,7 +77,7 @@ function Textarea({ value, onChange, rows = 3, readOnly = false }) {
       onChange={(event) => onChange(event.target.value)}
       rows={rows}
       readOnly={readOnly}
-      className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 read-only:cursor-default read-only:opacity-80"
+      className="w-full resize-y rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge disabled:cursor-not-allowed disabled:opacity-70 read-only:cursor-default read-only:opacity-80"
     />
   )
 }
@@ -88,7 +88,7 @@ function Select({ value, onChange, readOnly = false, children, className = '' })
       value={value || ''}
       onChange={(event) => onChange(event.target.value)}
       disabled={readOnly}
-      className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
+      className={`w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge disabled:cursor-not-allowed disabled:opacity-70 ${className}`}
     >
       {children}
     </select>

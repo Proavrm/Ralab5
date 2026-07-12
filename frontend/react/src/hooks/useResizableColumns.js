@@ -43,7 +43,7 @@ export function useResizableColumns(defaultWidths) {
       style: { width: widths[index], minWidth: widths[index], maxWidth: widths[index] },
       resizerProps: {
         onMouseDown: (e) => startResize(index, e),
-        className: 'absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-accent/40 select-none',
+        className: 'absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-nge/40 select-none',
         style: { userSelect: 'none' },
       }
     }

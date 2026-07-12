@@ -366,7 +366,7 @@ export default function PhotoCropModal({
                   value={zoom}
                   onChange={(event) => handleZoomChange(event.target.value)}
                   disabled={!workingSrc || saving}
-                  className="w-full accent-accent"
+                  className="w-full accent-nge"
                 />
                 <Button
                   variant="secondary"
@@ -388,7 +388,7 @@ export default function PhotoCropModal({
               <select
                 value={aspectPreset}
                 onChange={(event) => handleAspectPresetChange(event.target.value)}
-                className="mt-2 w-full rounded border border-border bg-bg px-2 py-1.5 text-xs outline-none focus:border-accent"
+                className="mt-2 w-full rounded border border-border bg-bg px-2 py-1.5 text-xs outline-none focus:border-nge"
               >
                 {Object.entries(ASPECT_PRESETS).map(([key, preset]) => (
                   <option key={key} value={key}>{preset.label}</option>

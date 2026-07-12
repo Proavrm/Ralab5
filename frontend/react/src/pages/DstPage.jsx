@@ -510,7 +510,7 @@ export default function DstPage() {
             onDragOver={e => e.preventDefault()}
             onDrop={handleFileDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-accent hover:bg-bg transition-colors">
+            className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-nge hover:bg-bg transition-colors">
             <Upload size={24} className="mx-auto mb-2 text-text-muted" />
             {importFile
               ? <p className="text-sm font-medium">{importFile.name}</p>
@@ -524,7 +524,7 @@ export default function DstPage() {
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-text-muted">Nom de la feuille</label>
             <input value={sheetName} onChange={e => setSheetName(e.target.value)}
-              className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent" />
+              className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge" />
           </div>
 
           {/* Result */}
@@ -558,7 +558,7 @@ export default function DstPage() {
             <input
               value={editNumeroAffaireDemandeur}
               onChange={e => setEditNumeroAffaireDemandeur(e.target.value)}
-              className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent"
+              className="px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge"
             />
           </div>
           {updateDstMutation.error ? (

@@ -422,7 +422,7 @@ function Textarea({ value, onChange, rows = 3, placeholder = '' }) {
             onChange={(e) => onChange(e.target.value)}
             rows={rows}
             placeholder={placeholder}
-            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"
+            className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"
         />
     )
 }
@@ -465,7 +465,7 @@ function PlanningCheckpoint({ label, detail, done }) {
 }
 
 function ResultMetric({ label, value, tone = 'default' }) {
-    const toneClass = tone === 'accent' ? 'text-accent' : 'text-text'
+    const toneClass = tone === 'nge' ? 'text-nge' : 'text-text'
 
     return (
         <div className="rounded-lg border border-border bg-bg px-3 py-3">
@@ -873,7 +873,7 @@ function buildImportedResultMetrics(code, payload, rows, normalizedRows) {
         const values = normalizedRows.map((row) => row.ev2_mpa).filter((value) => value != null)
         return [
             { label: 'Points', value: `${normalizedRows.length}` },
-            { label: 'EV2 moy.', value: formatHistoricalMetric(payload?.moyenne_ev2_mpa ?? averageHistoricalNumbers(values), 'MPa'), tone: 'accent' },
+            { label: 'EV2 moy.', value: formatHistoricalMetric(payload?.moyenne_ev2_mpa ?? averageHistoricalNumbers(values), 'MPa'), tone: 'nge' },
             { label: 'Mini', value: formatHistoricalMetric(payload?.valeur_min_mpa ?? Math.min(...values), 'MPa') },
             { label: 'Maxi', value: formatHistoricalMetric(payload?.valeur_max_mpa ?? Math.max(...values), 'MPa') },
             { label: 'Conformes', value: formatHistoricalMetric(payload?.taux_conformes_percent, '%') },
@@ -883,7 +883,7 @@ function buildImportedResultMetrics(code, payload, rows, normalizedRows) {
     if (code === 'DE' && normalizedRows.length > 0) {
         return [
             { label: 'Points', value: `${normalizedRows.length}` },
-            { label: 'Densité moy.', value: formatHistoricalMetric(payload?.moyenne_density_g_cm3 ?? averageHistoricalNumbers(normalizedRows.map((row) => row.density_g_cm3).filter((value) => value != null)), 'g/cm3'), tone: 'accent' },
+            { label: 'Densité moy.', value: formatHistoricalMetric(payload?.moyenne_density_g_cm3 ?? averageHistoricalNumbers(normalizedRows.map((row) => row.density_g_cm3).filter((value) => value != null)), 'g/cm3'), tone: 'nge' },
             { label: 'Compacité moy.', value: formatHistoricalMetric(payload?.moyenne_compacite_percent ?? averageHistoricalNumbers(normalizedRows.map((row) => row.compacite_percent).filter((value) => value != null)), '%') },
             { label: 'Vides moy.', value: formatHistoricalMetric(payload?.moyenne_vides_percent ?? averageHistoricalNumbers(normalizedRows.map((row) => row.vides_percent).filter((value) => value != null)), '%') },
             { label: 'Conformes', value: formatHistoricalMetric(payload?.taux_conformes_percent, '%') },
@@ -3702,7 +3702,7 @@ export default function InterventionPage() {
                                 />
                             </Field>
                             <Field label="Plan de prévention requis">
-                                <Select value={form.prep_plan_prevention} onChange={e => setField('prep_plan_prevention', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
+                                <Select value={form.prep_plan_prevention} onChange={e => setField('prep_plan_prevention', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge">
                                     <option value="">—</option>
                                     <option>Non requis</option>
                                     <option>Requis — en cours</option>
@@ -3713,14 +3713,14 @@ export default function InterventionPage() {
                                 <Textarea value={form.prep_contraintes_acces} onChange={v => setField('prep_contraintes_acces', v)} rows={2} placeholder="Balisage, circulation, coactivité…" />
                             </Field>
                             <Field label="Préparation complète">
-                                <Select value={form.prep_preparation_complete} onChange={e => setField('prep_preparation_complete', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
+                                <Select value={form.prep_preparation_complete} onChange={e => setField('prep_preparation_complete', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge">
                                     <option value="">—</option>
                                     <option>Oui</option>
                                     <option>Non</option>
                                 </Select>
                             </Field>
                             <Field label="Point bloquant">
-                                <Select value={form.prep_point_bloquant} onChange={e => setField('prep_point_bloquant', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
+                                <Select value={form.prep_point_bloquant} onChange={e => setField('prep_point_bloquant', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge">
                                     <option value="">—</option>
                                     <option>Non</option>
                                     <option>Oui</option>
@@ -3811,14 +3811,14 @@ export default function InterventionPage() {
                                 </Select>
                             </Field>
                             <Field label="Alerte émise">
-                                <Select value={form.sortie_alerte} onChange={e => setField('sortie_alerte', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
+                                <Select value={form.sortie_alerte} onChange={e => setField('sortie_alerte', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge">
                                     <option value="">—</option>
                                     <option>Non</option>
                                     <option>Oui</option>
                                 </Select>
                             </Field>
                             <Field label="Information demandeur">
-                                <Select value={form.sortie_info_demandeur} onChange={e => setField('sortie_info_demandeur', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent">
+                                <Select value={form.sortie_info_demandeur} onChange={e => setField('sortie_info_demandeur', e.target.value)} className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge">
                                     <option value="">—</option>
                                     <option>Non</option>
                                     <option>Oui</option>

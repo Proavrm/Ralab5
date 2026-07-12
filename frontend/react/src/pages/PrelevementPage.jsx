@@ -360,7 +360,7 @@ export default function PrelevementPage() {
                                         value={form.notes}
                                         onChange={(event) => setField('notes', event.target.value)}
                                         rows={4}
-                                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+                                        className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge resize-y"
                                     />
                                 </FG>
                             </div>
@@ -430,13 +430,13 @@ export default function PrelevementPage() {
                                         return (
                                             <label
                                                 key={essai.code}
-                                                className={`flex items-start gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${checked ? 'border-accent bg-white' : 'border-border bg-white hover:border-accent/40'}`}
+                                                className={`flex items-start gap-3 rounded-lg border px-3 py-2 cursor-pointer transition-colors ${checked ? 'border-nge bg-white' : 'border-border bg-white hover:border-nge/40'}`}
                                             >
                                                 <input
                                                     type="checkbox"
                                                     checked={checked}
                                                     onChange={() => toggleEssai(essai.code)}
-                                                    className="mt-0.5 accent-accent"
+                                                    className="mt-0.5 accent-nge"
                                                 />
                                                 <div className="min-w-0">
                                                     <div className="text-[12px] font-semibold text-text">{essai.code} — {essai.label}</div>
@@ -496,7 +496,7 @@ export default function PrelevementPage() {
                             {prelevement.echantillons.map((item) => (
                                 <div
                                     key={item.uid}
-                                    className={`flex items-center justify-between gap-3 px-4 py-3 border rounded-lg transition-colors ${deleteMode ? 'border-red-300 bg-red-50' : 'border-border hover:border-accent hover:bg-bg cursor-pointer'}`}
+                                    className={`flex items-center justify-between gap-3 px-4 py-3 border rounded-lg transition-colors ${deleteMode ? 'border-red-300 bg-red-50' : 'border-border hover:border-nge hover:bg-bg cursor-pointer'}`}
                                     onClick={deleteMode ? undefined : () => navigateWithReturnTo(navigate, `/echantillons/${item.uid}`, childReturnTo)}
                                 >
                                     <div className="min-w-0 flex-1">

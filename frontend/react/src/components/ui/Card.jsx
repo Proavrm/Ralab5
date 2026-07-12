@@ -9,7 +9,7 @@ export default function Card({ children, className, onClick }) {
       onClick={onClick}
       className={cn(
         'bg-surface border border-border rounded-[8px]',
-        onClick && 'cursor-pointer hover:border-accent/40 transition-colors',
+        onClick && 'cursor-pointer hover:border-nge/40 transition-colors',
         className
       )}
     >

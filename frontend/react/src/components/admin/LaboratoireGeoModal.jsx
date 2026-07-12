@@ -424,7 +424,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                   onChange={(e) => set('region', e.target.value)}
 
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge"
 
                 >
 
@@ -448,7 +448,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                   onChange={(e) => set('agence_code', e.target.value)}
 
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge"
 
                 >
 
@@ -478,7 +478,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                   onChange={(e) => set('is_active', e.target.value === 'true')}
 
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge"
 
                 >
 
@@ -516,7 +516,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                 rows={2}
 
-                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent font-normal"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge font-normal"
 
               />
 
@@ -534,7 +534,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                 rows={2}
 
-                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent font-normal"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge font-normal"
 
               />
 
@@ -590,7 +590,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                     onChange={(e) => set('responsable_email', e.target.value)}
 
-                    className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge"
 
                   >
 
@@ -622,7 +622,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                     rows={2}
 
-                    className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent font-normal"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge font-normal"
 
                     placeholder="Horaires, particularités, contacts locaux…"
 
@@ -642,7 +642,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                       to="/admin"
 
-                      className="text-[11px] text-accent hover:underline"
+                      className="text-[11px] text-nge hover:underline"
 
                       onClick={() => onClose()}
 
@@ -782,7 +782,7 @@ export default function LaboratoireGeoModal({ open, onClose, lab, onOpenUser }) 
 
                     to={`/qualite?tab=equipment&labo=${encodeURIComponent(originalCode)}`}
 
-                    className="inline-block mt-2 text-[11px] text-accent hover:underline"
+                    className="inline-block mt-2 text-[11px] text-nge hover:underline"
 
                     onClick={() => onClose()}
 

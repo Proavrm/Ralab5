@@ -1321,7 +1321,7 @@ export default function DocumentDropModal({
                       value={streetQuery}
                       onChange={(event) => setStreetQuery(event.target.value)}
                       placeholder="Ex. avenue de la République"
-                      className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge"
                     />
                   </label>
                   <label className="flex flex-col gap-1.5">
@@ -1330,7 +1330,7 @@ export default function DocumentDropModal({
                       value={localityQuery}
                       onChange={(event) => setLocalityQuery(event.target.value)}
                       placeholder="Ex. Lyon (69002)"
-                      className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-accent"
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg outline-none focus:border-nge"
                     />
                   </label>
                 </div>
@@ -1403,7 +1403,7 @@ export default function DocumentDropModal({
                     type="button"
                     onClick={() => updateMapZoom(Number(mapZoom) - 1, { debounceMs: 0 })}
                     disabled={mapZoom <= MAP_ZOOM_MIN || !mapCenter}
-                    className="rounded border border-border bg-white p-1 hover:border-accent disabled:opacity-40"
+                    className="rounded border border-border bg-white p-1 hover:border-nge disabled:opacity-40"
                     title="Zoom arrière"
                   >
                     <ZoomOut size={14} />
@@ -1415,13 +1415,13 @@ export default function DocumentDropModal({
                     value={mapZoom}
                     disabled={!mapCenter}
                     onChange={(event) => updateMapZoom(Number(event.target.value), { debounceMs: 450 })}
-                    className="min-w-[120px] flex-1 accent-accent disabled:opacity-40"
+                    className="min-w-[120px] flex-1 accent-nge disabled:opacity-40"
                   />
                   <button
                     type="button"
                     onClick={() => updateMapZoom(Number(mapZoom) + 1, { debounceMs: 0 })}
                     disabled={mapZoom >= MAP_ZOOM_MAX || !mapCenter}
-                    className="rounded border border-border bg-white p-1 hover:border-accent disabled:opacity-40"
+                    className="rounded border border-border bg-white p-1 hover:border-nge disabled:opacity-40"
                     title="Zoom avant"
                   >
                     <ZoomIn size={14} />
@@ -1431,7 +1431,7 @@ export default function DocumentDropModal({
                     type="button"
                     onClick={resetMapCenter}
                     disabled={!resolvedLocation?.lat}
-                    className="ml-auto inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-[11px] hover:border-accent disabled:opacity-40"
+                    className="ml-auto inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-[11px] hover:border-nge disabled:opacity-40"
                     title="Recentrer sur l’adresse géocodée"
                   >
                     <RotateCcw size={12} />
@@ -1530,7 +1530,7 @@ export default function DocumentDropModal({
                       type="button"
                       onClick={() => updateItinMapZoom(Number(itinMapZoom) - 1, { debounceMs: 0 })}
                       disabled={itinMapZoom <= MAP_ZOOM_MIN || !itinMapCenter}
-                      className="rounded border border-border bg-white p-1 hover:border-accent disabled:opacity-40"
+                      className="rounded border border-border bg-white p-1 hover:border-nge disabled:opacity-40"
                       title="Zoom arrière"
                     >
                       <ZoomOut size={14} />
@@ -1542,13 +1542,13 @@ export default function DocumentDropModal({
                       value={itinMapZoom}
                       disabled={!itinMapCenter}
                       onChange={(event) => updateItinMapZoom(Number(event.target.value), { debounceMs: 450 })}
-                      className="min-w-[120px] flex-1 accent-accent disabled:opacity-40"
+                      className="min-w-[120px] flex-1 accent-nge disabled:opacity-40"
                     />
                     <button
                       type="button"
                       onClick={() => updateItinMapZoom(Number(itinMapZoom) + 1, { debounceMs: 0 })}
                       disabled={itinMapZoom >= MAP_ZOOM_MAX || !itinMapCenter}
-                      className="rounded border border-border bg-white p-1 hover:border-accent disabled:opacity-40"
+                      className="rounded border border-border bg-white p-1 hover:border-nge disabled:opacity-40"
                       title="Zoom avant"
                     >
                       <ZoomIn size={14} />
@@ -1558,7 +1558,7 @@ export default function DocumentDropModal({
                       type="button"
                       onClick={resetItinMapCenter}
                       disabled={!itineraryRoute.length}
-                      className="ml-auto inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-[11px] hover:border-accent disabled:opacity-40"
+                      className="ml-auto inline-flex items-center gap-1 rounded border border-border bg-white px-2 py-1 text-[11px] hover:border-nge disabled:opacity-40"
                       title="Recadrer sur l’itinéraire complet"
                     >
                       <RotateCcw size={12} />

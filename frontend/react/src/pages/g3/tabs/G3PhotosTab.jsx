@@ -155,7 +155,7 @@ export default function G3PhotosTab({ mission, missionId }) {
               type="checkbox"
               checked={!!draft.use_in_report}
               onChange={(e) => setDraft((p) => ({ ...p, use_in_report: e.target.checked }))}
-              className="w-4 h-4 accent-accent"
+              className="w-4 h-4 accent-nge"
             />
             Utiliser dans le rapport
           </label>
@@ -208,7 +208,7 @@ export default function G3PhotosTab({ mission, missionId }) {
                     type="checkbox"
                     checked={!!photo.use_in_report}
                     onChange={(e) => updateMut.mutate({ id: photo.id, data: { use_in_report: e.target.checked } })}
-                    className="w-4 h-4 accent-accent"
+                    className="w-4 h-4 accent-nge"
                   />
                   Rapport
                 </label>
