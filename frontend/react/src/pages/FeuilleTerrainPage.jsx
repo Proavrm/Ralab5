@@ -64,7 +64,7 @@ function Textarea({ value, onChange, rows = 3, placeholder = '' }) {
             onChange={(event) => onChange(event.target.value)}
             rows={rows}
             placeholder={placeholder}
-            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent resize-y"
+            className="w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-nge resize-y"
         />
     )
 }
@@ -486,8 +486,8 @@ function NewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSave,
 
     function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
 
-    const iStyle = 'text-[10px] border border-accent rounded px-1 py-0 bg-white w-full'
-    const tdC = 'px-1 py-1 border-r border-border bg-[#f0f8ff]'
+    const iStyle = 'text-[10px] border border-nge rounded px-1 py-0 bg-white w-full'
+    const tdC = 'px-1 py-1 border-r border-border bg-[#e8eef8]'
 
     function InlineSelect({ field, opts }) {
         const dlId = `new-dl-${field.replace(/_/g, '-')}`
@@ -500,13 +500,13 @@ function NewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSave,
     }
 
     return (
-        <tr className="border-b-2 border-accent bg-[#f0f8ff]">
+        <tr className="border-b-2 border-nge bg-[#e8eef8]">
             <td className={tdC}></td>
             <td className={tdC}>
                 <div className="flex items-center gap-0.5">
-                    <input value={form.z_haut} onChange={e => set('z_haut', e.target.value)} className="w-10 text-[10px] border border-accent rounded px-1 py-0 bg-white" placeholder="haut" />
+                    <input value={form.z_haut} onChange={e => set('z_haut', e.target.value)} className="w-10 text-[10px] border border-nge rounded px-1 py-0 bg-white" placeholder="haut" />
                     <span className="text-[10px]">→</span>
-                    <input value={form.z_bas} onChange={e => set('z_bas', e.target.value)} className="w-10 text-[10px] border border-accent rounded px-1 py-0 bg-white" placeholder="bas" />
+                    <input value={form.z_bas} onChange={e => set('z_bas', e.target.value)} className="w-10 text-[10px] border border-nge rounded px-1 py-0 bg-white" placeholder="bas" />
                 </div>
             </td>
             <td className={tdC}><InlineSelect field="texture_matrice" opts={TEXTURE_OPTIONS} /></td>
@@ -531,7 +531,7 @@ function NewCoucheInlineRow({ newCoucheRow, setNewCoucheRow, getOptions, onSave,
             <td className={tdC}><InlineSelect field="horizon" opts={HORIZON_OPTIONS} /></td>
             <td className={tdC}></td>
             <td className={tdC}><input value={form.description_libre} onChange={e => set('description_libre', e.target.value)} className={iStyle} /></td>
-            <td className="px-1 py-1 text-center bg-[#f0f8ff]">
+            <td className="px-1 py-1 text-center bg-[#e8eef8]">
                 <div className="flex gap-1 justify-center">
                     <Button variant="primary" size="sm" onClick={() => onSave(form)} disabled={saving}>✓</Button>
                     <Button variant="secondary" size="sm" onClick={() => setNewCoucheRow(null)}>✕</Button>
@@ -816,20 +816,20 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
                                                 ) : (
                                                     <>
                                                         <td className="px-1 py-1 w-6 border-r border-border text-center">
-                                                            <input type="radio" name="couche-select" checked={selectedCoucheRow === couche.uid} onChange={() => setSelectedCoucheRow(selectedCoucheRow === couche.uid ? null : couche.uid)} className="cursor-pointer accent-accent" />
+                                                            <input type="radio" name="couche-select" checked={selectedCoucheRow === couche.uid} onChange={() => setSelectedCoucheRow(selectedCoucheRow === couche.uid ? null : couche.uid)} className="cursor-pointer accent-nge" />
                                                         </td>
                                                         <td className="px-1.5 py-1 whitespace-nowrap border-r border-border text-text">
                                                             <div className="flex items-center gap-0.5 font-mono text-[10px]">
                                                                 {editingCell?.coucheUid === couche.uid && editingCell?.field === 'z_haut' ? (
-                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-accent rounded px-1 py-0 bg-white" />
+                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-nge rounded px-1 py-0 bg-white" />
                                                                 ) : (
-                                                                    <span className="cursor-pointer hover:text-accent" onClick={() => startEditCell(couche.uid, 'z_haut', couche.z_haut)}>{couche.z_haut ?? '—'}</span>
+                                                                    <span className="cursor-pointer hover:text-nge" onClick={() => startEditCell(couche.uid, 'z_haut', couche.z_haut)}>{couche.z_haut ?? '—'}</span>
                                                                 )}
                                                                 <span>→</span>
                                                                 {editingCell?.coucheUid === couche.uid && editingCell?.field === 'z_bas' ? (
-                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-accent rounded px-1 py-0 bg-white" />
+                                                                    <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="w-10 text-[10px] border border-nge rounded px-1 py-0 bg-white" />
                                                                 ) : (
-                                                                    <span className="cursor-pointer hover:text-accent" onClick={() => startEditCell(couche.uid, 'z_bas', couche.z_bas)}>{couche.z_bas ?? '—'}</span>
+                                                                    <span className="cursor-pointer hover:text-nge" onClick={() => startEditCell(couche.uid, 'z_bas', couche.z_bas)}>{couche.z_bas ?? '—'}</span>
                                                                 )}
                                                                 <span>m</span>
                                                             </div>
@@ -837,124 +837,124 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'texture_matrice', couche.texture_matrice)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'texture_matrice' ? (
                                                                 <>
-                                                                    <input list="dl-texture-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                    <input list="dl-texture-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                                     <datalist id="dl-texture-matrice">{getOptions('texture_matrice', TEXTURE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.texture_matrice || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.texture_matrice || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'proportion_matrice', couche.proportion_matrice)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'proportion_matrice' ? (
                                                                 <>
-                                                                    <input list="dl-proportion-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-proportion-matrice">{getOptions('proportion_matrice', PROPORTION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                    <input list="dl-proportion-matrice" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-proportion-matrice">{getOptions('proportion_matrice', PROPORTION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.proportion_matrice || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.proportion_matrice || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'elements_grossiers', couche.elements_grossiers)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'elements_grossiers' ? (
                                                                 <>
-                                                                    <input list="dl-elements-grossiers" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                    <input list="dl-elements-grossiers" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                                     <datalist id="dl-elements-grossiers">{getOptions('elements_grossiers', ELEMENTS_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.elements_grossiers || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.elements_grossiers || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'granulo_elements', couche.granulo_elements)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'granulo_elements' ? (
-                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.granulo_elements || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.granulo_elements || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'petrographie', couche.petrographie)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'petrographie' ? (
                                                                 <>
-                                                                    <input list="dl-petrographie" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" />
+                                                                    <input list="dl-petrographie" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" />
                                                                     <datalist id="dl-petrographie">{getOptions('petrographie', PETROGRAPHIE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.petrographie || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.petrographie || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'structure', couche.structure)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'structure' ? (
                                                                 <>
-                                                                <input list="dl-structure" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-structure">{getOptions('structure', STRUCTURE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-structure" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-structure">{getOptions('structure', STRUCTURE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.structure || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.structure || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'matiere_organique', couche.matiere_organique)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'matiere_organique' ? (
                                                                 <>
-                                                                <input list="dl-matiere-organique" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-matiere-organique">{getOptions('matiere_organique', ORGANIQUE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-matiere-organique" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-matiere-organique">{getOptions('matiere_organique', ORGANIQUE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.matiere_organique || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.matiere_organique || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'couleur', couche.couleur)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'couleur' ? (
                                                                 <>
-                                                                <input list="dl-couleur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-couleur">{getOptions('couleur', COULEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-couleur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-couleur">{getOptions('couleur', COULEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.couleur || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.couleur || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'odeur', couche.odeur)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'odeur' ? (
                                                                 <>
-                                                                <input list="dl-odeur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-odeur">{getOptions('odeur', ODEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-odeur" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-odeur">{getOptions('odeur', ODEUR_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.odeur || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.odeur || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'consistance', couche.consistance)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'consistance' ? (
                                                                 <>
-                                                                <input list="dl-consistance" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-consistance">{getOptions('consistance', CONSISTANCE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-consistance" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-consistance">{getOptions('consistance', CONSISTANCE_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.consistance || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.consistance || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'cohesion', couche.cohesion)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'cohesion' ? (
                                                                 <>
-                                                                <input list="dl-cohesion" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-cohesion">{getOptions('cohesion', COHESION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-cohesion" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-cohesion">{getOptions('cohesion', COHESION_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.cohesion || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.cohesion || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'oxydo_reduction', couche.oxydo_reduction)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'oxydo_reduction' ? (
                                                                 <>
-                                                                <input list="dl-oxydo-reduction" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-oxydo-reduction">{getOptions('oxydo_reduction', OXYDO_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-oxydo-reduction" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-oxydo-reduction">{getOptions('oxydo_reduction', OXYDO_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.oxydo_reduction || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.oxydo_reduction || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'eau_porosite', couche.eau_porosite)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'eau_porosite' ? (
                                                                 <>
-                                                                <input list="dl-eau-porosite" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-eau-porosite">{getOptions('eau_porosite', EAU_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-eau-porosite" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-eau-porosite">{getOptions('eau_porosite', EAU_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.eau_porosite || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.eau_porosite || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted">
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'profondeur_eau' ? (
-                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-16" placeholder="m" />
+                                                                <input value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-16" placeholder="m" />
                                                             ) : (
                                                                 <button
                                                                     type="button"
@@ -973,10 +973,10 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
                                                         <td className="px-1.5 py-1 border-r border-border text-text-muted cursor-pointer" onClick={() => startEditCell(couche.uid, 'horizon', couche.horizon)}>
                                                             {editingCell?.coucheUid === couche.uid && editingCell?.field === 'horizon' ? (
                                                                 <>
-                                                                <input list="dl-horizon" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-accent rounded px-1 py-0 bg-white w-full" /><datalist id="dl-horizon">{getOptions('horizon', HORIZON_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
+                                                                <input list="dl-horizon" value={editingCellValue} onChange={e => setEditingCellValue(e.target.value)} onBlur={saveCellEdit} onKeyDown={e => e.key === 'Enter' && saveCellEdit()} autoFocus className="text-[10px] border border-nge rounded px-1 py-0 bg-white w-full" /><datalist id="dl-horizon">{getOptions('horizon', HORIZON_OPTIONS).map(o => <option key={o} value={o} />)}</datalist>
                                                                 </>
                                                             ) : (
-                                                                <span className="hover:text-accent">{couche.horizon || '—'}</span>
+                                                                <span className="hover:text-nge">{couche.horizon || '—'}</span>
                                                             )}
                                                         </td>
                                                         <td className="px-1.5 py-1 border-r border-border">
@@ -996,7 +996,7 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
                                                                     />
                                                                 ))}
                                                                 {prelevCoucheId === couche.uid ? (
-                                                                    <div className="rounded-md border border-dashed border-accent/40 bg-[#f7fbff] p-2">
+                                                                    <div className="rounded-md border border-dashed border-nge/40 bg-[#f7fbff] p-2">
                                                                         <div className="flex flex-col gap-1">
                                                                             <Input value={prelevForm.profondeur} onChange={(e) => setPrelevForm(f => ({ ...f, profondeur: e.target.value }))} placeholder="prof. m" className="h-6 px-1 py-0.5 text-[10px]" />
                                                                             <Input value={prelevForm.quantite} onChange={(e) => setPrelevForm(f => ({ ...f, quantite: e.target.value }))} placeholder="qté" className="h-6 px-1 py-0.5 text-[10px]" />
@@ -1007,7 +1007,7 @@ function PointDetailView({ data, point, detailReturnTo, navigate, pointEditing, 
                                                                         </div>
                                                                     </div>
                                                                 ) : (
-                                                                    <button type="button" onClick={() => setPrelevCoucheId(couche.uid)} className="text-left text-[10px] text-accent hover:underline">+ prél.</button>
+                                                                    <button type="button" onClick={() => setPrelevCoucheId(couche.uid)} className="text-left text-[10px] text-nge hover:underline">+ prél.</button>
                                                                 )}
                                                             </div>
                                                         </td>

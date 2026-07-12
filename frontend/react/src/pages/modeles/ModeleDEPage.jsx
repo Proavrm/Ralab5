@@ -12,6 +12,7 @@ import {
 import { getFeuilleValidationInfo } from '@/lib/essaiValidation'
 import { normalizePositionCodes } from '@/lib/positionCodes'
 import { feuillesTerrainApi, qualiteApi } from '@/services/api'
+import { WorksheetMain, WorksheetPageShell, WorksheetSubbar, WorksheetTopbar } from '@/components/layout/FicheLayout'
 
 function normalizeSearchText(value) {
   return String(value || '')
@@ -314,36 +315,44 @@ export default function ModeleDEPage() {
   }
 
   if (loading) {
-    return <div className="py-10 text-center text-sm text-text-muted">Chargement feuille DE...</div>
+    return (
+      <WorksheetPageShell>
+        <div className="py-10 text-center text-sm text-text-muted">Chargement feuille DE...</div>
+      </WorksheetPageShell>
+    )
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-[#f0a0a0] bg-[#fcebeb] px-4 py-3 text-sm text-[#a32d2d]">
-        {error}
-      </div>
+      <WorksheetPageShell>
+        <div className="mx-auto max-w-[1280px] px-6 py-6">
+          <div className="rounded-lg border border-[#f0a0a0] bg-[#fcebeb] px-4 py-3 text-sm text-[#a32d2d]">
+            {error}
+          </div>
+        </div>
+      </WorksheetPageShell>
     )
   }
 
   return (
-    <div className="flex flex-col h-full -m-6">
-      <div className="flex items-center gap-3 px-6 bg-surface border-b border-border h-[58px] shrink-0">
-        <span className="text-[15px] font-semibold flex-1">Feuille DE</span>
-        <Button variant="secondary" size="sm" onClick={goBack}>
-          ← Retour
-        </Button>
+    <WorksheetPageShell>
+      <WorksheetTopbar
+        backLabel="← Retour"
+        onBack={goBack}
+        eyebrow="Feuille essai"
+        title="Feuille DE"
+        subtitle={feuilleRef || undefined}
+      >
         <Button variant="primary" size="sm" onClick={handleSave}>Enregistrer</Button>
-        <Button variant="secondary" size="sm" onClick={openReport}>Imprimer / Ouvrir rapport</Button>
-      </div>
+        <Button variant="secondary" size="sm" onClick={openReport}>Imprimer / Rapport</Button>
+      </WorksheetTopbar>
 
-      <div className="flex flex-wrap items-center gap-2 px-6 py-2.5 bg-surface border-b border-border shrink-0">
-        <span className="text-xs text-text-muted">{feuilleRef}</span>
-
-        <div className="flex min-w-[340px] items-center gap-2 ml-auto">
+      <WorksheetSubbar>
+        <div className="flex min-w-[340px] flex-1 items-center gap-2 ml-auto">
           <select
             value={selectedFeuilleUid}
             onChange={(event) => setSelectedFeuilleUid(String(event.target.value || ''))}
-            className="w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-xs outline-none focus:border-accent"
+            className="w-full rounded-lg border border-border bg-bg px-2 py-1.5 text-xs outline-none focus:border-nge"
           >
             <option value="">Sélectionner une référence DE…</option>
             {deFeuilles.map((row) => (
@@ -374,10 +383,9 @@ export default function ModeleDEPage() {
             Campagne
           </Button>
         </div>
-      </div>
+      </WorksheetSubbar>
 
-      <div className="flex-1 overflow-y-auto bg-surface px-6 py-4">
-        <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+      <WorksheetMain>
           <EssaiCorrectionBanner validation={validationInfo} essaiLabel="essai DE" />
           <DeFeuilleWorksheet
             norme={String(feuilleData?.norme || '').trim() || 'NF P 98-241-1'}
@@ -396,8 +404,7 @@ export default function ModeleDEPage() {
               {result.msg}
             </div>
           ) : null}
-        </div>
-      </div>
-    </div>
+      </WorksheetMain>
+    </WorksheetPageShell>
   )
 }

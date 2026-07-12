@@ -278,3 +278,51 @@ export function FichePageShell({ children }) {
 export function FicheMain({ children, className }) {
   return <div className={cn('w-full max-w-full mx-auto px-7 py-4 flex flex-col gap-4', className)}>{children}</div>
 }
+
+/** Shell plein écran pour feuilles essai / terrain (DE, PMT, SC, VC…). */
+export function WorksheetPageShell({ children, className }) {
+  return (
+    <div className={cn('flex flex-col h-full -m-6 overflow-y-auto overflow-x-hidden', className)} style={{ background: PAGE_BG }}>
+      {children}
+    </div>
+  )
+}
+
+/** Barre sticky NGE pour feuilles de travail (sous chrome AppLayout). */
+export function WorksheetTopbar({ backLabel = '← Retour', onBack, eyebrow, title, subtitle, children, className }) {
+  return (
+    <div className={cn('sticky top-0 z-10 shrink-0 border-b border-[#dbe1ea] bg-white/95 backdrop-blur', className)}>
+      <div className="h-[3px]" style={{ background: 'linear-gradient(90deg, #003170 0%, #003170 72%, #ffcc00 72%, #ffcc00 100%)' }} />
+      <div className="flex flex-wrap items-center gap-2 px-6 py-3">
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="shrink-0 rounded-xl px-3 py-2 text-[13px] font-bold text-text-muted transition-colors hover:bg-bg hover:text-text"
+          >
+            {backLabel}
+          </button>
+        ) : null}
+        <div className="min-w-[220px] flex-1">
+          {eyebrow ? <div className="text-[10px] font-black uppercase tracking-[.12em] text-text-muted">{eyebrow}</div> : null}
+          {title ? <div className="text-[15px] font-black text-nge">{title}</div> : null}
+          {subtitle ? <div className="text-[12px] text-text-muted">{subtitle}</div> : null}
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+/** Rangée secondaire sous WorksheetTopbar (sélecteurs, contexte). */
+export function WorksheetSubbar({ children, className }) {
+  return (
+    <div className={cn('shrink-0 flex flex-wrap items-center gap-2 border-b border-border bg-white/90 px-6 py-2.5', className)}>
+      {children}
+    </div>
+  )
+}
+
+export function WorksheetMain({ children, className }) {
+  return <div className={cn('mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-4 px-6 py-4', className)}>{children}</div>
+}

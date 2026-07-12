@@ -122,7 +122,7 @@ function TeneurEnEau({ resultats, onChange, readOnly }) {
                   <td className="px-3 py-2">
                     <input type="checkbox" checked={d.actif}
                       onChange={e => setDet(i, 'actif', e.target.checked)}
-                      disabled={readOnly} className="accent-accent" />
+                      disabled={readOnly} className="accent-nge" />
                   </td>
                   {['m_recipient', 'm_recip_sol_humide', 'm_recip_sol_sec'].map(key => (
                     <td key={key} className="px-2 py-1.5">
@@ -130,12 +130,12 @@ function TeneurEnEau({ resultats, onChange, readOnly }) {
                         type="number" step="0.01" value={d[key]}
                         onChange={e => setDet(i, key, e.target.value)}
                         disabled={readOnly || !d.actif}
-                        className="w-[100px] px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-accent text-right disabled:bg-bg/50" />
+                        className="w-[100px] px-2 py-1 border border-border rounded text-sm bg-bg outline-none focus:border-nge text-right disabled:bg-bg/50" />
                     </td>
                   ))}
                   <td className="px-3 py-2 text-right text-[12px] text-text-muted">{g(c.m_eau)}</td>
                   <td className="px-3 py-2 text-right text-[12px] text-text-muted">{g(c.m_sol_sec)}</td>
-                  <td className={`px-3 py-2 text-right text-[13px] font-bold ${c.w !== null ? 'text-accent' : 'text-text-muted'}`}>{pct(c.w)}</td>
+                  <td className={`px-3 py-2 text-right text-[13px] font-bold ${c.w !== null ? 'text-nge' : 'text-text-muted'}`}>{pct(c.w)}</td>
                 </tr>
               )
             })}
@@ -143,7 +143,7 @@ function TeneurEnEau({ resultats, onChange, readOnly }) {
           <tfoot>
             <tr className="bg-bg border-t-2 border-border">
               <td colSpan={7} className="px-3 py-2.5 text-[12px] font-bold text-right">w moyen :</td>
-              <td className={`px-3 py-2.5 text-right text-[15px] font-bold ${w_moyen !== null ? 'text-accent' : 'text-text-muted'}`}>
+              <td className={`px-3 py-2.5 text-right text-[15px] font-bold ${w_moyen !== null ? 'text-nge' : 'text-text-muted'}`}>
                 {pct(w_moyen)}
               </td>
             </tr>
@@ -327,7 +327,7 @@ export default function EssaiDetailPage() {
               <FG label="Date fin"><Input type="date" value={form.date_fin} onChange={e => set('date_fin', e.target.value)}/></FG>
               <FG label="Observations" full>
                 <textarea value={form.observations} onChange={e => set('observations', e.target.value)} rows={2}
-                  className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-accent resize-y"/>
+                  className="w-full px-3 py-2 border border-border rounded text-sm bg-bg outline-none focus:border-nge resize-y"/>
               </FG>
             </div>
           </Card>

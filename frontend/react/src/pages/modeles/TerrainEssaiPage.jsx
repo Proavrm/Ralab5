@@ -11,6 +11,7 @@ import {
   writeTerrainDraft,
 } from '@/lib/terrainEssaiDraft'
 import { getTerrainEssaiConfig, getTerrainRapportRoute } from '@/lib/terrainEssaiConfigs'
+import { WorksheetMain, WorksheetPageShell, WorksheetTopbar } from '@/components/layout/FicheLayout'
 
 function emptyPoint(columns, index) {
   return Object.fromEntries((columns || []).map((col) => [col.key, col.key === 'point_code' ? `P${index + 1}` : '']))
@@ -90,21 +91,19 @@ export default function TerrainEssaiPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -m-6 overflow-y-auto" style={{ background: 'radial-gradient(circle at top right, rgba(255,204,0,0.18), transparent 32%), linear-gradient(180deg, #f8fafc 0%, #f3f6fb 42%, #eef3fa 100%)' }}>
-      <div className="sticky top-0 z-10 border-b border-[#dbe1ea] bg-white/95 backdrop-blur px-6 py-3 flex flex-wrap items-center gap-2">
-        <button type="button" onClick={() => navigate(returnTo)} className="px-3 py-2 rounded-xl text-[#69758a] text-[13px] font-bold hover:bg-[#f3f6fb]">
-          ← Retour
-        </button>
-        <div className="flex-1 min-w-[220px]">
-          <div className="text-[10px] font-black uppercase tracking-[.12em] text-[#8a95a8]">Feuille terrain · {config.code}</div>
-          <div className="text-[15px] font-black text-[#003170]">{config.label}</div>
-          <div className="text-[12px] text-[#69758a]">{config.subtitle}</div>
-        </div>
-        <Button size="sm" variant="secondary" onClick={handleOpenRapport}>Imprimer / Ouvrir rapport</Button>
+    <WorksheetPageShell>
+      <WorksheetTopbar
+        backLabel="← Retour"
+        onBack={() => navigate(returnTo)}
+        eyebrow={`Feuille terrain · ${config.code}`}
+        title={config.label}
+        subtitle={config.subtitle}
+      >
+        <Button size="sm" variant="secondary" onClick={handleOpenRapport}>Imprimer / Rapport</Button>
         <Button size="sm" onClick={handleSave}>Enregistrer brouillon</Button>
-      </div>
+      </WorksheetTopbar>
 
-      <div className="mx-auto w-full max-w-[1100px] px-6 py-6 flex flex-col gap-4">
+      <WorksheetMain className="max-w-[1100px] gap-4 py-6">
         {draft.saved_at ? (
           <div className="rounded-[12px] border border-[#dbe1ea] bg-white px-4 py-2 text-[12px] text-[#69758a]">
             Dernier enregistrement : {new Date(draft.saved_at).toLocaleString('fr-FR')}
@@ -205,7 +204,7 @@ export default function TerrainEssaiPage() {
             </div>
           </div>
         </section>
-      </div>
-    </div>
+      </WorksheetMain>
+    </WorksheetPageShell>
   )
 }
