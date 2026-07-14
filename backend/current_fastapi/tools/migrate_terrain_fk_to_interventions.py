@@ -4,11 +4,16 @@ import argparse
 import json
 import shutil
 import sqlite3
+import sys
 from pathlib import Path
-from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_DB = ROOT_DIR / "data" / "ralab3.db"
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from tools.tool_db_path import get_tool_db_path
+
+DEFAULT_DB = get_tool_db_path()
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:

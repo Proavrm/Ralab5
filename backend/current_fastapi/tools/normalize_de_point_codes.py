@@ -13,7 +13,9 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-DEFAULT_TARGET_DB = ROOT_DIR / "data" / "ralab3.db"
+from tools.tool_db_path import get_tool_db_path
+
+DEFAULT_TARGET_DB = get_tool_db_path()
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:

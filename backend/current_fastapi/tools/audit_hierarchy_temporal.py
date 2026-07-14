@@ -42,8 +42,11 @@ def _cols(conn: sqlite3.Connection, table: str) -> set[str]:
     return {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
 
 
+from tools.tool_db_path import get_tool_db_path
+
+
 def main() -> int:
-    db_path = ROOT / "data" / "ralab3.db"
+    db_path = get_tool_db_path()
     if len(sys.argv) > 1:
         db_path = Path(sys.argv[1])
     if not db_path.is_file():

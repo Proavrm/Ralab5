@@ -6,14 +6,14 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.core.database import get_db_path
 from app.services.affaire_regularisation_simple_service import (
     AffaireManualCorrectionSimpleService,
 )
 
 router = APIRouter()
 
-CURRENT_DIR = Path(__file__).resolve().parent
-DB_PATH = CURRENT_DIR.parent / "data" / "ralab3.db"
+DB_PATH = get_db_path()
 
 service = AffaireManualCorrectionSimpleService(DB_PATH)
 

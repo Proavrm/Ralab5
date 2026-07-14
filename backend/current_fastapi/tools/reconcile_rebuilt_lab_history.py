@@ -21,13 +21,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.core.database import ensure_ralab4_schema
+from app.core.database import ensure_ralab4_schema, get_db_path
 
 
 DATA_DIR = PROJECT_ROOT / "data"
-DEFAULT_SOURCE_DB = DATA_DIR / "ralab3.db"
+DEFAULT_SOURCE_DB = get_db_path()
 DEFAULT_REBUILT_DB = DATA_DIR / "ralab_rebuilt_2025_2026_v1.db"
-DEFAULT_OUTPUT_DB = DATA_DIR / f"ralab3_reconciled_{datetime.now().strftime('%Y%m%d')}.db"
+DEFAULT_OUTPUT_DB = DATA_DIR / f"ralab5_reconciled_{datetime.now().strftime('%Y%m%d')}.db"
 UI_FORM_CODES = {"WE", "GR", "EL", "CFE", "VBS", "BM", "MB", "MBF", "LCP", "PN", "IPI", "IM", "CBRI", "CBR", "ID", "MVA"}
 UI_FORM_EQUIVALENTS = {
     "IM": "CBRI",

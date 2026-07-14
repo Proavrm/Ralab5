@@ -9,11 +9,12 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from app.core.database import get_db_path
 from app.services.post_import_audit_service import PostImportAuditService
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_TARGET_DB_PATH = ROOT_DIR / "data" / "ralab3.db"
+DEFAULT_TARGET_DB_PATH = get_db_path()
 DEFAULT_AFFAIRES_DB_PATH = ROOT_DIR / "data" / "affaires.db"
 
 router = APIRouter()

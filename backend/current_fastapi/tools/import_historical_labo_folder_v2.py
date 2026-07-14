@@ -11,12 +11,13 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from app.services.historical_lab_import_service_v2 import HistoricalLabImportServiceV2
+from tools.tool_db_path import get_tool_db_path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run historical lab Excel import V2 for RaLab5.")
     parser.add_argument("folder_path", help="Unzipped folder containing Excel files")
-    parser.add_argument("--target-db", dest="target_db", default=str(Path(__file__).resolve().parents[1] / "data" / "ralab3.db"))
+    parser.add_argument("--target-db", dest="target_db", default=str(get_tool_db_path()))
     parser.add_argument("--affaires-db", dest="affaires_db", default=str(Path(__file__).resolve().parents[1] / "data" / "affaires.db"))
     parser.add_argument("--dry-run", action="store_true", help="Preview counts without writing to the database")
     parser.add_argument("--preview", action="store_true", help="Preview grouped rows")

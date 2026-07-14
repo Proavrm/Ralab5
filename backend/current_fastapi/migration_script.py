@@ -1,9 +1,17 @@
 import sqlite3
+import sys
 from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.core.database import get_db_path
 
 # Caminhos dos bancos de dados
-ORIG_DB = 'backend/current_fastapi/data/ralab3.db'
-DEST_DB = 'backend/current_fastapi/data/ralab3_structured_candidate_v2.db'
+ORIG_DB = str(get_db_path())
+DEST_DB = str(ROOT / "data" / "ralab3_structured_candidate_v2.db")
 
 def copy_table(src_conn, dest_conn, table, columns_map, default_values=None):
     src_cur = src_conn.cursor()
