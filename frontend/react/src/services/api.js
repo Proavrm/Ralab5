@@ -77,6 +77,20 @@ function redirectToCloudflareAccess() {
   window.location.assign(target)
 }
 
+function isCloudflareAccessRedirect(res) {
+  return res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)
+}
+
+function buildQueryString(params = {}) {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value == null || value === '') return
+    search.set(key, String(value))
+  })
+  const query = search.toString()
+  return query ? `?${query}` : ''
+}
+
 async function parseResponse(res) {
   const contentType = res.headers.get('content-type') || ''
 
@@ -104,8 +118,14 @@ async function request(method, path, body = null) {
     method,
     headers,
     credentials: 'same-origin',
+    redirect: 'manual',
     body: body ? JSON.stringify(body) : undefined,
   })
+
+  if (isCloudflareAccessRedirect(res)) {
+    redirectToCloudflareAccess()
+    throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+  }
 
   if (res.status === 401) {
     handleUnauthorized()
@@ -119,13 +139,23 @@ async function request(method, path, body = null) {
   return parseResponse(res)
 }
 
-/** GET public (login bootstrap) — sans token ni cookie session. */
+/** GET public (login bootstrap) — sans JWT RaLab, mais avec cookies Cloudflare Access. */
 async function publicGet(path) {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'omit',
+    credentials: 'same-origin',
+    redirect: 'manual',
   })
+
+  if (isCloudflareAccessRedirect(res)) {
+    redirectToCloudflareAccess()
+    throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+  }
+
+  if (res.status === 401) {
+    handleUnauthorized()
+  }
 
   if (!res.ok) {
     const error = await parseResponse(res).catch((parseError) => ({ detail: parseError.message || res.statusText }))
@@ -354,7 +384,7 @@ export const feuilleMissionApi = {
 // ── G3 missions ─────────────────────────────────────────────────────────────
 export const g3Api = {
   catalogs: () => api.get('/g3/catalogs'),
-  listMissions: (params = {}) => api.get('/g3/missions?' + new URLSearchParams(params)),
+  listMissions: (params = {}) => api.get('/g3/missions' + buildQueryString(params)),
   getMission: (uid) => api.get(`/g3/missions/${uid}`),
   createMission: (data) => api.post('/g3/missions', data),
   updateMission: (uid, data) => api.patch(`/g3/missions/${uid}`, data),
