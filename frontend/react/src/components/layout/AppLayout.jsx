@@ -37,8 +37,15 @@ import {
     findTechnicianProfileByUser,
     getTechnicianHomeRoute,
 } from '@/lib/technicianProfiles'
+import {
+    UI_DENSITY_AUTO_MQ,
+    cycleUiDensityPreference,
+    loadUiDensityPreference,
+    resolveUiDensity,
+    uiDensityPreferenceLabel,
+} from '@/lib/uiDensity'
 
-const SIDEBAR_WIDTH = '240px'
+const SIDEBAR_WIDTH = 'var(--app-sidebar-w)'
 const SIDEBAR_SECTIONS_KEY = 'ralab5.sidebarSections'
 
 function loadCollapsedSections() {
@@ -144,9 +151,15 @@ export default function AppLayout() {
         return window.localStorage.getItem('ralab5.sidebarOpen') !== '0'
     })
     const [collapsedSections, setCollapsedSections] = useState(loadCollapsedSections)
+    const [densityPref, setDensityPref] = useState(loadUiDensityPreference)
+    const [compactViewport, setCompactViewport] = useState(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return false
+        return window.matchMedia(UI_DENSITY_AUTO_MQ).matches
+    })
     const chromeBarRef = useRef(null)
     const prevPathRef = useRef(location.pathname)
     const [chromeBarHeight, setChromeBarHeight] = useState(0)
+    const density = resolveUiDensity(densityPref, compactViewport)
     const isEmbeddedView = new URLSearchParams(location.search).get('embed') === '1' && (
         location.pathname.startsWith('/rapports/')
         || location.pathname.startsWith('/qualite/qsse/documents/view')
@@ -254,6 +267,19 @@ export default function AppLayout() {
     }, [sidebarOpen])
 
     useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return undefined
+        const mq = window.matchMedia(UI_DENSITY_AUTO_MQ)
+        const onChange = () => setCompactViewport(mq.matches)
+        onChange()
+        if (mq.addEventListener) mq.addEventListener('change', onChange)
+        else mq.addListener(onChange)
+        return () => {
+            if (mq.removeEventListener) mq.removeEventListener('change', onChange)
+            else mq.removeListener(onChange)
+        }
+    }, [])
+
+    useEffect(() => {
         window.localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify([...collapsedSections]))
     }, [collapsedSections])
 
@@ -314,6 +340,7 @@ export default function AppLayout() {
     return (
         <div
             className="app-shell flex h-screen overflow-hidden"
+            data-density={density}
             style={{
                 '--app-sidebar-width': sidebarOpen ? SIDEBAR_WIDTH : '0px',
                 '--app-chrome-top': `${chromeBarHeight}px`,
@@ -321,10 +348,14 @@ export default function AppLayout() {
         >
             <aside
                 className={`app-sidebar flex shrink-0 flex-col overflow-hidden transition-[width,min-width] duration-200 ease-in-out ${
-                    sidebarOpen ? 'w-[240px] min-w-[240px]' : 'w-0 min-w-0'
+                    sidebarOpen ? 'app-sidebar-open' : 'w-0 min-w-0'
                 }`}
+                style={sidebarOpen ? {
+                    width: 'var(--app-sidebar-w)',
+                    minWidth: 'var(--app-sidebar-w)',
+                } : undefined}
             >
-                <div className="flex h-full w-[240px] min-w-[240px] flex-col">
+                <div className="app-sidebar-panel flex h-full flex-col">
                     <div className="shrink-0 border-b border-white/10 px-4 pb-4 pt-3">
                         <div className="app-chrome-stripe mb-3" />
                         <h1 className="text-[17px] font-black leading-none tracking-tight text-white">RaLab5</h1>
@@ -419,9 +450,19 @@ export default function AppLayout() {
                             {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeft size={14} />}
                             <span>{sidebarOpen ? 'Masquer le menu' : 'Menu'}</span>
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setDensityPref(cycleUiDensityPreference(densityPref))}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-xs font-semibold leading-none text-text-muted transition-colors hover:border-[#ffcc00]/35 hover:bg-[#ffcc00]/10 hover:text-[#003170]"
+                            title="Densité d’affichage : Auto (selon écran), Compact ou Confort"
+                            aria-label="Changer la densité d’affichage"
+                        >
+                            Affichage · {uiDensityPreferenceLabel(densityPref)}
+                            {densityPref === 'auto' ? ` (${density === 'compact' ? 'compact' : 'confort'})` : ''}
+                        </button>
                     </div>
                 </div>
-                <main className="app-main flex-1 overflow-y-auto overflow-x-clip px-6 pt-6 pb-0">
+                <main className="app-main flex-1 overflow-y-auto overflow-x-clip pb-0">
                     <Outlet />
                 </main>
             </div>

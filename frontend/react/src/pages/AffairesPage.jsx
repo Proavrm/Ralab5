@@ -25,6 +25,8 @@ import {
   MetricCard,
   SectionCard,
 } from '@/components/layout/FicheLayout'
+import CopilotImportPanel from '@/components/copilot/CopilotImportPanel'
+import CopyCopilotPromptButton from '@/components/copilot/CopyCopilotPromptButton'
 
 const STATUTS = ['À qualifier', 'Offre en cours', 'En cours', 'Terminée', 'Archivée']
 const DEFAULT_TITULAIRES = ['NGE GC', 'NGE Energie', 'NGE Routes', 'EHTP', 'NGE E.S.', 'NGE Transitions', 'Lyaudet', 'Autre']
@@ -503,6 +505,7 @@ export default function AffairesPage() {
         <Button type="button" variant="primary" size="sm" onClick={openCreate} className="rounded-xl font-bold">
           <Plus size={14} /> Nouvelle affaire
         </Button>
+        <CopyCopilotPromptButton />
         <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
         </Button>
@@ -515,6 +518,8 @@ export default function AffairesPage() {
           <MetricCard label="Avec demandes" value={metrics.withDemands} detail="Affaires liées" />
           <MetricCard label="À qualifier" value={metrics.toQualify} detail="À traiter rapidement" />
         </div>
+
+        <CopilotImportPanel allowCreateMissing returnTo="/affaires" showPromptCopy />
 
         <SectionCard
           title="Affaires"

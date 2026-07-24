@@ -18,6 +18,8 @@ import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { hasRole } from '@/lib/permissions'
 import { MetricCard, FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
+import CopyCopilotPromptButton from '@/components/copilot/CopyCopilotPromptButton'
+import CopilotImportPanel from '@/components/copilot/CopilotImportPanel'
 import LabName from '@/components/laboratoire/LabName'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { buildLaboSelectOptions, resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
@@ -1562,6 +1564,10 @@ export default function DemandePage() {
               <Button size="sm" onClick={openPreparationPage}>Préparation</Button>
               <Button size="sm" onClick={openCampaignPage}>Campagnes</Button>
               <Button size="sm" onClick={openInterventionPage}>Interventions</Button>
+              <CopyCopilotPromptButton
+                affaireRef={d.affaire_ref}
+                demandeRef={d.reference}
+              />
             </>
           )}
       </FicheTopbar>
@@ -1640,6 +1646,11 @@ export default function DemandePage() {
             <MetricCard label="Modules" value={enabledModules.length} detail={enabledModules.length > 0 ? enabledModules.map(m => m.label || m.module_code).slice(0, 3).join(', ') : 'Aucun module activé'} />
           </div>
         </section>
+
+        <CopilotImportPanel
+          demandeId={d.uid ?? d.id ?? uid}
+          returnTo={detailReturnTo}
+        />
 
         {/* ── Two-column grid (lecture + édition inline, même layout) ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">

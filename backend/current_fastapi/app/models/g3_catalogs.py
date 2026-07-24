@@ -51,6 +51,9 @@ G3_DOCUMENT_TYPE_OPTIONS = [
     "Note technique AO",
     "Compte rendu chantier",
     "Photos",
+    "Plan de situation",
+    "Plan d'implantation",
+    "Itinéraire",
     "Autre",
 ]
 

@@ -15,6 +15,8 @@ import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { formatLabOrgLine } from '@/lib/laboratoireCatalog'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
+import CopyCopilotPromptButton from '@/components/copilot/CopyCopilotPromptButton'
+import CopilotImportPanel from '@/components/copilot/CopilotImportPanel'
 import { MetricCard, FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
 
 const STATUTS    = ['À qualifier', 'En cours', 'Terminée', 'Archivée']
@@ -398,6 +400,7 @@ export default function AffairePage() {
                 + Demande
               </button>
               <Button size="sm" onClick={() => navigate(`/passations/new?affaire_id=${uid}`)}>+ Passation</Button>
+              <CopyCopilotPromptButton affaireRef={a.reference} />
               <button
                 onClick={handleDelete}
                 className="rounded-[11px] border border-[#f0a0a0] bg-[#fcebeb] text-[#a32d2d] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-95 transition"
@@ -484,6 +487,23 @@ export default function AffairePage() {
             <MetricCard label="Interventions" value={metrics.totalInt}   detail={metrics.detail || 'Aucune intervention'} />
           </div>
         </section>
+
+        {demandes.length > 0 ? (
+          <CopilotImportPanel
+            demandes={demandes}
+            affaireId={uid}
+            affaireRef={a.reference}
+            allowCreateMissing
+            returnTo={detailReturnTo}
+          />
+        ) : (
+          <CopilotImportPanel
+            affaireId={uid}
+            affaireRef={a.reference}
+            allowCreateMissing
+            returnTo={detailReturnTo}
+          />
+        )}
 
         {/* ── Two-column grid (lecture + édition, même layout) ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
