@@ -44,6 +44,7 @@ export default function CalculsPage() {
   const [newName, setNewName] = useState('')
   const [refSearch, setRefSearch] = useState('')
   const [refs, setRefs] = useState([])
+  const [imitatingId, setImitatingId] = useState(null)
 
   const query = useMemo(
     () => ({
@@ -75,6 +76,10 @@ export default function CalculsPage() {
     load()
   }, [query.type_calcul, query.statut, query.search])
 
+  useEffect(() => {
+    searchRefs()
+  }, [])
+
   async function createAlize() {
     setCreating(true)
     setError('')
@@ -92,10 +97,24 @@ export default function CalculsPage() {
 
   async function searchRefs() {
     try {
-      const rows = await calculsApi.searchReferences({ search: refSearch.trim(), limit: 30 })
+      const rows = await calculsApi.searchReferences({ search: refSearch.trim(), limit: 40 })
       setRefs(Array.isArray(rows) ? rows : [])
     } catch (err) {
       setError(getApiErrorMessage(err, 'Recherche références impossible'))
+    }
+  }
+
+  async function imitateFromRef(ref) {
+    setImitatingId(ref.id)
+    setError('')
+    try {
+      const created = await calculsApi.createFromReference(ref.id, {
+        nom_calcul: newName.trim() || undefined,
+      })
+      navigate(`/calculs/alize/${created.id}`)
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Imitation impossible'))
+      setImitatingId(null)
     }
   }
 
@@ -176,6 +195,10 @@ export default function CalculsPage() {
 
           <div className="lg:col-span-2">
           <SectionCard title="Références historiques Alizé">
+            <p className="mb-3 text-[13px] text-text-muted">
+              Utilisez une étude Excel pour <strong>imiter</strong> un Alizé (trafic, PF, couches, résultats)
+              et travailler avant d&apos;avoir le calcul réel.
+            </p>
             <div className="mb-3 flex flex-wrap gap-2">
               <Input
                 className="min-w-[220px] flex-1"
@@ -191,14 +214,15 @@ export default function CalculsPage() {
                 Importez d&apos;abord le Excel de compilation pour peupler les références.
               </p>
             ) : (
-              <div className="max-h-48 overflow-auto">
+              <div className="max-h-56 overflow-auto">
                 <table className="w-full text-left text-[12px]">
                   <thead className="sticky top-0 bg-white text-text-muted">
                     <tr>
                       <th className="py-1 pr-2 font-semibold">Projet</th>
                       <th className="py-1 pr-2 font-semibold">Structure</th>
                       <th className="py-1 pr-2 font-semibold">PF</th>
-                      <th className="py-1 font-semibold">Conclusion</th>
+                      <th className="py-1 pr-2 font-semibold">NE / CAM</th>
+                      <th className="py-1 font-semibold">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -207,7 +231,19 @@ export default function CalculsPage() {
                         <td className="py-1.5 pr-2">{r.projet || r.document || '—'}</td>
                         <td className="py-1.5 pr-2">{r.structure || '—'}</td>
                         <td className="py-1.5 pr-2">{r.plateforme || '—'}</td>
-                        <td className="py-1.5">{r.conclusion || '—'}</td>
+                        <td className="py-1.5 pr-2 text-text-muted">
+                          {r.NE ?? '—'} / {r.CAM ?? '—'}
+                        </td>
+                        <td className="py-1.5">
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            disabled={imitatingId === r.id}
+                            onClick={() => imitateFromRef(r)}
+                          >
+                            {imitatingId === r.id ? '…' : 'Imiter'}
+                          </Button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

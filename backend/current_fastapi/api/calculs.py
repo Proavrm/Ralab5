@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 
 from app.core.api_security import current_request_user_label
 from app.models.calculs import (
+    AlizeFromReferenceSchema,
     AlizePayloadUpdateSchema,
     CalculationCreateSchema,
     CalculationUpdateSchema,
@@ -85,6 +86,19 @@ def update_alize(calculation_id: int, body: AlizePayloadUpdateSchema):
     return row
 
 
+@router.post("/calculations/{calculation_id}/apply-reference")
+def apply_reference(calculation_id: int, body: AlizeFromReferenceSchema):
+    row = _repo.apply_reference(
+        calculation_id,
+        body.ref_etude_id,
+        user_name=_user(),
+        replace_existing=body.replace_existing,
+    )
+    if not row:
+        raise HTTPException(404, "Calcul ou référence introuvable")
+    return row
+
+
 @router.get("/calculations/{calculation_id}/fiche", response_class=HTMLResponse)
 def get_fiche(calculation_id: int):
     html = _repo.build_fiche_html(calculation_id)
@@ -96,3 +110,30 @@ def get_fiche(calculation_id: int):
 @router.get("/references/alize")
 def search_alize_references(search: Optional[str] = None, limit: int = 50):
     return _repo.search_ref_etudes(search=search or "", limit=min(limit, 200))
+
+
+@router.get("/references/alize/{ref_etude_id}")
+def get_alize_reference(ref_etude_id: int):
+    row = _repo.get_ref_etude(ref_etude_id)
+    if not row:
+        raise HTTPException(404, f"Référence Alizé #{ref_etude_id} introuvable")
+    return row
+
+
+@router.post("/references/alize/{ref_etude_id}/create-calculation", status_code=201)
+def create_calculation_from_reference(
+    ref_etude_id: int,
+    nom_calcul: Optional[str] = None,
+    affaire_rst_id: Optional[int] = None,
+    demande_id: Optional[int] = None,
+):
+    row = _repo.create_from_reference(
+        ref_etude_id,
+        nom_calcul=nom_calcul or "",
+        affaire_rst_id=affaire_rst_id,
+        demande_id=demande_id,
+        user_name=_user(),
+    )
+    if not row:
+        raise HTTPException(404, f"Référence Alizé #{ref_etude_id} introuvable")
+    return row

@@ -458,6 +458,302 @@ class CalculsRepository:
             rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
 
+    def get_ref_etude(self, ref_etude_id: int) -> dict | None:
+        with self._connect() as conn:
+            etude = conn.execute(
+                "SELECT * FROM ref_alize_etudes WHERE id = ?",
+                (ref_etude_id,),
+            ).fetchone()
+            if not etude:
+                return None
+            source_key = None
+            try:
+                source_key = int(etude["source_id"]) if etude["source_id"] not in (None, "") else None
+            except (TypeError, ValueError):
+                source_key = None
+            id_keys = [int(etude["id"])]
+            if source_key is not None and source_key not in id_keys:
+                id_keys.append(source_key)
+            placeholders = ",".join("?" * len(id_keys))
+            couches = conn.execute(
+                f"SELECT * FROM ref_alize_couches WHERE id_etude IN ({placeholders}) ORDER BY ordre, id",
+                id_keys,
+            ).fetchall()
+            criteres = conn.execute(
+                f"SELECT * FROM ref_alize_criteres WHERE id_etude IN ({placeholders}) ORDER BY id",
+                id_keys,
+            ).fetchall()
+        payload = self._map_ref_to_alize_payload(dict(etude), [dict(c) for c in couches], [dict(c) for c in criteres])
+        return {
+            "etude": dict(etude),
+            "couches": [dict(c) for c in couches],
+            "criteres": [dict(c) for c in criteres],
+            "alize_payload": payload,
+        }
+
+    def _map_ref_to_alize_payload(self, etude: dict, couches: list[dict], criteres: list[dict]) -> dict:
+        """Transforme une étude Excel en payload Alizé éditable (imitation)."""
+        label = etude.get("projet") or etude.get("document") or f"Réf. #{etude.get('id')}"
+        source_note = (
+            f"Imitation Alizé à partir de la référence Excel « {label} » "
+            f"({etude.get('source_ref') or etude.get('document') or 'sans source'}). "
+            "Valeurs historiques — non recalculées dans RaLab."
+        )
+        traffic = {
+            "mja_pl": etude.get("MJA_PL"),
+            "croissance_pct": etude.get("croissance_pct"),
+            "duree_ans": etude.get("duree_ans"),
+            "cam": etude.get("CAM"),
+            "ne_calcule": etude.get("NE"),
+            "ne_retenu": etude.get("NE"),
+            "risque": etude.get("risque_pct"),
+            "classe_trafic": etude.get("trafic_PL") or "",
+            "commentaire": source_note,
+            "origin": "imitation_ref_excel",
+        }
+        platform = {
+            "classe": etude.get("plateforme") or "",
+            "module_pf": etude.get("module_pf_MPa"),
+            "source": etude.get("document") or "",
+            "commentaire": source_note,
+            "origin": "imitation_ref_excel",
+        }
+        params = {
+            "cam": etude.get("CAM"),
+            "risque": etude.get("risque_pct"),
+            "logiciel": "Imitation référence Excel (pré-Alizé)",
+            "norme": "Référence historique compilée",
+            "materiau_critique": etude.get("materiau_critique") or "",
+            "module_critique": etude.get("module_crit_MPa"),
+            "origin": "imitation_ref_excel",
+        }
+        results = {
+            "epsT_adm": etude.get("epsT_adm"),
+            "epsT_calc": etude.get("epsT_calc"),
+            "epsZ_adm": etude.get("epsZ_adm"),
+            "epsZ_calc": etude.get("epsZ_calc"),
+            "sigmaT": etude.get("sigmaT_MPa"),
+            "sigmaZ": etude.get("sigmaZ_MPa"),
+            "marge_fatigue": etude.get("marge_fatigue"),
+            "conso_fatigue": etude.get("conso_fatigue"),
+            "marge_pf": etude.get("marge_pf"),
+            "conso_pf": etude.get("conso_pf"),
+            "conclusion": etude.get("conclusion") or "",
+            "observations": source_note,
+            "origin": "imitation_ref_excel",
+        }
+
+        layers = []
+        for i, row in enumerate(couches, start=1):
+            materiau = (row.get("materiau") or "").strip()
+            is_pf = materiau.upper().startswith("PF") or "plateforme" in materiau.lower()
+            layers.append(
+                {
+                    "ordre": int(row.get("ordre") or i),
+                    "fonction": "Plateforme" if is_pf else "",
+                    "materiau": materiau,
+                    "famille": "",
+                    "classe": materiau if is_pf else "",
+                    "formulation": "",
+                    "epaisseur": row.get("epaisseur_cm"),
+                    "unite": "cm",
+                    "module": row.get("module_MPa"),
+                    "poisson": None,
+                    "temperature_calcul": None,
+                    "interface_sup": "",
+                    "interface_inf": "",
+                    "lie": False,
+                    "from_library": True,
+                    "modified_manually": False,
+                    "justification": "Couche issue de la référence Excel (imitation)",
+                    "commentaire": row.get("source_ref") or "",
+                }
+            )
+
+        criteria = []
+        for row in criteres:
+            conso_pct = row.get("consommation_pct")
+            conso = (conso_pct / 100.0) if conso_pct is not None else None
+            criteria.append(
+                {
+                    "critere": row.get("critere") or "",
+                    "materiau": row.get("materiau") or "",
+                    "couche": row.get("materiau") or "",
+                    "profondeur": "",
+                    "valeur_admissible": row.get("admissible_microdef"),
+                    "valeur_calculee": row.get("calcule_microdef"),
+                    "unite": "µdéf" if row.get("admissible_microdef") is not None else ("MPa" if row.get("sigma_MPa") is not None else ""),
+                    "marge": row.get("marge_microdef"),
+                    "consommation": conso,
+                    "sens_verification": "inferieur_ou_egal",
+                    "statut": row.get("statut") or "Non renseigné",
+                    "commentaire": "Critère historique Excel (imitation Alizé)",
+                }
+            )
+        # Si pas de critères détaillés, dériver εt / εz depuis l'étude
+        if not criteria:
+            if etude.get("epsT_adm") is not None or etude.get("epsT_calc") is not None:
+                criteria.append(
+                    {
+                        "critere": "fatigue_epsilonT",
+                        "materiau": etude.get("materiau_critique") or "",
+                        "couche": "",
+                        "profondeur": "",
+                        "valeur_admissible": etude.get("epsT_adm"),
+                        "valeur_calculee": etude.get("epsT_calc"),
+                        "unite": "µdéf",
+                        "marge": etude.get("marge_fatigue"),
+                        "consommation": etude.get("conso_fatigue"),
+                        "sens_verification": "inferieur_ou_egal",
+                        "statut": "Non renseigné",
+                        "commentaire": "Dérivé de l'étude Excel",
+                    }
+                )
+            if etude.get("epsZ_adm") is not None or etude.get("epsZ_calc") is not None:
+                criteria.append(
+                    {
+                        "critere": "plateforme_epsilonZ",
+                        "materiau": etude.get("plateforme") or "",
+                        "couche": "",
+                        "profondeur": "",
+                        "valeur_admissible": etude.get("epsZ_adm"),
+                        "valeur_calculee": etude.get("epsZ_calc"),
+                        "unite": "µdéf",
+                        "marge": etude.get("marge_pf"),
+                        "consommation": etude.get("conso_pf"),
+                        "sens_verification": "inferieur_ou_egal",
+                        "statut": "Non renseigné",
+                        "commentaire": "Dérivé de l'étude Excel",
+                    }
+                )
+
+        return {
+            "traffic": traffic,
+            "platform": platform,
+            "params": params,
+            "results": results,
+            "gel": {},
+            "layers": layers,
+            "criteria": criteria,
+            "meta": {
+                "nom_calcul": f"Imitation · {label}"[:180],
+                "ouvrage": label,
+                "zone_label": etude.get("structure") or "",
+                "statut": "Résultats importés",
+                "general": {
+                    "origin": "imitation_ref_excel",
+                    "ref_etude_id": etude.get("id"),
+                    "ref_source_id": etude.get("source_id"),
+                    "ref_document": etude.get("document") or "",
+                    "ref_source_ref": etude.get("source_ref") or "",
+                    "ref_structure": etude.get("structure") or "",
+                    "note": source_note,
+                },
+            },
+        }
+
+    def create_from_reference(
+        self,
+        ref_etude_id: int,
+        *,
+        nom_calcul: str = "",
+        affaire_rst_id: int | None = None,
+        demande_id: int | None = None,
+        user_name: str = "",
+    ) -> CalculationDetailSchema | None:
+        packed = self.get_ref_etude(ref_etude_id)
+        if not packed:
+            return None
+        payload = packed["alize_payload"]
+        meta = payload["meta"]
+        created = self.create(
+            CalculationCreateSchema(
+                type_calcul="alize",
+                nom_calcul=nom_calcul or meta["nom_calcul"],
+                affaire_rst_id=affaire_rst_id,
+                demande_id=demande_id,
+                ouvrage=meta.get("ouvrage") or "",
+                zone_label=meta.get("zone_label") or "",
+                auteur=user_name,
+                general=meta.get("general") or {},
+            ),
+            user_name=user_name,
+        )
+        self.update(
+            created.id,
+            CalculationUpdateSchema(statut=meta.get("statut") or "Résultats importés"),
+            user_name=user_name,
+        )
+        return self.update_alize(
+            created.id,
+            AlizePayloadUpdateSchema(
+                traffic=payload["traffic"],
+                platform=payload["platform"],
+                params=payload["params"],
+                results=payload["results"],
+                gel=payload.get("gel") or {},
+                layers=[AlizeLayerSchema(**x) for x in payload["layers"]],
+                criteria=[AlizeCriterionSchema(**x) for x in payload["criteria"]],
+            ),
+            user_name=user_name,
+        )
+
+    def apply_reference(
+        self,
+        calculation_id: int,
+        ref_etude_id: int,
+        *,
+        user_name: str = "",
+        replace_existing: bool = True,
+    ) -> CalculationDetailSchema | None:
+        detail = self.get(calculation_id)
+        if not detail or detail.type_calcul != "alize":
+            return None
+        packed = self.get_ref_etude(ref_etude_id)
+        if not packed:
+            return None
+        payload = packed["alize_payload"]
+        meta = payload["meta"]
+        if not replace_existing and detail.alize:
+            # merge soft: ne remplace que les blocs vides
+            alize = detail.alize
+            if alize.get("traffic"):
+                payload["traffic"] = alize["traffic"]
+            if alize.get("platform"):
+                payload["platform"] = alize["platform"]
+            if alize.get("layers"):
+                payload["layers"] = alize["layers"]
+            if alize.get("criteria"):
+                payload["criteria"] = alize["criteria"]
+            if alize.get("results"):
+                payload["results"] = alize["results"]
+        general = dict(detail.general or {})
+        general.update(meta.get("general") or {})
+        self.update(
+            calculation_id,
+            CalculationUpdateSchema(
+                nom_calcul=detail.nom_calcul or meta.get("nom_calcul"),
+                ouvrage=detail.ouvrage or meta.get("ouvrage") or "",
+                zone_label=detail.zone_label or meta.get("zone_label") or "",
+                statut=meta.get("statut") or detail.statut,
+                general=general,
+            ),
+            user_name=user_name,
+        )
+        return self.update_alize(
+            calculation_id,
+            AlizePayloadUpdateSchema(
+                traffic=payload["traffic"],
+                platform=payload["platform"],
+                params=payload["params"],
+                results=payload["results"],
+                gel=payload.get("gel") or {},
+                layers=[AlizeLayerSchema(**x) for x in payload["layers"]],
+                criteria=[AlizeCriterionSchema(**x) for x in payload["criteria"]],
+            ),
+            user_name=user_name,
+        )
+
     def build_fiche_html(self, calculation_id: int) -> str | None:
         detail = self.get(calculation_id)
         if not detail:
@@ -638,8 +934,19 @@ th,td{{border:1px solid #dbe1ea;padding:6px 8px;font-size:12px}} th{{background:
             missing.append("Plateforme")
         if not layers:
             missing.append("Structure (couches)")
-        elif any(not l.get("materiau") or l.get("epaisseur") in (None, "") for l in layers):
-            missing.append("Épaisseurs / matériaux incomplets")
+        else:
+            incomplete = False
+            for layer in layers:
+                materiau = (layer.get("materiau") or "").strip()
+                if not materiau:
+                    incomplete = True
+                    break
+                is_pf = materiau.upper().startswith("PF") or (layer.get("fonction") or "").lower() == "plateforme"
+                if not is_pf and layer.get("epaisseur") in (None, ""):
+                    incomplete = True
+                    break
+            if incomplete:
+                missing.append("Épaisseurs / matériaux incomplets")
         if not (traffic.get("cam") or (alize.get("params") or {}).get("cam")):
             missing.append("CAM")
         if not (traffic.get("risque") or (alize.get("params") or {}).get("risque")):

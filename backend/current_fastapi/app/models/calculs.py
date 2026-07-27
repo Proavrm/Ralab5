@@ -175,3 +175,12 @@ class CalculsSummarySchema(BaseModel):
     a_verifier: int = 0
     valides: int = 0
     total: int = 0
+
+
+class AlizeFromReferenceSchema(BaseModel):
+    """Créer / appliquer une imitation Alizé à partir d'une étude Excel."""
+    ref_etude_id: int
+    nom_calcul: Optional[str] = None
+    affaire_rst_id: Optional[int] = None
+    demande_id: Optional[int] = None
+    replace_existing: bool = True

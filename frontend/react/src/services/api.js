@@ -391,6 +391,10 @@ export const calculsApi = {
   duplicate: (id) => api.post(`/calculs/calculations/${id}/duplicate`, {}),
   updateAlize: (id, data) => api.patch(`/calculs/calculations/${id}/alize`, data),
   searchReferences: (params = {}) => api.get('/calculs/references/alize' + buildQueryString(params)),
+  getReference: (refId) => api.get(`/calculs/references/alize/${refId}`),
+  createFromReference: (refId, params = {}) =>
+    api.post(`/calculs/references/alize/${refId}/create-calculation` + buildQueryString(params), {}),
+  applyReference: (id, data) => api.post(`/calculs/calculations/${id}/apply-reference`, data),
   async openFiche(id) {
     const headers = {}
     const token = getToken()
