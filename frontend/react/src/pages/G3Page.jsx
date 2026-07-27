@@ -55,14 +55,18 @@ export default function G3Page() {
             />
           </SectionCard>
 
-          <SectionCard title="Fiche de calcul">
+          <SectionCard title="Calculs de dimensionnement">
             <p className="text-[13px] leading-6 text-text-muted mb-4">
-              Deux outils distincts : <strong>Allyze</strong> (chaussées) et <strong>Talren</strong> (taludes / murs).
-              Paramètres structurés, sans dupliquer le dossier.
+              Module indépendant : Alizé (chaussées), Gel-Dégel et Talren. Traçabilité, variantes et fiche.
             </p>
-            <Button size="sm" onClick={() => navigate('/g3/fiche-calcul')}>
-              📐 Ouvrir fiche de calcul
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => navigate('/calculs')}>
+                Ouvrir Calculs
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => navigate('/g3/fiche-calcul')}>
+                Ancienne fiche locale
+              </Button>
+            </div>
           </SectionCard>
         </div>
       </FicheMain>

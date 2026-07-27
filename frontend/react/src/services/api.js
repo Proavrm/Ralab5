@@ -381,6 +381,40 @@ export const feuilleMissionApi = {
   },
 }
 
+// ── Calculs de dimensionnement ──────────────────────────────────────────────
+export const calculsApi = {
+  summary: (params = {}) => api.get('/calculs/summary' + buildQueryString(params)),
+  list: (params = {}) => api.get('/calculs/calculations' + buildQueryString(params)),
+  get: (id) => api.get(`/calculs/calculations/${id}`),
+  create: (data) => api.post('/calculs/calculations', data),
+  update: (id, data) => api.patch(`/calculs/calculations/${id}`, data),
+  duplicate: (id) => api.post(`/calculs/calculations/${id}/duplicate`, {}),
+  updateAlize: (id, data) => api.patch(`/calculs/calculations/${id}/alize`, data),
+  searchReferences: (params = {}) => api.get('/calculs/references/alize' + buildQueryString(params)),
+  async openFiche(id) {
+    const headers = {}
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(`${BASE_URL}/calculs/calculations/${id}/fiche`, {
+      method: 'GET',
+      headers,
+      credentials: 'same-origin',
+      redirect: 'manual',
+    })
+    if (isCloudflareAccessRedirect(res)) {
+      redirectToCloudflareAccess()
+      throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+    }
+    if (res.status === 401) handleUnauthorized()
+    if (!res.ok) throw new Error(`Erreur fiche ${res.status}`)
+    const html = await res.text()
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
+}
+
 // ── G3 missions ─────────────────────────────────────────────────────────────
 export const g3Api = {
   catalogs: () => api.get('/g3/catalogs'),

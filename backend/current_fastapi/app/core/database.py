@@ -1067,6 +1067,298 @@ CREATE INDEX IF NOT EXISTS idx_affaire_contact_dismissals_affaire
     ON affaire_contact_dismissals(affaire_rst_id);
 """
 
+CALCULS_DDL = """
+CREATE TABLE IF NOT EXISTS calculations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference TEXT NOT NULL UNIQUE,
+    type_calcul TEXT NOT NULL,
+    nom_calcul TEXT NOT NULL DEFAULT '',
+    indice TEXT NOT NULL DEFAULT 'A',
+    version INTEGER NOT NULL DEFAULT 1,
+    statut TEXT NOT NULL DEFAULT 'Brouillon',
+    affaire_rst_id INTEGER REFERENCES affaires_rst(id) ON DELETE SET NULL,
+    demande_id INTEGER REFERENCES demandes(id) ON DELETE SET NULL,
+    mission_id INTEGER,
+    campaign_id INTEGER,
+    intervention_id INTEGER,
+    ouvrage TEXT NOT NULL DEFAULT '',
+    zone_label TEXT NOT NULL DEFAULT '',
+    auteur TEXT NOT NULL DEFAULT '',
+    calculateur TEXT NOT NULL DEFAULT '',
+    verificateur TEXT NOT NULL DEFAULT '',
+    validateur TEXT NOT NULL DEFAULT '',
+    date_verification TEXT,
+    date_validation TEXT,
+    parent_calculation_id INTEGER REFERENCES calculations(id) ON DELETE SET NULL,
+    general_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_calculations_type ON calculations(type_calcul);
+CREATE INDEX IF NOT EXISTS idx_calculations_affaire ON calculations(affaire_rst_id);
+CREATE INDEX IF NOT EXISTS idx_calculations_demande ON calculations(demande_id);
+CREATE INDEX IF NOT EXISTS idx_calculations_statut ON calculations(statut);
+
+CREATE TABLE IF NOT EXISTS calculation_hypotheses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    calculation_id INTEGER NOT NULL REFERENCES calculations(id) ON DELETE CASCADE,
+    field_path TEXT NOT NULL DEFAULT '',
+    label TEXT NOT NULL DEFAULT '',
+    value TEXT NOT NULL DEFAULT '',
+    unit TEXT NOT NULL DEFAULT '',
+    origin TEXT NOT NULL DEFAULT 'saisi manuellement',
+    document_ref TEXT NOT NULL DEFAULT '',
+    page_ref TEXT NOT NULL DEFAULT '',
+    comment TEXT NOT NULL DEFAULT '',
+    confidence REAL,
+    author TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_calc_hyp_calc ON calculation_hypotheses(calculation_id);
+
+CREATE TABLE IF NOT EXISTS calculation_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    calculation_id INTEGER NOT NULL REFERENCES calculations(id) ON DELETE CASCADE,
+    type TEXT NOT NULL DEFAULT 'Autre',
+    name TEXT NOT NULL DEFAULT '',
+    version TEXT NOT NULL DEFAULT '',
+    indice TEXT NOT NULL DEFAULT '',
+    document_date TEXT,
+    author TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    stored_path TEXT NOT NULL DEFAULT '',
+    file_url TEXT NOT NULL DEFAULT '',
+    observations TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_calc_docs_calc ON calculation_documents(calculation_id);
+
+CREATE TABLE IF NOT EXISTS calculation_change_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    calculation_id INTEGER NOT NULL REFERENCES calculations(id) ON DELETE CASCADE,
+    field_path TEXT NOT NULL DEFAULT '',
+    old_value TEXT NOT NULL DEFAULT '',
+    new_value TEXT NOT NULL DEFAULT '',
+    user_name TEXT NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS alize_projects (
+    calculation_id INTEGER PRIMARY KEY REFERENCES calculations(id) ON DELETE CASCADE,
+    traffic_json TEXT NOT NULL DEFAULT '{}',
+    platform_json TEXT NOT NULL DEFAULT '{}',
+    params_json TEXT NOT NULL DEFAULT '{}',
+    results_json TEXT NOT NULL DEFAULT '{}',
+    gel_json TEXT NOT NULL DEFAULT '{}',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS alize_layers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    calculation_id INTEGER NOT NULL REFERENCES calculations(id) ON DELETE CASCADE,
+    ordre INTEGER NOT NULL DEFAULT 1,
+    fonction TEXT NOT NULL DEFAULT '',
+    materiau TEXT NOT NULL DEFAULT '',
+    famille TEXT NOT NULL DEFAULT '',
+    classe TEXT NOT NULL DEFAULT '',
+    formulation TEXT NOT NULL DEFAULT '',
+    epaisseur REAL,
+    unite TEXT NOT NULL DEFAULT 'cm',
+    module REAL,
+    poisson REAL,
+    temperature_calcul REAL,
+    interface_sup TEXT NOT NULL DEFAULT '',
+    interface_inf TEXT NOT NULL DEFAULT '',
+    lie INTEGER NOT NULL DEFAULT 0,
+    from_library INTEGER NOT NULL DEFAULT 0,
+    modified_manually INTEGER NOT NULL DEFAULT 0,
+    justification TEXT NOT NULL DEFAULT '',
+    commentaire TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_alize_layers_calc ON alize_layers(calculation_id, ordre);
+
+CREATE TABLE IF NOT EXISTS alize_criteria (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    calculation_id INTEGER NOT NULL REFERENCES calculations(id) ON DELETE CASCADE,
+    critere TEXT NOT NULL DEFAULT '',
+    materiau TEXT NOT NULL DEFAULT '',
+    couche TEXT NOT NULL DEFAULT '',
+    profondeur TEXT NOT NULL DEFAULT '',
+    valeur_admissible REAL,
+    valeur_calculee REAL,
+    unite TEXT NOT NULL DEFAULT '',
+    marge REAL,
+    consommation REAL,
+    sens_verification TEXT NOT NULL DEFAULT 'inferieur_ou_egal',
+    statut TEXT NOT NULL DEFAULT 'Non renseigné',
+    commentaire TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_alize_criteria_calc ON alize_criteria(calculation_id);
+
+CREATE TABLE IF NOT EXISTS ref_alize_etudes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_id TEXT NOT NULL DEFAULT '',
+    document TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    famille TEXT NOT NULL DEFAULT '',
+    projet TEXT NOT NULL DEFAULT '',
+    structure TEXT NOT NULL DEFAULT '',
+    ep_bit_cm REAL,
+    plateforme TEXT NOT NULL DEFAULT '',
+    module_pf_MPa REAL,
+    trafic_PL TEXT NOT NULL DEFAULT '',
+    MJA_PL REAL,
+    croissance_pct REAL,
+    duree_ans REAL,
+    materiau_critique TEXT NOT NULL DEFAULT '',
+    module_crit_MPa REAL,
+    CAM REAL,
+    NE REAL,
+    risque_pct REAL,
+    epsT_adm REAL,
+    epsT_calc REAL,
+    marge_fatigue REAL,
+    conso_fatigue REAL,
+    epsZ_adm REAL,
+    epsZ_calc REAL,
+    marge_pf REAL,
+    conso_pf REAL,
+    sigmaT_MPa REAL,
+    sigmaZ_MPa REAL,
+    conclusion TEXT NOT NULL DEFAULT '',
+    statut_extraction TEXT NOT NULL DEFAULT '',
+    is_primary INTEGER NOT NULL DEFAULT 1,
+    duplicate_group_id TEXT NOT NULL DEFAULT '',
+    reference_only INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS ref_alize_couches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_etude INTEGER,
+    document TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    ordre INTEGER,
+    materiau TEXT NOT NULL DEFAULT '',
+    epaisseur_cm REAL,
+    module_MPa REAL,
+    plateforme TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS ref_alize_criteres (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id_etude INTEGER,
+    document TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    critere TEXT NOT NULL DEFAULT '',
+    materiau TEXT NOT NULL DEFAULT '',
+    admissible_microdef REAL,
+    calcule_microdef REAL,
+    marge_microdef REAL,
+    consommation_pct REAL,
+    sigma_MPa REAL,
+    statut TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS ref_gel_degel (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    projet TEXT NOT NULL DEFAULT '',
+    structure TEXT NOT NULL DEFAULT '',
+    station TEXT NOT NULL DEFAULT '',
+    hiver TEXT NOT NULL DEFAULT '',
+    Ir_Cj REAL,
+    Ia_Cj REAL,
+    marge_Cj REAL,
+    Qng REAL,
+    Qg REAL,
+    Qm REAL,
+    Qpf REAL,
+    temps_jours REAL,
+    Zgel_m REAL,
+    conclusion TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT '',
+    reference_only INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS ref_materiaux_labo (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    famille TEXT NOT NULL DEFAULT '',
+    produit_ou_reference TEXT NOT NULL DEFAULT '',
+    norme_source TEXT NOT NULL DEFAULT '',
+    formule TEXT NOT NULL DEFAULT '',
+    bitume TEXT NOT NULL DEFAULT '',
+    granulats TEXT NOT NULL DEFAULT '',
+    TL_pct REAL,
+    TLmin_corrigee_pct REAL,
+    MVRg REAL,
+    K REAL,
+    module_E_MPa REAL,
+    eps6_microdef REAL,
+    vides_fatigue_pct REAL,
+    ITSR_pct REAL,
+    Duriez_iC_pct REAL,
+    orniere_30000_pct REAL,
+    vides_orniere_pct REAL,
+    PCG_80_girations_vides_pct REAL,
+    commentaire TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS ref_talren_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    famille TEXT NOT NULL DEFAULT '',
+    coupe TEXT NOT NULL DEFAULT '',
+    type_ouvrage TEXT NOT NULL DEFAULT '',
+    hauteur_m REAL,
+    largeur_m REAL,
+    rapport_BH REAL,
+    alt_sommet REAL,
+    alt_pied REAL,
+    niveau_terrassement TEXT NOT NULL DEFAULT '',
+    Fmin_default REAL,
+    Fmin_seisme REAL,
+    Fmin_crue REAL,
+    Fmin_decrue REAL,
+    cas_critique TEXT NOT NULL DEFAULT '',
+    drainage_ou_particularite TEXT NOT NULL DEFAULT '',
+    reference_only INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS ref_documents_index (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document TEXT NOT NULL DEFAULT '',
+    source_ref TEXT NOT NULL DEFAULT '',
+    famille TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS ref_doublons_controle (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    groupe TEXT NOT NULL DEFAULT '',
+    document_A TEXT NOT NULL DEFAULT '',
+    document_B TEXT NOT NULL DEFAULT '',
+    traitement TEXT NOT NULL DEFAULT ''
+);
+"""
+
 DEFAULT_LABS = [
     ("SP", "Saint-Priest", "ARS", "RA"),
     ("PDC", "Pont-du-Château", "ARS", "AUV"),
@@ -1672,6 +1964,7 @@ def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
         conn.executescript(FEUILLE_MISSION_DDL)
         conn.executescript(QUALITE_DDL)
         conn.executescript(G3_DDL)
+        conn.executescript(CALCULS_DDL)
         conn.executescript(AFFAIRE_CONTACTS_DDL)
         _ensure_column(conn, "g3_documents", "uploaded_at", "TEXT")
         conn.executescript(AFFAIRE_CONTACT_DISMISSALS_DDL)

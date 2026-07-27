@@ -6,6 +6,7 @@ import {
     BookOpen,
     Briefcase,
     Building2,
+    Calculator,
     Calendar,
     CheckCircle2,
     ChevronDown,
@@ -229,6 +230,13 @@ export default function AppLayout() {
                 { to: '/g3', icon: MapPin, label: 'Hub G3', end: true },
                 { to: '/g3/missions', icon: FolderKanban, label: 'Missions EXE' },
                 { to: '/g3/notes-techniques', icon: FileText, label: 'Notes techniques' },
+            ],
+        },
+        {
+            section: 'Calculs',
+            items: [
+                { to: '/calculs', icon: Calculator, label: 'Hub Calculs', end: true },
+                { to: '/calculs?type=alize', icon: Calculator, label: 'Alizé' },
             ],
         },
         {

@@ -62,6 +62,8 @@ const ModeleSCPage = lazy(() => import('@/pages/modeles/ModeleSCPage'))
 const ModeleEssaiBasePage = lazy(() => import('@/pages/modeles/ModeleEssaiBasePage'))
 const NoteTechniquePage = lazy(() => import('@/pages/NoteTechniquePage'))
 const FicheCalculPage = lazy(() => import('@/pages/FicheCalculPage'))
+const CalculsPage = lazy(() => import('@/pages/CalculsPage'))
+const CalculAlizePage = lazy(() => import('@/pages/CalculAlizePage'))
 const ModeleVisiteChantierPage = lazy(() => import('@/pages/modeles/ModeleVisiteChantierPage'))
 const G3Page = lazy(() => import('@/pages/G3Page'))
 const G3MissionListPage = lazy(() => import('@/pages/g3/G3MissionListPage'))
@@ -190,6 +192,8 @@ export default function App() {
                 <Route path="g3/missions" element={<P><G3MissionListPage /></P>} />
                 <Route path="g3/missions/:uid" element={<P><G3MissionPage /></P>} />
                 <Route path="g3/fiche-calcul" element={<P><FicheCalculPage /></P>} />
+                <Route path="calculs" element={<P><CalculsPage /></P>} />
+                <Route path="calculs/alize/:id" element={<P><CalculAlizePage /></P>} />
                 <Route path="g3/notes-techniques" element={<P><NotesTechniquesPage /></P>} />
                 <Route path="g3/notes-techniques/nouveau" element={<P><NoteTechniquePage /></P>} />
                 <Route path="g3/notes-techniques/:uid" element={<P><NoteTechniquePage /></P>} />
