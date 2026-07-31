@@ -1174,6 +1174,9 @@ CREATE TABLE IF NOT EXISTS alize_layers (
     module REAL,
     poisson REAL,
     temperature_calcul REAL,
+    frequence REAL,
+    bibliotheque TEXT NOT NULL DEFAULT 'NF P98-086 2019',
+    assise INTEGER NOT NULL DEFAULT 0,
     interface_sup TEXT NOT NULL DEFAULT '',
     interface_inf TEXT NOT NULL DEFAULT '',
     lie INTEGER NOT NULL DEFAULT 0,
@@ -2193,6 +2196,10 @@ def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
         _ensure_column(conn, "pmt_essais", "visa_texte", "TEXT NOT NULL DEFAULT ''")
         _ensure_column(conn, "pmt_essais", "donnees_entete_json", "TEXT NOT NULL DEFAULT '{}'")
         _ensure_column(conn, "pmt_essais", "donnees_synthese_json", "TEXT NOT NULL DEFAULT '{}'")
+
+        _ensure_column(conn, "alize_layers", "frequence", "REAL")
+        _ensure_column(conn, "alize_layers", "bibliotheque", "TEXT NOT NULL DEFAULT 'NF P98-086 2019'")
+        _ensure_column(conn, "alize_layers", "assise", "INTEGER NOT NULL DEFAULT 0")
 
         conn.execute("CREATE INDEX IF NOT EXISTS idx_echantillons_prelevement_id ON echantillons(prelevement_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_echantillons_intervention_id ON echantillons(intervention_id)")

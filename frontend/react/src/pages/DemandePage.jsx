@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, demandesApi, affairesApi, plansImplantationApi, nivellementsApi } from '@/services/api'
+import { api, demandesApi, affairesApi, plansImplantationApi, nivellementsApi, calculsApi, getApiErrorMessage } from '@/services/api'
 import PlanImagesConsultSection from '@/components/plans/PlanImagesConsultSection'
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { applyInterventionTypeToPath } from '@/components/interventions/InterventionTypeModal'
@@ -1073,6 +1073,8 @@ export default function DemandePage() {
     [catalog],
   )
   const [isEditing, setIsEditing] = useState(false)
+  const [creatingCalcul, setCreatingCalcul] = useState(false)
+  const [calculError, setCalculError] = useState('')
   const [editForm, setEditForm] = useState({})
   const [interventionCreateDraft, setInterventionCreateDraft] = useState(null)
   const [refEditOpen, setRefEditOpen] = useState(false)
@@ -1092,6 +1094,12 @@ export default function DemandePage() {
     queryKey: ['demande-nav', uid],
     queryFn: () => api.get(`/demandes_rst/${uid}/navigation`),
     enabled: !!uid,
+  })
+
+  const { data: linkedCalculs = [] } = useQuery({
+    queryKey: ['calculs', 'demande', uid],
+    queryFn: () => calculsApi.list({ demande_id: Number(uid) }),
+    enabled: Boolean(uid),
   })
 
   const { data: demandePlansImplantationFull = [] } = useQuery({
@@ -1540,6 +1548,25 @@ export default function DemandePage() {
     navigate(buildPathWithReturnTo(`/interventions?demande_id=${uid}`, detailReturnTo))
   }
 
+  async function createCalculAlize() {
+    if (!d) return
+    setCreatingCalcul(true)
+    setCalculError('')
+    try {
+      const created = await calculsApi.create({
+        type_calcul: 'alize',
+        nom_calcul: `Alizé · ${d.reference || uid}`,
+        demande_id: Number(d.uid ?? uid),
+        affaire_rst_id: d.affaire_rst_id != null ? Number(d.affaire_rst_id) : undefined,
+        ouvrage: d.chantier || d.site || '',
+      })
+      navigate(buildPathWithReturnTo(`/calculs/alize/${created.id}`, detailReturnTo))
+    } catch (err) {
+      setCalculError(getApiErrorMessage(err, 'Création du calcul impossible'))
+      setCreatingCalcul(false)
+    }
+  }
+
   return (
     <FichePageShell>
       <FicheTopbar
@@ -1564,6 +1591,18 @@ export default function DemandePage() {
               <Button size="sm" onClick={openPreparationPage}>Préparation</Button>
               <Button size="sm" onClick={openCampaignPage}>Campagnes</Button>
               <Button size="sm" onClick={openInterventionPage}>Interventions</Button>
+              <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
+                {creatingCalcul ? 'Calcul…' : '+ Calcul Alizé'}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => navigate(buildPathWithReturnTo(
+                  `/calculs?demande_id=${d.uid ?? uid}${d.affaire_rst_id ? `&affaire_rst_id=${d.affaire_rst_id}` : ''}`,
+                  detailReturnTo,
+                ))}
+              >
+                Voir calculs
+              </Button>
               <CopyCopilotPromptButton
                 affaireRef={d.affaire_ref}
                 demandeRef={d.reference}
@@ -1573,6 +1612,30 @@ export default function DemandePage() {
       </FicheTopbar>
 
       <FicheMain>
+        {calculError ? (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{calculError}</div>
+        ) : null}
+
+        {Array.isArray(linkedCalculs) && linkedCalculs.length > 0 ? (
+          <SectionCard
+            title="Calculs de dimensionnement"
+            actions={<Button size="sm" onClick={createCalculAlize} disabled={creatingCalcul}>+ Alizé</Button>}
+          >
+            <div className="space-y-1">
+              {linkedCalculs.map((calc) => (
+                <button
+                  key={calc.id}
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-lg border border-[#eef1f6] px-3 py-2 text-left text-[13px] hover:bg-[#f8fafc]"
+                  onClick={() => navigate(buildPathWithReturnTo(`/calculs/alize/${calc.id}`, detailReturnTo))}
+                >
+                  <span className="font-semibold text-[#003170]">{calc.reference}</span>
+                  <span className="text-text-muted">{calc.nom_calcul} · {calc.statut}</span>
+                </button>
+              ))}
+            </div>
+          </SectionCard>
+        ) : null}
 
         {/* ── Hero ── */}
         <section

@@ -5,7 +5,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, affairesApi } from '@/services/api'
+import { api, affairesApi, calculsApi, getApiErrorMessage } from '@/services/api'
 import { formatDate } from '@/lib/utils'
 import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 import { buildDistanceToLabCaption } from '@/lib/labGeo'
@@ -132,6 +132,8 @@ export default function AffairePage() {
   )
   const detailReturnTo = `/affaires/${uid}`
   const [isEditing, setIsEditing] = useState(false)
+  const [creatingCalcul, setCreatingCalcul] = useState(false)
+  const [calculError, setCalculError] = useState('')
   const [editForm, setEditForm] = useState({})
   const [refEditOpen, setRefEditOpen] = useState(false)
   const [refEditVal, setRefEditVal] = useState('')
@@ -150,6 +152,12 @@ export default function AffairePage() {
     queryKey: ['affaire-demandes', uid],
     queryFn:  () => affairesApi.demandes(uid),
     enabled:  !!uid,
+  })
+
+  const { data: linkedCalculs = [] } = useQuery({
+    queryKey: ['calculs', 'affaire', uid],
+    queryFn: () => calculsApi.list({ affaire_rst_id: Number(uid) }),
+    enabled: Boolean(uid),
   })
 
   const { data: allAffaires = [] } = useQuery({
@@ -358,6 +366,24 @@ export default function AffairePage() {
 
   const dossierNomHero = String(affaire?.dossier_nom || '').trim() || affaire?.reference || ''
 
+  async function createCalculAlize() {
+    if (!affaire) return
+    setCreatingCalcul(true)
+    setCalculError('')
+    try {
+      const created = await calculsApi.create({
+        type_calcul: 'alize',
+        nom_calcul: `Alizé · ${affaire.reference || uid}`,
+        affaire_rst_id: Number(uid),
+        ouvrage: affaire.chantier || affaire.site || '',
+      })
+      navigate(buildPathWithReturnTo(`/calculs/alize/${created.id}`, detailReturnTo))
+    } catch (err) {
+      setCalculError(getApiErrorMessage(err, 'Création du calcul impossible'))
+      setCreatingCalcul(false)
+    }
+  }
+
   if (isLoading) return <div className="text-xs text-text-muted text-center py-12">Chargement…</div>
   if (isError || !affaire) return (
     <div className="text-xs text-text-muted text-center py-12">
@@ -393,6 +419,10 @@ export default function AffairePage() {
               <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Demandes</Button>
               <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Passations</Button>
               <Button size="sm" onClick={() => navigate(`/contacts?affaire_id=${uid}`)}>Contacts</Button>
+              <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
+                {creatingCalcul ? 'Calcul…' : '+ Calcul Alizé'}
+              </Button>
+              <Button size="sm" onClick={() => navigate(`/calculs?affaire_rst_id=${uid}`)}>Voir calculs</Button>
               <button
                 onClick={() => navigate(`/demandes?affaire_id=${uid}&create=1`)}
                 className="rounded-[11px] border border-[#e7b800] bg-[#ffcc00] text-[#003170] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-105 transition"
@@ -655,6 +685,41 @@ export default function AffairePage() {
         )}
 
         {/* ── Demandes ── */}
+        {calculError ? (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{calculError}</div>
+        ) : null}
+
+        <SectionCard
+          title="Calculs de dimensionnement"
+          subtitle="Alizé / Gel-Dégel / Talren liés à cette affaire"
+          actions={(
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
+                {creatingCalcul ? '…' : '+ Alizé'}
+              </Button>
+              <Button size="sm" onClick={() => navigate(`/calculs?affaire_rst_id=${uid}`)}>Voir tous</Button>
+            </div>
+          )}
+        >
+          {!Array.isArray(linkedCalculs) || linkedCalculs.length === 0 ? (
+            <div className="text-xs text-[#69758a] text-center py-6">Aucun calcul lié à cette affaire</div>
+          ) : (
+            <div className="space-y-1">
+              {linkedCalculs.map((calc) => (
+                <button
+                  key={calc.id}
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-lg border border-[#eef1f6] px-3 py-2 text-left text-[13px] hover:bg-[#f8fafc]"
+                  onClick={() => navigate(buildPathWithReturnTo(`/calculs/alize/${calc.id}`, detailReturnTo))}
+                >
+                  <span className="font-semibold text-[#003170]">{calc.reference}</span>
+                  <span className="text-[#69758a]">{calc.nom_calcul} · {calc.statut}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
         <SectionCard
           title="Demandes associées"
           subtitle="Liste des demandes rattachées à cette affaire"

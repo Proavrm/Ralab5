@@ -34,6 +34,7 @@ def list_calculations(
     type_calcul: Optional[str] = None,
     affaire_rst_id: Optional[int] = None,
     demande_id: Optional[int] = None,
+    mission_id: Optional[int] = None,
     statut: Optional[str] = None,
     search: Optional[str] = None,
 ):
@@ -41,6 +42,7 @@ def list_calculations(
         type_calcul=type_calcul,
         affaire_rst_id=affaire_rst_id,
         demande_id=demande_id,
+        mission_id=mission_id,
         statut=statut,
         search=search,
     )
@@ -86,6 +88,42 @@ def update_alize(calculation_id: int, body: AlizePayloadUpdateSchema):
     return row
 
 
+@router.post("/calculations/{calculation_id}/alize/run-reglementaire")
+def run_alize_reglementaire(calculation_id: int):
+    """Etape 1 : NE + valeurs admissibles εt/εz (NF P98-086)."""
+    try:
+        row = _repo.run_reglementaire(calculation_id, user_name=_user())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not row:
+        raise HTTPException(404, f"Calcul Alizé #{calculation_id} introuvable")
+    return row
+
+
+@router.post("/calculations/{calculation_id}/alize/run-mecanique")
+def run_alize_mecanique(calculation_id: int):
+    """Etape 2 : sollicitations mécaniques εt/εz (multicouche)."""
+    try:
+        row = _repo.run_mecanique(calculation_id, user_name=_user())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not row:
+        raise HTTPException(404, f"Calcul Alizé #{calculation_id} introuvable")
+    return row
+
+
+@router.post("/calculations/{calculation_id}/alize/run-complet")
+def run_alize_complet(calculation_id: int):
+    """Etape 1 + 2 : VA réglementaires puis sollicitations mécaniques."""
+    try:
+        row = _repo.run_complet(calculation_id, user_name=_user())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not row:
+        raise HTTPException(404, f"Calcul Alizé #{calculation_id} introuvable")
+    return row
+
+
 @router.post("/calculations/{calculation_id}/apply-reference")
 def apply_reference(calculation_id: int, body: AlizeFromReferenceSchema):
     row = _repo.apply_reference(
@@ -105,6 +143,11 @@ def get_fiche(calculation_id: int):
     if not html:
         raise HTTPException(404, f"Calcul #{calculation_id} introuvable")
     return HTMLResponse(html)
+
+
+@router.get("/catalogs/alize")
+def get_alize_catalogs():
+    return _repo.alize_catalogs()
 
 
 @router.get("/references/alize")

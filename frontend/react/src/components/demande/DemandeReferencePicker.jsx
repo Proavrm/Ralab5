@@ -12,6 +12,7 @@ function normalizeDemande(row) {
     reference: String(row.reference || '').trim(),
     chantier: row.chantier || '',
     affaire_ref: row.affaire_ref || row.affaire_reference || '',
+    affaire_rst_id: row.affaire_rst_id ?? null,
     client: row.client || '',
   }
 }

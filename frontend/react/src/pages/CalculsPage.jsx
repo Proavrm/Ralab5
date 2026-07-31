@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
+import DemandeReferencePicker from '@/components/demande/DemandeReferencePicker'
 import { calculsApi, getApiErrorMessage } from '@/services/api'
 
 const TYPE_LABELS = {
@@ -30,10 +31,19 @@ function SummaryCard({ title, value, hint, onClick, muted }) {
   )
 }
 
+function parseOptionalInt(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
 export default function CalculsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const typeFilter = searchParams.get('type') || ''
+  const contextAffaireId = parseOptionalInt(searchParams.get('affaire_rst_id') || searchParams.get('affaire_id'))
+  const contextDemandeId = parseOptionalInt(searchParams.get('demande_id'))
+  const contextMissionId = parseOptionalInt(searchParams.get('mission_id'))
   const [summary, setSummary] = useState(null)
   const [items, setItems] = useState([])
   const [search, setSearch] = useState('')
@@ -42,25 +52,41 @@ export default function CalculsPage() {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [linkDemandeLabel, setLinkDemandeLabel] = useState('')
+  const [linkDemandeId, setLinkDemandeId] = useState(contextDemandeId)
+  const [linkAffaireId, setLinkAffaireId] = useState(contextAffaireId)
   const [refSearch, setRefSearch] = useState('')
   const [refs, setRefs] = useState([])
   const [imitatingId, setImitatingId] = useState(null)
+
+  useEffect(() => {
+    setLinkDemandeId(contextDemandeId)
+    setLinkAffaireId(contextAffaireId)
+  }, [contextDemandeId, contextAffaireId])
 
   const query = useMemo(
     () => ({
       type_calcul: typeFilter || undefined,
       statut: statut || undefined,
       search: search.trim() || undefined,
+      affaire_rst_id: contextAffaireId || undefined,
+      demande_id: contextDemandeId || undefined,
     }),
-    [typeFilter, statut, search],
+    [typeFilter, statut, search, contextAffaireId, contextDemandeId],
   )
+
+  const contextLabel = [
+    contextMissionId ? `G3 #${contextMissionId}` : null,
+    contextDemandeId ? `Demande #${contextDemandeId}` : null,
+    contextAffaireId ? `Affaire #${contextAffaireId}` : null,
+  ].filter(Boolean).join(' · ')
 
   async function load() {
     setLoading(true)
     setError('')
     try {
       const [sum, list] = await Promise.all([
-        calculsApi.summary(),
+        calculsApi.summary(contextAffaireId ? { affaire_rst_id: contextAffaireId } : {}),
         calculsApi.list(query),
       ])
       setSummary(sum)
@@ -74,20 +100,27 @@ export default function CalculsPage() {
 
   useEffect(() => {
     load()
-  }, [query.type_calcul, query.statut, query.search])
+  }, [query.type_calcul, query.statut, query.search, query.affaire_rst_id, query.demande_id])
 
   useEffect(() => {
     searchRefs()
   }, [])
 
+  function buildLinkPayload(extraName) {
+    return {
+      type_calcul: 'alize',
+      nom_calcul: extraName || newName.trim() || 'Nouveau calcul Alizé',
+      affaire_rst_id: linkAffaireId || contextAffaireId || undefined,
+      demande_id: linkDemandeId || contextDemandeId || undefined,
+      mission_id: contextMissionId || undefined,
+    }
+  }
+
   async function createAlize() {
     setCreating(true)
     setError('')
     try {
-      const created = await calculsApi.create({
-        type_calcul: 'alize',
-        nom_calcul: newName.trim() || 'Nouveau calcul Alizé',
-      })
+      const created = await calculsApi.create(buildLinkPayload())
       navigate(`/calculs/alize/${created.id}`)
     } catch (err) {
       setError(getApiErrorMessage(err, 'Création impossible'))
@@ -110,7 +143,12 @@ export default function CalculsPage() {
     try {
       const created = await calculsApi.createFromReference(ref.id, {
         nom_calcul: newName.trim() || undefined,
+        affaire_rst_id: linkAffaireId || contextAffaireId || undefined,
+        demande_id: linkDemandeId || contextDemandeId || undefined,
       })
+      if (contextMissionId) {
+        await calculsApi.update(created.id, { mission_id: contextMissionId })
+      }
       navigate(`/calculs/alize/${created.id}`)
     } catch (err) {
       setError(getApiErrorMessage(err, 'Imitation impossible'))
@@ -140,13 +178,23 @@ export default function CalculsPage() {
         onBack={() => navigate('/dashboard')}
         eyebrow="Calculs"
         title="Dimensionnement"
-        subtitle="Alizé · Gel-Dégel · Talren — module indépendant"
+        subtitle={contextLabel || 'Alizé · Gel-Dégel · Talren — module indépendant'}
       />
 
       <FicheMain>
         {error ? (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">
             {error}
+          </div>
+        ) : null}
+
+        {contextLabel ? (
+          <div className="mb-4 rounded-lg border border-[#dbe1ea] bg-[#f8fafc] px-3 py-2 text-[13px] text-text-muted">
+            Contexte actif : <strong className="text-text">{contextLabel}</strong>
+            {' · '}
+            <button type="button" className="text-[#003170] underline" onClick={() => setSearchParams({})}>
+              Effacer le filtre
+            </button>
           </div>
         ) : null}
 
@@ -179,7 +227,7 @@ export default function CalculsPage() {
           <div>
           <SectionCard title="Nouveau calcul Alizé">
             <p className="mb-3 text-[13px] text-text-muted">
-              Crée une fiche Alizé (brouillon) avec trafic, plateforme, structure et critères.
+              Crée une fiche Alizé (brouillon), éventuellement liée à une demande / affaire / G3.
             </p>
             <Input
               className="mb-2"
@@ -187,6 +235,18 @@ export default function CalculsPage() {
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
+            <div className="mb-2">
+              <DemandeReferencePicker
+                value={linkDemandeLabel}
+                onChange={setLinkDemandeLabel}
+                onSelect={(row) => {
+                  setLinkDemandeLabel(row.reference)
+                  setLinkDemandeId(Number(row.uid) || null)
+                  setLinkAffaireId(row.affaire_rst_id != null ? Number(row.affaire_rst_id) : linkAffaireId)
+                }}
+                placeholder="Lier à une demande…"
+              />
+            </div>
             <Button size="sm" variant="primary" disabled={creating} onClick={createAlize}>
               {creating ? 'Création…' : 'Créer un Alizé'}
             </Button>

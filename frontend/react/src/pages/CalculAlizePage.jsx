@@ -3,12 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Input, { Select, Textarea } from '@/components/ui/Input'
 import { FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
+import DemandeReferencePicker from '@/components/demande/DemandeReferencePicker'
 import {
   AlizeCriteriaChart,
   AlizeLayersChart,
   AlizeResultsCompareChart,
   AlizeStructureStack,
 } from '@/components/calcul/AlizeCharts'
+import AlizeStructureEditor from '@/components/calcul/AlizeStructureEditor'
 import { calculsApi, getApiErrorMessage } from '@/services/api'
 
 /** Onglets alignés Alizé2 routier (doc utilisateur 2.2.2). */
@@ -48,7 +50,7 @@ function emptyLayer(ordre = 1) {
     ordre,
     fonction: '',
     materiau: '',
-    famille: '',
+    famille: 'bitumineux',
     classe: '',
     formulation: '',
     epaisseur: null,
@@ -56,6 +58,9 @@ function emptyLayer(ordre = 1) {
     module: null,
     poisson: 0.35,
     temperature_calcul: 15,
+    frequence: 10,
+    bibliotheque: 'NF P98-086 2019',
+    assise: ordre > 1,
     interface_sup: '',
     interface_inf: 'collé',
     lie: false,
@@ -143,7 +148,11 @@ export default function CalculAlizePage() {
     calculateur: '',
     verificateur: '',
     validateur: '',
+    affaire_rst_id: null,
+    demande_id: null,
+    mission_id: null,
   })
+  const [demandePicker, setDemandePicker] = useState('')
   const [traffic, setTraffic] = useState({})
   const [platform, setPlatform] = useState({})
   const [params, setParams] = useState({})
@@ -153,6 +162,9 @@ export default function CalculAlizePage() {
   const [refSearch, setRefSearch] = useState('')
   const [refs, setRefs] = useState([])
   const [applyingRef, setApplyingRef] = useState(false)
+  const [catalogs, setCatalogs] = useState(null)
+  const [runningReglementaire, setRunningReglementaire] = useState(false)
+  const [runningCalcul, setRunningCalcul] = useState(false)
 
   function hydrateFromDetail(row) {
     setDetail(row)
@@ -165,7 +177,11 @@ export default function CalculAlizePage() {
       calculateur: row.calculateur || '',
       verificateur: row.verificateur || '',
       validateur: row.validateur || '',
+      affaire_rst_id: row.affaire_rst_id ?? null,
+      demande_id: row.demande_id ?? null,
+      mission_id: row.mission_id ?? null,
     })
+    setDemandePicker(row.demande_ref || '')
     const alize = row.alize || {}
     setTraffic(alize.traffic || {})
     setPlatform(alize.platform || {})
@@ -193,9 +209,76 @@ export default function CalculAlizePage() {
     load()
   }, [calcId])
 
+  useEffect(() => {
+    calculsApi.catalogs()
+      .then((data) => setCatalogs(data || null))
+      .catch(() => setCatalogs(null))
+  }, [])
+
   const readiness = detail?.readiness || {}
   const imitationNote = detail?.general?.note || traffic?.commentaire || ''
   const trafficEstimate = useMemo(() => estimateTrafficStats(traffic), [traffic])
+  const materials = catalogs?.materials || []
+  const plateformes = catalogs?.plateformes || []
+  const structureTemplates = catalogs?.structure_templates || []
+  const camPresets = catalogs?.cam_presets || []
+  const risquePresets = catalogs?.risque_presets || []
+  const criterionPresets = catalogs?.criterion_presets || []
+
+  function applyStructureTemplate(label) {
+    const tpl = structureTemplates.find((t) => t.label === label)
+    if (!tpl) return
+    if (!window.confirm(`Charger la structure type « ${label} » ? Cela remplace les couches actuelles.`)) return
+    const nextLayers = (tpl.layers || []).map((layer, index) => ({
+      ...emptyLayer(index + 1),
+      ...layer,
+      ordre: layer.ordre || index + 1,
+      from_library: true,
+      justification: `Structure type Excel · ${label}`,
+    }))
+    setLayers(nextLayers.length ? nextLayers : [emptyLayer(1)])
+    if (tpl.plateforme) {
+      const pf = plateformes.find((p) => p.classe === tpl.plateforme)
+      setPlatform({
+        ...platform,
+        classe: tpl.plateforme,
+        module_pf: pf?.module != null ? Math.round(Number(pf.module)) : platform.module_pf,
+        source: 'Structure type Excel',
+      })
+    }
+    if (tpl.traffic_hint?.cam != null) {
+      setTraffic((prev) => ({ ...prev, cam: tpl.traffic_hint.cam }))
+    }
+    if (tpl.traffic_hint?.risque != null) {
+      setTraffic((prev) => ({ ...prev, risque: tpl.traffic_hint.risque }))
+    }
+    setInfo(`Structure type « ${label} » chargée`)
+    setTab('structure')
+  }
+
+  function applyPlateformeClasse(classe) {
+    const pf = plateformes.find((p) => p.classe === classe)
+    setPlatform({
+      ...platform,
+      classe,
+      module_pf: pf?.module != null ? Math.round(Number(pf.module)) : platform.module_pf,
+      poisson: platform.poisson || catalogs?.defaults?.poisson || 0.35,
+      source: platform.source || 'Catalogue PF',
+    })
+  }
+
+  function addCriterionPreset(preset) {
+    setCriteria([
+      ...criteria,
+      {
+        ...emptyCriterion(),
+        critere: preset.critere,
+        unite: preset.unite || 'µdéf',
+        sens_verification: preset.sens_verification || 'inferieur_ou_egal',
+        commentaire: `Préréglage ${preset.label || preset.critere}`,
+      },
+    ])
+  }
 
   async function searchRefs() {
     try {
@@ -230,7 +313,19 @@ export default function CalculAlizePage() {
     setError('')
     setInfo('')
     try {
-      await calculsApi.update(calcId, meta)
+      await calculsApi.update(calcId, {
+        nom_calcul: meta.nom_calcul,
+        statut: meta.statut,
+        ouvrage: meta.ouvrage,
+        zone_label: meta.zone_label,
+        auteur: meta.auteur,
+        calculateur: meta.calculateur,
+        verificateur: meta.verificateur,
+        validateur: meta.validateur,
+        affaire_rst_id: meta.affaire_rst_id,
+        demande_id: meta.demande_id,
+        mission_id: meta.mission_id,
+      })
       const row = await calculsApi.updateAlize(calcId, {
         traffic,
         platform,
@@ -281,6 +376,105 @@ export default function CalculAlizePage() {
     }
   }
 
+  async function persistDraft() {
+    await calculsApi.update(calcId, {
+      nom_calcul: meta.nom_calcul,
+      statut: meta.statut,
+      ouvrage: meta.ouvrage,
+      zone_label: meta.zone_label,
+      auteur: meta.auteur,
+      calculateur: meta.calculateur,
+      verificateur: meta.verificateur,
+      validateur: meta.validateur,
+      affaire_rst_id: meta.affaire_rst_id,
+      demande_id: meta.demande_id,
+      mission_id: meta.mission_id,
+    })
+    await calculsApi.updateAlize(calcId, {
+      traffic,
+      platform,
+      params,
+      results,
+      layers: layers.map((layer, index) => ({
+        ...layer,
+        ordre: layer.ordre || index + 1,
+        epaisseur: numOrNull(layer.epaisseur),
+        module: numOrNull(layer.module),
+        poisson: numOrNull(layer.poisson),
+        temperature_calcul: numOrNull(layer.temperature_calcul),
+      })),
+      criteria: criteria.map((c) => ({
+        ...c,
+        valeur_admissible: numOrNull(c.valeur_admissible),
+        valeur_calculee: numOrNull(c.valeur_calculee),
+        marge: numOrNull(c.marge),
+        consommation: numOrNull(c.consommation),
+      })),
+    })
+  }
+
+  async function runReglementaire() {
+    setRunningReglementaire(true)
+    setError('')
+    setInfo('')
+    try {
+      await persistDraft()
+      const row = await calculsApi.runReglementaire(calcId)
+      hydrateFromDetail(row)
+      const report = row?.alize?.results?.reglementaire_report || {}
+      const neLabel = report.ne ?? row?.alize?.results?.ne ?? '—'
+      setInfo(`Etape 1 terminée — NE = ${neLabel} · VA εt/εz recalculées`)
+      setTab('criteres')
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Calcul réglementaire impossible'))
+    } finally {
+      setRunningReglementaire(false)
+    }
+  }
+
+  async function runMecanique() {
+    setRunningCalcul(true)
+    setError('')
+    setInfo('')
+    try {
+      await persistDraft()
+      const row = await calculsApi.runMecanique(calcId)
+      hydrateFromDetail(row)
+      const epsT = row?.alize?.results?.epsT_calc
+      const epsZ = row?.alize?.results?.epsZ_calc
+      setInfo(`Etape 2 terminée — εt = ${epsT ?? '—'} µdéf · εz = ${epsZ ?? '—'} µdéf`)
+      setTab('resultats')
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Calcul mécanique impossible'))
+    } finally {
+      setRunningCalcul(false)
+    }
+  }
+
+  async function runComplet() {
+    setRunningCalcul(true)
+    setError('')
+    setInfo('')
+    try {
+      await persistDraft()
+      const row = await calculsApi.runComplet(calcId)
+      hydrateFromDetail(row)
+      const res = row?.alize?.results || {}
+      setInfo(
+        `Calcul complet — NE = ${res.ne ?? '—'} · εt ${res.epsT_calc ?? '—'}/${res.epsT_adm ?? '—'} · `
+        + `εz ${res.epsZ_calc ?? '—'}/${res.epsZ_adm ?? '—'} µdéf`
+        + (res.conclusion ? ` · ${res.conclusion}` : ''),
+      )
+      setTab('resultats')
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Calcul complet impossible'))
+    } finally {
+      setRunningCalcul(false)
+    }
+  }
+
+  const busy = saving || runningReglementaire || runningCalcul
+
   const title = useMemo(
     () => detail?.reference || `Calcul #${calcId}`,
     [detail, calcId],
@@ -308,7 +502,10 @@ export default function CalculAlizePage() {
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={duplicate}>Dupliquer</Button>
           <Button size="sm" onClick={openFiche}>Fiche HTML</Button>
-          <Button size="sm" variant="primary" disabled={saving} onClick={saveAll}>
+          <Button size="sm" variant="primary" disabled={busy} onClick={runComplet}>
+            {runningCalcul ? 'Calcul…' : 'Lancer calcul complet'}
+          </Button>
+          <Button size="sm" disabled={busy} onClick={saveAll}>
             {saving ? 'Enregistrement…' : 'Enregistrer'}
           </Button>
         </div>
@@ -382,6 +579,48 @@ export default function CalculAlizePage() {
               <div>Demande : <strong className="text-text">{detail?.demande_ref || '—'}</strong></div>
               <div>Client : {detail?.client || '—'}</div>
               <div>Indice {detail?.indice} · v{detail?.version}</div>
+              {meta.mission_id ? <div>Mission G3 id : {meta.mission_id}</div> : null}
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Field label="Lier à une demande RST">
+                <DemandeReferencePicker
+                  value={demandePicker}
+                  onChange={setDemandePicker}
+                  onSelect={(row) => {
+                    setDemandePicker(row.reference)
+                    setMeta({
+                      ...meta,
+                      demande_id: Number(row.uid) || null,
+                      affaire_rst_id: row.affaire_rst_id != null ? Number(row.affaire_rst_id) : meta.affaire_rst_id,
+                      ouvrage: meta.ouvrage || row.chantier || '',
+                    })
+                  }}
+                  placeholder="Référence demande…"
+                />
+              </Field>
+              <div className="flex flex-wrap items-end gap-2">
+                {meta.affaire_rst_id ? (
+                  <Button size="sm" onClick={() => navigate(`/affaires/${meta.affaire_rst_id}`)}>Ouvrir affaire</Button>
+                ) : null}
+                {meta.demande_id ? (
+                  <Button size="sm" onClick={() => navigate(`/demandes/${meta.demande_id}`)}>Ouvrir demande</Button>
+                ) : null}
+                {meta.mission_id ? (
+                  <Button size="sm" onClick={() => navigate(`/g3/missions/${meta.mission_id}`)}>Ouvrir G3</Button>
+                ) : null}
+                {(meta.demande_id || meta.affaire_rst_id || meta.mission_id) ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setMeta({ ...meta, demande_id: null, affaire_rst_id: null, mission_id: null })
+                      setDemandePicker('')
+                    }}
+                  >
+                    Délier
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </SectionCard>
 
@@ -473,6 +712,16 @@ export default function CalculAlizePage() {
                 />
               </Field>
             </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="text-[11px] font-semibold uppercase text-text-muted self-center">CAM :</span>
+              {camPresets.map((v) => (
+                <Button key={`cam-${v}`} size="sm" onClick={() => setTraffic({ ...traffic, cam: v })}>{v}</Button>
+              ))}
+              <span className="ml-2 text-[11px] font-semibold uppercase text-text-muted self-center">Risque % :</span>
+              {risquePresets.map((v) => (
+                <Button key={`risque-${v}`} size="sm" onClick={() => setTraffic({ ...traffic, risque: v })}>{v}</Button>
+              ))}
+            </div>
             <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[#e5e9f0] bg-[#f8fafc] px-4 py-3 text-[13px]">
               <div>PL cumulés estimés : <strong>{trafficEstimate.npl ?? '—'}</strong></div>
               <div>NE estimé (PL×CAM) : <strong>{trafficEstimate.ne ?? '—'}</strong></div>
@@ -494,8 +743,8 @@ export default function CalculAlizePage() {
         {tab === 'charge' ? (
           <SectionCard title="Charge de référence (Alizé2)">
             <p className="mb-3 text-[13px] text-text-muted">
-              Par défaut : jumelage standard français. Les autres options sont saisies pour traçabilité
-              (calcul mécanique réel hors RaLab Phase 1).
+              Par défaut : jumelage standard français (0,662 MPa · entraxe 0,375 m).
+              Utilisé par le moteur mécanique RaLab (Etape 2).
             </p>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               <Field label="Type de charge">
@@ -530,8 +779,22 @@ export default function CalculAlizePage() {
         {tab === 'plateforme' ? (
           <SectionCard title="Plateforme">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <Field label="Classe PF (catalogue)">
+                <Select
+                  className="w-full"
+                  value={platform.classe || ''}
+                  onChange={(e) => applyPlateformeClasse(e.target.value)}
+                >
+                  <option value="">Choisir…</option>
+                  {plateformes.map((pf) => (
+                    <option key={pf.classe} value={pf.classe}>
+                      {pf.classe}{pf.module != null ? ` · ${Math.round(Number(pf.module))} MPa` : ''}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               {[
-                ['classe', 'Classe PF'],
+                ['classe', 'Classe PF (libre)'],
                 ['module_pf', 'Module PF (MPa)'],
                 ['ev2', 'EV2'],
                 ['poisson', 'Poisson'],
@@ -578,93 +841,77 @@ export default function CalculAlizePage() {
         {tab === 'structure' ? (
           <div className="space-y-4">
             <SectionCard
-              title="Structure (couches)"
+              title="Structure (schéma Alizé)"
               actions={(
-                <Button
-                  size="sm"
-                  onClick={() => setLayers([...layers, emptyLayer(layers.length + 1)])}
-                >
-                  + Couche
-                </Button>
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    size="sm"
+                    onClick={() => setLayers([...layers, emptyLayer(layers.length + 1)])}
+                  >
+                    + Couche
+                  </Button>
+                </div>
               )}
             >
-              <div className="space-y-3">
-                {layers.map((layer, index) => (
-                  <div key={layer.id || `l-${index}`} className="rounded-xl border border-[#e5e9f0] p-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="text-[12px] font-black uppercase tracking-wide text-[#003170]">
-                        Couche {layer.ordre || index + 1}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setLayers(layers.filter((_, i) => i !== index))}
-                        disabled={layers.length <= 1}
-                      >
-                        Retirer
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-6">
-                      {[
-                        ['fonction', 'Fonction'],
-                        ['materiau', 'Matériau'],
-                        ['famille', 'Famille'],
-                        ['classe', 'Classe'],
-                        ['epaisseur', 'Épaisseur (cm)'],
-                        ['module', 'Module E (MPa)'],
-                        ['poisson', 'Poisson'],
-                        ['temperature_calcul', 'T° calcul'],
-                        ['formulation', 'Formulation'],
-                      ].map(([key, label]) => (
-                        <Field key={key} label={label}>
-                          <Input
-                            value={layer[key] ?? ''}
-                            onChange={(e) => {
-                              const next = [...layers]
-                              next[index] = { ...layer, [key]: e.target.value }
-                              setLayers(next)
-                            }}
-                          />
-                        </Field>
-                      ))}
-                      <Field label="Interface inf.">
-                        <Select
-                          className="w-full"
-                          value={layer.interface_inf || 'collé'}
-                          onChange={(e) => {
-                            const next = [...layers]
-                            next[index] = { ...layer, interface_inf: e.target.value }
-                            setLayers(next)
-                          }}
-                        >
-                          <option value="collé">Collé</option>
-                          <option value="semi-collé">Semi-collé</option>
-                          <option value="glissant">Glissant</option>
-                        </Select>
-                      </Field>
-                    </div>
-                  </div>
-                ))}
+              <p className="mb-3 text-[13px] text-text-muted">
+                Comme Alizé2 (§3.2.1) : cliquer une couche pour éditer · glisser le bord bas pour l’épaisseur ·
+                cliquer l’interface pour collé / semi-collé / glissant · bibliothèque + assise + T°/Hz.
+              </p>
+              <div className="mb-3">
+                <Select
+                  className="w-full max-w-xl"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) applyStructureTemplate(e.target.value)
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="">Charger une structure type (bibliothèque Excel)…</option>
+                  {structureTemplates.map((tpl) => (
+                    <option key={tpl.label} value={tpl.label}>
+                      {tpl.label}{tpl.usage_count ? ` · ×${tpl.usage_count}` : ''}
+                    </option>
+                  ))}
+                </Select>
               </div>
+              <AlizeStructureEditor
+                layers={layers}
+                platform={platform}
+                params={params}
+                catalogs={catalogs}
+                onChangeLayers={setLayers}
+                onChangePlatform={setPlatform}
+                onChangeParams={setParams}
+              />
             </SectionCard>
-
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <SectionCard title="Schéma structure">
-                <AlizeStructureStack layers={layers} platform={platform} />
-              </SectionCard>
-              <SectionCard title="Graphique couches">
-                <AlizeLayersChart layers={layers} />
-              </SectionCard>
-            </div>
+            <SectionCard title="Graphique couches">
+              <AlizeLayersChart layers={layers} />
+            </SectionCard>
           </div>
         ) : null}
 
         {tab === 'resultats' ? (
           <div className="space-y-4">
-            <SectionCard title="Résultats (saisie / imitation)">
+            <SectionCard title="Résultats">
               <p className="mb-3 text-[13px] text-text-muted">
-                Sorties Alizé (εt, εz, σ…) — manuelles ou issues d&apos;une référence Excel. Pas d&apos;exécution Alizé dans RaLab Phase 1.
+                Etape 1 : NE + VA εt/εz (NF P98-086). Etape 2 : sollicitations multicouche (jumelage FR).
+                Les références Excel restent disponibles pour calibration.
               </p>
+              {results.origin === 'ralab_complet_v1' || results.origin === 'ralab_mecanique_v1' || results.origin === 'ralab_reglementaire_v1' ? (
+                <div className="mb-3 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] text-sky-900">
+                  Moteur : {results.origin}
+                  {results.ne != null ? ` · NE = ${results.ne}` : ''}
+                  {results.epsT_calc != null ? ` · εt = ${results.epsT_calc}` : ''}
+                  {results.epsZ_calc != null ? ` · εz = ${results.epsZ_calc}` : ''} µdéf
+                </div>
+              ) : null}
+              <div className="mb-3 flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" disabled={busy} onClick={runComplet}>
+                  {runningCalcul ? 'Calcul…' : 'Calcul complet (1+2)'}
+                </Button>
+                <Button size="sm" disabled={busy} onClick={runMecanique}>Etape 2 seule</Button>
+                <Button size="sm" disabled={busy} onClick={runReglementaire}>Etape 1 seule (VA)</Button>
+              </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {[
                   ['epsT_adm', 'εt adm (µdéf)'],
@@ -702,9 +949,27 @@ export default function CalculAlizePage() {
             <SectionCard
               title="Valeurs admissibles / critères"
               actions={(
-                <Button size="sm" onClick={() => setCriteria([...criteria, emptyCriterion()])}>
-                  + Critère
-                </Button>
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={busy}
+                    onClick={runComplet}
+                  >
+                    {runningCalcul ? 'Calcul…' : 'Calcul complet'}
+                  </Button>
+                  <Button size="sm" disabled={busy} onClick={runReglementaire}>
+                    {runningReglementaire ? 'VA…' : 'VA seule'}
+                  </Button>
+                  {criterionPresets.map((preset) => (
+                    <Button key={preset.critere} size="sm" onClick={() => addCriterionPreset(preset)}>
+                      + {preset.label || preset.critere}
+                    </Button>
+                  ))}
+                  <Button size="sm" onClick={() => setCriteria([...criteria, emptyCriterion()])}>
+                    + Libre
+                  </Button>
+                </div>
               )}
             >
               {criteria.length === 0 ? (
@@ -777,7 +1042,7 @@ export default function CalculAlizePage() {
           <div className="space-y-4">
             <SectionCard title="Préparation au calcul">
               {readiness.ready ? (
-                <p className="text-[13px] text-emerald-700">Données minimales présentes — prêt pour calcul externe.</p>
+                <p className="text-[13px] text-emerald-700">Données minimales présentes — prêt pour calcul complet (VA + mécanique).</p>
               ) : (
                 <div>
                   <p className="mb-2 text-[13px] text-amber-800">Éléments manquants :</p>
@@ -786,6 +1051,13 @@ export default function CalculAlizePage() {
                   </ul>
                 </div>
               )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" variant="primary" disabled={busy} onClick={runComplet}>
+                  {runningCalcul ? 'Calcul…' : 'Lancer calcul complet'}
+                </Button>
+                <Button size="sm" disabled={busy} onClick={runReglementaire}>Etape 1 (VA)</Button>
+                <Button size="sm" disabled={busy} onClick={runMecanique}>Etape 2 (mécanique)</Button>
+              </div>
             </SectionCard>
             <SectionCard title="Rappel">
               <div className="grid grid-cols-1 gap-2 text-[13px] md:grid-cols-2">
@@ -798,13 +1070,21 @@ export default function CalculAlizePage() {
                 <div>Conclusion : {results.conclusion || '—'}</div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button size="sm" variant="primary" disabled={saving} onClick={saveAll}>Enregistrer</Button>
+                <Button size="sm" variant="primary" disabled={busy} onClick={saveAll}>Enregistrer</Button>
                 <Button size="sm" onClick={openFiche}>Ouvrir fiche HTML</Button>
               </div>
             </SectionCard>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              <SectionCard title="Schéma">
+              <SectionCard
+                title="Schéma"
+                actions={(
+                  <Button size="sm" onClick={() => setTab('structure')}>Éditer la structure</Button>
+                )}
+              >
                 <AlizeStructureStack layers={layers} platform={platform} />
+                <p className="mt-2 text-[12px] text-text-muted">
+                  Pour modifier épaisseurs / matériaux / interfaces : onglet Structure.
+                </p>
               </SectionCard>
               <SectionCard title="Critères">
                 <AlizeCriteriaChart criteria={criteria} />

@@ -18,6 +18,8 @@ from app.models.calculs import (
     CalculationUpdateSchema,
     CalculsSummarySchema,
 )
+from app.services.alize_reglementaire import run_reglementaire_payload
+from app.services.alize_mecanique import run_complet_payload, run_mecanique_payload
 
 
 def _now() -> str:
@@ -128,6 +130,7 @@ class CalculsRepository:
         type_calcul: str | None = None,
         affaire_rst_id: int | None = None,
         demande_id: int | None = None,
+        mission_id: int | None = None,
         statut: str | None = None,
         search: str | None = None,
     ) -> list[CalculationListItemSchema]:
@@ -152,6 +155,9 @@ class CalculsRepository:
         if demande_id is not None:
             sql += " AND c.demande_id = ?"
             params.append(demande_id)
+        if mission_id is not None:
+            sql += " AND c.mission_id = ?"
+            params.append(mission_id)
         if statut:
             sql += " AND c.statut = ?"
             params.append(statut)
@@ -176,6 +182,7 @@ class CalculsRepository:
                 statut=r["statut"] or "",
                 affaire_rst_id=r["affaire_rst_id"],
                 demande_id=r["demande_id"],
+                mission_id=r["mission_id"],
                 affaire_ref=r["affaire_ref"] or "",
                 demande_ref=r["demande_ref"] or "",
                 chantier=r["chantier"] or "",
@@ -226,9 +233,304 @@ class CalculsRepository:
                     "INSERT INTO alize_projects (calculation_id, updated_at) VALUES (?, ?)",
                     (calc_id, now),
                 )
+                self._seed_alize_defaults(conn, calc_id, now=now)
             conn.commit()
         return self.get(calc_id)
 
+    def _seed_alize_defaults(self, conn, calculation_id: int, *, now: str) -> None:
+        """Préremplit comme Alizé à l'ouverture d'un nouveau projet (pas de saisie vide)."""
+        traffic = {
+            "mja_pl": "",
+            "croissance_pct": 2,
+            "duree_ans": 20,
+            "cam": 0.8,
+            "risque": 5,
+            "progression": "geometrique",
+            "classe_trafic": "",
+            "ne_calcule": "",
+            "ne_retenu": "",
+            "commentaire": "Valeurs par défaut RaLab (à ajuster)",
+        }
+        platform = {
+            "classe": "PF2",
+            "module_pf": 50,
+            "poisson": 0.35,
+            "source": "Défaut catalogue",
+            "commentaire": "",
+        }
+        params = {
+            "charge_type": "jumelage_fr",
+            "temperature": 15,
+            "norme": "NF P98-086",
+            "logiciel": "RaLab imitation Alizé",
+            "cam": 0.8,
+            "risque": 5,
+        }
+        conn.execute(
+            """
+            UPDATE alize_projects
+            SET traffic_json = ?, platform_json = ?, params_json = ?, updated_at = ?
+            WHERE calculation_id = ?
+            """,
+            (_json_dumps(traffic), _json_dumps(platform), _json_dumps(params), now, calculation_id),
+        )
+        default_layers = [
+            ("Roulement", "BBSG3", "bitumineux", "", 5, 7000, 0.35),
+            ("Assise", "GB4", "bitumineux", "", 8, 11000, 0.35),
+            ("Plateforme", "PF2", "plateforme", "PF2", None, 50, 0.35),
+        ]
+        for i, (fonction, materiau, famille, classe, ep, module, poisson) in enumerate(default_layers, start=1):
+            conn.execute(
+                """
+                INSERT INTO alize_layers (
+                    calculation_id, ordre, fonction, materiau, famille, classe, formulation,
+                    epaisseur, unite, module, poisson, temperature_calcul, frequence, bibliotheque, assise,
+                    interface_sup, interface_inf, lie, from_library, modified_manually,
+                    justification, commentaire, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, '', ?, 'cm', ?, ?, 15, 10, 'NF P98-086 2019', ?, '', 'collé', 0, 1, 0, ?, '', ?, ?)
+                """,
+                (
+                    calculation_id,
+                    i,
+                    fonction,
+                    materiau,
+                    famille,
+                    classe,
+                    ep,
+                    module,
+                    poisson,
+                    1 if i == 2 else 0,  # assise = couche d'assise GB par défaut
+                    "Structure type par défaut (5 BBSG3 + 8 GB4 / PF2)",
+                    now,
+                    now,
+                ),
+            )
+        for critere, materiau, adm, calc, unite in (
+            ("fatigue_epsilonT", "GB4", None, None, "µdéf"),
+            ("plateforme_epsilonZ", "PF2", None, None, "µdéf"),
+        ):
+            conn.execute(
+                """
+                INSERT INTO alize_criteria (
+                    calculation_id, critere, materiau, couche, profondeur,
+                    valeur_admissible, valeur_calculee, unite, marge, consommation,
+                    sens_verification, statut, commentaire, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, '', ?, ?, ?, NULL, NULL, 'inferieur_ou_egal', 'Non renseigné', ?, ?, ?)
+                """,
+                (
+                    calculation_id,
+                    critere,
+                    materiau,
+                    materiau,
+                    adm,
+                    calc,
+                    unite,
+                    "Critère préparé (valeurs à renseigner / imitation)",
+                    now,
+                    now,
+                ),
+            )
+
+    def alize_catalogs(self) -> dict:
+        """Bibliothèques pour saisie assistée (style Alizé)."""
+        with self._connect() as conn:
+            mats = conn.execute(
+                """
+                SELECT materiau AS code,
+                       COUNT(*) AS usage_count,
+                       AVG(module_MPa) AS module_avg,
+                       AVG(epaisseur_cm) AS epaisseur_avg
+                FROM ref_alize_couches
+                WHERE TRIM(COALESCE(materiau, '')) <> ''
+                GROUP BY materiau
+                ORDER BY usage_count DESC, materiau
+                """
+            ).fetchall()
+            labo = conn.execute(
+                """
+                SELECT famille, produit_ou_reference AS label, module_E_MPa AS module, eps6_microdef AS eps6
+                FROM ref_materiaux_labo
+                WHERE TRIM(COALESCE(produit_ou_reference, '')) <> ''
+                ORDER BY id
+                """
+            ).fetchall()
+            pfs = conn.execute(
+                """
+                SELECT plateforme AS classe,
+                       COUNT(*) AS usage_count,
+                       AVG(module_pf_MPa) AS module_avg
+                FROM ref_alize_etudes
+                WHERE TRIM(COALESCE(plateforme, '')) <> ''
+                GROUP BY plateforme
+                ORDER BY usage_count DESC
+                """
+            ).fetchall()
+            structures = conn.execute(
+                """
+                SELECT structure AS label,
+                       COUNT(*) AS usage_count,
+                       MIN(id) AS sample_etude_id
+                FROM ref_alize_etudes
+                WHERE TRIM(COALESCE(structure, '')) <> ''
+                GROUP BY structure
+                ORDER BY usage_count DESC, structure
+                LIMIT 40
+                """
+            ).fetchall()
+
+        materials = []
+        seen = set()
+        for row in mats:
+            code = (row["code"] or "").strip()
+            if not code or code in seen:
+                continue
+            seen.add(code)
+            is_pf = code.upper().startswith("PF")
+            materials.append(
+                {
+                    "code": code,
+                    "label": code,
+                    "famille": "plateforme" if is_pf else self._guess_famille(code),
+                    "module": row["module_avg"],
+                    "epaisseur_typique": row["epaisseur_avg"],
+                    "poisson": 0.35,
+                    "usage_count": int(row["usage_count"] or 0),
+                    "source": "excel_couches",
+                }
+            )
+        for row in labo:
+            label = (row["label"] or "").strip()
+            if not label or label in seen:
+                continue
+            seen.add(label)
+            materials.append(
+                {
+                    "code": label,
+                    "label": label,
+                    "famille": row["famille"] or "labo",
+                    "module": row["module"],
+                    "epaisseur_typique": None,
+                    "poisson": 0.35,
+                    "eps6": row["eps6"],
+                    "usage_count": 0,
+                    "source": "excel_labo",
+                }
+            )
+
+        # Compléments standards NF (si absents de l'Excel)
+        for code, famille, module, ep in (
+            ("BBSG2", "bitumineux", 7000, 5),
+            ("BBSG3", "bitumineux", 7000, 5),
+            ("BBME2", "bitumineux", 11000, 6),
+            ("GB3", "bitumineux", 9000, 10),
+            ("GB4", "bitumineux", 11000, 8),
+            ("EME2", "bitumineux", 14000, 8),
+            ("GNT", "GNT/Sols", None, 20),
+            ("PF1", "plateforme", 20, None),
+            ("PF2", "plateforme", 50, None),
+            ("PF2qs", "plateforme", 80, None),
+            ("PF3", "plateforme", 120, None),
+            ("PF4", "plateforme", 200, None),
+        ):
+            if code in seen:
+                continue
+            materials.append(
+                {
+                    "code": code,
+                    "label": code,
+                    "famille": famille,
+                    "module": module,
+                    "epaisseur_typique": ep,
+                    "poisson": 0.35,
+                    "usage_count": 0,
+                    "source": "catalogue_standard",
+                }
+            )
+
+        structure_templates = []
+        for row in structures:
+            packed = self.get_ref_etude(int(row["sample_etude_id"]))
+            if not packed:
+                continue
+            payload = packed["alize_payload"]
+            structure_templates.append(
+                {
+                    "label": row["label"],
+                    "usage_count": int(row["usage_count"] or 0),
+                    "ref_etude_id": int(row["sample_etude_id"]),
+                    "plateforme": (packed["etude"] or {}).get("plateforme") or "",
+                    "layers": payload.get("layers") or [],
+                    "traffic_hint": {
+                        "cam": (packed["etude"] or {}).get("CAM"),
+                        "risque": (packed["etude"] or {}).get("risque_pct"),
+                    },
+                }
+            )
+
+        return {
+            "materials": materials,
+            "material_families": [
+                {"id": "bitumineux", "label": "Matériaux bitumineux"},
+                {"id": "MTLH", "label": "MTLH (liés hydrauliques)"},
+                {"id": "betons", "label": "Bétons"},
+                {"id": "GNT/Sols", "label": "GNT / Sols"},
+                {"id": "STLH", "label": "STLH (sols traités)"},
+                {"id": "plateforme", "label": "Plateforme"},
+                {"id": "autre", "label": "Autre / libre"},
+            ],
+            "bibliotheques": [
+                {"id": "Catalogue 1998", "label": "Catalogue 1998"},
+                {"id": "NF P98-086 2011", "label": "NF P98-086 2011"},
+                {"id": "NF P98-086 2019", "label": "NF P98-086 2019"},
+                {"id": "autre", "label": "Autre (hors bibliothèque)"},
+            ],
+            "interfaces": [
+                {"id": "collé", "label": "Collé", "color": "#22c55e"},
+                {"id": "semi-collé", "label": "Semi-collé", "color": "#f59e0b"},
+                {"id": "glissant", "label": "Glissant", "color": "#ef4444"},
+            ],
+            "plateformes": [
+                {
+                    "classe": r["classe"],
+                    "module": r["module_avg"],
+                    "usage_count": int(r["usage_count"] or 0),
+                }
+                for r in pfs
+            ],
+            "structure_templates": structure_templates,
+            "cam_presets": [0.2, 0.3, 0.5, 0.8, 1.0, 1.3],
+            "risque_presets": [2, 5, 12, 25, 30, 50],
+            "criterion_presets": [
+                {"critere": "fatigue_epsilonT", "label": "εt fatigue", "unite": "µdéf", "sens_verification": "inferieur_ou_egal"},
+                {"critere": "plateforme_epsilonZ", "label": "εz plateforme", "unite": "µdéf", "sens_verification": "inferieur_ou_egal"},
+                {"critere": "contrainte_sigmaT", "label": "σt", "unite": "MPa", "sens_verification": "inferieur_ou_egal"},
+            ],
+            "defaults": {
+                "poisson": 0.35,
+                "temperature": 15,
+                "frequence": 10,
+                "bibliotheque": "NF P98-086 2019",
+                "charge_type": "jumelage_fr",
+                "norme": "NF P98-086",
+            },
+        }
+
+    @staticmethod
+    def _guess_famille(code: str) -> str:
+        u = code.upper()
+        if u.startswith("PF"):
+            return "plateforme"
+        if u.startswith("GNT") or "SOL" in u:
+            return "GNT/Sols"
+        if any(u.startswith(p) for p in ("BB", "GB", "EME", "BBTM", "BBME")):
+            return "bitumineux"
+        if "BETON" in u or u.startswith("BC"):
+            return "betons"
+        if "STLH" in u:
+            return "STLH"
+        if "MTLH" in u or "GH" in u or "GC" in u:
+            return "MTLH"
+        return "autre"
     def get(self, calculation_id: int) -> CalculationDetailSchema | None:
         with self._connect() as conn:
             row = conn.execute(
@@ -367,10 +669,10 @@ class CalculsRepository:
                         """
                         INSERT INTO alize_layers (
                             calculation_id, ordre, fonction, materiau, famille, classe, formulation,
-                            epaisseur, unite, module, poisson, temperature_calcul,
+                            epaisseur, unite, module, poisson, temperature_calcul, frequence, bibliotheque, assise,
                             interface_sup, interface_inf, lie, from_library, modified_manually,
                             justification, commentaire, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             calculation_id,
@@ -385,6 +687,9 @@ class CalculsRepository:
                             layer.module,
                             layer.poisson,
                             layer.temperature_calcul,
+                            layer.frequence if layer.frequence is not None else 10,
+                            layer.bibliotheque or "NF P98-086 2019",
+                            1 if layer.assise else 0,
                             layer.interface_sup,
                             layer.interface_inf,
                             1 if layer.lie else 0,
@@ -444,6 +749,105 @@ class CalculsRepository:
             )
             conn.commit()
         return self.get(calculation_id)
+
+    def run_reglementaire(self, calculation_id: int, *, user_name: str = "") -> CalculationDetailSchema | None:
+        detail = self.get(calculation_id)
+        if not detail or detail.type_calcul != "alize":
+            return None
+        alize = detail.alize or {}
+        outcome = run_reglementaire_payload(
+            traffic=alize.get("traffic") or {},
+            platform=alize.get("platform") or {},
+            params=alize.get("params") or {},
+            layers=alize.get("layers") or [],
+            criteria=alize.get("criteria") or [],
+        )
+        if not outcome.get("ok"):
+            raise ValueError("; ".join(outcome.get("warnings") or ["Calcul réglementaire impossible"]))
+
+        results = dict(outcome.get("results") or {})
+        results["reglementaire_report"] = outcome.get("report") or {}
+
+        updated = self.update_alize(
+            calculation_id,
+            AlizePayloadUpdateSchema(
+                traffic=outcome["traffic"],
+                params=outcome["params"],
+                results=results,
+                criteria=[AlizeCriterionSchema(**c) for c in outcome["criteria"]],
+            ),
+            user_name=user_name,
+        )
+        if updated and updated.statut in {"Brouillon", "Données incomplètes"}:
+            updated = self.update(
+                calculation_id,
+                CalculationUpdateSchema(statut="Prêt pour calcul"),
+                user_name=user_name,
+            )
+        return updated
+
+    def run_mecanique(self, calculation_id: int, *, user_name: str = "") -> CalculationDetailSchema | None:
+        detail = self.get(calculation_id)
+        if not detail or detail.type_calcul != "alize":
+            return None
+        alize = detail.alize or {}
+        outcome = run_mecanique_payload(
+            layers=alize.get("layers") or [],
+            platform=alize.get("platform") or {},
+            params=alize.get("params") or {},
+            criteria=alize.get("criteria") or [],
+            results=alize.get("results") or {},
+        )
+        if not outcome.get("ok"):
+            raise ValueError("; ".join(outcome.get("warnings") or ["Calcul mécanique impossible"]))
+        updated = self.update_alize(
+            calculation_id,
+            AlizePayloadUpdateSchema(
+                params=outcome["params"],
+                results=outcome["results"],
+                criteria=[AlizeCriterionSchema(**c) for c in outcome["criteria"]],
+            ),
+            user_name=user_name,
+        )
+        if updated and updated.statut in {"Brouillon", "Données incomplètes", "Prêt pour calcul"}:
+            updated = self.update(
+                calculation_id,
+                CalculationUpdateSchema(statut="À vérifier"),
+                user_name=user_name,
+            )
+        return updated
+
+    def run_complet(self, calculation_id: int, *, user_name: str = "") -> CalculationDetailSchema | None:
+        detail = self.get(calculation_id)
+        if not detail or detail.type_calcul != "alize":
+            return None
+        alize = detail.alize or {}
+        outcome = run_complet_payload(
+            traffic=alize.get("traffic") or {},
+            platform=alize.get("platform") or {},
+            params=alize.get("params") or {},
+            layers=alize.get("layers") or [],
+            criteria=alize.get("criteria") or [],
+        )
+        if not outcome.get("ok"):
+            raise ValueError("; ".join(outcome.get("warnings") or ["Calcul complet impossible"]))
+        updated = self.update_alize(
+            calculation_id,
+            AlizePayloadUpdateSchema(
+                traffic=outcome.get("traffic"),
+                params=outcome["params"],
+                results=outcome["results"],
+                criteria=[AlizeCriterionSchema(**c) for c in outcome["criteria"]],
+            ),
+            user_name=user_name,
+        )
+        if updated and updated.statut in {"Brouillon", "Données incomplètes", "Prêt pour calcul"}:
+            updated = self.update(
+                calculation_id,
+                CalculationUpdateSchema(statut="À vérifier"),
+                user_name=user_name,
+            )
+        return updated
 
     def search_ref_etudes(self, *, search: str = "", limit: int = 50) -> list[dict]:
         sql = "SELECT * FROM ref_alize_etudes WHERE is_primary = 1"
@@ -559,9 +963,12 @@ class CalculsRepository:
                     "unite": "cm",
                     "module": row.get("module_MPa"),
                     "poisson": None,
-                    "temperature_calcul": None,
+                    "temperature_calcul": 15,
+                    "frequence": 10,
+                    "bibliotheque": "NF P98-086 2019",
+                    "assise": (not is_pf) and i > 1,
                     "interface_sup": "",
-                    "interface_inf": "",
+                    "interface_inf": "collé",
                     "lie": False,
                     "from_library": True,
                     "modified_manually": False,
@@ -852,6 +1259,9 @@ th,td{{border:1px solid #dbe1ea;padding:6px 8px;font-size:12px}} th{{background:
                     "module": r["module"],
                     "poisson": r["poisson"],
                     "temperature_calcul": r["temperature_calcul"],
+                    "frequence": r["frequence"] if "frequence" in r.keys() else 10,
+                    "bibliotheque": (r["bibliotheque"] if "bibliotheque" in r.keys() else "") or "NF P98-086 2019",
+                    "assise": bool(r["assise"]) if "assise" in r.keys() else False,
                     "interface_sup": r["interface_sup"] or "",
                     "interface_inf": r["interface_inf"] or "",
                     "lie": bool(r["lie"]),

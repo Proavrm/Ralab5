@@ -72,6 +72,9 @@ class AlizeLayerSchema(BaseModel):
     module: Optional[float] = None
     poisson: Optional[float] = None
     temperature_calcul: Optional[float] = None
+    frequence: Optional[float] = None
+    bibliotheque: str = "NF P98-086 2019"
+    assise: bool = False
     interface_sup: str = ""
     interface_inf: str = ""
     lie: bool = False
@@ -117,6 +120,7 @@ class CalculationListItemSchema(BaseModel):
     statut: str
     affaire_rst_id: Optional[int] = None
     demande_id: Optional[int] = None
+    mission_id: Optional[int] = None
     affaire_ref: str = ""
     demande_ref: str = ""
     chantier: str = ""
