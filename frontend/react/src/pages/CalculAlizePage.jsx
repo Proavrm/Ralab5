@@ -125,6 +125,30 @@ function avisFromResults(results, criteria) {
   return { label: 'NON CONFORME', tone: 'bad' }
 }
 
+function avisSortRank(item) {
+  const key = String(item?.avis || '').trim().toLowerCase()
+  if (key === 'indicatif' || !key) return 0 // en tête : à traiter / pas encore calculé
+  if (key === 'conforme') return 1
+  if (key === 'limite') return 2
+  if (key === 'non conforme') return 3
+  return 0
+}
+
+function sortVariantsByAvis(items) {
+  return [...(items || [])].sort((a, b) => {
+    const ra = avisSortRank(a)
+    const rb = avisSortRank(b)
+    if (ra !== rb) return ra - rb
+    const aa = a?.a_retenir ? 0 : 1
+    const ab = b?.a_retenir ? 0 : 1
+    if (aa !== ab) return aa - ab
+    return String(a.nom_calcul || a.reference || '').localeCompare(
+      String(b.nom_calcul || b.reference || ''),
+      'fr',
+    )
+  })
+}
+
 function Chip({ active, children, onClick }) {
   return (
     <button
@@ -156,46 +180,40 @@ function AvisBadge({ avis }) {
 }
 
 function variantRowTone(item) {
-  if (item?.a_retenir) {
+  const avis = String(item?.avis || '').trim()
+  const key = avis.toLowerCase()
+  if (key === 'conforme') {
     return {
       row: 'border-l-[3px] border-l-emerald-500 bg-emerald-50/80',
-      badge: 'bg-emerald-600 text-white',
-      label: 'Accepté',
+      badge: 'bg-emerald-700 text-white',
+      label: 'Conforme',
     }
   }
-  const statut = String(item?.statut || '').trim()
-  if (statut === 'Validé' || statut === 'Vérifié') {
-    return {
-      row: 'border-l-[3px] border-l-sky-500 bg-sky-50/70',
-      badge: 'bg-sky-700 text-white',
-      label: statut,
-    }
-  }
-  if (statut === 'À vérifier' || statut === 'Résultats importés') {
+  if (key === 'limite') {
     return {
       row: 'border-l-[3px] border-l-amber-400 bg-amber-50/80',
       badge: 'bg-amber-600 text-white',
-      label: statut,
+      label: 'Limite',
     }
   }
-  if (statut === 'Annulé' || statut === 'Archivé') {
+  if (key === 'non conforme') {
     return {
-      row: 'border-l-[3px] border-l-slate-400 bg-slate-100/80',
-      badge: 'bg-slate-500 text-white',
-      label: statut,
+      row: 'border-l-[3px] border-l-red-500 bg-red-50/80',
+      badge: 'bg-red-700 text-white',
+      label: 'Non conforme',
     }
   }
-  if (statut === 'À recalculer' || statut === 'Données incomplètes') {
+  if (key === 'indicatif') {
     return {
-      row: 'border-l-[3px] border-l-orange-400 bg-orange-50/70',
-      badge: 'bg-orange-600 text-white',
-      label: statut,
+      row: 'border-l-[3px] border-l-sky-400 bg-sky-50/70',
+      badge: 'bg-sky-700 text-white',
+      label: 'Indicatif',
     }
   }
   return {
     row: 'border-l-[3px] border-l-[#cfd7e4] bg-white',
     badge: 'bg-[#e8eef6] text-[#536079]',
-    label: statut || '—',
+    label: avis || '—',
   }
 }
 
@@ -245,19 +263,27 @@ function VariantDropdown({
       {open ? (
         <div className="absolute right-0 z-30 mt-1 max-h-72 w-[min(420px,90vw)] overflow-auto rounded border border-[#dbe1ea] bg-white shadow-lg">
           <div className="border-b border-[#eef1f6] px-2 py-1.5 text-[10px] text-text-muted">
-            ★ Accepté (vert) = retenu pour la note / impression
+            ★ Accepté = retenu pour impression · badge = avis mécanique (Conforme / Limite / Non conforme)
           </div>
-          {items.map((item) => {
+          {items.map((item, index) => {
             const active = Number(item.id) === Number(currentId)
             const accepted = Boolean(item.a_retenir)
             const tone = variantRowTone(item)
+            const prevAvis = index > 0 ? String(items[index - 1]?.avis || '').trim() : null
+            const avisLabel = String(item?.avis || '').trim() || 'Indicatif'
+            const showGroup = index === 0 || avisLabel !== prevAvis
             return (
-              <div
-                key={item.id}
-                className={`flex items-center gap-1 border-b border-[#f1f5f9] px-1.5 py-1 ${tone.row} ${
-                  active ? 'ring-1 ring-inset ring-[#003170]/35' : ''
-                }`}
-              >
+              <div key={item.id}>
+                {showGroup ? (
+                  <div className="sticky top-0 border-b border-[#eef1f6] bg-[#f8fafc] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-text-muted">
+                    {avisLabel}
+                  </div>
+                ) : null}
+                <div
+                  className={`flex items-center gap-1 border-b border-[#f1f5f9] px-1.5 py-1 ${tone.row} ${
+                    active ? 'ring-1 ring-inset ring-[#003170]/35' : ''
+                  }`}
+                >
                 <button
                   type="button"
                   title={accepted ? 'Retirer l’acceptation' : 'Accepter (et imprimer)'}
@@ -285,6 +311,7 @@ function VariantDropdown({
                 <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${tone.badge}`}>
                   {tone.label}
                 </span>
+                </div>
               </div>
             )
           })}
@@ -336,6 +363,11 @@ export default function CalculAlizePage() {
   const [applyingRef, setApplyingRef] = useState(false)
   const [catalogs, setCatalogs] = useState(null)
   const [runningCalcul, setRunningCalcul] = useState(false)
+  const engineRef = useRef({})
+  const autoArmedRef = useRef(false)
+  const skipAutoOnceRef = useRef(false)
+  const lastEngineFpRef = useRef('')
+  const autoRunSeqRef = useRef(0)
 
   function suggestedNomSortie(row, nomCalcul) {
     const parts = [
@@ -346,6 +378,18 @@ export default function CalculAlizePage() {
     return parts.join(' — ')
   }
 
+  function engineFingerprintOf(payload) {
+    return JSON.stringify({
+      layers: payload.layers,
+      traffic: payload.traffic,
+      platform: payload.platform,
+      params: payload.params,
+    })
+  }
+
+  function currentEngineFingerprint() {
+    return engineFingerprintOf(engineRef.current)
+  }
   function hydrateFromDetail(row) {
     setDetail(row)
     const general = row.general || {}
@@ -404,6 +448,10 @@ export default function CalculAlizePage() {
 
   useEffect(() => {
     if (!Number.isFinite(calcId)) return
+    autoArmedRef.current = false
+    skipAutoOnceRef.current = false
+    lastEngineFpRef.current = ''
+    autoRunSeqRef.current += 1
     load()
   }, [calcId])
 
@@ -412,6 +460,22 @@ export default function CalculAlizePage() {
       .then((data) => setCatalogs(data || null))
       .catch(() => setCatalogs(null))
   }, [])
+
+  engineRef.current = {
+    meta,
+    detail,
+    traffic,
+    platform,
+    params,
+    results,
+    layers,
+    criteria,
+  }
+
+  const engineFingerprint = useMemo(
+    () => engineFingerprintOf({ layers, traffic, platform, params }),
+    [layers, traffic, platform, params],
+  )
 
   const trafficEstimate = useMemo(() => estimateTrafficStats(traffic), [traffic])
   const plateformes = catalogs?.plateformes || []
@@ -442,10 +506,7 @@ export default function CalculAlizePage() {
     return '/calculs'
   }, [returnTo, meta.demande_id, meta.affaire_rst_id])
 
-  const siblingOptions = useMemo(() => {
-    if (!siblings.length) return []
-    return [...siblings].sort((a, b) => String(a.nom_calcul || '').localeCompare(String(b.nom_calcul || ''), 'fr'))
-  }, [siblings])
+  const siblingOptions = useMemo(() => sortVariantsByAvis(siblings), [siblings])
 
   function applyStructureTemplate(label) {
     const tpl = structureTemplates.find((t) => t.label === label)
@@ -490,6 +551,7 @@ export default function CalculAlizePage() {
     setInfo('')
     try {
       const row = await calculsApi.applyReference(calcId, { ref_etude_id: refId, replace_existing: true })
+      skipAutoOnceRef.current = true
       hydrateFromDetail(row)
       setInfo('Référence Excel appliquée')
       setPopup(null)
@@ -501,31 +563,40 @@ export default function CalculAlizePage() {
   }
 
   async function persistDraft() {
+    const snap = engineRef.current
+    const metaSnap = snap.meta || {}
+    const detailSnap = snap.detail
+    const trafficSnap = snap.traffic || {}
+    const platformSnap = snap.platform || {}
+    const paramsSnap = snap.params || {}
+    const resultsSnap = snap.results || {}
+    const layersSnap = snap.layers || []
+    const criteriaSnap = snap.criteria || []
     await calculsApi.update(calcId, {
-      nom_calcul: meta.nom_calcul,
-      statut: meta.statut,
-      ouvrage: meta.ouvrage,
-      zone_label: meta.zone_label,
-      auteur: meta.auteur,
-      calculateur: meta.calculateur,
-      verificateur: meta.verificateur,
-      validateur: meta.validateur,
-      affaire_rst_id: meta.affaire_rst_id,
-      demande_id: meta.demande_id,
-      mission_id: meta.mission_id,
+      nom_calcul: metaSnap.nom_calcul,
+      statut: metaSnap.statut,
+      ouvrage: metaSnap.ouvrage,
+      zone_label: metaSnap.zone_label,
+      auteur: metaSnap.auteur,
+      calculateur: metaSnap.calculateur,
+      verificateur: metaSnap.verificateur,
+      validateur: metaSnap.validateur,
+      affaire_rst_id: metaSnap.affaire_rst_id,
+      demande_id: metaSnap.demande_id,
+      mission_id: metaSnap.mission_id,
       general: {
-        a_retenir: Boolean(meta.a_retenir),
+        a_retenir: Boolean(metaSnap.a_retenir),
         // Accepté ⇒ imprimé (même flag dérivé)
-        pour_impression: Boolean(meta.a_retenir),
-        nom_sortie: String(meta.nom_sortie || '').trim() || suggestedNomSortie(detail, meta.nom_calcul),
+        pour_impression: Boolean(metaSnap.a_retenir),
+        nom_sortie: String(metaSnap.nom_sortie || '').trim() || suggestedNomSortie(detailSnap, metaSnap.nom_calcul),
       },
     })
     await calculsApi.updateAlize(calcId, {
-      traffic,
-      platform,
-      params,
-      results,
-      layers: layers.map((layer, index) => ({
+      traffic: trafficSnap,
+      platform: platformSnap,
+      params: paramsSnap,
+      results: resultsSnap,
+      layers: layersSnap.map((layer, index) => ({
         ...layer,
         ordre: layer.ordre || index + 1,
         epaisseur: numOrNull(layer.epaisseur),
@@ -534,7 +605,7 @@ export default function CalculAlizePage() {
         temperature_calcul: numOrNull(layer.temperature_calcul),
         frequence: numOrNull(layer.frequence),
       })),
-      criteria: criteria.map((c) => ({
+      criteria: criteriaSnap.map((c) => ({
         ...c,
         valeur_admissible: numOrNull(c.valeur_admissible),
         valeur_calculee: numOrNull(c.valeur_calculee),
@@ -542,7 +613,7 @@ export default function CalculAlizePage() {
         consommation: numOrNull(c.consommation),
       })),
     })
-    if (meta.demande_id) await loadSiblings(meta.demande_id)
+    if (metaSnap.demande_id) await loadSiblings(metaSnap.demande_id)
   }
 
   async function saveAll() {
@@ -552,6 +623,7 @@ export default function CalculAlizePage() {
     try {
       await persistDraft()
       const row = await calculsApi.get(calcId)
+      skipAutoOnceRef.current = true
       hydrateFromDetail(row)
       setInfo('Enregistré')
     } catch (err) {
@@ -589,24 +661,62 @@ export default function CalculAlizePage() {
     }
   }
 
-  async function runComplet() {
+  async function runComplet({ auto = false } = {}) {
+    const seq = autoRunSeqRef.current
+    const fpStart = currentEngineFingerprint()
     setRunningCalcul(true)
     setError('')
-    setInfo('')
+    if (auto) setInfo('Recalcul automatique…')
+    else setInfo('')
     try {
       await persistDraft()
+      if (seq !== autoRunSeqRef.current) return
       const row = await calculsApi.runComplet(calcId)
+      if (seq !== autoRunSeqRef.current) return
+      if (currentEngineFingerprint() !== fpStart) {
+        setInfo('Données modifiées pendant le calcul — nouveau calcul…')
+        setRunningCalcul(false)
+        await runComplet({ auto: true })
+        return
+      }
+      skipAutoOnceRef.current = true
+      lastEngineFpRef.current = fpStart
       hydrateFromDetail(row)
       const res = row?.alize?.results || {}
       setInfo(
-        `Calcul terminé — εt ${res.epsT_calc ?? '—'}/${res.epsT_adm ?? '—'} · εz ${res.epsZ_calc ?? '—'}/${res.epsZ_adm ?? '—'} µdéf`,
+        `${auto ? 'Auto' : 'Calcul'} — εt ${res.epsT_calc ?? '—'}/${res.epsT_adm ?? '—'} · εz ${res.epsZ_calc ?? '—'}/${res.epsZ_adm ?? '—'} µdéf`,
       )
+      if (meta.demande_id || row.demande_id) await loadSiblings(meta.demande_id || row.demande_id)
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Calcul complet impossible'))
+      if (seq === autoRunSeqRef.current) {
+        setError(getApiErrorMessage(err, auto ? 'Recalcul automatique impossible' : 'Calcul complet impossible'))
+      }
     } finally {
-      setRunningCalcul(false)
+      if (seq === autoRunSeqRef.current) setRunningCalcul(false)
     }
   }
+
+  useEffect(() => {
+    if (loading) return undefined
+    if (!Number.isFinite(calcId)) return undefined
+    if (!autoArmedRef.current) {
+      autoArmedRef.current = true
+      skipAutoOnceRef.current = false
+      lastEngineFpRef.current = engineFingerprint
+      return undefined
+    }
+    if (skipAutoOnceRef.current) {
+      skipAutoOnceRef.current = false
+      lastEngineFpRef.current = engineFingerprint
+      return undefined
+    }
+    if (engineFingerprint === lastEngineFpRef.current) return undefined
+
+    const timer = setTimeout(() => {
+      void runComplet({ auto: true })
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [engineFingerprint, loading, calcId])
 
   async function toggleAcceptVariant(item, accepted) {
     setAcceptBusyId(item.id)
@@ -669,7 +779,7 @@ export default function CalculAlizePage() {
           <Button size="sm" onClick={duplicate}>Dupliquer</Button>
           <Button size="sm" onClick={openFiche}>Fiche</Button>
           <Button size="sm" onClick={downloadPdf}>PDF</Button>
-          <Button size="sm" variant="primary" disabled={busy} onClick={runComplet}>
+          <Button size="sm" variant="primary" disabled={busy} onClick={() => runComplet()} title="Recalcule aussi automatiquement après chaque modification">
             {runningCalcul ? 'Calcul…' : 'Calculer'}
           </Button>
           <Button size="sm" disabled={busy} onClick={saveAll}>
@@ -781,7 +891,7 @@ export default function CalculAlizePage() {
                 <div className="mt-0.5 text-text-muted">{results.conclusion || 'Lancer le calcul pour obtenir l’avis.'}</div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
-                <Button size="sm" variant="primary" disabled={busy} onClick={runComplet}>
+                <Button size="sm" variant="primary" disabled={busy} onClick={() => runComplet()}>
                   {runningCalcul ? 'Calcul…' : 'Calculer'}
                 </Button>
                 <Button size="sm" onClick={downloadPdf}>PDF</Button>

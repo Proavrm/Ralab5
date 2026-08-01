@@ -48,6 +48,43 @@ def _selection_flags_from_general(general: Any) -> dict[str, Any]:
     }
 
 
+def _avis_from_results_and_statuts(results: Any, criteria_statuts: list[str] | None = None) -> str:
+    """Réutilise le résultat déjà stocké (critères / ε) — pas de recalcul moteur."""
+    ranks = {"Non conforme": 3, "Limite": 2, "Conforme": 1}
+    best = 0
+    for raw in criteria_statuts or []:
+        label = str(raw or "").strip()
+        best = max(best, ranks.get(label, 0))
+    if best == 3:
+        return "Non conforme"
+    if best == 2:
+        return "Limite"
+    if best == 1:
+        return "Conforme"
+
+    payload = results if isinstance(results, dict) else {}
+    try:
+        adm_t = payload.get("epsT_adm")
+        calc_t = payload.get("epsT_calc")
+        adm_z = payload.get("epsZ_adm")
+        calc_z = payload.get("epsZ_calc")
+        ratios: list[float] = []
+        if adm_t not in (None, "") and calc_t not in (None, "") and float(adm_t) != 0:
+            ratios.append(float(calc_t) / float(adm_t))
+        if adm_z not in (None, "") and calc_z not in (None, "") and float(adm_z) != 0:
+            ratios.append(float(calc_z) / float(adm_z))
+        if ratios:
+            mx = max(ratios)
+            if mx <= 0.9:
+                return "Conforme"
+            if mx <= 1.0:
+                return "Limite"
+            return "Non conforme"
+    except (TypeError, ValueError):
+        pass
+    return "Indicatif"
+
+
 def _json_dumps(value: Any) -> str:
     return json.dumps(value or {}, ensure_ascii=False)
 
@@ -180,6 +217,7 @@ class CalculsRepository:
         sql += " ORDER BY c.updated_at DESC, c.id DESC"
         with self._connect() as conn:
             rows = conn.execute(sql, params).fetchall()
+            avis_by_id = self._avis_map_for_ids(conn, [int(r["id"]) for r in rows])
         return [
             CalculationListItemSchema(
                 id=int(r["id"]),
@@ -200,10 +238,35 @@ class CalculsRepository:
                 zone_label=r["zone_label"] or "",
                 auteur=r["auteur"] or "",
                 updated_at=r["updated_at"] or "",
+                avis=avis_by_id.get(int(r["id"]), "Indicatif"),
                 **_selection_flags_from_general(_json_loads(r["general_json"])),
             )
             for r in rows
         ]
+
+    def _avis_map_for_ids(self, conn, ids: list[int]) -> dict[int, str]:
+        if not ids:
+            return {}
+        placeholders = ",".join("?" for _ in ids)
+        results_by_id: dict[int, dict] = {}
+        for row in conn.execute(
+            f"SELECT calculation_id, results_json FROM alize_projects WHERE calculation_id IN ({placeholders})",
+            ids,
+        ).fetchall():
+            results_by_id[int(row["calculation_id"])] = _json_loads(row["results_json"])
+
+        statuts_by_id: dict[int, list[str]] = {i: [] for i in ids}
+        for row in conn.execute(
+            f"SELECT calculation_id, statut FROM alize_criteria WHERE calculation_id IN ({placeholders})",
+            ids,
+        ).fetchall():
+            cid = int(row["calculation_id"])
+            statuts_by_id.setdefault(cid, []).append(row["statut"] or "")
+
+        return {
+            cid: _avis_from_results_and_statuts(results_by_id.get(cid), statuts_by_id.get(cid))
+            for cid in ids
+        }
 
     def create(self, body: CalculationCreateSchema, *, user_name: str = "") -> CalculationDetailSchema:
         type_calcul = (body.type_calcul or "alize").strip().lower()
@@ -358,7 +421,17 @@ class CalculsRepository:
             ).fetchall()
             labo = conn.execute(
                 """
-                SELECT famille, produit_ou_reference AS label, module_E_MPa AS module, eps6_microdef AS eps6
+                SELECT id,
+                       famille,
+                       produit_ou_reference AS label,
+                       module_E_MPa AS module,
+                       eps6_microdef AS eps6,
+                       document,
+                       formule,
+                       source_ref,
+                       commentaire,
+                       granulats,
+                       bitume
                 FROM ref_materiaux_labo
                 WHERE TRIM(COALESCE(produit_ou_reference, '')) <> ''
                 ORDER BY id
@@ -389,49 +462,95 @@ class CalculsRepository:
             ).fetchall()
 
         materials = []
-        seen = set()
-        for row in mats:
-            code = (row["code"] or "").strip()
-            if not code or code in seen:
-                continue
-            seen.add(code)
-            is_pf = code.upper().startswith("PF")
+        seen_ids: set[str] = set()
+
+        def _push_material(entry: dict) -> None:
+            mid = str(entry.get("id") or "").strip()
+            if not mid or mid in seen_ids:
+                return
+            seen_ids.add(mid)
+            code = str(entry.get("code") or "").strip()
+            famille = entry.get("famille") or self._guess_famille(code or str(entry.get("label") or ""))
+            # Formulations labo/FTP type « Formulation matériau » → bitumineux si code GB/BB/…
+            if famille in {"labo", "Formulation matériau", "Référence matériau", "autre"}:
+                guessed = self._guess_famille(code or str(entry.get("label") or ""))
+                if guessed != "autre":
+                    famille = guessed
             materials.append(
                 {
+                    **entry,
+                    "id": mid,
+                    "code": code or mid,
+                    "label": entry.get("label") or code or mid,
+                    "famille": famille,
+                    "poisson": entry.get("poisson") if entry.get("poisson") is not None else 0.35,
+                    "usage_count": int(entry.get("usage_count") or 0),
+                }
+            )
+
+        # 1) Catalogue Excel (couches d'études) — codes génériques
+        for row in mats:
+            code = (row["code"] or "").strip()
+            if not code:
+                continue
+            is_pf = code.upper().startswith("PF")
+            _push_material(
+                {
+                    "id": f"excel::{code}",
                     "code": code,
                     "label": code,
                     "famille": "plateforme" if is_pf else self._guess_famille(code),
                     "module": row["module_avg"],
                     "epaisseur_typique": row["epaisseur_avg"],
-                    "poisson": 0.35,
                     "usage_count": int(row["usage_count"] or 0),
-                    "source": "excel_couches",
-                }
-            )
-        for row in labo:
-            label = (row["label"] or "").strip()
-            if not label or label in seen:
-                continue
-            seen.add(label)
-            materials.append(
-                {
-                    "code": label,
-                    "label": label,
-                    "famille": row["famille"] or "labo",
-                    "module": row["module"],
-                    "epaisseur_typique": None,
-                    "poisson": 0.35,
-                    "eps6": row["eps6"],
-                    "usage_count": 0,
-                    "source": "excel_labo",
+                    "source": "biblio",
                 }
             )
 
-        # Compléments standards NF (si absents de l'Excel)
+        # 2) Matériaux labo / FTP (fiches) — toujours listés, même si le code base existe déjà
+        for row in labo:
+            label = (row["label"] or "").strip()
+            if not label:
+                continue
+            # Ignorer lignes purement documentaires sans module
+            if row["module"] is None and not any(
+                x in label.upper() for x in ("GB", "BB", "EME", "PF", "GNT")
+            ):
+                continue
+            blob = " ".join(
+                str(row[k] or "")
+                for k in ("label", "document", "formule", "source_ref", "commentaire")
+            ).lower()
+            is_ftp = any(x in blob for x in ("ftp", "f117", "ftae", "sec", "dop", "déclaration"))
+            # Code court pour Alizé (couche) + label long pour la liste
+            code_hint = "GB4" if "gb4" in label.lower() or "gb4" in blob else label
+            if "f117.30" in blob or "f117.30" in label.lower():
+                code_hint = "GB4 F117.30"
+            centrale = ""
+            if "sec" in blob:
+                centrale = "SEC"
+            _push_material(
+                {
+                    "id": f"{'ftp' if is_ftp else 'labo'}::{row['id']}",
+                    "code": code_hint,
+                    "label": label,
+                    "famille": row["famille"] or self._guess_famille(label),
+                    "module": row["module"],
+                    "epaisseur_typique": 8 if "GB" in label.upper() else None,
+                    "eps6": row["eps6"],
+                    "source": "ftp" if is_ftp else "labo",
+                    "ftp_url": row["document"] or "",
+                    "centrale": centrale,
+                    "formule": row["formule"] or "",
+                }
+            )
+
+        # 3) Compléments standards NF (si absents)
         for code, famille, module, ep in (
             ("BBSG2", "bitumineux", 7000, 5),
             ("BBSG3", "bitumineux", 7000, 5),
             ("BBME2", "bitumineux", 11000, 6),
+            ("BBME3", "bitumineux", 11000, 6),
             ("GB3", "bitumineux", 9000, 10),
             ("GB4", "bitumineux", 11000, 8),
             ("EME2", "bitumineux", 14000, 8),
@@ -442,20 +561,27 @@ class CalculsRepository:
             ("PF3", "plateforme", 120, None),
             ("PF4", "plateforme", 200, None),
         ):
-            if code in seen:
+            if any(m.get("code") == code and m.get("source") in {"biblio", "catalogue_standard", "excel_couches"} for m in materials):
                 continue
-            materials.append(
+            _push_material(
                 {
+                    "id": f"nf::{code}",
                     "code": code,
                     "label": code,
                     "famille": famille,
                     "module": module,
                     "epaisseur_typique": ep,
-                    "poisson": 0.35,
-                    "usage_count": 0,
                     "source": "catalogue_standard",
                 }
             )
+
+        # Tri : FTP / labo d'abord pour les formulations, puis biblio
+        def _mat_sort_key(m: dict) -> tuple:
+            src = str(m.get("source") or "")
+            rank = 0 if src == "ftp" else 1 if src == "labo" else 2
+            return (rank, str(m.get("label") or m.get("code") or ""))
+
+        materials.sort(key=_mat_sort_key)
 
         structure_templates = []
         for row in structures:
@@ -494,9 +620,26 @@ class CalculsRepository:
                 {"id": "NF P98-086 2019", "label": "NF P98-086 2019"},
                 {"id": "autre", "label": "Autre (hors bibliothèque)"},
             ],
-            # Futur : centrales enrobés + accès FTP directs (pas encore peuplé).
-            "centrales": [],
-            "ftp_sources": [],
+            # Futur : centrales enrobés (peuplé via ref_materiaux_labo / FTP).
+            "centrales": sorted(
+                {
+                    str(m.get("centrale") or "").strip()
+                    for m in materials
+                    if str(m.get("centrale") or "").strip()
+                }
+            ),
+            "ftp_sources": [
+                {
+                    "id": m["id"],
+                    "code": m["code"],
+                    "label": m["label"],
+                    "module": m.get("module"),
+                    "eps6": m.get("eps6"),
+                    "document": m.get("ftp_url") or "",
+                }
+                for m in materials
+                if m.get("source") == "ftp"
+            ],
             "interfaces": [
                 {"id": "collé", "label": "Collé", "color": "#22c55e"},
                 {"id": "semi-collé", "label": "Semi-collé", "color": "#f59e0b"},

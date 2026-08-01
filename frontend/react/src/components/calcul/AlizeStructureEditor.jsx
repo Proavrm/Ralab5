@@ -26,9 +26,25 @@ function isPfLayer(layer) {
 function materialOrigin(layer) {
   if (!layer) return 'manuel'
   const source = String(layer.source || layer.materiau_source || '').toLowerCase()
-  if (layer.ftp_url || source.includes('ftp')) return 'ftp'
+  if (layer.ftp_url || source.includes('ftp') || source === 'labo') {
+    if (source.includes('ftp') || layer.ftp_url) return 'ftp'
+    if (source === 'labo') return 'ftp' // fiche labo = même badge métier
+  }
   if (layer.from_library && !layer.modified_manually) return 'biblio'
   return 'manuel'
+}
+
+function materialOptionKey(mat) {
+  return String(mat?.id || `${mat?.source || 'x'}::${mat?.code || ''}`)
+}
+
+function findMaterial(materials, keyOrCode) {
+  const key = String(keyOrCode || '')
+  if (!key) return null
+  return materials.find((m) => materialOptionKey(m) === key)
+    || materials.find((m) => String(m.code) === key)
+    || materials.find((m) => String(m.label) === key)
+    || null
 }
 
 function OriginBadge({ origin, onLight = false }) {
@@ -249,42 +265,59 @@ export default function AlizeStructureEditor({
     setSelectedIndex(j)
   }
 
-  function applyMaterial(index, code) {
-    const mat = materials.find((m) => m.code === code)
+  function applyMaterial(index, materialKey) {
+    const mat = findMaterial(materials, materialKey)
     const layer = layers[index] || {}
-    const source = String(mat?.source || 'biblio')
-    const fromFtp = source.toLowerCase().includes('ftp')
+    const source = String(mat?.source || 'biblio').toLowerCase()
+    const fromFtp = source.includes('ftp') || source === 'labo'
+    const displayCode = mat?.code || materialKey
     const patch = {
-      materiau: code,
+      materiau: displayCode,
+      material_id: mat?.id || '',
       from_library: true,
       modified_manually: false,
-      source: fromFtp ? 'ftp' : (source || 'biblio'),
-      ftp_url: fromFtp ? (mat.ftp_url || layer.ftp_url || '') : '',
+      source: fromFtp ? (source.includes('ftp') ? 'ftp' : 'labo') : (source.includes('biblio') || source.includes('catalogue') || source.includes('excel') ? 'biblio' : source || 'biblio'),
+      ftp_url: fromFtp ? (mat?.ftp_url || layer.ftp_url || '') : '',
     }
     if (mat) {
-      patch.famille = mat.famille || layer.famille
+      patch.famille = mat.famille || layer.famille || 'bitumineux'
       if (mat.module != null) patch.module = Math.round(Number(mat.module))
       if (mat.poisson != null) patch.poisson = mat.poisson
+      if (mat.eps6 != null) {
+        patch.eps6 = Number(mat.eps6)
+      }
       if (mat.epaisseur_typique != null && (layer.epaisseur == null || layer.epaisseur === '')) {
         patch.epaisseur = Math.round(Number(mat.epaisseur_typique) * 10) / 10
       }
-      if (String(mat.famille || '').includes('plateforme') || String(code || '').toUpperCase().startsWith('PF')) {
+      if (String(mat.famille || '').includes('plateforme') || String(displayCode || '').toUpperCase().startsWith('PF')) {
         patch.fonction = 'Plateforme'
-        patch.classe = code
+        patch.classe = displayCode
         patch.epaisseur = null
         patch.assise = false
         onChangePlatform?.({
           ...platform,
-          classe: code,
+          classe: displayCode,
           module_pf: mat.module != null ? Math.round(Number(mat.module)) : platform.module_pf,
           source: mat.source || 'Bibliothèque',
         })
       } else if (!layer.fonction) {
         patch.fonction = index === 0 ? 'Roulement' : 'Assise'
       }
-      patch.justification = fromFtp
-        ? `FTP${mat.label ? ` · ${mat.label}` : ''}`
-        : `Bibliothèque ${layer.bibliotheque || defaults.bibliotheque || 'Alizé'}`
+      if (fromFtp) {
+        patch.justification = `FTP${mat.label ? ` · ${mat.label}` : ''}${mat.module != null ? ` · E=${Math.round(Number(mat.module))}` : ''}${mat.eps6 != null ? ` · ε6=${mat.eps6}` : ''}`
+      } else {
+        patch.justification = `Bibliothèque ${layer.bibliotheque || defaults.bibliotheque || 'Alizé'}`
+      }
+      if ((mat.eps6 != null || mat.module != null) && onChangeParams) {
+        const key = String(displayCode || 'GB4')
+        const materiaux = { ...(params?.materiaux || {}) }
+        materiaux[key] = {
+          ...(materiaux[key] || {}),
+          ...(mat.module != null ? { e10: Math.round(Number(mat.module)) } : {}),
+          ...(mat.eps6 != null ? { eps6: Number(mat.eps6) } : {}),
+        }
+        onChangeParams({ ...params, materiaux })
+      }
     }
     patchLayer(index, patch)
   }
@@ -297,6 +330,7 @@ export default function AlizeStructureEditor({
         materiau: `${layer.materiau} mod`,
         from_library: false,
         modified_manually: true,
+        source: 'manuel',
       })
       return
     }
@@ -313,14 +347,43 @@ export default function AlizeStructureEditor({
     const fam = selected.famille
     if (!fam || fam === 'autre') return materials
     const filtered = materials.filter((m) => {
-      const mf = String(m.famille || '')
-      if (fam === 'bitumineux') return mf.includes('bitum')
-      if (fam === 'GNT/Sols') return mf.includes('GNT') || mf.includes('Sol')
-      if (fam === 'plateforme') return mf.includes('plateforme') || String(m.code || '').startsWith('PF')
-      return mf === fam || mf.includes(fam)
+      const mf = String(m.famille || '').toLowerCase()
+      const code = String(m.code || m.label || '').toUpperCase()
+      if (fam === 'bitumineux') {
+        return mf.includes('bitum') || /^(BB|GB|EME|BBTM|BBME)/.test(code)
+      }
+      if (fam === 'GNT/Sols') return mf.includes('gnt') || mf.includes('sol') || code.startsWith('GNT')
+      if (fam === 'plateforme') return mf.includes('plateforme') || code.startsWith('PF')
+      return mf === String(fam).toLowerCase() || mf.includes(String(fam).toLowerCase())
     })
     return filtered.length ? filtered : materials
   }, [materials, selected])
+
+  const selectedMaterialKey = useMemo(() => {
+    if (!selected) return ''
+    if (selected.material_id) {
+      const byId = materials.find((m) => m.id === selected.material_id)
+      if (byId) return materialOptionKey(byId)
+    }
+    const matches = materials.filter((m) => String(m.code) === String(selected.materiau))
+    if (matches.length === 1) return materialOptionKey(matches[0])
+    if (matches.length > 1 && selected.module != null) {
+      const mod = Math.round(Number(selected.module))
+      const byMod = matches.find((m) => m.module != null && Math.round(Number(m.module)) === mod)
+      if (byMod) return materialOptionKey(byMod)
+    }
+    return selected.materiau || ''
+  }, [selected, materials])
+
+  const catalogModule = useMemo(() => {
+    const mat = findMaterial(materials, selectedMaterialKey)
+    return mat?.module != null ? Math.round(Number(mat.module)) : null
+  }, [materials, selectedMaterialKey])
+
+  const moduleMismatch = useMemo(() => {
+    if (catalogModule == null || selected?.module == null || selected.module === '') return false
+    return Math.round(Number(selected.module)) !== catalogModule
+  }, [catalogModule, selected])
 
   const temp = toNum(selected?.temperature_calcul)
   const freq = toNum(selected?.frequence)
@@ -568,21 +631,27 @@ export default function AlizeStructureEditor({
                   ))}
                 </Select>
               </Field>
-              <Field label="Matériau (bibliothèque / FTP)" hint="Origine indiquée dans la liste · Manuel = saisie libre">
+              <Field
+                label="Matériau (bibliothèque / FTP)"
+                hint="Origine indiquée dans la liste · Manuel = saisie libre"
+                warn={moduleMismatch ? `Module E ≠ catalogue (${catalogModule} MPa)` : ''}
+              >
                 <div className="flex items-center gap-2">
                   <Select
                     className="w-full"
-                    value={selected.materiau || ''}
+                    value={selectedMaterialKey}
                     disabled={readOnly}
                     onChange={(e) => applyMaterial(selectedIndex, e.target.value)}
                   >
                     <option value="">Choisir…</option>
                     {materialsForSelected.map((mat) => {
                       const src = String(mat.source || '').toLowerCase()
-                      const tag = src.includes('ftp') ? 'FTP' : 'Biblio'
+                      const tag = src.includes('ftp') || src === 'labo' ? 'FTP' : 'Biblio'
                       return (
-                        <option key={`${mat.source}-${mat.code}`} value={mat.code}>
-                          [{tag}] {mat.code}{mat.module != null ? ` · E=${Math.round(Number(mat.module))}` : ''}
+                        <option key={materialOptionKey(mat)} value={materialOptionKey(mat)}>
+                          [{tag}] {mat.label || mat.code}
+                          {mat.module != null ? ` · E=${Math.round(Number(mat.module))}` : ''}
+                          {mat.eps6 != null ? ` · ε6=${mat.eps6}` : ''}
                           {mat.centrale ? ` · ${mat.centrale}` : ''}
                         </option>
                       )
@@ -590,8 +659,7 @@ export default function AlizeStructureEditor({
                   </Select>
                   <OriginBadge origin={materialOrigin(selected)} onLight />
                 </div>
-              </Field>
-              <Field label="Matériau (libre)" hint="Hors FTP / bibliothèque → marque Manuel">
+              </Field>              <Field label="Matériau (libre)" hint="Hors FTP / bibliothèque → marque Manuel">
                 <Input
                   value={selected.materiau ?? ''}
                   disabled={readOnly}
@@ -663,17 +731,20 @@ export default function AlizeStructureEditor({
                   </Button>
                 </div>
               </Field>
-              <Field label="Module E (MPa)">
+              <Field
+                label="Module E (MPa)"
+                warn={moduleMismatch ? `Différent du matériau sélectionné (${catalogModule} MPa) → Manuel` : ''}
+              >
                 <Input
                   value={selected.module ?? ''}
                   disabled={readOnly}
                   onChange={(e) => patchLayer(selectedIndex, {
                     module: e.target.value,
                     modified_manually: true,
+                    source: 'manuel',
                   })}
                 />
-              </Field>
-              <Field label="Poisson ν">
+              </Field>              <Field label="Poisson ν">
                 <Input
                   value={selected.poisson ?? ''}
                   disabled={readOnly}

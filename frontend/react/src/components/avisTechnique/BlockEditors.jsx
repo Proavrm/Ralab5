@@ -580,7 +580,7 @@ export function CalculsTableBlockEditor({ content, onChange, calculs = [] }) {
             <input type="checkbox" checked={selected.has(Number(calc.id))} onChange={() => toggle(Number(calc.id))} />
             <span className="font-medium">{calc.nom_calcul || calc.reference}</span>
             <span className="text-text-muted">
-              {calc.a_retenir ? '★ retenu' : ''} {calc.statut || ''}
+              {calc.a_retenir ? '★ retenu · ' : ''}{calc.avis || calc.statut || ''}
             </span>
           </label>
         ))

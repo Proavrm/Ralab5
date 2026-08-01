@@ -132,6 +132,8 @@ class CalculationListItemSchema(BaseModel):
     pour_impression: bool = False
     a_retenir: bool = False
     nom_sortie: str = ""
+    # Avis mécanique déjà calculé (critères / εt·εz) — distinct du statut workflow
+    avis: str = ""
 
 
 class CalculationDetailSchema(BaseModel):
