@@ -39,6 +39,15 @@ def _json_loads(raw: Any, default: Any = None):
         return default
 
 
+def _selection_flags_from_general(general: Any) -> dict[str, Any]:
+    payload = general if isinstance(general, dict) else {}
+    return {
+        "pour_impression": bool(payload.get("pour_impression")),
+        "a_retenir": bool(payload.get("a_retenir")),
+        "nom_sortie": str(payload.get("nom_sortie") or "").strip(),
+    }
+
+
 def _json_dumps(value: Any) -> str:
     return json.dumps(value or {}, ensure_ascii=False)
 
@@ -191,6 +200,7 @@ class CalculsRepository:
                 zone_label=r["zone_label"] or "",
                 auteur=r["auteur"] or "",
                 updated_at=r["updated_at"] or "",
+                **_selection_flags_from_general(_json_loads(r["general_json"])),
             )
             for r in rows
         ]
@@ -484,6 +494,9 @@ class CalculsRepository:
                 {"id": "NF P98-086 2019", "label": "NF P98-086 2019"},
                 {"id": "autre", "label": "Autre (hors bibliothèque)"},
             ],
+            # Futur : centrales enrobés + accès FTP directs (pas encore peuplé).
+            "centrales": [],
+            "ftp_sources": [],
             "interfaces": [
                 {"id": "collé", "label": "Collé", "color": "#22c55e"},
                 {"id": "semi-collé", "label": "Semi-collé", "color": "#f59e0b"},
@@ -560,16 +573,24 @@ class CalculsRepository:
 
     def update(self, calculation_id: int, body: CalculationUpdateSchema, *, user_name: str = "") -> CalculationDetailSchema | None:
         updates = body.model_dump(exclude_unset=True)
-        if "general" in updates:
-            updates["general_json"] = _json_dumps(updates.pop("general"))
-        if not updates:
+        merge_general = "general" in updates
+        incoming_general = updates.pop("general", None) if merge_general else None
+        if not updates and not merge_general:
             return self.get(calculation_id)
         updates["updated_at"] = _now()
-        cols = ", ".join(f"{k} = ?" for k in updates)
         with self._connect() as conn:
-            exists = conn.execute("SELECT id FROM calculations WHERE id = ?", (calculation_id,)).fetchone()
+            exists = conn.execute(
+                "SELECT id, general_json FROM calculations WHERE id = ?",
+                (calculation_id,),
+            ).fetchone()
             if not exists:
                 return None
+            if merge_general:
+                current = _json_loads(exists["general_json"])
+                if isinstance(incoming_general, dict):
+                    current.update(incoming_general)
+                updates["general_json"] = _json_dumps(current)
+            cols = ", ".join(f"{k} = ?" for k in updates)
             conn.execute(
                 f"UPDATE calculations SET {cols} WHERE id = ?",
                 list(updates.values()) + [calculation_id],
@@ -1165,66 +1186,17 @@ class CalculsRepository:
         detail = self.get(calculation_id)
         if not detail:
             return None
-        alize = detail.alize or {}
-        layers = alize.get("layers") or []
-        criteria = alize.get("criteria") or []
-        traffic = alize.get("traffic") or {}
-        platform = alize.get("platform") or {}
-        results = alize.get("results") or {}
+        from app.services.alize_fiche_export import build_annexe_html
 
-        def esc(v: Any) -> str:
-            return (
-                str(v if v is not None else "—")
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-            )
+        return build_annexe_html(detail)
 
-        layers_html = "".join(
-            f"<tr><td>{esc(l.get('ordre'))}</td><td>{esc(l.get('fonction'))}</td>"
-            f"<td>{esc(l.get('materiau'))}</td><td>{esc(l.get('epaisseur'))} {esc(l.get('unite'))}</td>"
-            f"<td>{esc(l.get('module'))}</td></tr>"
-            for l in layers
-        ) or "<tr><td colspan='5'>—</td></tr>"
-        crit_html = "".join(
-            f"<tr><td>{esc(c.get('critere'))}</td><td>{esc(c.get('materiau'))}</td>"
-            f"<td>{esc(c.get('valeur_admissible'))}</td><td>{esc(c.get('valeur_calculee'))}</td>"
-            f"<td>{esc(round((c.get('consommation') or 0)*100, 1) if c.get('consommation') is not None else '—')}%</td>"
-            f"<td>{esc(c.get('statut'))}</td></tr>"
-            for c in criteria
-        ) or "<tr><td colspan='6'>—</td></tr>"
+    def build_fiche_pdf(self, calculation_id: int) -> bytes | None:
+        detail = self.get(calculation_id)
+        if not detail:
+            return None
+        from app.services.alize_fiche_export import build_annexe_pdf_bytes
 
-        return f"""<!DOCTYPE html>
-<html lang="fr"><head><meta charset="utf-8"/><title>Fiche {esc(detail.reference)}</title>
-<style>
-body{{font-family:Segoe UI,Arial,sans-serif;color:#172033;margin:24px}}
-h1{{color:#003170}} table{{border-collapse:collapse;width:100%;margin:12px 0}}
-th,td{{border:1px solid #dbe1ea;padding:6px 8px;font-size:12px}} th{{background:#f1f5f9;text-align:left}}
-.meta{{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}}
-.box{{border:1px solid #dbe1ea;border-radius:8px;padding:10px}}
-.banner{{background:#003170;color:#fff;padding:12px 16px;border-radius:8px}}
-</style></head><body>
-<div class="banner"><strong>RaLab5</strong> — Fiche de calcul Alizé</div>
-<h1>{esc(detail.nom_calcul)}</h1>
-<p>{esc(detail.reference)} · Indice {esc(detail.indice)} · v{esc(detail.version)} · {esc(detail.statut)}</p>
-<div class="meta">
-  <div class="box"><b>Affaire</b><br/>{esc(detail.affaire_ref)}<br/>{esc(detail.chantier)}<br/>{esc(detail.client)}</div>
-  <div class="box"><b>Demande</b><br/>{esc(detail.demande_ref)}<br/>Ouvrage: {esc(detail.ouvrage)}<br/>Zone: {esc(detail.zone_label)}</div>
-</div>
-<h2>Trafic</h2>
-<div class="box">TMJA: {esc(traffic.get('tmja'))} · MJA PL: {esc(traffic.get('mja_pl'))} · NE: {esc(traffic.get('ne_retenu') or traffic.get('ne_calcule'))} · CAM: {esc(traffic.get('cam'))} · Risque: {esc(traffic.get('risque'))}</div>
-<h2>Plateforme</h2>
-<div class="box">Classe: {esc(platform.get('classe'))} · Module: {esc(platform.get('module_pf'))} MPa · EV2: {esc(platform.get('ev2'))}</div>
-<h2>Structure</h2>
-<table><thead><tr><th>#</th><th>Fonction</th><th>Matériau</th><th>Épaisseur</th><th>Module</th></tr></thead>
-<tbody>{layers_html}</tbody></table>
-<h2>Critères</h2>
-<table><thead><tr><th>Critère</th><th>Matériau</th><th>Admissible</th><th>Calculé</th><th>Conso.</th><th>Statut</th></tr></thead>
-<tbody>{crit_html}</tbody></table>
-<h2>Conclusion</h2>
-<div class="box">{esc(results.get('conclusion') or results.get('statut_global') or '—')}</div>
-<p style="margin-top:24px;font-size:11px;color:#69758a">Généré par RaLab5 — {esc(_now())} — Auteur: {esc(detail.auteur)}</p>
-</body></html>"""
+        return build_annexe_pdf_bytes(detail)
 
     def _load_alize(self, conn, calculation_id: int) -> dict:
         proj = conn.execute(

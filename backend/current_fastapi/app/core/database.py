@@ -1362,6 +1362,45 @@ CREATE TABLE IF NOT EXISTS ref_doublons_controle (
 );
 """
 
+AVIS_TECHNIQUE_DDL = """
+CREATE TABLE IF NOT EXISTS avis_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL DEFAULT '',
+    version INTEGER NOT NULL DEFAULT 1,
+    definition_json TEXT NOT NULL DEFAULT '{}',
+    docx_style_path TEXT NOT NULL DEFAULT '',
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_avis_templates_code ON avis_templates(code);
+
+CREATE TABLE IF NOT EXISTS avis_instances (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    demande_id INTEGER NOT NULL REFERENCES demandes(id) ON DELETE CASCADE,
+    template_id INTEGER NOT NULL REFERENCES avis_templates(id) ON DELETE RESTRICT,
+    template_version INTEGER NOT NULL DEFAULT 1,
+    reference TEXT NOT NULL DEFAULT '',
+    titre TEXT NOT NULL DEFAULT '',
+    statut TEXT NOT NULL DEFAULT 'Brouillon',
+    auteur TEXT NOT NULL DEFAULT '',
+    meta_json TEXT NOT NULL DEFAULT '{}',
+    contents_json TEXT NOT NULL DEFAULT '{}',
+    linked_document_ids_json TEXT NOT NULL DEFAULT '[]',
+    linked_calcul_ids_json TEXT NOT NULL DEFAULT '[]',
+    linked_materiau_ids_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_avis_instances_demande ON avis_instances(demande_id);
+CREATE INDEX IF NOT EXISTS idx_avis_instances_template ON avis_instances(template_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_avis_instances_demande_ref
+    ON avis_instances(demande_id, reference);
+"""
+
 DEFAULT_LABS = [
     ("SP", "Saint-Priest", "ARS", "RA"),
     ("PDC", "Pont-du-Château", "ARS", "AUV"),
@@ -1968,6 +2007,7 @@ def ensure_ralab5_schema(db_path: Path | None = None) -> Path:
         conn.executescript(QUALITE_DDL)
         conn.executescript(G3_DDL)
         conn.executescript(CALCULS_DDL)
+        conn.executescript(AVIS_TECHNIQUE_DDL)
         conn.executescript(AFFAIRE_CONTACTS_DDL)
         _ensure_column(conn, "g3_documents", "uploaded_at", "TEXT")
         conn.executescript(AFFAIRE_CONTACT_DISMISSALS_DDL)

@@ -269,13 +269,17 @@ RÈGLES CRITIQUES — mission.external_refs (ne pas confondre)
 Ces champs servent à rattacher le JSON à RaLab. Remplis-les STRICTEMENT ainsi :
 
 1. affaire_ralab
-   - Uniquement une référence RaLab Affaire au format AAAA-RR-NNNN (ex. 2026-RA-051).
-   - Source : contexte utilisateur, ou texte explicite « Affaire RaLab ».
+   - Uniquement une référence RaLab Affaire au format AAAA-RR-NNNN (placeholder : AAAA-RR-NNNN).
+   - Source UNIQUE autorisée : le « Contexte optionnel utilisateur » en bas du prompt, ou un texte
+     documentaire explicite du type « Affaire RaLab … ».
+   - Si le contexte utilisateur est vide / inconnu : laisse affaire_ralab = "".
+   - INTERDIT : inventer une affaire, recopier un numéro d’exemple du prompt, ou « déduire » une réf.
    - JAMAIS un n° CET, DST, marché, devis ou dossier client.
 
 2. demande_ralab
-   - Uniquement une référence RaLab Demande au format AAAA-RR-DNNNN (ex. 2026-SP-D0054).
-   - Si inconnue : "".
+   - Uniquement une référence RaLab Demande au format AAAA-RR-DNNNN (placeholder : AAAA-RR-DNNNN).
+   - Si inconnue ou absente du contexte utilisateur : "".
+   - INTERDIT : inventer une demande RaLab.
 
 3. dst_reference
    - N° DST / CET / demande métier externe (ex. CET0001648, n° DST).
@@ -294,18 +298,21 @@ Ces champs servent à rattacher le JSON à RaLab. Remplis-les STRICTEMENT ainsi 
    - Localisation du chantier uniquement.
 
 7. autres
-   - Autres références utiles (dossier G2, plans, indices…), SANS y mettre affaire_ralab ni demande_ralab déjà renseignés.
-   - Si une réf. RaLab apparaît seulement dans un texte libre, copie-la aussi dans affaire_ralab ou demande_ralab.
+   - Autres références utiles (dossier G2, plans, indices…), SANS y mettre affaire_ralab ni demande_ralab.
+   - Ne mets PAS de référence RaLab Affaire ici : utilise uniquement affaire_ralab.
 
-Exemples corrects :
-- Affaire RaLab connue 2026-RA-051 + CET0001648 + marché CM_TRX_26096 :
-  affaire_ralab="2026-RA-051", dst_reference="CET0001648", demande_reference="CET0001648", affaire_client="CM_TRX_26096"
-- Incorrect : mettre 2026-RA-051 dans dst_reference.
+Exemples de STRUCTURE (nombres fictifs — NE PAS recopier tels quels) :
+- Contexte utilisateur = Affaire RaLab AAAA-RR-NNNN + CET0000000 + marché CM_XXXX :
+  affaire_ralab="AAAA-RR-NNNN", dst_reference="CET0000000", demande_reference="CET0000000", affaire_client="CM_XXXX"
+- Incorrect : mettre une Affaire RaLab dans dst_reference.
+- Incorrect : inventer affaire_ralab si le contexte utilisateur est vide.
 
 CONSIGNES FINALES
 - Remplis au maximum, sans hallucination.
 - Si un document DST / CCTP / G2 est présent, privilégie-le comme source principale.
 - Si le contexte utilisateur indique une Affaire / Demande RaLab, recopie-les EXACTEMENT dans affaire_ralab / demande_ralab.
+- Si le contexte utilisateur n’indique PAS d’Affaire RaLab : affaire_ralab="" (ne pas inventer).
+- N’utilise JAMAIS les placeholders / exemples numériques de ce prompt comme vraies références.
 - Inventorie explicitement plan de situation et plan d’implantation (présents ou manquants).
 - confidence entre 0 et 1 (1 = explicite dans le document).
 - Réponds avec un seul objet JSON valide UTF-8.
@@ -323,13 +330,16 @@ export function buildG3CopilotExtractionPrompt(context = {}) {
   const missionRef = String(context.missionRef || '').trim()
   const focus = String(context.focus || '').trim()
 
+  const hasAffaire = Boolean(affaireRef)
+  const hasDemande = Boolean(demandeRef)
+
   return `${G3_IMPORT_PROMPT_BODY}
 
 Contexte optionnel utilisateur (PRIORITAIRE pour external_refs) :
-- Affaire RaLab (si connue) : ${affaireRef || ''}
-  → à recopier dans mission.external_refs.affaire_ralab
-- Demande RaLab (si connue) : ${demandeRef || ''}
-  → à recopier dans mission.external_refs.demande_ralab
+- Affaire RaLab (si connue) : ${hasAffaire ? affaireRef : '(non fournie — laisse affaire_ralab="")'}
+  → ${hasAffaire ? 'à recopier EXACTEMENT dans mission.external_refs.affaire_ralab' : 'ne pas inventer affaire_ralab'}
+- Demande RaLab (si connue) : ${hasDemande ? demandeRef : '(non fournie — laisse demande_ralab="")'}
+  → ${hasDemande ? 'à recopier EXACTEMENT dans mission.external_refs.demande_ralab' : 'ne pas inventer demande_ralab'}
 - Mission G3 cible (si connue) : ${missionRef || ''}
 - Focus particulier (ex. plateformes / fondations / réemploi) : ${focus || ''}
 `

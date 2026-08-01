@@ -4,7 +4,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
 import ErrorBoundary from '@/components/ui/ErrorBoundary.jsx'
+import { syncAuthTokenCookieFromStorage } from '@/services/api'
 import './index.css'
+
+syncAuthTokenCookieFromStorage()
 
 const queryClient = new QueryClient({
   defaultOptions: {

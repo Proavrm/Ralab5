@@ -61,6 +61,9 @@ const ModelePMTPage = lazy(() => import('@/pages/modeles/ModelePMTPage'))
 const ModeleSCPage = lazy(() => import('@/pages/modeles/ModeleSCPage'))
 const ModeleEssaiBasePage = lazy(() => import('@/pages/modeles/ModeleEssaiBasePage'))
 const NoteTechniquePage = lazy(() => import('@/pages/NoteTechniquePage'))
+const AvisTechniquePage = lazy(() => import('@/pages/AvisTechniquePage'))
+const AvisTechniquePreviewPage = lazy(() => import('@/pages/AvisTechniquePreviewPage'))
+const AvisTemplatesAdminPage = lazy(() => import('@/pages/AvisTemplatesAdminPage'))
 const FicheCalculPage = lazy(() => import('@/pages/FicheCalculPage'))
 const CalculsPage = lazy(() => import('@/pages/CalculsPage'))
 const CalculAlizePage = lazy(() => import('@/pages/CalculAlizePage'))
@@ -194,6 +197,10 @@ export default function App() {
                 <Route path="g3/fiche-calcul" element={<P><FicheCalculPage /></P>} />
                 <Route path="calculs" element={<P><CalculsPage /></P>} />
                 <Route path="calculs/alize/:id" element={<P><CalculAlizePage /></P>} />
+                <Route path="avis-technique/templates" element={<P><AvisTemplatesAdminPage /></P>} />
+                <Route path="avis-technique/nouveau" element={<P><AvisTechniquePage /></P>} />
+                <Route path="avis-technique/:id/preview" element={<P><AvisTechniquePreviewPage /></P>} />
+                <Route path="avis-technique/:id" element={<P><AvisTechniquePage /></P>} />
                 <Route path="g3/notes-techniques" element={<P><NotesTechniquesPage /></P>} />
                 <Route path="g3/notes-techniques/nouveau" element={<P><NoteTechniquePage /></P>} />
                 <Route path="g3/notes-techniques/:uid" element={<P><NoteTechniquePage /></P>} />

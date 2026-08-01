@@ -12,5 +12,6 @@ scipy>=1.11,<2                 # Bessel / multicouche Burmister
 PyJWT>=2,<3
 python-multipart>=0.0.9
 python-pptx>=0.6.23
+python-docx>=1.1,<2
 PyMuPDF>=1.24,<2
 Pillow>=10,<12

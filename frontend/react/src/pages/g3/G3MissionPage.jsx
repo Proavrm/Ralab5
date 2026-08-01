@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { calculsApi, g3Api, getApiErrorMessage } from '@/services/api'
+import { calculsApi, avisTechniqueApi, g3Api, getApiErrorMessage } from '@/services/api'
 import Button from '@/components/ui/Button'
 import { FicheBadge, FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
 import { buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
@@ -80,20 +80,10 @@ export default function G3MissionPage() {
     enabled: !!uid,
   })
 
-  const { data: linkedCalculs = [] } = useQuery({
-    queryKey: ['calculs', 'g3-mission', uid, mission?.demande_id],
-    queryFn: async () => {
-      const missionId = Number(mission?.id || uid)
-      const byMission = await calculsApi.list({ mission_id: missionId })
-      const missionRows = Array.isArray(byMission) ? byMission : []
-      if (mission?.demande_id == null) return missionRows
-      const byDemande = await calculsApi.list({ demande_id: Number(mission.demande_id) })
-      const demandeRows = Array.isArray(byDemande) ? byDemande : []
-      const map = new Map()
-      ;[...missionRows, ...demandeRows].forEach((row) => map.set(row.id, row))
-      return Array.from(map.values())
-    },
-    enabled: Boolean(uid && mission),
+  const { data: avisList = [] } = useQuery({
+    queryKey: ['avis-technique', 'mission', mission?.demande_id],
+    queryFn: () => avisTechniqueApi.listInstances({ demande_id: Number(mission.demande_id) }),
+    enabled: Boolean(mission?.demande_id),
   })
 
   const saveMut = useMutation({
@@ -123,7 +113,6 @@ export default function G3MissionPage() {
         mission_id: Number(mission.id || uid),
         ouvrage: mission.chantier || mission.title || '',
       })
-      qc.invalidateQueries({ queryKey: ['calculs', 'g3-mission', uid] })
       navigate(buildPathWithReturnTo(`/calculs/alize/${created.id}`, returnTo))
     } catch (err) {
       setCalculError(getApiErrorMessage(err, 'Création du calcul impossible'))
@@ -172,30 +161,50 @@ export default function G3MissionPage() {
         {mission ? (
           <>
             <div className="mb-4">
-            <SectionCard title="Calculs liés">
-              <div className="mb-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
-                  {creatingCalcul ? 'Création…' : '+ Nouveau Alizé'}
-                </Button>
-              </div>
-              {linkedCalculs.length === 0 ? (
-                <p className="text-[13px] text-[#69758a]">Aucun calcul lié à cette mission / demande.</p>
-              ) : (
-                <div className="space-y-1">
-                  {linkedCalculs.map((calc) => (
-                    <button
-                      key={calc.id}
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-lg border border-[#eef1f6] px-3 py-2 text-left text-[13px] hover:bg-[#f8fafc]"
-                      onClick={() => navigate(buildPathWithReturnTo(`/calculs/alize/${calc.id}`, returnTo))}
+              <SectionCard
+                title="Notes techniques / Avis"
+                subtitle="Livrables NT de la demande (série commune NT0001…)"
+                actions={(
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => navigate(buildPathWithReturnTo(
+                        `/avis-technique/nouveau?demande_id=${mission.demande_id}`,
+                        returnTo,
+                      ))}
                     >
-                      <span className="font-semibold text-[#003170]">{calc.reference}</span>
-                      <span className="text-[#69758a]">{calc.nom_calcul} · {calc.statut}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </SectionCard>
+                      + Avis / NT
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(buildPathWithReturnTo('/g3/notes-techniques', returnTo))}
+                    >
+                      Portefeuille NT
+                    </Button>
+                  </div>
+                )}
+              >
+                {!Array.isArray(avisList) || avisList.length === 0 ? (
+                  <p className="text-[13px] text-[#69758a]">
+                    Aucun avis technique sur cette demande — créez-en un pour démarrer la rédaction.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {avisList.map((avis) => (
+                      <button
+                        key={avis.id}
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-lg border border-[#eef1f6] px-3 py-2 text-left text-[13px] hover:bg-[#f8fafc]"
+                        onClick={() => navigate(buildPathWithReturnTo(`/avis-technique/${avis.id}`, returnTo))}
+                      >
+                        <span className="font-semibold text-[#003170]">{avis.reference || `Avis #${avis.id}`}</span>
+                        <span className="text-[#69758a]">{avis.titre || 'Avis technique'} · {avis.statut || '—'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
             </div>
 
             <div className="mb-4 flex flex-wrap gap-2">

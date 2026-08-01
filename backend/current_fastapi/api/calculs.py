@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from app.core.api_security import current_request_user_label
 from app.models.calculs import (
@@ -143,6 +143,35 @@ def get_fiche(calculation_id: int):
     if not html:
         raise HTTPException(404, f"Calcul #{calculation_id} introuvable")
     return HTMLResponse(html)
+
+
+@router.get("/calculations/{calculation_id}/fiche.pdf")
+def get_fiche_pdf(calculation_id: int):
+    detail = _repo.get(calculation_id)
+    if not detail:
+        raise HTTPException(404, f"Calcul #{calculation_id} introuvable")
+    pdf = _repo.build_fiche_pdf(calculation_id)
+    if not pdf:
+        raise HTTPException(404, f"Calcul #{calculation_id} introuvable")
+    from app.services.alize_fiche_export import build_fiche_export_basename
+
+    basename = build_fiche_export_basename(detail)
+    filename = f"{basename}.pdf"
+    from urllib.parse import quote
+
+    ascii_name = "".join(ch if 32 <= ord(ch) < 127 and ch not in '\\/"' else "-" for ch in basename).strip("-.") or f"calcul_{calculation_id}"
+    ascii_filename = f"{ascii_name}.pdf"
+    encoded = quote(filename)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{ascii_filename}"; '
+                f"filename*=UTF-8''{encoded}"
+            )
+        },
+    )
 
 
 @router.get("/catalogs/alize")

@@ -129,6 +129,9 @@ class CalculationListItemSchema(BaseModel):
     zone_label: str = ""
     auteur: str = ""
     updated_at: str = ""
+    pour_impression: bool = False
+    a_retenir: bool = False
+    nom_sortie: str = ""
 
 
 class CalculationDetailSchema(BaseModel):

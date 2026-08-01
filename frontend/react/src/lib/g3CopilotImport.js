@@ -69,47 +69,58 @@ function guessLaboCode(payload, fallback = 'SP') {
   return fallback
 }
 
-function extractLookupRefs(payload) {
+/**
+ * Références RaLab pour rattachement : UNIQUEMENT les champs dédiés.
+ * Ne jamais déduire depuis dst_reference / demande_reference / textes libres
+ * (évite de coller une Affaire RaLab mal placée par Copilot).
+ */
+export function extractLookupRefs(payload) {
   const refs = getExternalRefs(payload)
-  const candidates = [
-    refs.affaire_ralab,
-    refs.demande_ralab,
-    refs.demande_reference,
-    refs.dst_reference,
-    refs.affaire_client,
-    refs.commune,
-    refs.adresse,
-    ...(Array.isArray(refs.autres) ? refs.autres : []),
-  ]
-    .map((v) => String(v || '').trim())
-    .filter(Boolean)
-
-  // Repérer aussi une réf. RaLab noyée dans un texte libre.
-  const embedded = []
-  for (const value of candidates) {
-    const found = value.match(/\b\d{4}-[A-Z]{2,4}-(?:D\d{3,5}|\d{2,5})\b/gi) || []
-    embedded.push(...found)
-  }
-
   let affaireRef = ''
   let demandeRef = ''
 
-  // Champs dédiés en priorité.
-  if (RALAB_AFFAIRE_REF_RE.test(String(refs.affaire_ralab || '').trim())) {
-    affaireRef = String(refs.affaire_ralab).trim().toUpperCase()
+  const explicitAffaire = String(refs.affaire_ralab || '').trim()
+  const explicitDemande = String(refs.demande_ralab || '').trim()
+
+  if (RALAB_AFFAIRE_REF_RE.test(explicitAffaire) && !RALAB_DEMANDE_REF_RE.test(explicitAffaire)) {
+    affaireRef = explicitAffaire.toUpperCase()
   }
-  if (RALAB_DEMANDE_REF_RE.test(String(refs.demande_ralab || '').trim())) {
-    demandeRef = String(refs.demande_ralab).trim().toUpperCase()
+  if (RALAB_DEMANDE_REF_RE.test(explicitDemande)) {
+    demandeRef = explicitDemande.toUpperCase()
   }
 
-  for (const value of [...candidates, ...embedded]) {
-    const token = String(value || '').trim()
-    if (!demandeRef && RALAB_DEMANDE_REF_RE.test(token)) demandeRef = token.toUpperCase()
-    if (!affaireRef && RALAB_AFFAIRE_REF_RE.test(token) && !RALAB_DEMANDE_REF_RE.test(token)) {
-      affaireRef = token.toUpperCase()
-    }
-  }
   return { affaireRef, demandeRef }
+}
+
+/** Détecte les refs RaLab placées dans le mauvais champ (souvent dst_reference). */
+export function detectMisplacedRalabRefs(payload) {
+  const refs = getExternalRefs(payload)
+  const warnings = []
+  const dst = String(refs.dst_reference || '').trim()
+  const demExt = String(refs.demande_reference || '').trim()
+  const client = String(refs.affaire_client || '').trim()
+
+  if (RALAB_AFFAIRE_REF_RE.test(dst) && !RALAB_DEMANDE_REF_RE.test(dst)) {
+    warnings.push(
+      `dst_reference contient une Affaire RaLab (${dst.toUpperCase()}) — ignorée pour le rattachement. Utilisez affaire_ralab.`,
+    )
+  }
+  if (RALAB_AFFAIRE_REF_RE.test(demExt) && !RALAB_DEMANDE_REF_RE.test(demExt)) {
+    warnings.push(
+      `demande_reference contient une Affaire RaLab (${demExt.toUpperCase()}) — ignorée. Utilisez affaire_ralab.`,
+    )
+  }
+  if (RALAB_AFFAIRE_REF_RE.test(client) && !RALAB_DEMANDE_REF_RE.test(client)) {
+    warnings.push(
+      `affaire_client contient une Affaire RaLab (${client.toUpperCase()}) — ignorée. Utilisez affaire_ralab.`,
+    )
+  }
+  if (RALAB_DEMANDE_REF_RE.test(dst)) {
+    warnings.push(
+      `dst_reference contient une Demande RaLab (${dst.toUpperCase()}) — utilisez demande_ralab.`,
+    )
+  }
+  return warnings
 }
 
 function pickNumeroDst(refs = {}) {
@@ -131,6 +142,7 @@ function pickNumeroDst(refs = {}) {
 export function summarizeG3Import(data) {
   const mission = data?.mission || {}
   const refs = extractLookupRefs(data)
+  const misplaced = detectMisplacedRalabRefs(data)
   const media = Array.isArray(data?.media_assets) ? data.media_assets : []
   const mediaFound = media.filter((m) => m?.found_in_source).length
   const mediaMissing = media.filter((m) => m && m.found_in_source === false).length
@@ -138,6 +150,7 @@ export function summarizeG3Import(data) {
   const hasImplantation = media.some((m) => String(m?.role || '') === 'plan_implantation')
   const situationMissing = media.some((m) => String(m?.role || '') === 'plan_situation' && m.found_in_source === false)
   const implantationMissing = media.some((m) => String(m?.role || '') === 'plan_implantation' && m.found_in_source === false)
+  const baseWarnings = Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : []
   return {
     title: mission.title || '—',
     client: mission.client || '—',
@@ -158,8 +171,71 @@ export function summarizeG3Import(data) {
     situationMissing,
     implantationMissing,
     confidence: typeof data?.confidence_global === 'number' ? data.confidence_global : null,
-    warnings: Array.isArray(data?.warnings) ? data.warnings.filter(Boolean) : [],
+    warnings: [...misplaced, ...baseWarnings],
+    misplacedRefs: misplaced,
     missingCritical: Array.isArray(data?.missing_critical) ? data.missing_critical.filter(Boolean) : [],
+  }
+}
+
+/**
+ * Prévisualise le rattachement affaire/demande AVANT création.
+ * @returns {{ mode: string, affaireRef: string, demandeRef: string, affaireExists: boolean|null, nextAffaireRef: string, message: string }}
+ */
+export async function previewAffaireDemandeResolve({
+  payload,
+  affaireId = null,
+  laboCode = 'SP',
+} = {}) {
+  const refs = extractLookupRefs(payload)
+  const misplaced = detectMisplacedRalabRefs(payload)
+  void laboCode
+
+  if (affaireId != null && String(affaireId).trim() !== '') {
+    const affaire = await affairesApi.get(affaireId)
+    return {
+      mode: 'use_affaire_id',
+      affaireRef: affaire?.reference || '',
+      demandeRef: refs.demandeRef || '',
+      affaireExists: true,
+      nextAffaireRef: '',
+      message: `Créer une demande (+ mission G3) sur l’affaire ${affaire?.reference || `#${affaireId}`}.`,
+      misplaced,
+    }
+  }
+
+  if (refs.affaireRef) {
+    const found = await findAffaireByReference(refs.affaireRef)
+    if (found) {
+      return {
+        mode: 'link_existing',
+        affaireRef: refs.affaireRef,
+        demandeRef: refs.demandeRef || '',
+        affaireExists: true,
+        nextAffaireRef: '',
+        message: `Lier à l’affaire existante ${refs.affaireRef}${refs.demandeRef ? ` · demande ${refs.demandeRef}` : ' · nouvelle demande'}.`,
+        misplaced,
+      }
+    }
+    return {
+      mode: 'create_explicit',
+      affaireRef: refs.affaireRef,
+      demandeRef: refs.demandeRef || '',
+      affaireExists: false,
+      nextAffaireRef: '',
+      message: `Créer l’affaire ${refs.affaireRef} (n’existe pas encore)${refs.demandeRef ? ` · puis demande ${refs.demandeRef}` : ' · puis nouvelle demande'} + mission G3.`,
+      misplaced,
+    }
+  }
+
+  const next = await affairesApi.nextRef()
+  return {
+    mode: 'create_new',
+    affaireRef: '',
+    demandeRef: refs.demandeRef || '',
+    affaireExists: null,
+    nextAffaireRef: next?.reference || '',
+    message: `Aucune affaire_ralab explicite dans le JSON. Créer une NOUVELLE affaire ${next?.reference || ''} + demande + mission G3 ?`,
+    misplaced,
   }
 }
 
@@ -315,9 +391,14 @@ export async function resolveOrCreateAffaireDemandeFromImport({
   }
 
   if (!affaire) {
-    const next = await affairesApi.nextRef()
-    const reference = next?.reference
-    if (!reference) throw new Error('Impossible d’obtenir la prochaine référence affaire.')
+    // Si Copilot / l’utilisateur a fourni affaire_ralab explicite absente → créer CETTE réf.
+    // Sinon → prochaine réf. automatique.
+    let reference = refs.affaireRef || ''
+    if (!reference) {
+      const next = await affairesApi.nextRef()
+      reference = next?.reference || ''
+    }
+    if (!reference) throw new Error('Impossible d’obtenir la référence affaire.')
     affaire = await affairesApi.create(buildAffaireCreateBody(payload, reference))
     createdAffaire = true
   }

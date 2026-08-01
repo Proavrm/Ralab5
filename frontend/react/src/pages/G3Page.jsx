@@ -3,15 +3,37 @@ import { useNavigate } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import DemandeReferencePicker from '@/components/demande/DemandeReferencePicker'
 import { FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
+import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 import { resolveG3NotesTechniquesPath } from '@/lib/modeleNTContent'
+import { demandesApi } from '@/services/api'
 
 export default function G3Page() {
   const navigate = useNavigate()
   const [demandeQuery, setDemandeQuery] = useState('')
+  const [demandeId, setDemandeId] = useState(null)
 
   async function openNotesTechniques() {
     const value = String(demandeQuery || '').trim()
     if (!value) return
+
+    let id = demandeId
+    if (!id) {
+      try {
+        const demandes = await demandesApi.list({ search: value })
+        const list = Array.isArray(demandes) ? demandes : (demandes?.items || [])
+        const match = list.find((d) => String(d.reference || '').toLowerCase() === value.toLowerCase())
+          || list.find((d) => String(d.reference || '').toLowerCase().includes(value.toLowerCase()))
+        id = match?.id ?? match?.uid ?? null
+      } catch {
+        id = null
+      }
+    }
+
+    if (id) {
+      navigate(buildPathWithReturnTo(`/avis-technique/nouveau?demande_id=${id}`, '/g3'))
+      return
+    }
+
     const path = await resolveG3NotesTechniquesPath({ demandeRef: value, returnTo: '/g3' })
     navigate(path)
   }
@@ -43,12 +65,16 @@ export default function G3Page() {
                 📝 Portefeuille NT
               </Button>
               <Button size="sm" onClick={openNotesTechniques} disabled={!demandeQuery.trim()}>
-                Ouvrir notes techniques
+                Nouvelle rédaction NT / Avis
               </Button>
             </div>
             <DemandeReferencePicker
               value={demandeQuery}
-              onChange={setDemandeQuery}
+              onChange={(value) => { setDemandeQuery(value); setDemandeId(null) }}
+              onSelect={(row) => {
+                setDemandeQuery(row.reference)
+                setDemandeId(row.uid ?? row.id ?? null)
+              }}
               listMode="inline"
               defaultOpen
               placeholder="Filtrer par référence, affaire, chantier…"

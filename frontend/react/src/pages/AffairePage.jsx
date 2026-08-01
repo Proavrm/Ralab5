@@ -154,12 +154,6 @@ export default function AffairePage() {
     enabled:  !!uid,
   })
 
-  const { data: linkedCalculs = [] } = useQuery({
-    queryKey: ['calculs', 'affaire', uid],
-    queryFn: () => calculsApi.list({ affaire_rst_id: Number(uid) }),
-    enabled: Boolean(uid),
-  })
-
   const { data: allAffaires = [] } = useQuery({
     queryKey: ['affaires-titulaire-options'],
     queryFn: () => affairesApi.list(),
@@ -691,33 +685,19 @@ export default function AffairePage() {
 
         <SectionCard
           title="Calculs de dimensionnement"
-          subtitle="Alizé / Gel-Dégel / Talren liés à cette affaire"
+          subtitle="Liste et édition sur la page Calculs"
           actions={(
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
                 {creatingCalcul ? '…' : '+ Alizé'}
               </Button>
-              <Button size="sm" onClick={() => navigate(`/calculs?affaire_rst_id=${uid}`)}>Voir tous</Button>
+              <Button size="sm" onClick={() => navigate(`/calculs?affaire_rst_id=${uid}`)}>Voir calculs</Button>
             </div>
           )}
         >
-          {!Array.isArray(linkedCalculs) || linkedCalculs.length === 0 ? (
-            <div className="text-xs text-[#69758a] text-center py-6">Aucun calcul lié à cette affaire</div>
-          ) : (
-            <div className="space-y-1">
-              {linkedCalculs.map((calc) => (
-                <button
-                  key={calc.id}
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-lg border border-[#eef1f6] px-3 py-2 text-left text-[13px] hover:bg-[#f8fafc]"
-                  onClick={() => navigate(buildPathWithReturnTo(`/calculs/alize/${calc.id}`, detailReturnTo))}
-                >
-                  <span className="font-semibold text-[#003170]">{calc.reference}</span>
-                  <span className="text-[#69758a]">{calc.nom_calcul} · {calc.statut}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <p className="text-[13px] text-[#69758a]">
+            Les calculs de cette affaire s’ouvrent dans Calculs — pas de liste dupliquée ici.
+          </p>
         </SectionCard>
 
         <SectionCard

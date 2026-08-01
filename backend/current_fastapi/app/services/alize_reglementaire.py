@@ -20,25 +20,29 @@ from typing import Any
 
 
 # Paramètres fatigue / rigidité typiques (catalogue simplifié)
+# SN : écart-type log10(N) — Annexe F NF P98-086 (GB souvent 0,30)
 MATERIAL_DEFAULTS: dict[str, dict[str, float]] = {
     "BBSG2": {"eps6": 100.0, "b": -0.2, "kc": 1.0, "e10": 7000.0, "sn": 0.25},
     "BBSG3": {"eps6": 100.0, "b": -0.2, "kc": 1.0, "e10": 7000.0, "sn": 0.25},
     "BBME2": {"eps6": 100.0, "b": -0.2, "kc": 1.0, "e10": 11000.0, "sn": 0.25},
     "BBME3": {"eps6": 100.0, "b": -0.2, "kc": 1.0, "e10": 11000.0, "sn": 0.25},
-    "GB3": {"eps6": 100.0, "b": -0.2, "kc": 1.3, "e10": 9000.0, "sn": 0.25},
-    "GB4": {"eps6": 100.0, "b": -0.2, "kc": 1.3, "e10": 11000.0, "sn": 0.25},
+    "GB3": {"eps6": 100.0, "b": -0.2, "kc": 1.3, "e10": 9000.0, "sn": 0.30},
+    "GB4": {"eps6": 100.0, "b": -0.2, "kc": 1.3, "e10": 11000.0, "sn": 0.30},
     "EME2": {"eps6": 100.0, "b": -0.2, "kc": 1.0, "e10": 14000.0, "sn": 0.25},
     "BBTM": {"eps6": 100.0, "b": -0.2, "kc": 1.0, "e10": 5500.0, "sn": 0.25},
 }
 
-# ks selon classe de plateforme (approx. méthode française)
+# ks selon classe de plateforme (NF P98-086 / catalogues usuels)
 KS_BY_PF = {
     "PF1": 1.0 / 1.2,
     "PF2": 1.0 / 1.1,
-    "PF2QS": 1.0 / 1.05,
+    "PF2QS": 1.0 / 1.065,
     "PF3": 1.0,
     "PF4": 1.0,
 }
+
+# Coefficient c (m^-1) reliant variation d'épaisseur → variation de déformation
+C_THICKNESS = 2.0
 
 # Variable réduite u associée au risque (loi normale, queue gauche)
 RISK_U = {
@@ -110,10 +114,39 @@ def risk_u(risque_pct: float | None) -> float:
     return RISK_U[5]
 
 
-def compute_kr(*, risque_pct: float | None, b: float, sn: float) -> float:
-    """kr = 10^(-u · |b| · SN) — formulation usuelle méthode française."""
+def compute_sh_m(*, epaisseur_m: float | None, materiau: str = "") -> float:
+    """
+    Écart-type d'épaisseur Sh (m) — formulation usuelle Alizé / catalogues bitumineux d'assise :
+    Sh = max(0, 0.3·e − 0.02) avec e en mètres (calée sur fiches type GB).
+    """
+    e = float(epaisseur_m or 0.0)
+    if e <= 0:
+        return 0.0
+    code = _norm_code(materiau)
+    # Couches de roulement / liaison : dispersion plus faible (souvent négligée si non critique)
+    if code.startswith(("BBSG", "BBME", "BBTM", "BB")) and not code.startswith(("GB", "EME")):
+        return max(0.0, 0.25 * e - 0.015)
+    return max(0.0, 0.3 * e - 0.02)
+
+
+def compute_delta(*, sn: float, b: float, sh_m: float, c: float = C_THICKNESS) -> float:
+    """δ = √(SN² + (c·Sh / |b|)²) — NF P98-086 Éq. 4."""
+    b_abs = abs(float(b)) or 1e-9
+    return math.sqrt(max(sn, 0.0) ** 2 + (c * max(sh_m, 0.0) / b_abs) ** 2)
+
+
+def compute_kr(
+    *,
+    risque_pct: float | None,
+    b: float,
+    sn: float,
+    sh_m: float = 0.0,
+    c: float = C_THICKNESS,
+) -> float:
+    """kr = 10^(-u · |b| · δ) avec δ intégrant SN et Sh (NF P98-086)."""
     u = risk_u(risque_pct)
-    return 10.0 ** (-u * abs(b) * max(sn, 0.0))
+    delta = compute_delta(sn=sn, b=b, sh_m=sh_m, c=c)
+    return 10.0 ** (-u * abs(b) * delta)
 
 
 def ks_for_platform(classe: str | None, module_pf: float | None = None) -> float:
@@ -129,7 +162,7 @@ def ks_for_platform(classe: str | None, module_pf: float | None = None) -> float
     if m < 70:
         return 1.0 / 1.1
     if m < 100:
-        return 1.0 / 1.05
+        return 1.0 / 1.065
     return 1.0
 
 
@@ -170,6 +203,7 @@ def compute_eps_t_adm(
     platform_classe: str | None = None,
     platform_module: float | None = None,
 ) -> dict[str, Any]:
+    layer = layer or {}
     conf = material_params(materiau, layer, params)
     eps6 = conf["eps6"]
     b = conf["b"]
@@ -177,8 +211,26 @@ def compute_eps_t_adm(
     sn = conf["sn"]
     e10 = conf["e10"]
     e_theta = conf.get("e_theta", e10) or e10
-    ktheta = (e10 / e_theta) if e_theta else 1.0
-    kr = compute_kr(risque_pct=risque_pct, b=b, sn=sn)
+    # NF P98-086 : kθ = √(E(10 °C) / E(θeq))
+    ktheta = math.sqrt(e10 / e_theta) if e_theta else 1.0
+
+    # Épaisseur structurale de la couche critique (m)
+    ep_cm = _num(layer.get("epaisseur"))
+    if ep_cm is not None and ep_cm > 0:
+        ep_m = ep_cm / 100.0
+    else:
+        h_cm = _num((params or {}).get("h_assise_cm"), 0.0) or 0.0
+        ep_m = h_cm / 100.0
+    sh_m = compute_sh_m(epaisseur_m=ep_m, materiau=materiau)
+    # Surcharge éventuelle Sh / SN via params
+    overrides = ((params or {}).get("materiaux") or {}).get(materiau) or ((params or {}).get("materiaux") or {}).get(_norm_code(materiau)) or {}
+    if overrides.get("sh") not in (None, ""):
+        sh_m = float(overrides["sh"])
+    if overrides.get("sn") not in (None, ""):
+        sn = float(overrides["sn"])
+
+    delta = compute_delta(sn=sn, b=b, sh_m=sh_m)
+    kr = compute_kr(risque_pct=risque_pct, b=b, sn=sn, sh_m=sh_m)
     ks = ks_for_platform(platform_classe, platform_module)
     ratio = max(ne, 1.0) / 1_000_000.0
     eps_adm = eps6 * (ratio ** b) * kc * kr * ks * ktheta
@@ -193,10 +245,13 @@ def compute_eps_t_adm(
             "ks": ks,
             "ktheta": ktheta,
             "sn": sn,
+            "sh_m": sh_m,
+            "delta": delta,
+            "epaisseur_m": ep_m,
             "e10": e10,
             "e_theta": e_theta,
             "ne": ne,
-            "formule": "εt,adm = ε6·(NE/1e6)^b·kc·kr·ks·kθ",
+            "formule": "εt,adm = ε6·(NE/1e6)^b·kc·kr·ks·√(E10/Eθ) · kr=10^(-u·|b|·δ)",
         },
     }
 
@@ -359,7 +414,8 @@ def run_reglementaire_payload(
                 "statut": "Non renseigné",
                 "commentaire": (
                     f"VA réglementaire RaLab · ε6={va['details']['eps6']} · "
-                    f"kr={va['details']['kr']:.3f} · ks={va['details']['ks']:.3f}"
+                    f"kr={va['details']['kr']:.3f} · Sh={va['details']['sh_m']:.3f} m · "
+                    f"ks={va['details']['ks']:.3f}"
                 ),
             }
         )

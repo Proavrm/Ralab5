@@ -22,6 +22,43 @@ function isPfLayer(layer) {
     || String(layer?.famille || '').toLowerCase().includes('plateforme')
 }
 
+/** Origine matériau : FTP / bibliothèque / saisie manuelle. */
+function materialOrigin(layer) {
+  if (!layer) return 'manuel'
+  const source = String(layer.source || layer.materiau_source || '').toLowerCase()
+  if (layer.ftp_url || source.includes('ftp')) return 'ftp'
+  if (layer.from_library && !layer.modified_manually) return 'biblio'
+  return 'manuel'
+}
+
+function OriginBadge({ origin, onLight = false }) {
+  if (origin === 'ftp') {
+    return (
+      <span className={`rounded px-1 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+        onLight ? 'bg-cyan-100 text-cyan-900' : 'bg-[#0e7490] text-white'
+      }`}
+      >
+        FTP
+      </span>
+    )
+  }
+  if (origin === 'biblio') {
+    return (
+      <span className={`rounded px-1 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+        onLight ? 'bg-[#e8eef6] text-[#003170]' : 'bg-white/25 text-white'
+      }`}
+      >
+        Biblio
+      </span>
+    )
+  }
+  return (
+    <span className="rounded bg-amber-400 px-1 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-950">
+      Manuel
+    </span>
+  )
+}
+
 function Field({ label, children, hint, warn }) {
   return (
     <label className="block">
@@ -215,10 +252,14 @@ export default function AlizeStructureEditor({
   function applyMaterial(index, code) {
     const mat = materials.find((m) => m.code === code)
     const layer = layers[index] || {}
+    const source = String(mat?.source || 'biblio')
+    const fromFtp = source.toLowerCase().includes('ftp')
     const patch = {
       materiau: code,
       from_library: true,
       modified_manually: false,
+      source: fromFtp ? 'ftp' : (source || 'biblio'),
+      ftp_url: fromFtp ? (mat.ftp_url || layer.ftp_url || '') : '',
     }
     if (mat) {
       patch.famille = mat.famille || layer.famille
@@ -241,7 +282,9 @@ export default function AlizeStructureEditor({
       } else if (!layer.fonction) {
         patch.fonction = index === 0 ? 'Roulement' : 'Assise'
       }
-      patch.justification = `Bibliothèque ${layer.bibliotheque || defaults.bibliotheque || 'Alizé'}`
+      patch.justification = fromFtp
+        ? `FTP${mat.label ? ` · ${mat.label}` : ''}`
+        : `Bibliothèque ${layer.bibliotheque || defaults.bibliotheque || 'Alizé'}`
     }
     patchLayer(index, patch)
   }
@@ -285,7 +328,7 @@ export default function AlizeStructureEditor({
   const freqWarn = freq != null && freq !== 10 ? 'Valeur hors standard Alizé (10 Hz)' : ''
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr_auto] md:items-end">
         <Field label="Titre de la structure">
           <Input
@@ -306,11 +349,11 @@ export default function AlizeStructureEditor({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
-      {/* Schéma interactif */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[12px] font-black uppercase tracking-wide text-[#003170]">Schéma</div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+        {/* Schéma interactif */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-black uppercase tracking-wide text-[#003170]">Schéma</div>
           {!readOnly ? (
             <Button size="sm" onClick={addSurfaceLayer}>+ Surface</Button>
           ) : null}
@@ -319,11 +362,17 @@ export default function AlizeStructureEditor({
           {layers.map((layer, index) => {
             const ep = toNum(layer.epaisseur)
             const pf = isPfLayer(layer)
+            const origin = materialOrigin(layer)
             const h = pf || ep == null
-              ? 52
-              : Math.max(40, Math.round((ep / totalEp) * 240))
+              ? 36
+              : Math.max(28, Math.round((ep / totalEp) * 160))
             const color = LAYER_COLORS[index % LAYER_COLORS.length]
             const selectedStyle = selectedIndex === index ? 'ring-2 ring-[#ffcc00] ring-inset' : ''
+            const originRing = origin === 'manuel'
+              ? 'ring-2 ring-inset ring-amber-400'
+              : origin === 'ftp'
+                ? 'ring-2 ring-inset ring-cyan-300'
+                : ''
             const iface = layer.interface_inf || 'collé'
             const ifaceColor = INTERFACE_COLORS[iface] || '#94a3b8'
             return (
@@ -333,14 +382,26 @@ export default function AlizeStructureEditor({
                   tabIndex={0}
                   onClick={() => setSelectedIndex(index)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedIndex(index) }}
-                  style={{ height: h, background: color }}
-                  className={`relative flex cursor-pointer flex-col justify-center px-3 text-[11px] font-semibold text-white ${selectedStyle}`}
-                  title="Cliquer pour éditer · bord bas = drag épaisseur"
+                  style={{
+                    height: h,
+                    background: origin === 'manuel'
+                      ? `linear-gradient(90deg, #f59e0b 0 4px, ${color} 4px)`
+                      : color,
+                  }}
+                  className={`relative flex cursor-pointer flex-col justify-center px-2 text-[10px] font-semibold text-white ${selectedStyle} ${originRing}`}
+                  title={
+                    origin === 'manuel'
+                      ? 'Matériau saisi manuellement (hors FTP / bibliothèque)'
+                      : origin === 'ftp'
+                        ? 'Matériau issu d’une FTP'
+                        : 'Matériau issu de la bibliothèque'
+                  }
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate">{layer.materiau || layer.fonction || `Couche ${index + 1}`}</span>
-                    <span className="shrink-0 opacity-90">
-                      {pf || ep == null ? '∞' : `${ep} cm`}
+                    <span className="flex shrink-0 items-center gap-1">
+                      <OriginBadge origin={origin} />
+                      <span className="opacity-90">{pf || ep == null ? '∞' : `${ep} cm`}</span>
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-[10px] font-normal opacity-90">
@@ -385,7 +446,7 @@ export default function AlizeStructureEditor({
           })}
           {platform.classe && !layers.some(isPfLayer) ? (
             <div
-              className="flex h-12 cursor-pointer items-center justify-between bg-[#64748b] px-3 text-[11px] font-semibold text-white"
+              className="flex h-9 cursor-pointer items-center justify-between bg-[#64748b] px-2 text-[10px] font-semibold text-white"
               onClick={() => {
                 // sélection « virtuelle » PF via plateforme
                 setSelectedIndex(-1)
@@ -407,15 +468,18 @@ export default function AlizeStructureEditor({
               <span className="inline-block h-2 w-3 rounded" style={{ background: c }} /> {k}
             </span>
           ))}
+          <span className="inline-flex items-center gap-1"><OriginBadge origin="biblio" onLight /> biblio</span>
+          <span className="inline-flex items-center gap-1"><OriginBadge origin="ftp" onLight /> FTP</span>
+          <span className="inline-flex items-center gap-1"><OriginBadge origin="manuel" onLight /> manuel</span>
         </div>
       </div>
 
       {/* Panneau propriétés */}
-      <div className="min-w-0 rounded-xl border border-[#dbe1ea] bg-white p-3">
+      <div className="min-w-0 rounded-lg border border-[#dbe1ea] bg-white p-2.5">
         {selectedIndex < 0 ? (
-          <div className="space-y-3">
-            <div className="text-[12px] font-black uppercase tracking-wide text-[#003170]">Plateforme</div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <div className="text-[11px] font-black uppercase tracking-wide text-[#003170]">Plateforme</div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Field label="Classe PF">
                 <Select
                   className="w-full"
@@ -456,12 +520,15 @@ export default function AlizeStructureEditor({
             <p className="text-[12px] text-text-muted">La plateforme ne fait pas partie de l’assise (Alizé2 §3.2.1).</p>
           </div>
         ) : selected ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-[12px] font-black uppercase tracking-wide text-[#003170]">
-                Couche {selected.ordre || selectedIndex + 1}
-                {selectedIsPf ? ' · Plateforme' : ''}
-                {selected.materiau ? ` · ${selected.materiau}` : ''}
+              <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-wide text-[#003170]">
+                <span>
+                  Couche {selected.ordre || selectedIndex + 1}
+                  {selectedIsPf ? ' · Plateforme' : ''}
+                  {selected.materiau ? ` · ${selected.materiau}` : ''}
+                </span>
+                <OriginBadge origin={materialOrigin(selected)} onLight />
               </div>
               {!readOnly && !selectedIsPf ? (
                 <label className="inline-flex items-center gap-2 text-[12px]">
@@ -475,7 +542,7 @@ export default function AlizeStructureEditor({
               ) : null}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Field label="Bibliothèque" hint="Catalogue 1998 / NF 2011 / NF 2019 / Autre">
                 <Select
                   className="w-full"
@@ -501,22 +568,30 @@ export default function AlizeStructureEditor({
                   ))}
                 </Select>
               </Field>
-              <Field label="Matériau (bibliothèque)">
-                <Select
-                  className="w-full"
-                  value={selected.materiau || ''}
-                  disabled={readOnly}
-                  onChange={(e) => applyMaterial(selectedIndex, e.target.value)}
-                >
-                  <option value="">Choisir…</option>
-                  {materialsForSelected.map((mat) => (
-                    <option key={`${mat.source}-${mat.code}`} value={mat.code}>
-                      {mat.code}{mat.module != null ? ` · E=${Math.round(Number(mat.module))}` : ''}
-                    </option>
-                  ))}
-                </Select>
+              <Field label="Matériau (bibliothèque / FTP)" hint="Origine indiquée dans la liste · Manuel = saisie libre">
+                <div className="flex items-center gap-2">
+                  <Select
+                    className="w-full"
+                    value={selected.materiau || ''}
+                    disabled={readOnly}
+                    onChange={(e) => applyMaterial(selectedIndex, e.target.value)}
+                  >
+                    <option value="">Choisir…</option>
+                    {materialsForSelected.map((mat) => {
+                      const src = String(mat.source || '').toLowerCase()
+                      const tag = src.includes('ftp') ? 'FTP' : 'Biblio'
+                      return (
+                        <option key={`${mat.source}-${mat.code}`} value={mat.code}>
+                          [{tag}] {mat.code}{mat.module != null ? ` · E=${Math.round(Number(mat.module))}` : ''}
+                          {mat.centrale ? ` · ${mat.centrale}` : ''}
+                        </option>
+                      )
+                    })}
+                  </Select>
+                  <OriginBadge origin={materialOrigin(selected)} onLight />
+                </div>
               </Field>
-              <Field label="Matériau (libre)">
+              <Field label="Matériau (libre)" hint="Hors FTP / bibliothèque → marque Manuel">
                 <Input
                   value={selected.materiau ?? ''}
                   disabled={readOnly}
@@ -524,6 +599,8 @@ export default function AlizeStructureEditor({
                     materiau: e.target.value,
                     modified_manually: true,
                     from_library: false,
+                    source: 'manuel',
+                    ftp_url: '',
                   })}
                 />
               </Field>
@@ -699,7 +776,7 @@ export default function AlizeStructureEditor({
             </Field>
           </div>
         ) : (
-          <p className="text-[13px] text-text-muted">Sélectionnez une couche sur le schéma.</p>
+          <p className="text-[12px] text-text-muted">Sélectionnez une couche sur le schéma.</p>
         )}
       </div>
       </div>

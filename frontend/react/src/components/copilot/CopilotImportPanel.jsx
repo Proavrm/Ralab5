@@ -6,6 +6,7 @@ import CopyCopilotPromptButton from '@/components/copilot/CopyCopilotPromptButto
 import {
   applyG3CopilotImportFull,
   parseG3CopilotImport,
+  previewAffaireDemandeResolve,
   summarizeG3Import,
 } from '@/lib/g3CopilotImport'
 import { buildPathWithReturnTo } from '@/lib/detailNavigation'
@@ -31,6 +32,7 @@ export default function CopilotImportPanel({
   ))
   const [parsed, setParsed] = useState(null)
   const [summary, setSummary] = useState(null)
+  const [resolvePreview, setResolvePreview] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [resultMsg, setResultMsg] = useState('')
@@ -48,8 +50,12 @@ export default function CopilotImportPanel({
     return [
       `Titre: ${summary.title}`,
       `Client: ${summary.client} · Chantier: ${summary.chantier}`,
-      summary.lookupAffaireRef ? `Affaire RaLab détectée: ${summary.lookupAffaireRef}` : null,
-      summary.lookupDemandeRef ? `Demande RaLab détectée: ${summary.lookupDemandeRef}` : null,
+      summary.lookupAffaireRef
+        ? `Affaire RaLab (affaire_ralab): ${summary.lookupAffaireRef}`
+        : 'Affaire RaLab (affaire_ralab): — (aucune)',
+      summary.lookupDemandeRef
+        ? `Demande RaLab (demande_ralab): ${summary.lookupDemandeRef}`
+        : null,
       `${summary.zones} zone(s) · ${summary.documents} doc(s) · ${summary.objectives} objectif(s)`,
       `${summary.interventions} intervention(s) · ${summary.holdPoints} point(s) d’arrêt`,
       summary.mediaTotal
@@ -61,16 +67,30 @@ export default function CopilotImportPanel({
     ].filter(Boolean)
   }, [summary])
 
-  function handleParse() {
+  async function handleParse() {
     setError('')
     setResultMsg('')
+    setResolvePreview(null)
     try {
       const data = parseG3CopilotImport(raw)
+      const nextSummary = summarizeG3Import(data)
       setParsed(data)
-      setSummary(summarizeG3Import(data))
+      setSummary(nextSummary)
+      if (allowCreateMissing) {
+        try {
+          const preview = await previewAffaireDemandeResolve({
+            payload: data,
+            affaireId,
+          })
+          setResolvePreview(preview)
+        } catch {
+          setResolvePreview(null)
+        }
+      }
     } catch (err) {
       setParsed(null)
       setSummary(null)
+      setResolvePreview(null)
       setError(err?.message || 'Analyse impossible.')
     }
   }
@@ -86,6 +106,30 @@ export default function CopilotImportPanel({
       setError('Sélectionnez une demande cible.')
       return
     }
+
+    if (createMissing) {
+      let preview = resolvePreview
+      if (!preview) {
+        try {
+          preview = await previewAffaireDemandeResolve({
+            payload: parsed,
+            affaireId,
+          })
+          setResolvePreview(preview)
+        } catch (err) {
+          setError(err?.message || 'Prévisualisation impossible.')
+          return
+        }
+      }
+      const warnBlock = (preview.misplaced || []).length
+        ? `\n\nAttention:\n- ${(preview.misplaced || []).join('\n- ')}`
+        : ''
+      const ok = window.confirm(
+        `${preview.message}${warnBlock}\n\nConfirmer l’import ?`,
+      )
+      if (!ok) return
+    }
+
     setBusy(true)
     try {
       const {
@@ -104,6 +148,7 @@ export default function CopilotImportPanel({
       })
       const parts = [
         createdAffaire ? `Affaire ${affaire?.reference || ''} créée` : null,
+        !createdAffaire && affaire?.reference ? `Affaire ${affaire.reference}` : null,
         createdDemande ? `Demande ${demande?.reference || ''} créée` : null,
         created ? 'Mission G3 créée' : 'Mission G3 mise à jour',
         counts.zones ? `${counts.zones} zone(s)` : null,
@@ -146,7 +191,7 @@ export default function CopilotImportPanel({
             <p className="text-[12px] text-[#69758a] leading-5 max-w-[720px]">
               Collez le JSON renvoyé par Microsoft Copilot (pas le prompt).
               {allowCreateMissing
-                ? ' Si l’affaire / la demande n’existent pas, RaLab peut les créer puis remplir la mission G3.'
+                ? ' Rattachement uniquement via affaire_ralab / demande_ralab explicites — confirmation avant création.'
                 : ' RaLab met à jour ou crée la mission G3 de la demande.'}
             </p>
             {showPromptCopy ? (
@@ -213,6 +258,18 @@ export default function CopilotImportPanel({
               {summaryLines.map((line) => (
                 <div key={line}>{line}</div>
               ))}
+              {resolvePreview?.message ? (
+                <div className="pt-1 font-semibold text-[#003170]">
+                  Action prévue: {resolvePreview.message}
+                </div>
+              ) : null}
+              {summary?.misplacedRefs?.length ? (
+                <div className="pt-1 text-[#a32d2d]">
+                  {summary.misplacedRefs.map((w) => (
+                    <div key={w}>{w}</div>
+                  ))}
+                </div>
+              ) : null}
               {summary?.missingCritical?.length ? (
                 <div className="pt-1 text-[#854f0b]">
                   Manques: {summary.missingCritical.slice(0, 3).join(' · ')}
