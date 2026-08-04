@@ -8,6 +8,66 @@ export const G3_IMPORT_SCHEMA = 'ralab5.g3.import.v1'
 const RALAB_AFFAIRE_REF_RE = /^\d{4}-[A-Z]{2,4}-\d{2,5}$/i
 const RALAB_DEMANDE_REF_RE = /^\d{4}-[A-Z]{2,4}-D\d{3,5}$/i
 
+/**
+ * Corrige les escapes JSON invalides produits par Copilot (ex. "\\020").
+ * JSON n’autorise que \\" \\\\ \\/ \\b \\f \\n \\r \\t \\uXXXX.
+ */
+export function sanitizeInvalidJsonEscapes(raw) {
+  const text = String(raw || '')
+  let out = ''
+  let inString = false
+  let escaped = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]
+
+    if (!inString) {
+      if (ch === '"') inString = true
+      out += ch
+      continue
+    }
+
+    if (escaped) {
+      out += ch
+      escaped = false
+      continue
+    }
+
+    if (ch === '\\') {
+      const next = text[i + 1]
+      if (next == null) {
+        out += '\\\\'
+        continue
+      }
+      if ('"\\/bfnrt'.includes(next)) {
+        out += ch
+        escaped = true
+        continue
+      }
+      if (next === 'u') {
+        const hex = text.slice(i + 2, i + 6)
+        if (/^[0-9a-fA-F]{4}$/.test(hex)) {
+          out += ch
+          escaped = true
+          continue
+        }
+      }
+      // Escape invalide (ex. \0, \x, \020) → backslash littéral
+      out += '\\\\'
+      continue
+    }
+
+    if (ch === '"') inString = false
+    out += ch
+  }
+
+  return out
+}
+
+function tryParseJson(raw) {
+  return JSON.parse(raw)
+}
+
 export function extractJsonPayload(rawText) {
   const text = String(rawText || '').trim()
   if (!text) throw new Error('Collez le JSON Copilot.')
@@ -15,16 +75,28 @@ export function extractJsonPayload(rawText) {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i)
   const candidate = fence ? fence[1].trim() : text
 
-  try {
-    return JSON.parse(candidate)
-  } catch {
-    const start = candidate.indexOf('{')
-    const end = candidate.lastIndexOf('}')
-    if (start >= 0 && end > start) {
-      return JSON.parse(candidate.slice(start, end + 1))
-    }
-    throw new Error('JSON invalide.')
+  const slices = [candidate]
+  const start = candidate.indexOf('{')
+  const end = candidate.lastIndexOf('}')
+  if (start >= 0 && end > start) {
+    slices.push(candidate.slice(start, end + 1))
   }
+
+  let lastError = null
+  for (const slice of slices) {
+    for (const variant of [slice, sanitizeInvalidJsonEscapes(slice)]) {
+      try {
+        return tryParseJson(variant)
+      } catch (err) {
+        lastError = err
+      }
+    }
+  }
+
+  const detail = lastError?.message ? ` (${lastError.message})` : ''
+  throw new Error(
+    `JSON invalide${detail}. Vérifiez les antislashs (ex. \\\\ au lieu de \\0).`,
+  )
 }
 
 export function parseG3CopilotImport(rawText) {
@@ -46,6 +118,69 @@ function nonEmpty(value) {
 function pickString(value) {
   const text = String(value ?? '').trim()
   return text || undefined
+}
+
+/** Normalise mission.moa (string ou objet) → string fiche. */
+export function formatMoaValue(value) {
+  if (value == null) return undefined
+  if (typeof value === 'string') return pickString(value)
+  if (typeof value === 'object') {
+    return (
+      pickString(value.name)
+      || pickString(value.libelle)
+      || pickString(value.raison_sociale)
+      || pickString(value.organisme)
+      || pickString(value.organisation)
+    )
+  }
+  return undefined
+}
+
+/**
+ * Normalise mission.moe (string legacy OU { mandataire, groupement[] }) → string fiche.
+ * Ex. "SEGIC (mandataire) · EGIS · ANTEA"
+ */
+export function formatMoeValue(value) {
+  if (value == null) return undefined
+  if (typeof value === 'string') return pickString(value)
+  if (typeof value === 'object') {
+    const mandataire = pickString(value.mandataire)
+    const rawGroup = Array.isArray(value.groupement) ? value.groupement : []
+    const groupement = rawGroup
+      .map((item) => {
+        if (typeof item === 'string') return pickString(item)
+        if (item && typeof item === 'object') {
+          return pickString(item.name) || pickString(item.libelle) || pickString(item.raison_sociale)
+        }
+        return undefined
+      })
+      .filter(Boolean)
+    const others = groupement.filter(
+      (name) => !mandataire || name.toLowerCase() !== mandataire.toLowerCase(),
+    )
+    if (mandataire && others.length) return `${mandataire} (mandataire) · ${others.join(' · ')}`
+    if (mandataire) return mandataire
+    if (others.length) return others.join(' · ')
+    return undefined
+  }
+  return undefined
+}
+
+function pickMissionMoa(mission = {}) {
+  return (
+    formatMoaValue(mission.moa)
+    || pickString(mission.maitre_ouvrage)
+    || pickString(mission.maitreOuvrage)
+  )
+}
+
+function pickMissionMoe(mission = {}) {
+  return (
+    formatMoeValue(mission.moe)
+    || formatMoeValue(mission.maitre_oeuvre)
+    || pickString(mission.maitre_oeuvre)
+    || pickString(mission.maitreOeuvre)
+  )
 }
 
 function normalizeRef(value) {
@@ -155,6 +290,8 @@ export function summarizeG3Import(data) {
     title: mission.title || '—',
     client: mission.client || '—',
     chantier: mission.chantier || '—',
+    moa: pickMissionMoa(mission) || '',
+    moe: pickMissionMoe(mission) || '',
     lookupAffaireRef: refs.affaireRef || '',
     lookupDemandeRef: refs.demandeRef || '',
     missionTypes: Array.isArray(mission.mission_types) ? mission.mission_types.length : 0,
@@ -178,6 +315,113 @@ export function summarizeG3Import(data) {
 }
 
 /**
+ * Diff champs affaire proposés par le JSON vs affaire existante.
+ * - fills : champs vides → valeur JSON (appliqués sans confirmation)
+ * - overwrites : valeur existante différente (confirmation requise)
+ * @returns {{ patch: object, fills: Array, overwrites: Array, changes: Array }}
+ */
+export function buildAffaireActorDiff(affaire, payload) {
+  const mission = payload?.mission || {}
+  const refs = getExternalRefs(payload)
+  const proposed = {
+    maitre_ouvrage: pickMissionMoa(mission) || '',
+    maitre_oeuvre: pickMissionMoe(mission) || '',
+    site: pickString(refs.commune) || '',
+    adresse_ouvrage: pickString(mission.location) || pickString(refs.adresse) || '',
+  }
+  const labels = {
+    maitre_ouvrage: 'MOA (maître d’ouvrage)',
+    maitre_oeuvre: 'MOE (maître d’œuvre)',
+    site: 'Site / commune',
+    adresse_ouvrage: 'Adresse de l’ouvrage',
+  }
+  const patch = {}
+  const fills = []
+  const overwrites = []
+  for (const key of Object.keys(proposed)) {
+    const next = proposed[key]
+    if (!next) continue
+    const prev = String(affaire?.[key] || '').trim()
+    if (prev === next) continue
+    const entry = {
+      key,
+      label: labels[key] || key,
+      from: prev || '(vide)',
+      to: next,
+      overwrite: Boolean(prev),
+    }
+    patch[key] = next
+    if (prev) overwrites.push(entry)
+    else fills.push(entry)
+  }
+  return {
+    patch,
+    fills,
+    overwrites,
+    changes: [...fills, ...overwrites],
+  }
+}
+
+export function formatAffaireActorChangesMessage(affaireRef, overwrites = []) {
+  if (!overwrites.length) return ''
+  const lines = overwrites.map((c) => `- ${c.label} : ${c.from} → ${c.to}`)
+  const ref = affaireRef ? ` ${affaireRef}` : ''
+  return (
+    `Remplacer des valeurs déjà renseignées sur l’affaire${ref} ?\n\n`
+    + `${lines.join('\n')}\n\n`
+    + 'OK = remplacer et continuer l’import\n'
+    + 'Annuler = annuler tout l’import'
+  )
+}
+
+/** Résout l’affaire cible (id, affaire_ralab, ou demande → affaire). */
+export async function resolveAffaireForCopilotImport({
+  payload,
+  affaireId = null,
+  demandeId = null,
+} = {}) {
+  if (affaireId != null && String(affaireId).trim() !== '') {
+    return affairesApi.get(affaireId)
+  }
+  const refs = extractLookupRefs(payload)
+  if (refs.affaireRef) {
+    const found = await findAffaireByReference(refs.affaireRef)
+    if (found) return found
+  }
+  if (demandeId != null && String(demandeId).trim() !== '') {
+    const demande = await demandesApi.get(demandeId)
+    const aid = demande?.affaire_rst_id ?? demande?.affaire_id
+    if (aid != null) return affairesApi.get(aid)
+  }
+  return null
+}
+
+function withActorDiff(result, affaire, payload) {
+  if (!affaire) {
+    return {
+      ...result,
+      actorChanges: [],
+      actorFills: [],
+      actorOverwrites: [],
+      actorPatch: {},
+      actorMessage: '',
+    }
+  }
+  const { patch, fills, overwrites, changes } = buildAffaireActorDiff(affaire, payload)
+  return {
+    ...result,
+    actorChanges: changes,
+    actorFills: fills,
+    actorOverwrites: overwrites,
+    actorPatch: patch,
+    actorMessage: formatAffaireActorChangesMessage(
+      result.affaireRef || affaire.reference || '',
+      overwrites,
+    ),
+  }
+}
+
+/**
  * Prévisualise le rattachement affaire/demande AVANT création.
  * @returns {{ mode: string, affaireRef: string, demandeRef: string, affaireExists: boolean|null, nextAffaireRef: string, message: string }}
  */
@@ -192,7 +436,7 @@ export async function previewAffaireDemandeResolve({
 
   if (affaireId != null && String(affaireId).trim() !== '') {
     const affaire = await affairesApi.get(affaireId)
-    return {
+    return withActorDiff({
       mode: 'use_affaire_id',
       affaireRef: affaire?.reference || '',
       demandeRef: refs.demandeRef || '',
@@ -200,13 +444,13 @@ export async function previewAffaireDemandeResolve({
       nextAffaireRef: '',
       message: `Créer une demande (+ mission G3) sur l’affaire ${affaire?.reference || `#${affaireId}`}.`,
       misplaced,
-    }
+    }, affaire, payload)
   }
 
   if (refs.affaireRef) {
     const found = await findAffaireByReference(refs.affaireRef)
     if (found) {
-      return {
+      return withActorDiff({
         mode: 'link_existing',
         affaireRef: refs.affaireRef,
         demandeRef: refs.demandeRef || '',
@@ -214,9 +458,9 @@ export async function previewAffaireDemandeResolve({
         nextAffaireRef: '',
         message: `Lier à l’affaire existante ${refs.affaireRef}${refs.demandeRef ? ` · demande ${refs.demandeRef}` : ' · nouvelle demande'}.`,
         misplaced,
-      }
+      }, found, payload)
     }
-    return {
+    return withActorDiff({
       mode: 'create_explicit',
       affaireRef: refs.affaireRef,
       demandeRef: refs.demandeRef || '',
@@ -224,11 +468,11 @@ export async function previewAffaireDemandeResolve({
       nextAffaireRef: '',
       message: `Créer l’affaire ${refs.affaireRef} (n’existe pas encore)${refs.demandeRef ? ` · puis demande ${refs.demandeRef}` : ' · puis nouvelle demande'} + mission G3.`,
       misplaced,
-    }
+    }, null, payload)
   }
 
   const next = await affairesApi.nextRef()
-  return {
+  return withActorDiff({
     mode: 'create_new',
     affaireRef: '',
     demandeRef: refs.demandeRef || '',
@@ -236,7 +480,7 @@ export async function previewAffaireDemandeResolve({
     nextAffaireRef: next?.reference || '',
     message: `Aucune affaire_ralab explicite dans le JSON. Créer une NOUVELLE affaire ${next?.reference || ''} + demande + mission G3 ?`,
     misplaced,
-  }
+  }, null, payload)
 }
 
 function mediaRoleToDocumentType(role, suggested) {
@@ -334,8 +578,8 @@ function buildAffaireCreateBody(payload, reference) {
     chantier,
     site: pickString(refs.commune) || '',
     adresse_ouvrage: pickString(mission.location) || pickString(refs.adresse) || '',
-    maitre_ouvrage: pickString(mission.moa) || '',
-    maitre_oeuvre: pickString(mission.moe) || '',
+    maitre_ouvrage: pickMissionMoa(mission) || '',
+    maitre_oeuvre: pickMissionMoe(mission) || '',
     responsable: pickString(mission.rst_responsible) || '',
     autre_reference: [
       pickString(refs.affaire_client),
@@ -364,7 +608,7 @@ function buildDemandeCreateBody(payload, affaireRstId, laboCode) {
     type_prestation_attendue: pickString(mission.main_objective) || '',
     description: pickString(mission.description) || '',
     numero_dst: pickNumeroDst(refs),
-    demandeur: pickString(mission.conducteur) || pickString(mission.moe) || '',
+    demandeur: pickString(mission.conducteur) || pickMissionMoe(mission) || '',
     date_reception: todayIso(),
     service_interne: pickString(mission.laboratoire) || '',
   }
@@ -435,7 +679,7 @@ function buildMissionPatch(mission = {}) {
     'description', 'main_objective',
     'conducteur', 'chef_chantier', 'rst_responsible',
     'laboratoire', 'lab_intervenant', 'geotechnicien_externe',
-    'moa', 'moe', 'bureau_controle',
+    'bureau_controle',
     'start_date', 'end_date',
   ]
   fields.forEach((key) => {
@@ -444,6 +688,10 @@ function buildMissionPatch(mission = {}) {
     if (typeof value === 'string' && !value.trim()) return
     patch[key] = typeof value === 'string' ? value.trim() : value
   })
+  const moa = pickMissionMoa(mission)
+  const moe = pickMissionMoe(mission)
+  if (moa) patch.moa = moa
+  if (moe) patch.moe = moe
   if (Array.isArray(mission.mission_types) && mission.mission_types.length) {
     patch.mission_types = mission.mission_types.map((t) => String(t).trim()).filter(Boolean)
   }
@@ -591,6 +839,7 @@ export async function applyG3CopilotImport({ demandeId, payload, preferMissionId
 
 /**
  * Chaîne complète : (crée) affaire + demande + mission G3 + contenu.
+ * @param {object|null} [affaireActorPatch] — si fourni, PUT champs affaire (MOA/MOE/adresse/site).
  */
 export async function applyG3CopilotImportFull({
   payload,
@@ -599,10 +848,12 @@ export async function applyG3CopilotImportFull({
   createMissing = false,
   laboCode = 'SP',
   preferMissionId = null,
+  affaireActorPatch = null,
 } = {}) {
   let resolvedDemandeId = demandeId
   let createdAffaire = false
   let createdDemande = false
+  let updatedAffaireActors = false
   let affaire = null
   let demande = null
 
@@ -622,6 +873,25 @@ export async function applyG3CopilotImportFull({
     resolvedDemandeId = demande.uid ?? demande.id
   }
 
+  if (!affaire && resolvedDemandeId) {
+    try {
+      demande = demande || await demandesApi.get(resolvedDemandeId)
+      const aid = demande?.affaire_rst_id ?? demande?.affaire_id
+      if (aid != null) affaire = await affairesApi.get(aid)
+    } catch {
+      // Affaire optionnelle pour le retour UI
+    }
+  }
+
+  const patch = affaireActorPatch && typeof affaireActorPatch === 'object'
+    ? affaireActorPatch
+    : null
+  if (patch && Object.keys(patch).length && affaire && !createdAffaire) {
+    const uid = affaire.uid ?? affaire.id
+    affaire = await affairesApi.update(uid, patch)
+    updatedAffaireActors = true
+  }
+
   const result = await applyG3CopilotImport({
     demandeId: resolvedDemandeId,
     payload,
@@ -634,5 +904,6 @@ export async function applyG3CopilotImportFull({
     demande,
     createdAffaire,
     createdDemande,
+    updatedAffaireActors,
   }
 }

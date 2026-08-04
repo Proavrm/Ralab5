@@ -92,7 +92,10 @@ FORMAT DE SORTIE OBLIGATOIRE (JSON unique)
     "lab_intervenant": "",
     "geotechnicien_externe": "",
     "moa": "",
-    "moe": "",
+    "moe": {
+      "mandataire": "",
+      "groupement": []
+    },
     "bureau_controle": "",
     "start_date": null,
     "end_date": null,
@@ -232,6 +235,33 @@ F. Programme de reconnaissances / essais / contrôles
 G. Points d’arrêt / critères de réception / avis
 H. Faits techniques réutilisables (structures, matériaux, hypothèses)
 
+RÈGLE D’INFÉRENCE — MOA / MOE (page de garde / cartouche)
+Dans beaucoup de DCE français, la MOA et la MOE ne sont PAS écrites sous la forme explicite
+« Maître d’Ouvrage : … » / « Maître d’Œuvre : … ». Elles sont souvent uniquement visibles sur la
+page de garde via logos, cartouche, sociétés émettrices du dossier.
+
+1. Distingue clairement :
+   - mission.client = client facturation / contact opérationnel (peut différer de la MOA)
+   - mission.moa = maître d’ouvrage (donneur d’ordre)
+   - mission.moe = maîtrise d’œuvre (mandataire + cotraitants éventuels)
+2. Si les libellés « Maître d’Ouvrage » / « Maître d’Œuvre » (ou MOA / MOE / MO) sont absents
+   mais clairement identifiables sur la page de garde ou dans le cartouche :
+   - renseigner mission.moa à partir du donneur d’ordre figurant sur la couverture ;
+   - renseigner mission.moe à partir du ou des émetteurs du DCE ;
+   - pour un groupement de maîtrise d’œuvre : mission.moe.mandataire = mandataire,
+     mission.moe.groupement = liste complète des sociétés (mandataire inclus si connu) ;
+   - ne laisser ces champs vides QUE si aucune identification raisonnable n’est possible.
+3. Synonymes / indices acceptés (non exhaustif) : Maître d’ouvrage, MOA, MO, Maître d’œuvre,
+   MOE, maîtrise d’œuvre, bureau d’études, AMO, cartouche « Établi par », « Pour le compte de »,
+   logos / en-têtes de couverture.
+4. Si l’information provient uniquement de la couverture / cartouche (pas d’intitulé explicite) :
+   ajouter une entrée dans "uncertain_fields" (path mission.moa ou mission.moe) avec
+   value_proposed et reason courte ; la confidence associée doit être < 1.
+5. N’invente PAS une société absente des documents : inférer depuis la couverture est autorisé ;
+   inventer un nom non présent (même partiellement) reste interdit.
+6. Compatibilité : si une seule société MOE sans groupement, tu peux aussi renseigner
+   mission.moe.mandataire seul (groupement = [] ou [mandataire]).
+
 RÈGLES CRITIQUES — media_assets + documents (images / plans)
 Objectif : préparer RaLab à recevoir les visuels nécessaires (plan de situation, plan d’implantation, coupes, photos).
 Tu n’embeds PAS de binaire image/PDF dans le JSON. Tu inventaries et tu préremplis les métadonnées.
@@ -309,6 +339,7 @@ Exemples de STRUCTURE (nombres fictifs — NE PAS recopier tels quels) :
 
 CONSIGNES FINALES
 - Remplis au maximum, sans hallucination.
+- Pour MOA / MOE : utilise la page de garde / cartouche si les libellés explicites manquent (voir règle d’inférence) ; ne laisse pas ces champs vides par simple absence des mots « Maître d’Ouvrage / Maître d’Œuvre ».
 - Si un document DST / CCTP / G2 est présent, privilégie-le comme source principale.
 - Si le contexte utilisateur indique une Affaire / Demande RaLab, recopie-les EXACTEMENT dans affaire_ralab / demande_ralab.
 - Si le contexte utilisateur n’indique PAS d’Affaire RaLab : affaire_ralab="" (ne pas inventer).

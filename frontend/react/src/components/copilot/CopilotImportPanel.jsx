@@ -5,8 +5,11 @@ import { Select } from '@/components/ui/Input'
 import CopyCopilotPromptButton from '@/components/copilot/CopyCopilotPromptButton'
 import {
   applyG3CopilotImportFull,
+  buildAffaireActorDiff,
+  formatAffaireActorChangesMessage,
   parseG3CopilotImport,
   previewAffaireDemandeResolve,
+  resolveAffaireForCopilotImport,
   summarizeG3Import,
 } from '@/lib/g3CopilotImport'
 import { buildPathWithReturnTo } from '@/lib/detailNavigation'
@@ -14,6 +17,7 @@ import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 /**
  * Zone discrète : coller le JSON Copilot et appliquer à une mission G3.
  * Mode allowCreateMissing : crée affaire + demande si absentes.
+ * Demande confirmation avant d’écraser / renseigner MOA-MOE sur une affaire existante.
  */
 export default function CopilotImportPanel({
   demandeId = null,
@@ -50,6 +54,7 @@ export default function CopilotImportPanel({
     return [
       `Titre: ${summary.title}`,
       `Client: ${summary.client} · Chantier: ${summary.chantier}`,
+      `MOA: ${summary.moa || '—'} · MOE: ${summary.moe || '—'}`,
       summary.lookupAffaireRef
         ? `Affaire RaLab (affaire_ralab): ${summary.lookupAffaireRef}`
         : 'Affaire RaLab (affaire_ralab): — (aucune)',
@@ -66,6 +71,34 @@ export default function CopilotImportPanel({
       summary.confidence != null ? `Confiance: ${Math.round(summary.confidence * 100)}%` : null,
     ].filter(Boolean)
   }, [summary])
+
+  /**
+   * Synchro affaire : champs vides → ajout auto ; valeurs existantes différentes → confirm.
+   * Annuler un remplacement = abort de tout l’import.
+   */
+  async function askAffaireActorPatch({ payload, targetAffaireId = null, targetDemandeId = null }) {
+    const affaire = await resolveAffaireForCopilotImport({
+      payload,
+      affaireId: targetAffaireId,
+      demandeId: targetDemandeId,
+    })
+    if (!affaire) return { patch: null, aborted: false }
+    const { fills, overwrites } = buildAffaireActorDiff(affaire, payload)
+    if (!fills.length && !overwrites.length) return { patch: null, aborted: false }
+
+    if (overwrites.length) {
+      const ok = window.confirm(
+        formatAffaireActorChangesMessage(affaire.reference || '', overwrites),
+      )
+      if (!ok) return { patch: null, aborted: true }
+    }
+
+    // fills toujours appliqués ; overwrites seulement si confirmés (ci-dessus)
+    const patch = {}
+    for (const entry of fills) patch[entry.key] = entry.to
+    for (const entry of overwrites) patch[entry.key] = entry.to
+    return { patch, aborted: false }
+  }
 
   async function handleParse() {
     setError('')
@@ -130,6 +163,20 @@ export default function CopilotImportPanel({
       if (!ok) return
     }
 
+    let affaireActorPatch = null
+    try {
+      const decision = await askAffaireActorPatch({
+        payload: parsed,
+        targetAffaireId: createMissing ? affaireId : null,
+        targetDemandeId: createMissing ? null : effectiveDemandeId,
+      })
+      if (decision.aborted) return
+      affaireActorPatch = decision.patch
+    } catch (err) {
+      setError(err?.message || 'Impossible de comparer les champs avec l’affaire.')
+      return
+    }
+
     setBusy(true)
     try {
       const {
@@ -138,6 +185,7 @@ export default function CopilotImportPanel({
         counts,
         createdAffaire,
         createdDemande,
+        updatedAffaireActors,
         affaire,
         demande,
       } = await applyG3CopilotImportFull({
@@ -145,10 +193,16 @@ export default function CopilotImportPanel({
         demandeId: createMissing ? null : effectiveDemandeId,
         affaireId: createMissing ? affaireId : null,
         createMissing,
+        affaireActorPatch,
       })
       const parts = [
         createdAffaire ? `Affaire ${affaire?.reference || ''} créée` : null,
-        !createdAffaire && affaire?.reference ? `Affaire ${affaire.reference}` : null,
+        !createdAffaire && updatedAffaireActors
+          ? `Affaire ${affaire?.reference || ''} : champs mis à jour`
+          : null,
+        !createdAffaire && !updatedAffaireActors && affaire?.reference
+          ? `Affaire ${affaire.reference}`
+          : null,
         createdDemande ? `Demande ${demande?.reference || ''} créée` : null,
         created ? 'Mission G3 créée' : 'Mission G3 mise à jour',
         counts.zones ? `${counts.zones} zone(s)` : null,
@@ -261,6 +315,22 @@ export default function CopilotImportPanel({
               {resolvePreview?.message ? (
                 <div className="pt-1 font-semibold text-[#003170]">
                   Action prévue: {resolvePreview.message}
+                </div>
+              ) : null}
+              {resolvePreview?.actorFills?.length ? (
+                <div className="pt-1 text-[#0f6e56]">
+                  À renseigner (sans confirmation):
+                  {resolvePreview.actorFills.map((c) => (
+                    <div key={c.key}>{`- ${c.label} : ${c.to}`}</div>
+                  ))}
+                </div>
+              ) : null}
+              {resolvePreview?.actorOverwrites?.length ? (
+                <div className="pt-1 text-[#854f0b]">
+                  Remplacement à confirmer:
+                  {resolvePreview.actorOverwrites.map((c) => (
+                    <div key={c.key}>{`- ${c.label} : ${c.from} → ${c.to}`}</div>
+                  ))}
                 </div>
               ) : null}
               {summary?.misplacedRefs?.length ? (
