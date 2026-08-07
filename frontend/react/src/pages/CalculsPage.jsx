@@ -344,9 +344,12 @@ function GenericCalculsView({
     setError('')
     try {
       const created = await calculsApi.create(buildLinkPayload())
-      navigate(`/calculs/alize/${created.id}`)
+      const calcId = created?.id ?? created?.uid
+      if (!calcId) throw new Error('Identifiant calcul manquant dans la réponse API.')
+      navigate(`/calculs/alize/${calcId}`)
     } catch (err) {
       setError(getApiErrorMessage(err, 'Création impossible'))
+    } finally {
       setCreating(false)
     }
   }
@@ -408,6 +411,35 @@ function GenericCalculsView({
         {error ? (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">
             {error}
+          </div>
+        ) : null}
+
+        {contextAffaireId ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#c5d4ea] bg-[#eef4fb] px-3.5 py-2.5">
+            <div className="text-[13px] text-[#172033]">
+              Filtré sur l’affaire <strong>#{contextAffaireId}</strong>
+              {items.find((i) => i.affaire_ref)?.affaire_ref
+                ? ` · ${items.find((i) => i.affaire_ref)?.affaire_ref}`
+                : ''}
+              {' · '}
+              {items.length} calcul(s)
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" disabled={creating} onClick={createAlize}>
+                {creating ? 'Création…' : '+ Calcul Alizé'}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams)
+                  next.delete('affaire_rst_id')
+                  next.delete('affaire_id')
+                  setSearchParams(next)
+                }}
+              >
+                Voir tous les calculs
+              </Button>
+            </div>
           </div>
         ) : null}
 

@@ -3,7 +3,7 @@
  * Fiche détail d'une affaire RST — layout wide avec hero, métriques, grid 2 colonnes.
  */
 import { useState, useEffect, useMemo } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, affairesApi, calculsApi, getApiErrorMessage } from '@/services/api'
 import { formatDate } from '@/lib/utils'
@@ -134,6 +134,7 @@ export default function AffairePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [creatingCalcul, setCreatingCalcul] = useState(false)
   const [calculError, setCalculError] = useState('')
+  const [calculStatus, setCalculStatus] = useState('')
   const [editForm, setEditForm] = useState({})
   const [refEditOpen, setRefEditOpen] = useState(false)
   const [refEditVal, setRefEditVal] = useState('')
@@ -359,21 +360,52 @@ export default function AffairePage() {
   }, [isEditing, editForm, ngeTitulaireByKey, etudeFilialeByKey])
 
   const dossierNomHero = String(affaire?.dossier_nom || '').trim() || affaire?.reference || ''
+  const affaireNumericId = useMemo(() => {
+    const fromRecord = Number(affaire?.uid ?? affaire?.id)
+    if (Number.isFinite(fromRecord) && fromRecord > 0) return fromRecord
+    const fromParam = Number(uid)
+    return Number.isFinite(fromParam) && fromParam > 0 ? fromParam : null
+  }, [affaire, uid])
+
+  function goToCalculs() {
+    if (!affaireNumericId) {
+      setCalculError('Identifiant affaire invalide — impossible d’ouvrir les calculs.')
+      return
+    }
+    setCalculError('')
+    const target = buildPathWithReturnTo(
+      `/calculs?affaire_rst_id=${affaireNumericId}&type=alize`,
+      detailReturnTo,
+    )
+    navigate(target)
+  }
 
   async function createCalculAlize() {
     if (!affaire) return
+    if (!affaireNumericId) {
+      setCalculError('Identifiant affaire invalide — création impossible.')
+      return
+    }
     setCreatingCalcul(true)
     setCalculError('')
+    setCalculStatus('Création du calcul Alizé…')
     try {
       const created = await calculsApi.create({
         type_calcul: 'alize',
-        nom_calcul: `Alizé · ${affaire.reference || uid}`,
-        affaire_rst_id: Number(uid),
+        nom_calcul: `Alizé · ${affaire.reference || affaireNumericId}`,
+        affaire_rst_id: affaireNumericId,
         ouvrage: affaire.chantier || affaire.site || '',
       })
-      navigate(buildPathWithReturnTo(`/calculs/alize/${created.id}`, detailReturnTo))
+      const calcId = created?.id ?? created?.uid
+      if (!calcId) {
+        throw new Error('Calcul créé mais identifiant manquant dans la réponse API.')
+      }
+      setCalculStatus('Ouverture de la fiche Alizé…')
+      navigate(buildPathWithReturnTo(`/calculs/alize/${calcId}`, detailReturnTo))
     } catch (err) {
+      setCalculStatus('')
       setCalculError(getApiErrorMessage(err, 'Création du calcul impossible'))
+    } finally {
       setCreatingCalcul(false)
     }
   }
@@ -413,10 +445,22 @@ export default function AffairePage() {
               <Button size="sm" onClick={() => navigate(`/demandes?affaire_id=${uid}`)}>Demandes</Button>
               <Button size="sm" onClick={() => navigate(`/passations?affaire_id=${uid}`)}>Passations</Button>
               <Button size="sm" onClick={() => navigate(`/contacts?affaire_id=${uid}`)}>Contacts</Button>
-              <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
+              <Button size="sm" variant="primary" disabled={creatingCalcul || !affaireNumericId} onClick={createCalculAlize}>
                 {creatingCalcul ? 'Calcul…' : '+ Calcul Alizé'}
               </Button>
-              <Button size="sm" onClick={() => navigate(`/calculs?affaire_rst_id=${uid}`)}>Voir calculs</Button>
+              {affaireNumericId ? (
+                <Link
+                  to={buildPathWithReturnTo(
+                    `/calculs?affaire_rst_id=${affaireNumericId}&type=alize`,
+                    detailReturnTo,
+                  )}
+                  className="inline-flex items-center gap-1.5 rounded border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text transition-colors hover:bg-bg"
+                >
+                  Voir calculs
+                </Link>
+              ) : (
+                <Button size="sm" disabled>Voir calculs</Button>
+              )}
               <button
                 onClick={() => navigate(`/demandes?affaire_id=${uid}&create=1`)}
                 className="rounded-[11px] border border-[#e7b800] bg-[#ffcc00] text-[#003170] px-3 py-2 text-[12px] font-black shadow-sm hover:brightness-105 transition"
@@ -436,6 +480,17 @@ export default function AffairePage() {
       </FicheTopbar>
 
       <FicheMain>
+
+        {calculStatus ? (
+          <div className="mb-3 rounded-lg border border-[#c5d4ea] bg-[#eef4fb] px-3 py-2 text-[13px] text-[#003170]">
+            {calculStatus}
+          </div>
+        ) : null}
+        {calculError ? (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">
+            {calculError}
+          </div>
+        ) : null}
 
         {/* ── Hero ── */}
         <section
@@ -678,20 +733,15 @@ export default function AffairePage() {
           </div>
         )}
 
-        {/* ── Demandes ── */}
-        {calculError ? (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{calculError}</div>
-        ) : null}
-
         <SectionCard
           title="Calculs de dimensionnement"
           subtitle="Liste et édition sur la page Calculs"
           actions={(
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
+              <Button size="sm" variant="primary" disabled={creatingCalcul || !affaireNumericId} onClick={createCalculAlize}>
                 {creatingCalcul ? '…' : '+ Alizé'}
               </Button>
-              <Button size="sm" onClick={() => navigate(`/calculs?affaire_rst_id=${uid}`)}>Voir calculs</Button>
+              <Button size="sm" disabled={!affaireNumericId} onClick={goToCalculs}>Voir calculs</Button>
             </div>
           )}
         >
