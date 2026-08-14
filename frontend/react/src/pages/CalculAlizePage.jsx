@@ -75,6 +75,20 @@ function numOrNull(value) {
   return Number.isFinite(n) ? n : null
 }
 
+function classeTraficFromMja(mjaPl) {
+  const mja = numOrNull(mjaPl)
+  if (mja == null || mja < 0) return null
+  // Classes catalogue / pratique courante (MJA PL / j / sens, voie la plus chargée)
+  if (mja < 25) return 'T5'
+  if (mja < 50) return 'T4'
+  if (mja < 150) return 'T3'
+  if (mja < 300) return 'T2'
+  if (mja < 750) return 'T1'
+  if (mja < 2000) return 'T0'
+  if (mja < 5000) return 'TS'
+  return 'Texp'
+}
+
 function estimateTrafficStats(traffic) {
   const mja = numOrNull(traffic.mja_pl)
   const growthPct = numOrNull(traffic.croissance_pct)
@@ -96,6 +110,7 @@ function estimateTrafficStats(traffic) {
   return {
     npl: npl != null ? Math.round(npl) : null,
     ne: ne != null ? Math.round(ne) : null,
+    classe: classeTraficFromMja(mja),
   }
 }
 
@@ -843,7 +858,7 @@ export default function CalculAlizePage() {
             )}
           >
             <p className="mb-2 text-[11px] text-text-muted">
-              Clic = éditer · bord = épaisseur · interface = collé / semi / glissant
+              Clic = éditer · bord = épaisseur · interface = collé/semi/glissant/géotextile (granulaires : aucune/géotextile)
             </p>
             <AlizeStructureEditor
               layers={layers}
@@ -994,15 +1009,60 @@ export default function CalculAlizePage() {
             ['cam', 'CAM'],
             ['risque', 'Risque %'],
             ['ne_retenu', 'NE retenu'],
-            ['classe_trafic', 'Classe trafic'],
           ].map(([key, label]) => (
             <Field key={key} label={label}>
               <Input
                 value={traffic[key] ?? ''}
-                onChange={(e) => setTraffic({ ...traffic, [key]: e.target.value })}
+                onChange={(e) => {
+                  const next = { ...traffic, [key]: e.target.value }
+                  // Si MJA change et classe encore auto (ou vide) → recalculer
+                  if (key === 'mja_pl' && traffic.classe_trafic_mode !== 'manuel') {
+                    const estimated = classeTraficFromMja(e.target.value)
+                    if (estimated) {
+                      next.classe_trafic = estimated
+                      next.classe_trafic_mode = 'calculee'
+                    }
+                  }
+                  setTraffic(next)
+                }}
               />
             </Field>
           ))}
+          <Field
+            label="Classe trafic"
+            hint={
+              trafficEstimate.classe
+                ? `Estimée depuis MJA : ${trafficEstimate.classe} · ${traffic.classe_trafic_mode === 'manuel' ? 'saisie manuelle' : 'mode calculé'}`
+                : 'Saisie manuelle ou estimée depuis MJA PL'
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Select
+                className="min-w-[7rem] flex-1"
+                value={traffic.classe_trafic || ''}
+                onChange={(e) => setTraffic({
+                  ...traffic,
+                  classe_trafic: e.target.value,
+                  classe_trafic_mode: 'manuel',
+                })}
+              >
+                <option value="">—</option>
+                {['T5', 'T4', 'T3', 'T2', 'T1', 'T0', 'TS', 'Texp'].map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </Select>
+              <Input
+                className="min-w-[6rem] flex-1"
+                placeholder="Libre…"
+                value={traffic.classe_trafic ?? ''}
+                onChange={(e) => setTraffic({
+                  ...traffic,
+                  classe_trafic: e.target.value,
+                  classe_trafic_mode: 'manuel',
+                })}
+              />
+            </div>
+          </Field>
           <Field label="Progression">
             <Select
               className="w-full"
@@ -1024,7 +1084,8 @@ export default function CalculAlizePage() {
         </div>
         <div className="mt-3 rounded-lg border border-[#dbe1ea] bg-[#f8fafc] px-3 py-2 text-[13px]">
           Estimation NPL ≈ {trafficEstimate.npl ?? '—'} · NE ≈ {trafficEstimate.ne ?? '—'}
-          <div className="mt-2">
+          {trafficEstimate.classe ? ` · Classe ≈ ${trafficEstimate.classe}` : ''}
+          <div className="mt-2 flex flex-wrap gap-2">
             <Button
               size="sm"
               onClick={() => setTraffic({
@@ -1034,6 +1095,17 @@ export default function CalculAlizePage() {
               })}
             >
               Appliquer NE estimé
+            </Button>
+            <Button
+              size="sm"
+              disabled={!trafficEstimate.classe}
+              onClick={() => setTraffic({
+                ...traffic,
+                classe_trafic: trafficEstimate.classe,
+                classe_trafic_mode: 'calculee',
+              })}
+            >
+              Appliquer classe estimée
             </Button>
           </div>
         </div>

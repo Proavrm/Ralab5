@@ -286,9 +286,6 @@ function GenericCalculsView({
   const [linkDemandeLabel, setLinkDemandeLabel] = useState('')
   const [linkDemandeId, setLinkDemandeId] = useState(null)
   const [linkAffaireId, setLinkAffaireId] = useState(contextAffaireId)
-  const [refSearch, setRefSearch] = useState('')
-  const [refs, setRefs] = useState([])
-  const [imitatingId, setImitatingId] = useState(null)
 
   useEffect(() => {
     setLinkAffaireId(contextAffaireId)
@@ -303,6 +300,53 @@ function GenericCalculsView({
     }),
     [typeFilter, statut, search, contextAffaireId],
   )
+
+  const demandeGroups = useMemo(() => {
+    const map = new Map()
+    for (const item of items) {
+      const key = item.demande_id != null ? `d:${item.demande_id}` : 'none'
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          demande_id: item.demande_id ?? null,
+          demande_ref: item.demande_ref || '',
+          affaire_rst_id: item.affaire_rst_id ?? null,
+          affaire_ref: item.affaire_ref || '',
+          items: [],
+        })
+      }
+      const group = map.get(key)
+      group.items.push(item)
+      if (!group.demande_ref && item.demande_ref) group.demande_ref = item.demande_ref
+      if (!group.affaire_ref && item.affaire_ref) group.affaire_ref = item.affaire_ref
+      if (group.affaire_rst_id == null && item.affaire_rst_id != null) {
+        group.affaire_rst_id = item.affaire_rst_id
+      }
+    }
+    return [...map.values()]
+      .map((group) => {
+        const accepted = group.items.filter((i) => i.a_retenir).length
+        const updated = group.items
+          .map((i) => i.updated_at || '')
+          .filter(Boolean)
+          .sort()
+          .at(-1) || ''
+        const avisCounts = { Conforme: 0, Limite: 0, 'Non conforme': 0, Indicatif: 0 }
+        for (const i of group.items) {
+          const a = String(i.avis || 'Indicatif').trim() || 'Indicatif'
+          if (avisCounts[a] != null) avisCounts[a] += 1
+          else avisCounts.Indicatif += 1
+        }
+        return { ...group, accepted, updated, avisCounts, count: group.items.length }
+      })
+      .sort((a, b) => {
+        const ra = a.demande_ref || ''
+        const rb = b.demande_ref || ''
+        if (!ra && rb) return 1
+        if (ra && !rb) return -1
+        return rb.localeCompare(ra, 'fr') || String(b.updated).localeCompare(String(a.updated))
+      })
+  }, [items])
 
   async function load() {
     setLoading(true)
@@ -325,10 +369,6 @@ function GenericCalculsView({
     load()
   }, [query.type_calcul, query.statut, query.search, query.affaire_rst_id])
 
-  useEffect(() => {
-    searchRefs()
-  }, [])
-
   function buildLinkPayload(extraName) {
     return {
       type_calcul: 'alize',
@@ -343,42 +383,22 @@ function GenericCalculsView({
     setCreating(true)
     setError('')
     try {
+      if (!linkDemandeId) {
+        setError('Sélectionnez une demande pour créer le calcul.')
+        return
+      }
       const created = await calculsApi.create(buildLinkPayload())
       const calcId = created?.id ?? created?.uid
       if (!calcId) throw new Error('Identifiant calcul manquant dans la réponse API.')
-      navigate(`/calculs/alize/${calcId}`)
+      const params = new URLSearchParams({ demande_id: String(linkDemandeId) })
+      if (linkAffaireId || contextAffaireId) {
+        params.set('affaire_rst_id', String(linkAffaireId || contextAffaireId))
+      }
+      navigate(buildPathWithReturnTo(`/calculs/alize/${calcId}`, `/calculs?${params}`))
     } catch (err) {
       setError(getApiErrorMessage(err, 'Création impossible'))
     } finally {
       setCreating(false)
-    }
-  }
-
-  async function searchRefs() {
-    try {
-      const rows = await calculsApi.searchReferences({ search: refSearch.trim(), limit: 40 })
-      setRefs(Array.isArray(rows) ? rows : [])
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Recherche références impossible'))
-    }
-  }
-
-  async function imitateFromRef(ref) {
-    setImitatingId(ref.id)
-    setError('')
-    try {
-      const created = await calculsApi.createFromReference(ref.id, {
-        nom_calcul: newName.trim() || undefined,
-        affaire_rst_id: linkAffaireId || contextAffaireId || undefined,
-        demande_id: linkDemandeId || undefined,
-      })
-      if (contextMissionId) {
-        await calculsApi.update(created.id, { mission_id: contextMissionId })
-      }
-      navigate(`/calculs/alize/${created.id}`)
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Imitation impossible'))
-      setImitatingId(null)
     }
   }
 
@@ -389,12 +409,26 @@ function GenericCalculsView({
     setSearchParams(next)
   }
 
-  function openItem(item) {
-    if (item.type_calcul === 'alize') {
-      navigate(`/calculs/alize/${item.id}`)
+  function openDemandeGroup(group) {
+    if (!group.demande_id) {
+      setError('Ces calculs ne sont liés à aucune demande.')
       return
     }
-    setError(`${TYPE_LABELS[item.type_calcul] || item.type_calcul} : disponible en phase suivante`)
+    const params = new URLSearchParams({ demande_id: String(group.demande_id) })
+    if (group.affaire_rst_id) params.set('affaire_rst_id', String(group.affaire_rst_id))
+    const listHref = `/calculs?${params}`
+
+    const alizeItems = group.items.filter((item) => item.type_calcul === 'alize')
+    const preferred = alizeItems.find((item) => item.a_retenir)
+      || [...alizeItems].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))[0]
+      || group.items[0]
+
+    if (preferred?.type_calcul === 'alize' && preferred.id) {
+      navigate(buildPathWithReturnTo(`/calculs/alize/${preferred.id}`, listHref))
+      return
+    }
+    // Fallback : vue demande (Gel/Talren ou cas sans Alizé)
+    navigate(listHref)
   }
 
   return (
@@ -404,7 +438,7 @@ function GenericCalculsView({
         onBack={() => navigate('/dashboard')}
         eyebrow="Calculs"
         title="Dimensionnement"
-        subtitle="Alizé · Gel-Dégel · Talren — module indépendant"
+        subtitle="Alizé · Gel-Dégel · Talren — accès par demande"
       />
 
       <FicheMain>
@@ -453,99 +487,40 @@ function GenericCalculsView({
           <SummaryCard title="Validés" value={summary?.valides ?? '—'} muted />
         </div>
 
-        <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div>
-            <SectionCard title="Nouveau calcul Alizé">
-              <p className="mb-3 text-[13px] text-text-muted">
-                Crée une fiche Alizé (brouillon), éventuellement liée à une demande / affaire / G3.
-              </p>
+        <SectionCard title="Nouveau calcul Alizé" subtitle="Toujours rattaché à une demande">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[220px] flex-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-muted">Nom</label>
               <Input
-                className="mb-2"
                 placeholder="Nom du calcul (optionnel)"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
               />
-              <div className="mb-2">
-                <DemandeReferencePicker
-                  value={linkDemandeLabel}
-                  onChange={setLinkDemandeLabel}
-                  onSelect={(row) => {
-                    setLinkDemandeLabel(row.reference)
-                    setLinkDemandeId(Number(row.uid) || null)
-                    setLinkAffaireId(row.affaire_rst_id != null ? Number(row.affaire_rst_id) : linkAffaireId)
-                  }}
-                  placeholder="Lier à une demande…"
-                />
-              </div>
-              <Button size="sm" variant="primary" disabled={creating} onClick={createAlize}>
-                {creating ? 'Création…' : 'Créer un Alizé'}
-              </Button>
-            </SectionCard>
+            </div>
+            <div className="min-w-[260px] flex-1">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-text-muted">Demande</label>
+              <DemandeReferencePicker
+                value={linkDemandeLabel}
+                onChange={(value) => {
+                  setLinkDemandeLabel(value)
+                  setLinkDemandeId(null)
+                }}
+                onSelect={(row) => {
+                  setLinkDemandeLabel(row.reference)
+                  setLinkDemandeId(Number(row.uid) || Number(row.id) || null)
+                  setLinkAffaireId(row.affaire_rst_id != null ? Number(row.affaire_rst_id) : linkAffaireId)
+                }}
+                placeholder="Rechercher une demande…"
+              />
+            </div>
+            <Button size="sm" variant="primary" disabled={creating || !linkDemandeId} onClick={createAlize}>
+              {creating ? 'Création…' : 'Créer un Alizé'}
+            </Button>
           </div>
-
-          <div className="lg:col-span-2">
-            <SectionCard title="Références historiques Alizé">
-              <p className="mb-3 text-[13px] text-text-muted">
-                Utilisez une étude Excel pour <strong>imiter</strong> un Alizé (trafic, PF, couches, résultats)
-                et travailler avant d&apos;avoir le calcul réel.
-              </p>
-              <div className="mb-3 flex flex-wrap gap-2">
-                <Input
-                  className="min-w-[220px] flex-1"
-                  placeholder="Projet, structure, plateforme…"
-                  value={refSearch}
-                  onChange={(e) => setRefSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && searchRefs()}
-                />
-                <Button size="sm" onClick={searchRefs}>Rechercher</Button>
-              </div>
-              {refs.length === 0 ? (
-                <p className="text-[13px] text-text-muted">
-                  Importez d&apos;abord le Excel de compilation pour peupler les références.
-                </p>
-              ) : (
-                <div className="max-h-56 overflow-auto">
-                  <table className="w-full text-left text-[12px]">
-                    <thead className="sticky top-0 bg-white text-text-muted">
-                      <tr>
-                        <th className="py-1 pr-2 font-semibold">Projet</th>
-                        <th className="py-1 pr-2 font-semibold">Structure</th>
-                        <th className="py-1 pr-2 font-semibold">PF</th>
-                        <th className="py-1 pr-2 font-semibold">NE / CAM</th>
-                        <th className="py-1 font-semibold">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {refs.map((r) => (
-                        <tr key={r.id} className="border-t border-[#eef1f6]">
-                          <td className="py-1.5 pr-2">{r.projet || r.document || '—'}</td>
-                          <td className="py-1.5 pr-2">{r.structure || '—'}</td>
-                          <td className="py-1.5 pr-2">{r.plateforme || '—'}</td>
-                          <td className="py-1.5 pr-2 text-text-muted">
-                            {r.NE ?? '—'} / {r.CAM ?? '—'}
-                          </td>
-                          <td className="py-1.5">
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              disabled={imitatingId === r.id}
-                              onClick={() => imitateFromRef(r)}
-                            >
-                              {imitatingId === r.id ? '…' : 'Imiter'}
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </SectionCard>
-          </div>
-        </div>
+        </SectionCard>
 
         <SectionCard
-          title="Liste des calculs"
+          title="Demandes avec calculs"
           actions={(
             <div className="flex flex-wrap items-center gap-2">
               <Select value={typeFilter} onChange={(e) => setType(e.target.value)} className="min-w-[120px]">
@@ -556,7 +531,7 @@ function GenericCalculsView({
               </Select>
               <Input
                 className="w-[180px]"
-                placeholder="Filtrer…"
+                placeholder="Filtrer demande / affaire…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -574,36 +549,43 @@ function GenericCalculsView({
         >
           {loading ? (
             <p className="text-[13px] text-text-muted">Chargement…</p>
-          ) : items.length === 0 ? (
-            <p className="text-[13px] text-text-muted">Aucun calcul pour ces filtres.</p>
+          ) : demandeGroups.length === 0 ? (
+            <p className="text-[13px] text-text-muted">Aucune demande avec calculs pour ces filtres.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-[13px]">
                 <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                   <tr>
-                    <th className="pb-2 pr-3 font-semibold">Référence</th>
-                    <th className="pb-2 pr-3 font-semibold">Type</th>
-                    <th className="pb-2 pr-3 font-semibold">Nom</th>
-                    <th className="pb-2 pr-3 font-semibold">Affaire / Demande</th>
-                    <th className="pb-2 pr-3 font-semibold">Statut</th>
+                    <th className="pb-2 pr-3 font-semibold">Demande</th>
+                    <th className="pb-2 pr-3 font-semibold">Affaire</th>
+                    <th className="pb-2 pr-3 font-semibold">Calculs</th>
+                    <th className="pb-2 pr-3 font-semibold">Acceptés</th>
+                    <th className="pb-2 pr-3 font-semibold">Avis</th>
                     <th className="pb-2 font-semibold">Maj</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item) => (
+                  {demandeGroups.map((group) => (
                     <tr
-                      key={item.id}
-                      className="cursor-pointer border-t border-[#eef1f6] hover:bg-[#f8fafc]"
-                      onClick={() => openItem(item)}
+                      key={group.key}
+                      className={`border-t border-[#eef1f6] ${group.demande_id ? 'cursor-pointer hover:bg-[#f8fafc]' : ''}`}
+                      onClick={() => openDemandeGroup(group)}
                     >
-                      <td className="py-2.5 pr-3 font-semibold text-[#003170]">{item.reference}</td>
-                      <td className="py-2.5 pr-3">{TYPE_LABELS[item.type_calcul] || item.type_calcul}</td>
-                      <td className="py-2.5 pr-3">{item.nom_calcul}</td>
-                      <td className="py-2.5 pr-3 text-text-muted">
-                        {[item.affaire_ref, item.demande_ref].filter(Boolean).join(' · ') || '—'}
+                      <td className="py-2.5 pr-3 font-semibold text-[#003170]">
+                        {group.demande_ref || (group.demande_id ? `#${group.demande_id}` : 'Sans demande')}
                       </td>
-                      <td className="py-2.5 pr-3">{item.statut}</td>
-                      <td className="py-2.5 text-text-muted">{(item.updated_at || '').slice(0, 10)}</td>
+                      <td className="py-2.5 pr-3 text-text-muted">{group.affaire_ref || '—'}</td>
+                      <td className="py-2.5 pr-3 tabular-nums">{group.count}</td>
+                      <td className="py-2.5 pr-3 tabular-nums">{group.accepted}</td>
+                      <td className="py-2.5 pr-3 text-[11px] text-text-muted">
+                        {[
+                          group.avisCounts.Conforme ? `${group.avisCounts.Conforme} conf.` : null,
+                          group.avisCounts.Limite ? `${group.avisCounts.Limite} lim.` : null,
+                          group.avisCounts['Non conforme'] ? `${group.avisCounts['Non conforme']} NC` : null,
+                          group.avisCounts.Indicatif ? `${group.avisCounts.Indicatif} ind.` : null,
+                        ].filter(Boolean).join(' · ') || '—'}
+                      </td>
+                      <td className="py-2.5 text-text-muted">{String(group.updated || '').slice(0, 10) || '—'}</td>
                     </tr>
                   ))}
                 </tbody>

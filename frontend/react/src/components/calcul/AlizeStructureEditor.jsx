@@ -7,8 +7,11 @@ const INTERFACE_COLORS = {
   collé: '#22c55e',
   'semi-collé': '#f59e0b',
   glissant: '#ef4444',
+  aucune: '#94a3b8',
+  géotextile: '#0ea5e9',
 }
-const INTERFACE_CYCLE = ['collé', 'semi-collé', 'glissant']
+const INTERFACE_BOUND = ['collé', 'semi-collé', 'glissant', 'géotextile']
+const INTERFACE_UNBOUND = ['aucune', 'géotextile']
 
 function toNum(value) {
   if (value === '' || value == null) return null
@@ -20,6 +23,35 @@ function isPfLayer(layer) {
   return String(layer?.materiau || '').toUpperCase().startsWith('PF')
     || String(layer?.fonction || '').toLowerCase() === 'plateforme'
     || String(layer?.famille || '').toLowerCase().includes('plateforme')
+}
+
+/** GNT / sols non liés — pas d’interface collé/semi/glissant entre eux. */
+function isUnboundLayer(layer) {
+  if (!layer || isPfLayer(layer)) return false
+  const fam = String(layer.famille || '').toLowerCase()
+  const code = String(layer.materiau || '').toUpperCase()
+  if (fam.includes('stlh') || fam.includes('mtlh')) return false
+  if (fam.includes('gnt') || fam === 'gnt/sols' || fam.includes('sol')) return true
+  if (code.startsWith('GNT') || code.startsWith('SOL')) return true
+  return false
+}
+
+function interfaceOptionsForPair(upper, lower) {
+  if (upper && lower && isUnboundLayer(upper) && isUnboundLayer(lower)) {
+    return INTERFACE_UNBOUND
+  }
+  // granulaire sur PF : aucune / géotextile
+  if (upper && isUnboundLayer(upper) && (isPfLayer(lower) || !lower)) {
+    return INTERFACE_UNBOUND
+  }
+  return INTERFACE_BOUND
+}
+
+function normalizeInterfaceValue(value, upper, lower) {
+  const opts = interfaceOptionsForPair(upper, lower)
+  const raw = String(value || '').trim()
+  if (opts.includes(raw)) return raw
+  return opts[0]
 }
 
 /** Origine matériau : FTP / bibliothèque / saisie manuelle. */
@@ -174,32 +206,37 @@ export default function AlizeStructureEditor({
   function cycleInterface(index, e) {
     e?.stopPropagation()
     if (readOnly) return
-    const current = layers[index]?.interface_inf || 'collé'
-    const pos = INTERFACE_CYCLE.indexOf(current)
-    const next = INTERFACE_CYCLE[(pos + 1) % INTERFACE_CYCLE.length]
+    const upper = layers[index]
+    const lower = layers[index + 1] || { famille: 'plateforme', materiau: 'PF' }
+    const opts = interfaceOptionsForPair(upper, lower)
+    const current = normalizeInterfaceValue(upper?.interface_inf, upper, lower)
+    const pos = opts.indexOf(current)
+    const next = opts[(pos + 1) % opts.length]
     patchLayer(index, { interface_inf: next })
   }
 
   function addLayerBelow(index) {
     if (readOnly) return
     const insertAt = index + 1
+    const above = layers[index]
+    const granular = isUnboundLayer(above)
     const blank = {
       ordre: insertAt + 1,
-      fonction: 'Assise',
+      fonction: granular ? 'Forme' : 'Assise',
       materiau: '',
-      famille: 'bitumineux',
+      famille: granular ? 'GNT/Sols' : 'bitumineux',
       classe: '',
       formulation: '',
-      epaisseur: 8,
+      epaisseur: granular ? 20 : 8,
       unite: 'cm',
       module: null,
       poisson: defaults.poisson ?? 0.35,
       temperature_calcul: defaults.temperature ?? 15,
       frequence: defaults.frequence ?? 10,
       bibliotheque: defaults.bibliotheque || 'NF P98-086 2019',
-      assise: true,
+      assise: !granular,
       interface_sup: '',
-      interface_inf: 'collé',
+      interface_inf: granular ? 'aucune' : 'collé',
       lie: false,
       from_library: false,
       modified_manually: false,
@@ -208,6 +245,11 @@ export default function AlizeStructureEditor({
     }
     const next = [...layers]
     next.splice(insertAt, 0, blank)
+    // Interface sous la couche au-dessus : adaptée au type de contact
+    if (above) {
+      const iface = normalizeInterfaceValue(above.interface_inf, above, blank)
+      next[index] = { ...next[index], interface_inf: iface }
+    }
     emitLayers(next)
     setSelectedIndex(insertAt)
   }
@@ -402,12 +444,8 @@ export default function AlizeStructureEditor({
           />
         </Field>
         <div className="flex flex-wrap gap-1 pb-0.5">
-          {!readOnly && selectedIndex >= 0 ? (
-            <>
-              <Button size="sm" onClick={() => moveLayer(selectedIndex, -1)} disabled={selectedIndex <= 0}>↑</Button>
-              <Button size="sm" onClick={() => moveLayer(selectedIndex, 1)} disabled={selectedIndex >= layers.length - 1}>↓</Button>
-              <Button size="sm" variant="ghost" onClick={() => removeLayer(selectedIndex)}>Retirer</Button>
-            </>
+          {!readOnly ? (
+            <Button size="sm" onClick={addSurfaceLayer}>+ Surface</Button>
           ) : null}
         </div>
       </div>
@@ -417,10 +455,8 @@ export default function AlizeStructureEditor({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[11px] font-black uppercase tracking-wide text-[#003170]">Schéma</div>
-          {!readOnly ? (
-            <Button size="sm" onClick={addSurfaceLayer}>+ Surface</Button>
-          ) : null}
-        </div>
+            <span className="text-[10px] text-text-muted">× sur chaque couche</span>
+          </div>
         <div ref={stackRef} className="overflow-hidden rounded-xl border border-[#dbe1ea] bg-[#f8fafc] select-none">
           {layers.map((layer, index) => {
             const ep = toNum(layer.epaisseur)
@@ -436,8 +472,10 @@ export default function AlizeStructureEditor({
               : origin === 'ftp'
                 ? 'ring-2 ring-inset ring-cyan-300'
                 : ''
-            const iface = layer.interface_inf || 'collé'
+            const lower = layers[index + 1] || { famille: 'plateforme', materiau: 'PF' }
+            const iface = normalizeInterfaceValue(layer.interface_inf, layer, lower)
             const ifaceColor = INTERFACE_COLORS[iface] || '#94a3b8'
+            const unboundPair = isUnboundLayer(layer) && isUnboundLayer(lower)
             return (
               <div key={layer.id || `stack-${index}`}>
                 <div
@@ -446,7 +484,7 @@ export default function AlizeStructureEditor({
                   onClick={() => setSelectedIndex(index)}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedIndex(index) }}
                   style={{
-                    height: h,
+                    height: Math.max(h, 40),
                     background: origin === 'manuel'
                       ? `linear-gradient(90deg, #f59e0b 0 4px, ${color} 4px)`
                       : color,
@@ -461,10 +499,49 @@ export default function AlizeStructureEditor({
                   }
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate">{layer.materiau || layer.fonction || `Couche ${index + 1}`}</span>
+                    <span className="min-w-0 truncate">{layer.materiau || layer.fonction || `Couche ${index + 1}`}</span>
                     <span className="flex shrink-0 items-center gap-1">
                       <OriginBadge origin={origin} />
                       <span className="opacity-90">{pf || ep == null ? '∞' : `${ep} cm`}</span>
+                      {!readOnly ? (
+                        <span className="ml-0.5 flex items-center gap-0.5">
+                          <button
+                            type="button"
+                            className="flex h-5 w-5 items-center justify-center rounded bg-black/25 text-[10px] font-bold hover:bg-black/40"
+                            title="Monter la couche"
+                            disabled={index <= 0}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              moveLayer(index, -1)
+                            }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="flex h-5 w-5 items-center justify-center rounded bg-black/25 text-[10px] font-bold hover:bg-black/40"
+                            title="Descendre la couche"
+                            disabled={index >= layers.length - 1}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              moveLayer(index, 1)
+                            }}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className="flex h-5 w-5 items-center justify-center rounded bg-red-600/90 text-[11px] font-black hover:bg-red-500"
+                            title="Retirer cette couche"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removeLayer(index)
+                            }}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null}
                     </span>
                   </div>
                   <div className="mt-0.5 flex items-center justify-between text-[10px] font-normal opacity-90">
@@ -486,7 +563,9 @@ export default function AlizeStructureEditor({
                       <button
                         type="button"
                         className="flex h-5 w-5 items-center justify-center rounded bg-emerald-600 text-[12px] font-bold text-white"
-                        title="Ajouter une couche sous cette interface"
+                        title={isUnboundLayer(layer)
+                          ? 'Ajouter une couche GNT/sol sous cette interface'
+                          : 'Ajouter une couche sous cette interface'}
                         onClick={() => addLayerBelow(index)}
                       >
                         +
@@ -498,9 +577,11 @@ export default function AlizeStructureEditor({
                       onClick={(e) => cycleInterface(index, e)}
                       className="flex flex-1 items-center justify-center gap-2 rounded px-2 py-0.5 text-[10px] font-semibold text-white"
                       style={{ background: ifaceColor }}
-                      title="Cliquer pour changer l’interface (collé → semi-collé → glissant)"
+                      title={unboundPair
+                        ? 'Entre granulaires : aucune → géotextile'
+                        : 'Cliquer pour changer l’interface (collé → semi → glissant → géotextile)'}
                     >
-                      Interface : {iface}
+                      {unboundPair ? `Contact : ${iface}` : `Interface : ${iface}`}
                     </button>
                   </div>
                 ) : null}
@@ -623,7 +704,17 @@ export default function AlizeStructureEditor({
                   className="w-full"
                   value={selected.famille || ''}
                   disabled={readOnly}
-                  onChange={(e) => patchLayer(selectedIndex, { famille: e.target.value })}
+                  onChange={(e) => {
+                    const famille = e.target.value
+                    const nextLayer = { ...selected, famille }
+                    const lower = layers[selectedIndex + 1] || { famille: 'plateforme', materiau: 'PF' }
+                    const iface = normalizeInterfaceValue(
+                      isUnboundLayer(nextLayer) ? 'aucune' : (selected.interface_inf || 'collé'),
+                      nextLayer,
+                      lower,
+                    )
+                    patchLayer(selectedIndex, { famille, interface_inf: iface })
+                  }}
                 >
                   <option value="">Toutes…</option>
                   {families.map((f) => (
@@ -807,16 +898,30 @@ export default function AlizeStructureEditor({
                   </Button>
                 </div>
               </Field>
-              <Field label="Interface inférieure">
+              <Field
+                label="Interface inférieure"
+                hint={
+                  selected && isUnboundLayer(selected) && isUnboundLayer(layers[selectedIndex + 1] || {})
+                    ? 'Entre GNT/sols : aucune ou géotextile'
+                    : 'Collé / semi / glissant / géotextile'
+                }
+              >
                 <Select
                   className="w-full"
-                  value={selected.interface_inf || 'collé'}
+                  value={normalizeInterfaceValue(
+                    selected.interface_inf,
+                    selected,
+                    layers[selectedIndex + 1] || { famille: 'plateforme', materiau: 'PF' },
+                  )}
                   disabled={readOnly}
                   onChange={(e) => patchLayer(selectedIndex, { interface_inf: e.target.value })}
                 >
-                  <option value="collé">Collé</option>
-                  <option value="semi-collé">Semi-collé</option>
-                  <option value="glissant">Glissant</option>
+                  {interfaceOptionsForPair(
+                    selected,
+                    layers[selectedIndex + 1] || { famille: 'plateforme', materiau: 'PF' },
+                  ).map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
                 </Select>
               </Field>
               <Field label="Classe / formulation">

@@ -292,6 +292,90 @@ def is_platform_layer(layer: dict) -> bool:
     return code.startswith("PF") or "plateforme" in famille or fonction == "plateforme"
 
 
+def is_unbound_layer(layer: dict) -> bool:
+    """GNT / sols non liés (pas de condition de collage type enrobés)."""
+    if is_platform_layer(layer):
+        return False
+    code = _norm_code(layer.get("materiau"))
+    famille = str(layer.get("famille") or "").lower()
+    if "gnt" in famille or famille in {"gnt/sols", "sols"} or "sol" in famille:
+        if "stlh" in famille or "mtlh" in famille:
+            return False
+        return True
+    if code.startswith("GNT") or code.startswith("SOL"):
+        return True
+    return False
+
+
+def is_bound_layer(layer: dict) -> bool:
+    """Couche liée (bitumineux, MTLH, bétons…) — interfaces collé/semi/glissant pertinentes."""
+    if is_platform_layer(layer):
+        return False
+    return not is_unbound_layer(layer)
+
+
+def normalize_interface_type(iface: str | None, upper: dict | None, lower: dict | None) -> str:
+    """
+    Entre deux couches non liées : aucune | géotextile.
+    Sinon (au moins une couche liée) : collé | semi-collé | glissant | géotextile.
+    """
+    raw = str(iface or "").strip().lower().replace("geotextile", "géotextile")
+    unbound_pair = bool(upper and lower and is_unbound_layer(upper) and is_unbound_layer(lower))
+    if unbound_pair:
+        if raw in {"géotextile", "geotextile"}:
+            return "géotextile"
+        return "aucune"
+    if raw in {"semi-collé", "semi-colle", "semi"}:
+        return "semi-collé"
+    if raw in {"glissant", "slip"}:
+        return "glissant"
+    if raw in {"géotextile", "geotextile"}:
+        return "géotextile"
+    if raw in {"aucune", "none", ""}:
+        return "collé"
+    return "collé"
+
+
+def virtual_interface_layer(iface: str) -> dict | None:
+    """
+    Approximation continuum : couche virtuelle mince pour interfaces non collées.
+    (Le noyau Maina–Matsui RaLab est à contact collé ; ces intercalaires modélisent
+     glissement / semi-collage / géotextile.)
+    """
+    kind = str(iface or "").strip().lower()
+    if kind in {"collé", "colle", "aucune", "none", ""}:
+        return None
+    if kind in {"géotextile", "geotextile"}:
+        return {
+            "h_mm": 1.0,
+            "E": 80.0,
+            "nu": 0.35,
+            "materiau": "Géotextile (interface)",
+            "bitumineux": False,
+            "virtual_interface": "géotextile",
+        }
+    if kind in {"semi-collé", "semi-colle", "semi"}:
+        return {
+            "h_mm": 1.0,
+            "E": 200.0,
+            "nu": 0.35,
+            "materiau": "Interface semi-collée",
+            "bitumineux": False,
+            "virtual_interface": "semi-collé",
+        }
+    if kind in {"glissant", "slip"}:
+        return {
+            "h_mm": 1.0,
+            "E": 5.0,
+            "nu": 0.45,
+            "materiau": "Interface glissante",
+            "bitumineux": False,
+            "virtual_interface": "glissant",
+        }
+    return None
+
+
+
 def h_assise_cm(layers: list[dict]) -> float:
     """Hauteur d'assise bitumineuse hors roulement (approx.)."""
     bit = [l for l in layers if is_bituminous_layer(l)]

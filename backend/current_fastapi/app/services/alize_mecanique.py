@@ -23,7 +23,10 @@ from app.services.alize_reglementaire import (
     _num,
     is_bituminous_layer,
     is_platform_layer,
+    is_unbound_layer,
     material_params,
+    normalize_interface_type,
+    virtual_interface_layer,
 )
 
 FR_CHARGE = {
@@ -96,11 +99,20 @@ def resolve_charge(params: dict | None) -> dict[str, float]:
 def build_elastic_stack(
     layers: list[dict],
     platform: dict | None = None,
-) -> tuple[list[float], list[float], list[float], list[dict]]:
+) -> tuple[list[float], list[float], list[float], list[dict], list[str]]:
+    """
+    Construit le stack élastique.
+    Retourne H, E, nu, meta, warnings.
+    Les interfaces non collées (semi / glissant / géotextile) sont représentées
+    par une couche virtuelle mince (approx. continuum).
+    """
     platform = platform or {}
     finite: list[dict] = []
     halfspace: dict | None = None
+    warnings: list[str] = []
     ordered = sorted([dict(l) for l in (layers or [])], key=lambda l: int(l.get("ordre") or 0) or 0)
+
+    structural: list[dict] = []
     for layer in ordered:
         if is_platform_layer(layer):
             halfspace = layer
@@ -112,15 +124,49 @@ def build_elastic_stack(
         conf = material_params(code, layer, {})
         e = _num(layer.get("module"), conf.get("e_theta") or conf.get("e10") or 7000.0) or 7000.0
         nu = _num(layer.get("poisson"), 0.35) or 0.35
-        finite.append(
+        structural.append(
             {
                 "h_mm": ep_cm * 10.0,
                 "E": float(e),
                 "nu": float(nu),
                 "materiau": code,
                 "bitumineux": is_bituminous_layer(layer),
+                "unbound": is_unbound_layer(layer),
+                "interface_inf": layer.get("interface_inf") or "",
+                "source_layer": layer,
             }
         )
+
+    for i, item in enumerate(structural):
+        finite.append(
+            {
+                "h_mm": item["h_mm"],
+                "E": item["E"],
+                "nu": item["nu"],
+                "materiau": item["materiau"],
+                "bitumineux": item["bitumineux"],
+                "unbound": item["unbound"],
+            }
+        )
+        # Interface sous cette couche → vers la suivante (ou PF)
+        lower_src = (
+            structural[i + 1]["source_layer"]
+            if i + 1 < len(structural)
+            else (halfspace or {"materiau": platform.get("classe") or "PF", "famille": "plateforme"})
+        )
+        iface = normalize_interface_type(
+            item.get("interface_inf"),
+            item.get("source_layer"),
+            lower_src,
+        )
+        virt = virtual_interface_layer(iface)
+        if virt:
+            finite.append(dict(virt))
+            warnings.append(
+                f"Interface « {iface} » sous {item['materiau'] or 'couche'} "
+                f"modélisée par intercalaire mince (E={virt['E']} MPa, h={virt['h_mm']} mm)."
+            )
+
     if halfspace is None:
         halfspace = {
             "materiau": platform.get("classe") or "PF",
@@ -139,12 +185,16 @@ def build_elastic_stack(
             "halfspace": True,
         }
     ]
-    if not finite:
+    if not any(not m.get("virtual_interface") for m in finite):
+        raise ValueError("Structure vide : au moins une couche d'épaisseur > 0 est requise")
+    # H = toutes les couches finies y compris intercalaires virtuels
+    real_finite = [m for m in finite if not m.get("virtual_interface")]
+    if not real_finite:
         raise ValueError("Structure vide : au moins une couche d'épaisseur > 0 est requise")
     H = [m["h_mm"] for m in finite]
     E = [m["E"] for m in meta]
     nu = [m["nu"] for m in meta]
-    return H, E, nu, meta
+    return H, E, nu, meta, warnings
 
 
 def _pymastic_core(
@@ -333,10 +383,20 @@ def _pymastic_core(
 
 def critical_depths_mm(meta: list[dict], H_mm: list[float]) -> dict[str, Any]:
     interfaces = np.cumsum(H_mm)
-    bit_indices = [i for i, m in enumerate(meta[:-1]) if m.get("bitumineux")]
+    # εt en base de la dernière couche bitumineuse « réelle » (hors intercalaire virtuel)
+    bit_indices = [
+        i for i, m in enumerate(meta[:-1])
+        if m.get("bitumineux") and not m.get("virtual_interface")
+    ]
     if not bit_indices:
-        z_t = float(interfaces[-1]) - 0.01
-        mat_t = meta[len(H_mm) - 1]["materiau"]
+        # dernière couche structurale avant PF
+        real_idx = [
+            i for i, m in enumerate(meta[:-1])
+            if not m.get("virtual_interface") and m.get("h_mm") is not None
+        ]
+        i_last = real_idx[-1] if real_idx else len(H_mm) - 1
+        z_t = float(interfaces[i_last]) - 0.01
+        mat_t = meta[i_last]["materiau"]
     else:
         i_last = bit_indices[-1]
         z_t = float(interfaces[i_last]) - 0.01
@@ -356,7 +416,7 @@ def compute_mecanical_strains(
     platform: dict | None = None,
     params: dict | None = None,
 ) -> dict[str, Any]:
-    H_mm, E, nu, meta = build_elastic_stack(layers, platform)
+    H_mm, E, nu, meta, iface_warnings = build_elastic_stack(layers, platform)
     charge = resolve_charge(params)
     depths = critical_depths_mm(meta, H_mm)
 
@@ -398,6 +458,13 @@ def compute_mecanical_strains(
     best_t = max(samples_t, key=lambda s: s["eps_t_udef"])
     best_z = max(samples_z, key=lambda s: s["eps_z_udef"])
 
+    warnings = list(iface_warnings)
+    if iface_warnings:
+        warnings.append(
+            "Modèle d’interface approximatif (intercalaire mince) — "
+            "pas un contact glissant Maina–Matsui complet type Alizé propriétaire."
+        )
+
     return {
         "ok": True,
         "epsT_calc": round(float(best_t["eps_t_udef"]), 2),
@@ -408,7 +475,7 @@ def compute_mecanical_strains(
         "samples_t": [{"x_mm": s["x_mm"], "eps_t_udef": round(s["eps_t_udef"], 2)} for s in samples_t],
         "samples_z": [{"x_mm": s["x_mm"], "eps_z_udef": round(s["eps_z_udef"], 2)} for s in samples_z],
         "engine": "ralab_mecanique_v1",
-        "warnings": [],
+        "warnings": warnings,
     }
 
 

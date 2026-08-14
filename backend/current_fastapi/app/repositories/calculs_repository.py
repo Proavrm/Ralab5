@@ -644,6 +644,8 @@ class CalculsRepository:
                 {"id": "collé", "label": "Collé", "color": "#22c55e"},
                 {"id": "semi-collé", "label": "Semi-collé", "color": "#f59e0b"},
                 {"id": "glissant", "label": "Glissant", "color": "#ef4444"},
+                {"id": "géotextile", "label": "Géotextile", "color": "#0ea5e9"},
+                {"id": "aucune", "label": "Aucune (granulaires)", "color": "#94a3b8"},
             ],
             "plateformes": [
                 {
