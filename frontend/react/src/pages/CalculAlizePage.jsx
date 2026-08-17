@@ -1160,6 +1160,7 @@ export default function CalculAlizePage() {
                   ...platform,
                   classe: e.target.value,
                   module_pf: pf?.module != null ? Math.round(Number(pf.module)) : platform.module_pf,
+                  module_source: 'classe',
                   source: 'Catalogue PF',
                 })
               }}
@@ -1167,19 +1168,49 @@ export default function CalculAlizePage() {
               <option value="">Choisir…</option>
               {plateformes.map((pf) => (
                 <option key={pf.classe} value={pf.classe}>
-                  {pf.classe}{pf.module != null ? ` · ${Math.round(Number(pf.module))} MPa` : ''}
+                  {pf.classe}{pf.module != null ? ` · E ${Math.round(Number(pf.module))} MPa` : ''}
                 </option>
               ))}
             </Select>
           </Field>
-          {[['module_pf', 'Module PF (MPa)'], ['poisson', 'Poisson'], ['ev2', 'EV2'], ['source', 'Source']].map(([key, label]) => (
-            <Field key={key} label={label}>
-              <Input
-                value={platform[key] ?? ''}
-                onChange={(e) => setPlatform({ ...platform, [key]: e.target.value })}
-              />
-            </Field>
-          ))}
+          <Field label="Module E (MPa)" hint="Young — calcul (≠ EV2)">
+            <Input
+              value={platform.module_pf ?? ''}
+              onChange={(e) => setPlatform({
+                ...platform,
+                module_pf: e.target.value,
+                module_source: 'explicit',
+              })}
+            />
+          </Field>
+          <Field label="EV2 (MPa)" hint="Plaque / réception">
+            <Input
+              value={platform.ev2 ?? ''}
+              onChange={(e) => {
+                const ev2 = e.target.value
+                const n = Number(ev2)
+                const suggest = Number.isFinite(n) && n > 0 ? Math.round(n * 2) : platform.module_pf
+                const auto = !platform.module_source || platform.module_source === 'from_ev2' || platform.module_source === 'auto'
+                setPlatform({
+                  ...platform,
+                  ev2,
+                  ...(auto ? { module_pf: suggest, module_source: 'from_ev2' } : {}),
+                })
+              }}
+            />
+          </Field>
+          <Field label="Poisson">
+            <Input
+              value={platform.poisson ?? ''}
+              onChange={(e) => setPlatform({ ...platform, poisson: e.target.value })}
+            />
+          </Field>
+          <Field label="Source">
+            <Input
+              value={platform.source ?? ''}
+              onChange={(e) => setPlatform({ ...platform, source: e.target.value })}
+            />
+          </Field>
           <Field label="Commentaire">
             <Textarea
               rows={2}
@@ -1188,6 +1219,9 @@ export default function CalculAlizePage() {
             />
           </Field>
         </div>
+        <p className="mt-2 text-[12px] text-text-muted">
+          EV2 = réception chantier. Module E = Young du modèle multicouche (catalogue PF, ou ≈ 2×EV2 si seul l’EV2 est connu).
+        </p>
         <div className="mt-4 flex justify-end">
           <Button size="sm" onClick={() => setPopup(null)}>Fermer</Button>
         </div>

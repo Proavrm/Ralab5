@@ -26,6 +26,7 @@ from app.services.alize_reglementaire import (
     is_unbound_layer,
     material_params,
     normalize_interface_type,
+    resolve_platform_young_e,
     virtual_interface_layer,
 )
 
@@ -173,16 +174,22 @@ def build_elastic_stack(
             "module": platform.get("module_pf"),
             "poisson": platform.get("poisson") or 0.35,
         }
-    e_pf = _num(halfspace.get("module"), _num(platform.get("module_pf"), 50.0)) or 50.0
+    pf_res = resolve_platform_young_e(platform, halfspace)
+    e_pf = float(pf_res["E"])
     nu_pf = _num(halfspace.get("poisson"), _num(platform.get("poisson"), 0.35)) or 0.35
+    for w in pf_res.get("warnings") or []:
+        if w not in warnings:
+            warnings.append(w)
     meta = finite + [
         {
             "h_mm": None,
-            "E": float(e_pf),
+            "E": e_pf,
             "nu": float(nu_pf),
             "materiau": halfspace.get("materiau") or platform.get("classe") or "PF",
             "bitumineux": False,
             "halfspace": True,
+            "E_origin": pf_res.get("origin"),
+            "ev2": pf_res.get("ev2"),
         }
     ]
     if not any(not m.get("virtual_interface") for m in finite):
@@ -465,12 +472,21 @@ def compute_mecanical_strains(
             "pas un contact glissant Maina–Matsui complet type Alizé propriétaire."
         )
 
+    pf_meta = next((m for m in meta if m.get("halfspace")), {}) or {}
     return {
         "ok": True,
         "epsT_calc": round(float(best_t["eps_t_udef"]), 2),
         "epsZ_calc": round(float(best_z["eps_z_udef"]), 2),
         "charge": charge,
-        "stack": {"H_mm": H_mm, "E_mpa": E, "nu": nu, "materiaux": [m["materiau"] for m in meta]},
+        "stack": {
+            "H_mm": H_mm,
+            "E_mpa": E,
+            "nu": nu,
+            "materiaux": [m["materiau"] for m in meta],
+            "platform_E": pf_meta.get("E"),
+            "platform_E_origin": pf_meta.get("E_origin"),
+            "platform_ev2": pf_meta.get("ev2"),
+        },
         "depths": depths,
         "samples_t": [{"x_mm": s["x_mm"], "eps_t_udef": round(s["eps_t_udef"], 2)} for s in samples_t],
         "samples_z": [{"x_mm": s["x_mm"], "eps_z_udef": round(s["eps_z_udef"], 2)} for s in samples_z],
@@ -518,21 +534,8 @@ def _apply_calc_to_criteria(
                 c["materiau"] = mat_z
             found_z = True
         out.append(c)
-    if not found_t:
-        out.append(
-            {
-                "critere": "fatigue_epsilonT",
-                "materiau": mat_t,
-                "couche": mat_t,
-                "profondeur": "base couche",
-                "valeur_admissible": None,
-                "valeur_calculee": eps_t,
-                "unite": "µdéf",
-                "sens_verification": "inferieur_ou_egal",
-                "statut": "Non renseigné",
-                "commentaire": "εt calc RaLab mécanique v1",
-            }
-        )
+    # Ne pas inventer un critère εt si l'étape réglementaire ne l'a pas retenu
+    # (ex. roulement mince sans assise liée → contrôle principal εz).
     if not found_z:
         out.append(
             {

@@ -41,6 +41,104 @@ KS_BY_PF = {
     "PF4": 1.0,
 }
 
+# Module d'Young E (MPa) typique par classe PF — entrée du modèle élastique.
+# Distinct de EV2 (essai à la plaque / réception chantier).
+PF_YOUNG_BY_CLASSE = {
+    "PF1": 20.0,
+    "PF2": 50.0,
+    "PF2QS": 80.0,
+    "PF3": 120.0,
+    "PF4": 200.0,
+}
+
+# Ordre de grandeur courant EV2 (plaque) → E Young de calcul.
+# Surchargeable via platform.ev2_to_e_factor. Ce n'est PAS une constante NF ;
+# l'ingénieur doit valider / saisir module_pf explicitement dès que possible.
+DEFAULT_EV2_TO_E_FACTOR = 2.0
+
+
+def resolve_platform_young_e(
+    platform: dict | None = None,
+    halfspace: dict | None = None,
+) -> dict[str, Any]:
+    """
+    Résout le module d'Young E (MPa) du demi-espace pour le calcul Burmister.
+
+    Distinction critique (tous les calculs Alizé RaLab) :
+    - ``ev2`` : module de déformation à la plaque (objectif / mesure réception)
+    - ``module_pf`` : module d'Young du modèle multicouche (≠ EV2)
+
+    Ordre de résolution :
+    1. ``module_source=from_ev2`` → E = factor × EV2
+    2. ``module_pf`` explicite (saisie / catalogue classe)
+    3. EV2 seul → E = factor × EV2 (avec avertissement)
+    4. module de la couche PF (halfspace)
+    5. catalogue de classe
+    6. défaut PF2 = 50 MPa
+    """
+    platform = platform or {}
+    halfspace = halfspace or {}
+    source = str(platform.get("module_source") or "auto").strip().lower()
+    factor = _num(platform.get("ev2_to_e_factor"), DEFAULT_EV2_TO_E_FACTOR) or DEFAULT_EV2_TO_E_FACTOR
+    ev2 = _num(platform.get("ev2") if platform.get("ev2") not in (None, "") else platform.get("ev2_mpa"))
+    module_plat = _num(platform.get("module_pf"))
+    module_hs = _num(halfspace.get("module"))
+    classe_raw = platform.get("classe") or halfspace.get("classe") or halfspace.get("materiau") or ""
+    classe = _norm_code(classe_raw)
+    classe_key = classe
+    if classe.startswith("PF"):
+        # PF2QS avant PF2 (préfixe commun)
+        for key in ("PF4", "PF3", "PF2QS", "PF2", "PF1"):
+            if classe.startswith(key):
+                classe_key = key
+                break
+
+    warnings: list[str] = []
+
+    def _pack(e: float, origin: str) -> dict[str, Any]:
+        out = {
+            "E": float(e),
+            "origin": origin,
+            "ev2": ev2,
+            "factor": float(factor),
+            "classe": classe_raw or None,
+            "warnings": warnings,
+        }
+        if ev2 is not None and abs(float(e) - float(ev2)) < 0.51:
+            warnings.append(
+                "E de calcul ≈ EV2 : l'EV2 (plaque) n'est pas un module d'Young. "
+                "Vérifier module_pf (catalogue PF ou E ≈ 2×EV2)."
+            )
+            out["warnings"] = list(warnings)
+        return out
+
+    if source in {"from_ev2", "ev2"}:
+        if ev2 is None:
+            warnings.append("module_source=from_ev2 sans EV2 — repli sur les autres sources")
+        else:
+            return _pack(float(ev2) * float(factor), f"E={factor:g}×EV2")
+
+    if module_plat is not None:
+        origin = "module_pf"
+        if source in {"explicit", "manuel", "catalog", "catalogue", "classe"}:
+            origin = f"module_pf ({source})"
+        return _pack(float(module_plat), origin)
+
+    if ev2 is not None:
+        warnings.append(
+            f"EV2={ev2:g} MPa sans module_pf : E calculé avec facteur {factor:g} "
+            f"(surchargeable via ev2_to_e_factor)."
+        )
+        return _pack(float(ev2) * float(factor), f"E={factor:g}×EV2 (auto)")
+
+    if module_hs is not None:
+        return _pack(float(module_hs), "couche plateforme")
+
+    if classe_key in PF_YOUNG_BY_CLASSE:
+        return _pack(PF_YOUNG_BY_CLASSE[classe_key], f"catalogue {classe_key}")
+
+    return _pack(50.0, "défaut PF2")
+
 # Coefficient c (m^-1) reliant variation d'épaisseur → variation de déformation
 C_THICKNESS = 2.0
 
@@ -460,14 +558,29 @@ def run_reglementaire_payload(
     }
 
     pf_classe = platform.get("classe") or ""
-    pf_module = _num(platform.get("module_pf"))
+    pf_resolved = resolve_platform_young_e(platform)
+    pf_module = pf_resolved["E"]
+    params_out["platform_E"] = pf_module
+    params_out["platform_E_origin"] = pf_resolved.get("origin")
+    if pf_resolved.get("ev2") is not None:
+        params_out["platform_ev2"] = pf_resolved["ev2"]
 
-    # Couches candidates εt : assise bitumineuse (hors PF), priorité GB/EME
+    # Couches candidates εt : assise bitumineuse liée (GB/EME ou couche marquée assise).
+    # Un simple roulement mince (BBSG/BBME, assise=False) sur GNT/mâchefer ne porte pas
+    # le critère de fatigue εt — le contrôle principal est alors εz plateforme.
     bit_layers = [l for l in layers if is_bituminous_layer(l)]
-    eps_t_targets = [l for l in bit_layers if _norm_code(l.get("materiau")).startswith(("GB", "EME"))]
+    eps_t_targets = [
+        l
+        for l in bit_layers
+        if _norm_code(l.get("materiau")).startswith(("GB", "EME"))
+    ]
+    if not eps_t_targets:
+        eps_t_targets = [l for l in bit_layers if l.get("assise")]
     if not eps_t_targets and bit_layers:
-        # fallback dernière couche bitumineuse
-        eps_t_targets = [bit_layers[-1]]
+        warnings.append(
+            "Aucune assise bitumineuse liée (GB/EME ou assise=oui) : "
+            "critère εt fatigue non appliqué ; contrôle principal = εz plateforme."
+        )
 
     new_criteria: list[dict] = []
     report_criteria: list[dict] = []

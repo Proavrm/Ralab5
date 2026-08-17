@@ -353,34 +353,138 @@ export function MetaDocumentBlockEditor({ content, onChange, instanceMeta }) {
   const keys = Object.keys(fields).length
     ? Object.keys(fields)
     : ['title', 'reference', 'author', 'document_date', 'status']
+  const pour = Array.isArray(content?.destinataires_pour) ? content.destinataires_pour : []
+  const copie = Array.isArray(content?.destinataires_copie) ? content.destinataires_copie : []
+  const historique = Array.isArray(content?.historique) ? content.historique : []
+
+  function setPeople(key, list) {
+    onChange({ ...content, [key]: list })
+  }
 
   return (
-    <div className="space-y-2">
-      {keys.map((key) => (
-        <div key={key}>
-          <FieldLabel>{key}</FieldLabel>
-          <Input
-            value={fields[key] ?? ''}
-            onChange={(e) =>
-              onChange({
-                ...content,
-                fields: { ...fields, [key]: e.target.value },
-              })
-            }
-          />
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => {
-          const key = window.prompt('Nom du champ ?')
-          if (!key) return
-          onChange({ ...content, fields: { ...fields, [key]: '' } })
-        }}
-      >
-        + Champ
-      </Button>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        {keys.map((key) => (
+          <div key={key}>
+            <FieldLabel>{key}</FieldLabel>
+            <Input
+              value={fields[key] ?? ''}
+              onChange={(e) =>
+                onChange({
+                  ...content,
+                  fields: { ...fields, [key]: e.target.value },
+                })
+              }
+            />
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            const key = window.prompt('Nom du champ ?')
+            if (!key) return
+            onChange({ ...content, fields: { ...fields, [key]: '' } })
+          }}
+        >
+          + Champ
+        </Button>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-[#e2e8f0] p-3">
+        <FieldLabel>Destinataires — Pour</FieldLabel>
+        {pour.map((row, i) => (
+          <div key={`pour-${i}`} className="grid grid-cols-2 gap-2">
+            <Input
+              placeholder="Nom"
+              value={row?.nom || ''}
+              onChange={(e) => {
+                const next = pour.map((r, idx) => (idx === i ? { ...r, nom: e.target.value } : r))
+                setPeople('destinataires_pour', next)
+              }}
+            />
+            <Input
+              placeholder="Service"
+              value={row?.service || ''}
+              onChange={(e) => {
+                const next = pour.map((r, idx) => (idx === i ? { ...r, service: e.target.value } : r))
+                setPeople('destinataires_pour', next)
+              }}
+            />
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setPeople('destinataires_pour', [...pour, { nom: '', service: '' }])}
+        >
+          + Pour
+        </Button>
+        <FieldLabel>Destinataires — Copie</FieldLabel>
+        {copie.map((row, i) => (
+          <div key={`copie-${i}`} className="grid grid-cols-2 gap-2">
+            <Input
+              placeholder="Nom"
+              value={row?.nom || ''}
+              onChange={(e) => {
+                const next = copie.map((r, idx) => (idx === i ? { ...r, nom: e.target.value } : r))
+                setPeople('destinataires_copie', next)
+              }}
+            />
+            <Input
+              placeholder="Service"
+              value={row?.service || ''}
+              onChange={(e) => {
+                const next = copie.map((r, idx) => (idx === i ? { ...r, service: e.target.value } : r))
+                setPeople('destinataires_copie', next)
+              }}
+            />
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => setPeople('destinataires_copie', [...copie, { nom: '', service: '' }])}
+        >
+          + Copie
+        </Button>
+      </div>
+
+      <div className="space-y-2 rounded-lg border border-[#e2e8f0] p-3">
+        <FieldLabel>Historique des modifications</FieldLabel>
+        {historique.map((row, i) => (
+          <div key={`hist-${i}`} className="grid gap-2 sm:grid-cols-5">
+            {['version', 'date', 'redige_par', 'controle', 'modifications'].map((k) => (
+              <Input
+                key={k}
+                placeholder={k}
+                value={row?.[k] || ''}
+                onChange={(e) => {
+                  const next = historique.map((r, idx) =>
+                    idx === i ? { ...r, [k]: e.target.value } : r,
+                  )
+                  onChange({ ...content, historique: next })
+                }}
+              />
+            ))}
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() =>
+            onChange({
+              ...content,
+              historique: [
+                ...historique,
+                { version: '', date: '', redige_par: '', controle: '', modifications: '' },
+              ],
+            })
+          }
+        >
+          + Ligne historique
+        </Button>
+      </div>
     </div>
   )
 }

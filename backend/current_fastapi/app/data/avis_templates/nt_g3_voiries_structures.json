@@ -1,0 +1,681 @@
+{
+  "code": "nt_g3_voiries_structures",
+  "label": "NT G3 — Voiries / structures",
+  "version": 2,
+  "docx_style_path": "storage/documents/2025-RA-008-D0054-NT0002.docx",
+  "definition": {
+    "reference_rule": "{annee}-{region}-NT{seq:04d}",
+    "export_empty_sections": true,
+    "export_sommaire": true,
+    "meta_field_keys": [
+      "title",
+      "author",
+      "document_date",
+      "status",
+      "destinataire",
+      "reference"
+    ],
+    "sections": [
+      {
+        "id": "cover",
+        "title": "Informations qualité du document",
+        "order": 0,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "meta",
+            "block_type": "meta_document",
+            "label": "Qualité document"
+          }
+        ]
+      },
+      {
+        "id": "ch1",
+        "title": "1. Préambule",
+        "order": 10,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s1_1",
+        "title": "1.1. Présentation",
+        "order": 11,
+        "parent_id": "ch1",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "liste", "block_type": "bullet_list", "label": "Objectifs" }
+        ]
+      },
+      {
+        "id": "s1_2",
+        "title": "1.2. Documents de référence",
+        "order": 12,
+        "parent_id": "ch1",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Commentaire" },
+          {
+            "slot_id": "docs_ref",
+            "block_type": "document_gallery",
+            "label": "Documents liés",
+            "binding": { "source": "documents" }
+          },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Tableau des références" }
+        ]
+      },
+      {
+        "id": "ch2",
+        "title": "2. Structures du marché",
+        "order": 20,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s2_1",
+        "title": "2.1. Structures de voirie prévues au marché",
+        "order": 21,
+        "parent_id": "ch2",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Figures / plans" }
+        ]
+      },
+      {
+        "id": "s2_2",
+        "title": "2.2. Composition des structures marché",
+        "order": 22,
+        "parent_id": "ch2",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Structures marché" }
+        ]
+      },
+      {
+        "id": "ch3",
+        "title": "3. Structures proposées et adoptées",
+        "order": 30,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s3_1",
+        "title": "3.1. Structures proposées et adoptées",
+        "order": 31,
+        "parent_id": "ch3",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Coupes / structures proposées" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Figures" },
+          {
+            "slot_id": "resume_calculs",
+            "block_type": "calculs_table",
+            "label": "Variantes liées (Alizé)",
+            "binding": { "source": "calculs", "filter": { "type_calcul": "alize" } }
+          }
+        ]
+      },
+      {
+        "id": "ch4",
+        "title": "4. Reconnaissances d'exécution",
+        "order": 40,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s4_1",
+        "title": "4.1. Résultats synthétiques des prélèvements SP1 à SP8",
+        "order": 41,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Synthèse SP" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Figures" }
+        ]
+      },
+      {
+        "id": "s4_2",
+        "title": "4.2. Lecture GTR des sols rencontrés",
+        "order": 42,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "tableau_gtr", "block_type": "free_table", "label": "Lecture GTR" }
+        ]
+      },
+      {
+        "id": "ch5",
+        "title": "5. Gestion de l'arase - interprétation G3",
+        "order": 50,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s5_1",
+        "title": "5.1. Sensibilité hydrique - essai Proctor / IPI",
+        "order": 51,
+        "parent_id": "ch5",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "proctor", "block_type": "free_table", "label": "Proctor / IPI" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Courbes" }
+        ]
+      },
+      {
+        "id": "s5_2",
+        "title": "5.2. Objectif de portance de l'arase",
+        "order": 52,
+        "parent_id": "ch5",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "liste", "block_type": "bullet_list", "label": "Objectifs" }
+        ]
+      },
+      {
+        "id": "ch6",
+        "title": "6. Hypothèses de dimensionnement",
+        "order": 60,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s6_1",
+        "title": "6.1. Trafic et paramètres de calcul",
+        "order": 61,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "trafic", "block_type": "key_value_table", "label": "Hypothèses trafic / NE" },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Détail trafic" }
+        ]
+      },
+      {
+        "id": "s6_2",
+        "title": "6.2. Matériaux et modélisation de la plateforme",
+        "order": 62,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "materiaux", "block_type": "bullet_list", "label": "Matériaux retenus" },
+          {
+            "slot_id": "ftp",
+            "block_type": "materiau_status",
+            "label": "Fiches techniques / statut",
+            "binding": { "source": "materiaux" }
+          },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Critères" }
+        ]
+      },
+      {
+        "id": "ch7",
+        "title": "7. Vérification des structures",
+        "order": 70,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s7_1",
+        "title": "7.1. Sensibilité à la portance de l'arase",
+        "order": 71,
+        "parent_id": "ch7",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "sensibilite", "block_type": "free_table", "label": "Matrice de sensibilité" }
+        ]
+      },
+      {
+        "id": "s7_2",
+        "title": "7.2. Résultats des structures proposées et adoptées",
+        "order": 72,
+        "parent_id": "ch7",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "resultats", "block_type": "free_table", "label": "Tableau de résultats" },
+          {
+            "slot_id": "calculs",
+            "block_type": "calculs_table",
+            "label": "Calculs Alizé",
+            "binding": { "source": "calculs", "filter": { "type_calcul": "alize" } }
+          }
+        ]
+      },
+      {
+        "id": "ch8",
+        "title": "8. Analyse des structures proposées et adoptées",
+        "order": 80,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s8_1",
+        "title": "8.1. Comparaison BBSG / BBME",
+        "order": 81,
+        "parent_id": "ch8",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "liste", "block_type": "bullet_list", "label": "Points" }
+        ]
+      },
+      {
+        "id": "s8_2",
+        "title": "8.2. Structures proposées et adoptées",
+        "order": 82,
+        "parent_id": "ch8",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Synthèse" }
+        ]
+      },
+      {
+        "id": "s8_3",
+        "title": "8.3. Conditions de validité",
+        "order": 83,
+        "parent_id": "ch8",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "liste", "block_type": "bullet_list", "label": "Conditions" }
+        ]
+      },
+      {
+        "id": "ch9",
+        "title": "9. Dispositions G3 d'exécution et de contrôle",
+        "order": 90,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s9_1",
+        "title": "9.1. Préparation et réception de l'arase",
+        "order": 91,
+        "parent_id": "ch9",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "liste", "block_type": "checklist", "label": "Dispositions" }
+        ]
+      },
+      {
+        "id": "s9_2",
+        "title": "9.2. Constitution et réception de la plateforme",
+        "order": 92,
+        "parent_id": "ch9",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "liste", "block_type": "checklist", "label": "Dispositions" }
+        ]
+      },
+      {
+        "id": "ch10",
+        "title": "10. Points d'arrêt G3",
+        "order": 100,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s10_1",
+        "title": "10.1. Plan de contrôle",
+        "order": 101,
+        "parent_id": "ch10",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "pa", "block_type": "free_table", "label": "Points d'arrêt" },
+          { "slot_id": "checklist", "block_type": "checklist", "label": "Liste de contrôle" }
+        ]
+      },
+      {
+        "id": "s10_2",
+        "title": "10.2. Traçabilité",
+        "order": 102,
+        "parent_id": "ch10",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Texte" },
+          { "slot_id": "liste", "block_type": "bullet_list", "label": "Traçabilité" }
+        ]
+      },
+      {
+        "id": "ch11",
+        "title": "11. Synthèse",
+        "order": 110,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s11_1",
+        "title": "11.1. Structures proposées et adoptées",
+        "order": 111,
+        "parent_id": "ch11",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Synthèse" },
+          {
+            "slot_id": "retenus",
+            "block_type": "calculs_table",
+            "label": "Calculs retenus",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "a_retenir": true }
+            }
+          }
+        ]
+      },
+      {
+        "id": "s11_2",
+        "title": "11.2. Conclusion",
+        "order": 112,
+        "parent_id": "ch11",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Conclusion" }
+        ]
+      },
+      {
+        "id": "ch12",
+        "title": "12. Annexes",
+        "order": 120,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "annexe_a",
+        "title": "Annexe A - Hypothèses de trafic et critères de calcul",
+        "order": 121,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Commentaire" },
+          { "slot_id": "trafic", "block_type": "key_value_table", "label": "Hypothèses trafic" },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Critères" }
+        ]
+      },
+      {
+        "id": "annexe_b",
+        "title": "Annexe B - Synthèse des vérifications des structures proposées et adoptées",
+        "order": 122,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Commentaire" },
+          {
+            "slot_id": "calculs",
+            "block_type": "calculs_table",
+            "label": "Tableau des calculs",
+            "binding": { "source": "calculs", "filter": { "type_calcul": "alize" } }
+          },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Synthèse vérifications" }
+        ]
+      },
+      {
+        "id": "annexe_c",
+        "title": "Annexe C - Plan de localisation des sondages SP1 à SP8",
+        "order": 123,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Commentaire" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Plan de localisation" },
+          {
+            "slot_id": "docs",
+            "block_type": "document_gallery",
+            "label": "Documents",
+            "binding": { "source": "documents" }
+          }
+        ]
+      },
+      {
+        "id": "annexe_d",
+        "title": "Annexe D - Fiches de coupes et résultats d'identification",
+        "order": 124,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Commentaire" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Fiches de coupes" }
+        ]
+      },
+      {
+        "id": "annexe_e",
+        "title": "Annexe E - Fiche produit BBME",
+        "order": 125,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Commentaire" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Fiche produit" },
+          {
+            "slot_id": "ftp",
+            "block_type": "materiau_status",
+            "label": "Matériaux",
+            "binding": { "source": "materiaux" }
+          }
+        ]
+      },
+      {
+        "id": "annexe_f",
+        "title": "Annexe F - Essai Proctor Normal / IPI",
+        "order": 126,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Commentaire" },
+          { "slot_id": "tableau", "block_type": "free_table", "label": "Résultats Proctor / IPI" },
+          { "slot_id": "figures", "block_type": "media_cards", "label": "Courbes" }
+        ]
+      },
+      {
+        "id": "annexe_g",
+        "title": "Annexe G - Fiche de calcul P1",
+        "order": 127,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Introduction" },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiche P1",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "nom_contains": "P1" }
+            }
+          }
+        ]
+      },
+      {
+        "id": "annexe_h",
+        "title": "Annexe H - Fiche de calcul P2",
+        "order": 128,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Introduction" },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiche P2",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "nom_contains": "P2" }
+            }
+          }
+        ]
+      },
+      {
+        "id": "annexe_i",
+        "title": "Annexe I - Fiche de vérification P3",
+        "order": 129,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Introduction" },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiche P3",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "nom_contains": "P3" }
+            }
+          }
+        ]
+      },
+      {
+        "id": "annexe_j",
+        "title": "Annexe J - Fiche de vérification P4",
+        "order": 130,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Introduction" },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiche P4",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "nom_contains": "P4" }
+            }
+          }
+        ]
+      },
+      {
+        "id": "annexe_k",
+        "title": "Annexe K - Fiche de vérification P5",
+        "order": 131,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Introduction" },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiche P5",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "nom_contains": "P5" }
+            }
+          }
+        ]
+      },
+      {
+        "id": "annexe_l",
+        "title": "Annexe L - Fiche de vérification P6",
+        "order": 132,
+        "parent_id": "ch12",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          { "slot_id": "texte", "block_type": "rich_text", "label": "Introduction" },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiche P6",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "nom_contains": "P6" }
+            }
+          }
+        ]
+      },
+      {
+        "id": "annexe_fiches_alize",
+        "title": "Annexe - Fiches de calcul Alizé (retenues / impression)",
+        "order": 140,
+        "parent_id": "ch12",
+        "optional": true,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Introduction"
+          },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiches de calcul",
+            "binding": {
+              "source": "calculs",
+              "filter": { "type_calcul": "alize", "pour_impression": true }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

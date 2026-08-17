@@ -635,22 +635,44 @@ export default function AlizeStructureEditor({
                       ...platform,
                       classe: e.target.value,
                       module_pf: pf?.module != null ? Math.round(Number(pf.module)) : platform.module_pf,
+                      module_source: 'classe',
                     })
                   }}
                 >
                   <option value="">Choisir…</option>
                   {plateformes.map((pf) => (
                     <option key={pf.classe} value={pf.classe}>
-                      {pf.classe}{pf.module != null ? ` · ${Math.round(Number(pf.module))} MPa` : ''}
+                      {pf.classe}{pf.module != null ? ` · E ${Math.round(Number(pf.module))} MPa` : ''}
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Module PF (MPa)">
+              <Field label="Module E (MPa)" hint="Young — calcul Burmister (≠ EV2)">
                 <Input
                   value={platform.module_pf ?? ''}
                   disabled={readOnly}
-                  onChange={(e) => onChangePlatform?.({ ...platform, module_pf: e.target.value })}
+                  onChange={(e) => onChangePlatform?.({
+                    ...platform,
+                    module_pf: e.target.value,
+                    module_source: 'explicit',
+                  })}
+                />
+              </Field>
+              <Field label="EV2 (MPa)" hint="Plaque / réception — pas le E du modèle">
+                <Input
+                  value={platform.ev2 ?? ''}
+                  disabled={readOnly}
+                  onChange={(e) => {
+                    const ev2 = e.target.value
+                    const n = Number(ev2)
+                    const suggest = Number.isFinite(n) && n > 0 ? Math.round(n * 2) : platform.module_pf
+                    const auto = !platform.module_source || platform.module_source === 'from_ev2' || platform.module_source === 'auto'
+                    onChangePlatform?.({
+                      ...platform,
+                      ev2,
+                      ...(auto ? { module_pf: suggest, module_source: 'from_ev2' } : {}),
+                    })
+                  }}
                 />
               </Field>
               <Field label="Poisson">
@@ -661,7 +683,10 @@ export default function AlizeStructureEditor({
                 />
               </Field>
             </div>
-            <p className="text-[12px] text-text-muted">La plateforme ne fait pas partie de l’assise (Alizé2 §3.2.1).</p>
+            <p className="text-[12px] text-text-muted">
+              La plateforme ne fait pas partie de l’assise (Alizé2 §3.2.1).
+              EV2 = réception ; Module E = Young du calcul (catalogue PF ou ≈ 2×EV2 si seul l’EV2 est connu).
+            </p>
           </div>
         ) : selected ? (
           <div className="space-y-2">
