@@ -72,9 +72,81 @@ function getToken() {
   return token
 }
 
+export function getTokenFromStorage() {
+  return getToken()
+}
+
+/** Sync cookie from localStorage (needed for <img src="/api/storage/...">). */
+export function syncAuthTokenCookieFromStorage() {
+  const token = localStorage.getItem('ralab_token')
+  if (token) setAuthTokenCookie(token)
+  else clearAuthTokenCookie()
+  return token
+}
+
+export function buildStorageUrl(storedPath) {
+  let path = String(storedPath || '').trim().replace(/\\/g, '/').replace(/^\/+/, '')
+  if (!path) return ''
+  if (path.startsWith('http') || path.startsWith('/api/')) return path
+  if (path.startsWith('/storage/')) return `/api${path}`
+  path = path.replace(/^storage\//i, '')
+  const encoded = encodeURI(path).replace(/#/g, '%23')
+  return `/api/storage/${encoded}`
+}
+
+/** Fetch a storage file with Bearer auth and return a blob: URL (revoke when done). */
+export async function fetchAuthorizedStorageBlobUrl(storedPath) {
+  const url = buildStorageUrl(storedPath)
+  if (!url) return ''
+  const headers = {}
+  const token = getToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch(url, { headers, credentials: 'same-origin' })
+  if (res.status === 401) {
+    clearAuthSession()
+    window.location.href = '/login'
+    throw new Error('Session expirée')
+  }
+  if (!res.ok) {
+    throw new Error(`Storage ${res.status}`)
+  }
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
+}
+
+
+function filenameFromContentDisposition(header, fallback) {
+  if (!header) return fallback
+  const utf = /filename\*=UTF-8''([^;]+)/i.exec(header)
+  if (utf?.[1]) {
+    try {
+      return decodeURIComponent(utf[1].trim().replace(/^"|"$/g, ''))
+    } catch {
+      /* ignore */
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header)
+  if (plain?.[1]) return plain[1].trim()
+  return fallback
+}
+
 function redirectToCloudflareAccess() {
   const target = `${window.location.pathname}${window.location.search}${window.location.hash}` || '/'
   window.location.assign(target)
+}
+
+function isCloudflareAccessRedirect(res) {
+  return res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)
+}
+
+function buildQueryString(params = {}) {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value == null || value === '') return
+    search.set(key, String(value))
+  })
+  const query = search.toString()
+  return query ? `?${query}` : ''
 }
 
 async function parseResponse(res) {
@@ -104,8 +176,14 @@ async function request(method, path, body = null) {
     method,
     headers,
     credentials: 'same-origin',
+    redirect: 'manual',
     body: body ? JSON.stringify(body) : undefined,
   })
+
+  if (isCloudflareAccessRedirect(res)) {
+    redirectToCloudflareAccess()
+    throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+  }
 
   if (res.status === 401) {
     handleUnauthorized()
@@ -119,13 +197,23 @@ async function request(method, path, body = null) {
   return parseResponse(res)
 }
 
-/** GET public (login bootstrap) — sans token ni cookie session. */
+/** GET public (login bootstrap) — sans JWT RaLab, mais avec cookies Cloudflare Access. */
 async function publicGet(path) {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'omit',
+    credentials: 'same-origin',
+    redirect: 'manual',
   })
+
+  if (isCloudflareAccessRedirect(res)) {
+    redirectToCloudflareAccess()
+    throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+  }
+
+  if (res.status === 401) {
+    handleUnauthorized()
+  }
 
   if (!res.ok) {
     const error = await parseResponse(res).catch((parseError) => ({ detail: parseError.message || res.statusText }))
@@ -270,6 +358,7 @@ export const contactsApi = {
 export const demandesApi = {
   list:     (params = {}) => api.get('/demandes_rst?' + new URLSearchParams(params)),
   get:      (uid)         => api.get(`/demandes_rst/${uid}`),
+  navigation: (uid)       => api.get(`/demandes_rst/${uid}/navigation`),
   create:   (data)        => api.post('/demandes_rst', data),
   update:   (uid, data)   => api.put(`/demandes_rst/${uid}`, data),
   delete:   (uid)         => api.delete(`/demandes_rst/${uid}`),
@@ -351,10 +440,123 @@ export const feuilleMissionApi = {
   },
 }
 
+// ── Calculs de dimensionnement ──────────────────────────────────────────────
+export const calculsApi = {
+  summary: (params = {}) => api.get('/calculs/summary' + buildQueryString(params)),
+  list: (params = {}) => api.get('/calculs/calculations' + buildQueryString(params)),
+  get: (id) => api.get(`/calculs/calculations/${id}`),
+  create: (data) => api.post('/calculs/calculations', data),
+  update: (id, data) => api.patch(`/calculs/calculations/${id}`, data),
+  duplicate: (id) => api.post(`/calculs/calculations/${id}/duplicate`, {}),
+  updateAlize: (id, data) => api.patch(`/calculs/calculations/${id}/alize`, data),
+  runReglementaire: (id) => api.post(`/calculs/calculations/${id}/alize/run-reglementaire`, {}),
+  runMecanique: (id) => api.post(`/calculs/calculations/${id}/alize/run-mecanique`, {}),
+  runComplet: (id) => api.post(`/calculs/calculations/${id}/alize/run-complet`, {}),
+  searchReferences: (params = {}) => api.get('/calculs/references/alize' + buildQueryString(params)),
+  getReference: (refId) => api.get(`/calculs/references/alize/${refId}`),
+  catalogs: () => api.get('/calculs/catalogs/alize'),
+  createFromReference: (refId, params = {}) =>
+    api.post(`/calculs/references/alize/${refId}/create-calculation` + buildQueryString(params), {}),
+  applyReference: (id, data) => api.post(`/calculs/calculations/${id}/apply-reference`, data),
+  async openFiche(id) {
+    const headers = {}
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(`${BASE_URL}/calculs/calculations/${id}/fiche`, {
+      method: 'GET',
+      headers,
+      credentials: 'same-origin',
+      redirect: 'manual',
+    })
+    if (isCloudflareAccessRedirect(res)) {
+      redirectToCloudflareAccess()
+      throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+    }
+    if (res.status === 401) handleUnauthorized()
+    if (!res.ok) throw new Error(`Erreur fiche ${res.status}`)
+    const html = await res.text()
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener,noreferrer')
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
+  async downloadFichePdf(id) {
+    const headers = {}
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(`${BASE_URL}/calculs/calculations/${id}/fiche.pdf`, {
+      method: 'GET',
+      headers,
+      credentials: 'same-origin',
+      redirect: 'manual',
+    })
+    if (isCloudflareAccessRedirect(res)) {
+      redirectToCloudflareAccess()
+      throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+    }
+    if (res.status === 401) handleUnauthorized()
+    if (!res.ok) throw new Error(`Erreur PDF ${res.status}`)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filenameFromContentDisposition(res.headers.get('Content-Disposition'), `calcul_${id}.pdf`)
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
+}
+
+// ── Avis technique (templates data-driven) ─────────────────────────────────
+export const avisTechniqueApi = {
+  meta: () => api.get('/avis-technique/meta'),
+  seedTemplates: (force = false) => api.post(`/avis-technique/templates/seed?force=${force ? 'true' : 'false'}`, {}),
+  listTemplates: (params = {}) => api.get('/avis-technique/templates' + buildQueryString(params)),
+  getTemplate: (id) => api.get(`/avis-technique/templates/${id}`),
+  upsertTemplate: (data) => api.put('/avis-technique/templates', data),
+  patchTemplate: (id, data) => api.patch(`/avis-technique/templates/${id}`, data),
+  exportTemplate: (id) => api.get(`/avis-technique/templates/${id}/export`),
+  importTemplate: (payload) => api.post('/avis-technique/templates/import', payload),
+  listInstances: (params = {}) => api.get('/avis-technique/instances' + buildQueryString(params)),
+  getInstance: (id) => api.get(`/avis-technique/instances/${id}`),
+  createInstance: (data) => api.post('/avis-technique/instances', data),
+  updateInstance: (id, data) => api.patch(`/avis-technique/instances/${id}`, data),
+  refreshBindings: (id, onlyEmpty = true) =>
+    api.post(`/avis-technique/instances/${id}/refresh-bindings?only_empty=${onlyEmpty ? 'true' : 'false'}`, {}),
+  getBindings: (id) => api.get(`/avis-technique/instances/${id}/bindings`),
+  async downloadDocx(id) {
+    const headers = {}
+    const token = getToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch(`${BASE_URL}/avis-technique/instances/${id}/export.docx`, {
+      method: 'GET',
+      headers,
+      credentials: 'same-origin',
+      redirect: 'manual',
+    })
+    if (isCloudflareAccessRedirect(res)) {
+      redirectToCloudflareAccess()
+      throw new Error('Session Cloudflare Access requise. Rechargez la page.')
+    }
+    if (res.status === 401) handleUnauthorized()
+    if (!res.ok) throw new Error(`Erreur export Word ${res.status}`)
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filenameFromContentDisposition(res.headers.get('Content-Disposition'), `avis_${id}.docx`)
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  },
+}
+
 // ── G3 missions ─────────────────────────────────────────────────────────────
 export const g3Api = {
   catalogs: () => api.get('/g3/catalogs'),
-  listMissions: (params = {}) => api.get('/g3/missions?' + new URLSearchParams(params)),
+  listMissions: (params = {}) => api.get('/g3/missions' + buildQueryString(params)),
   getMission: (uid) => api.get(`/g3/missions/${uid}`),
   createMission: (data) => api.post('/g3/missions', data),
   updateMission: (uid, data) => api.patch(`/g3/missions/${uid}`, data),

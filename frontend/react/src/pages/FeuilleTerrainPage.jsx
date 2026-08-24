@@ -1417,6 +1417,50 @@ export default function FeuilleTerrainPage() {
         )
     }
 
+    if (feuilleType.renderer === 'technical-pld') {
+        const explicitReturnTo = String(searchParams.get('return_to') || '').trim()
+        const returnTo = explicitReturnTo || '/tools'
+        return (
+            <Navigate
+                replace
+                to={`/modeles/pld/${encodeURIComponent(String(uid))}?return_to=${encodeURIComponent(returnTo)}`}
+            />
+        )
+    }
+
+    if (feuilleType.renderer === 'technical-pl') {
+        const explicitReturnTo = String(searchParams.get('return_to') || '').trim()
+        const returnTo = explicitReturnTo || '/tools'
+        return (
+            <Navigate
+                replace
+                to={`/modeles/pl/${encodeURIComponent(String(uid))}?return_to=${encodeURIComponent(returnTo)}`}
+            />
+        )
+    }
+
+    if (feuilleType.renderer === 'technical-df') {
+        const explicitReturnTo = String(searchParams.get('return_to') || '').trim()
+        const returnTo = explicitReturnTo || '/tools'
+        return (
+            <Navigate
+                replace
+                to={`/modeles/df/${encodeURIComponent(String(uid))}?return_to=${encodeURIComponent(returnTo)}`}
+            />
+        )
+    }
+
+    if (feuilleType.renderer === 'technical-fwd') {
+        const explicitReturnTo = String(searchParams.get('return_to') || '').trim()
+        const returnTo = explicitReturnTo || '/tools'
+        return (
+            <Navigate
+                replace
+                to={`/modeles/fwd/${encodeURIComponent(String(uid))}?return_to=${encodeURIComponent(returnTo)}`}
+            />
+        )
+    }
+
     if (feuilleType.renderer === 'technical-pmt') {
         const returnTo = buildLocationTarget({ pathname: `/feuilles-terrain/${uid}` })
         const params = new URLSearchParams()

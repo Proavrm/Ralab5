@@ -14,6 +14,8 @@ import { RefreshCw } from 'lucide-react'
 import { RESPONSIBLE_LAB_PROFILES, getResponsibleLaboHomeRoute } from '@/lib/responsibleLaboProfiles'
 import { TECHNICIAN_PROFILES, getTechnicianHomeRoute } from '@/lib/technicianProfiles'
 import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
+import { buildDedicatedEssaiFeuillePath, buildEssaiOpenPath, isDedicatedEssaiFeuilleCode } from '@/lib/essaiFeuilleRoutes'
+import { buildTerrainFeuilleOpenPath } from '@/lib/terrainFeuilleFromIntervention'
 
 function Card({ icon, title, desc, children, headerRight }) {
   return (
@@ -82,15 +84,22 @@ function DbStatRow({ label, value, warn }) {
 const ESSAI_MODEL_TYPES = [
   { essai_code: 'DE',  type_essai: 'Densité gammadensimètre',                  label: 'DE — Densité gammadensimètre',         family: 'terrain' },
   { essai_code: 'CFE', type_essai: 'Contrôle de fabrication enrobés',          label: 'CFE — Contrôle fabrication enrobés',   family: 'terrain' },
+  { essai_code: 'MVA', type_essai: 'Masse volumique des enrobés',              label: 'MVA — Masse volumique enrobés',        family: 'labo' },
+  { essai_code: 'EL',  type_essai: 'Extraction de liant',                      label: 'EL — Extraction de liant',             family: 'labo' },
   { essai_code: 'PMT', type_essai: 'Macrotexture PMT',                         label: 'PMT — Macrotexture',                   family: 'terrain' },
   { essai_code: 'PLD', type_essai: 'Portances des plates-formes Dynaplaque',   label: 'PLD — Portance Dynaplaque',            family: 'terrain' },
+  { essai_code: 'PL',  type_essai: 'Portances à la plaque',                    label: 'PL — Portance à la plaque',             family: 'terrain' },
   { essai_code: 'DF',  type_essai: 'Déflexion',                                label: 'DF — Déflexion',                       family: 'terrain' },
+  { essai_code: 'FWD', type_essai: 'FWD / déflexions lourdes',                 label: 'FWD — Déflexions lourdes',             family: 'terrain' },
   { essai_code: 'SC',  type_essai: 'Sondage carotté',                          label: 'SC — Sondage carotté',                 family: 'terrain' },
   { essai_code: 'SO',  type_essai: 'Coupe de sondage',                         label: 'SO — Coupe de sondage (SP)',           family: 'terrain' },
   { essai_code: 'WE',  type_essai: 'Teneur en eau',                            label: 'WE — Teneur en eau',                   family: 'labo' },
   { essai_code: 'GR',  type_essai: 'Granulométrie',                            label: 'GR — Granulométrie',                   family: 'labo' },
   { essai_code: 'LCP', type_essai: "Limites d'Atterberg",                      label: 'LCP — Limites Atterberg',              family: 'labo' },
+  { essai_code: 'ES',  type_essai: 'Équivalent de sable',                      label: 'ES — Équivalent de sable',             family: 'labo' },
   { essai_code: 'PN',  type_essai: 'Proctor',                                  label: 'PN — Proctor Normal',                  family: 'labo' },
+  { essai_code: 'IPI', type_essai: 'IPI — Indice Portant Immédiat',            label: 'IPI — Indice Portant Immédiat',        family: 'labo' },
+  { essai_code: 'CBRI', type_essai: 'CBRi — CBR immédiat',                     label: 'CBRi — CBR immédiat',                  family: 'labo' },
   { essai_code: 'CBR', type_essai: 'CBR',                                      label: 'CBR — California Bearing Ratio',       family: 'labo' },
   { essai_code: 'BM',  type_essai: 'Bleu de méthylène',                        label: 'BM — Bleu de méthylène VBS',           family: 'labo' },
   { essai_code: 'CS',  type_essai: 'Compression simple',                       label: 'CS — Compression simple',              family: 'labo' },
@@ -208,7 +217,7 @@ export default function ToolsPage() {
       }
     }
     const essaiCode = String(item.essai_code || '').trim().toUpperCase()
-    const openPath = essaiCode === 'PMT' ? '/modeles/pmt' : `/essais/${item.uid}`
+    const openPath = buildEssaiOpenPath(item) || (essaiCode === 'PMT' ? '/modeles/pmt' : `/essais/${item.uid}`)
     return {
       key: `essai-${item.uid}`,
       family: 'essai',
@@ -899,8 +908,11 @@ export default function ToolsPage() {
   function buildModeleBasePath(code, sourceFamily, sourceUid) {
     const uid = sourceUid != null ? String(sourceUid) : ''
     if (!uid) return '/tools'
-    if (sourceFamily === 'terrain') return `/feuilles-terrain/${encodeURIComponent(uid)}`
+    if (sourceFamily === 'terrain') return buildTerrainFeuilleOpenPath(uid, code)
     if (sourceFamily === 'essai' && String(code || '').trim().toUpperCase() === 'PMT') return '/modeles/pmt'
+    if (sourceFamily === 'essai' && isDedicatedEssaiFeuilleCode(code)) {
+      return buildDedicatedEssaiFeuillePath({ code, uid: sourceUid }) || '/tools'
+    }
     if (sourceFamily === 'essai') return `/essais/${encodeURIComponent(uid)}`
     return '/tools'
   }
@@ -968,6 +980,112 @@ export default function ToolsPage() {
         openPath: '/modeles/pmt',
       })
     }
+    if (!byCode.has('CFE')) {
+      byCode.set('CFE', {
+        key: 'modele-essai-CFE-fallback',
+        uid: null,
+        code: 'CFE',
+        family: 'terrain',
+        title: 'Contrôle fabrication enrobés',
+        sourceReference: 'Base à créer',
+        sourceDate: '',
+        sourceStatus: 'CFE',
+        openPath: '/modeles/cfe',
+      })
+    }
+    if (!byCode.has('MVA')) {
+      byCode.set('MVA', {
+        key: 'modele-essai-MVA-fallback',
+        uid: null,
+        code: 'MVA',
+        family: 'labo',
+        title: 'Masse volumique des enrobés',
+        sourceReference: 'Base à créer',
+        sourceDate: '',
+        sourceStatus: 'MVA',
+        openPath: '/modeles/mva',
+      })
+    }
+    if (!byCode.has('EL')) {
+      byCode.set('EL', {
+        key: 'modele-essai-EL-fallback',
+        uid: null,
+        code: 'EL',
+        family: 'labo',
+        title: 'Extraction de liant',
+        sourceReference: 'Base à créer',
+        sourceDate: '',
+        sourceStatus: 'EL',
+        openPath: '/modeles/el',
+      })
+    }
+
+    if (!byCode.has('WE')) {
+      byCode.set('WE', {
+        key: 'modele-essai-WE-fallback',
+        uid: null,
+        code: 'WE',
+        family: 'labo',
+        title: 'Teneur en eau pondérale',
+        sourceReference: 'Base à créer',
+        sourceDate: '',
+        sourceStatus: 'WE',
+        openPath: '/modeles/we',
+      })
+    }
+    const laboFallbacks = [
+      ['GR', 'Granulométrie', '/modeles/gr'],
+      ['LCP', "Limites d'Atterberg", '/modeles/lcp'],
+      ['VBS', 'Valeur de bleu', '/modeles/vbs'],
+      ['MB', 'Valeur au bleu 0/2', '/modeles/mb'],
+      ['MBF', 'Valeur au bleu 0/0.125', '/modeles/mbf'],
+      ['ID', 'Identification GTR', '/modeles/id'],
+      ['PN', 'Proctor', '/modeles/pn'],
+      ['IPI', 'Indice Portant Immédiat', '/modeles/ipi'],
+      ['CBRI', 'CBR immédiat', '/modeles/cbri'],
+      ['CBR', 'CBR après immersion', '/modeles/cbr'],
+      ['ES', 'Équivalent de sable', '/modeles/es'],
+      ['TX', 'Texture / granulométrie pédologique', '/modeles/tx'],
+      ['PH', 'pH', '/modeles/ph'],
+      ['MO', 'Matière organique', '/modeles/mo'],
+      ['CA', 'Calcaire actif', '/modeles/ca'],
+    ]
+    laboFallbacks.forEach(([code, title, openPath]) => {
+      if (!byCode.has(code)) {
+        byCode.set(code, {
+          key: `modele-essai-${code}-fallback`,
+          uid: null,
+          code,
+          family: 'labo',
+          title,
+          sourceReference: 'Base à créer',
+          sourceDate: '',
+          sourceStatus: code,
+          openPath,
+        })
+      }
+    })
+    const terrainFallbacks = [
+      ['PLD', 'Portance Dynaplaque', '/modeles/pld'],
+      ['PL', 'Portance à la plaque', '/modeles/pl'],
+      ['DF', 'Déflexion', '/modeles/df'],
+      ['FWD', 'Déflexions lourdes', '/modeles/fwd'],
+    ]
+    terrainFallbacks.forEach(([code, title, openPath]) => {
+      if (!byCode.has(code)) {
+        byCode.set(code, {
+          key: `modele-terrain-${code}-fallback`,
+          uid: null,
+          code,
+          family: 'terrain',
+          title,
+          sourceReference: 'Base à créer',
+          sourceDate: '',
+          sourceStatus: code,
+          openPath,
+        })
+      }
+    })
 
     return Array.from(byCode.values()).sort((a, b) => {
       const ai = modelTypeOrder.indexOf(a.code)

@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { g3Api, demandesApi } from '@/services/api'
-import Button from '@/components/ui/Button'
+import { useQuery } from '@tanstack/react-query'
+import { g3Api } from '@/services/api'
 import Input from '@/components/ui/Input'
-import DemandeReferencePicker from '@/components/demande/DemandeReferencePicker'
 import { FicheBadge, FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
 import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 import { G3_STATUS_CLS } from '@/lib/g3/g3Catalogs'
@@ -12,12 +10,8 @@ import { formatDate } from '@/lib/utils'
 
 export default function G3MissionListPage() {
   const navigate = useNavigate()
-  const qc = useQueryClient()
   const [searchParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [demandeQuery, setDemandeQuery] = useState('')
-  const [selectedDemandeId, setSelectedDemandeId] = useState(null)
-  const [error, setError] = useState('')
   const returnTo = '/g3/missions'
 
   const demandeIdFromQuery = searchParams.get('demande_id')
@@ -30,35 +24,6 @@ export default function G3MissionListPage() {
     }),
   })
 
-  const createMut = useMutation({
-    mutationFn: (demandeId) => g3Api.createMission({ demande_id: Number(demandeId) }),
-    onSuccess: (mission) => {
-      qc.invalidateQueries({ queryKey: ['g3-missions'] })
-      navigate(buildPathWithReturnTo(`/g3/missions/${mission.id}`, returnTo))
-    },
-    onError: (err) => setError(err?.message || 'Création impossible.'),
-  })
-
-  async function handleCreateFromDemande() {
-    setError('')
-    let demandeId = selectedDemandeId
-    if (!demandeId) {
-      const ref = String(demandeQuery || '').trim()
-      if (!ref) {
-        setError('Sélectionnez une demande.')
-        return
-      }
-      const matches = await demandesApi.list({ search: ref })
-      const exact = (matches || []).find((row) => String(row.reference || '').toLowerCase() === ref.toLowerCase())
-      demandeId = exact?.uid ?? exact?.id ?? null
-    }
-    if (!demandeId) {
-      setError('Demande introuvable.')
-      return
-    }
-    createMut.mutate(demandeId)
-  }
-
   const rows = useMemo(() => missions, [missions])
 
   return (
@@ -68,34 +33,10 @@ export default function G3MissionListPage() {
         onBack={() => navigate('/g3')}
         eyebrow="G3"
         title="Missions G3 EXE"
-        subtitle="Dossiers de mission géotechnique d'exécution"
+        subtitle="Dossiers de mission géotechnique d'exécution (création depuis la demande)"
       />
 
       <FicheMain>
-        <SectionCard title="Nouvelle mission G3">
-          <p className="text-[13px] text-[#69758a] mb-3">
-            Une mission G3 est toujours rattachée à une demande existante.
-          </p>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="min-w-[280px] flex-1">
-              <DemandeReferencePicker
-                value={demandeQuery}
-                onChange={setDemandeQuery}
-                onSelect={(row) => {
-                  setDemandeQuery(row?.reference || '')
-                  setSelectedDemandeId(row?.id || row?.uid || null)
-                }}
-                listMode="inline"
-                placeholder="Rechercher une demande…"
-              />
-            </div>
-            <Button size="sm" onClick={handleCreateFromDemande} disabled={createMut.isPending}>
-              Créer mission G3
-            </Button>
-          </div>
-          {error ? <p className="mt-2 text-[12px] text-[#a32d2d] font-bold">{error}</p> : null}
-        </SectionCard>
-
         <SectionCard
           title="Missions existantes"
           actions={(
@@ -110,7 +51,10 @@ export default function G3MissionListPage() {
           {isLoading ? (
             <p className="text-[13px] text-[#69758a]">Chargement…</p>
           ) : rows.length === 0 ? (
-            <p className="text-[13px] text-[#69758a]">Aucune mission G3.</p>
+            <p className="text-[13px] text-[#69758a]">
+              Aucune mission G3{demandeIdFromQuery ? ' pour cette demande' : ''}.
+              {' '}Création depuis la fiche demande.
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-[12px]">

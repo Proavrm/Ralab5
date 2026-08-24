@@ -15,6 +15,7 @@ import { findTechnicianProfileByUser, matchesTechnicianProfile } from '@/lib/tec
 import { getPrelevementReferenceDate, normalizePrelevement, prelevementHasArrival, prelevementIsReadyForLab, prelevementIsUnexpectedArrival, prelevementNeedsReceptionCompletion } from '@/lib/prelevements'
 import { cn, formatDate } from '@/lib/utils'
 import { essaisApi, interventionsApi, planningApi, prelevementsApi } from '@/services/api'
+import { buildEssaiOpenPath } from '@/lib/essaiFeuilleRoutes'
 import {
   ArrowRight,
   CalendarClock,
@@ -299,7 +300,7 @@ function buildEssaiEntry(row, options = {}) {
     tone: options.tone || statusTone(row.status),
     badge: options.badge || row.status,
     badgeTone: options.badgeTone || options.tone || statusTone(row.status),
-    to: `/essais/${row.uid}`,
+    to: buildEssaiOpenPath({ ...row, essai_code: row.code }) || `/essais/${row.uid}`,
   }
 }
 

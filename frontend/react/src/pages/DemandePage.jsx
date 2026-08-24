@@ -7,17 +7,20 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useLocation, useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, demandesApi, affairesApi, plansImplantationApi, nivellementsApi } from '@/services/api'
+import { api, demandesApi, affairesApi, plansImplantationApi, nivellementsApi, calculsApi } from '@/services/api'
 import PlanImagesConsultSection from '@/components/plans/PlanImagesConsultSection'
 import Button from '@/components/ui/Button'
 import InterventionTypeModal, { applyInterventionTypeToPath } from '@/components/interventions/InterventionTypeModal'
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { buildLocationTarget, buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import { buildEssaiOpenPath } from '@/lib/essaiFeuilleRoutes'
 import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { hasRole } from '@/lib/permissions'
 import { MetricCard, FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
+import CopyCopilotPromptButton from '@/components/copilot/CopyCopilotPromptButton'
+import CopilotImportPanel from '@/components/copilot/CopilotImportPanel'
 import LabName from '@/components/laboratoire/LabName'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { buildLaboSelectOptions, resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
@@ -429,7 +432,7 @@ function openRelatedObject(navigate, item, detailReturnTo) {
       navigate(buildPathWithReturnTo(`/modeles/pmt?essai_id=${item.pmt_essai_id}`, detailReturnTo))
       return
     }
-    navigate(buildPathWithReturnTo(`/essais/${item.uid}`, detailReturnTo))
+    navigate(buildEssaiOpenPath(item, detailReturnTo) || buildPathWithReturnTo(`/essais/${item.uid}`, detailReturnTo))
   }
 }
 
@@ -1092,6 +1095,12 @@ export default function DemandePage() {
     enabled: !!uid,
   })
 
+  const { data: linkedCalculs = [] } = useQuery({
+    queryKey: ['calculs', 'demande', uid],
+    queryFn: () => calculsApi.list({ demande_id: Number(uid) }),
+    enabled: Boolean(uid),
+  })
+
   const { data: demandePlansImplantationFull = [] } = useQuery({
     queryKey: ['plans-implantation', 'demande', uid],
     queryFn: () => plansImplantationApi.list({ demande_id: Number(uid) }),
@@ -1467,6 +1476,16 @@ export default function DemandePage() {
   const passationHref = passationUid
     ? buildPathWithReturnTo(`/passations/${passationUid}`, detailReturnTo)
     : ''
+  const prestationFollowUpContext = {
+    demandeId: d.uid ?? uid,
+    affaireId: d.affaire_rst_id,
+    preparationHref: preparationEditHref,
+    returnTo: detailReturnTo,
+    counts: {
+      calculs: Array.isArray(linkedCalculs) ? linkedCalculs.length : 0,
+      interventions: navigationInterventions.length,
+    },
+  }
   const urgDate = d.date_echeance && !['Fini','Envoyé - Perdu','Archivée'].includes(d.statut)
     ? (new Date(d.date_echeance) - new Date()) / 86400000
     : null
@@ -1562,12 +1581,15 @@ export default function DemandePage() {
               <Button size="sm" onClick={openPreparationPage}>Préparation</Button>
               <Button size="sm" onClick={openCampaignPage}>Campagnes</Button>
               <Button size="sm" onClick={openInterventionPage}>Interventions</Button>
+              <CopyCopilotPromptButton
+                affaireRef={d.affaire_ref}
+                demandeRef={d.reference}
+              />
             </>
           )}
       </FicheTopbar>
 
       <FicheMain>
-
         {/* ── Hero ── */}
         <section
           className="overflow-hidden rounded-[26px] border border-[#dbe1ea] bg-white"
@@ -1640,6 +1662,11 @@ export default function DemandePage() {
             <MetricCard label="Modules" value={enabledModules.length} detail={enabledModules.length > 0 ? enabledModules.map(m => m.label || m.module_code).slice(0, 3).join(', ') : 'Aucun module activé'} />
           </div>
         </section>
+
+        <CopilotImportPanel
+          demandeId={d.uid ?? d.id ?? uid}
+          returnTo={detailReturnTo}
+        />
 
         {/* ── Two-column grid (lecture + édition inline, même layout) ── */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-5">
@@ -1734,6 +1761,7 @@ export default function DemandePage() {
                   prestations={nav?.passation_prestations || []}
                   passationReference={nav?.passation_reference || ''}
                   passationHref={passationHref}
+                  followUpContext={prestationFollowUpContext}
                 />
               </SectionCard>
             ) : (
@@ -1746,6 +1774,7 @@ export default function DemandePage() {
                   onChange={setPrestationsForm}
                   onSave={(prestations) => prestationsMutation.mutate(prestations)}
                   isSaving={prestationsMutation.isPending}
+                  followUpContext={prestationFollowUpContext}
                 />
               </SectionCard>
             )}

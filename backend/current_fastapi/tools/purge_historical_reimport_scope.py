@@ -20,7 +20,9 @@ from app.core.historical_reimport_scope import (  # noqa: E402
 )
 from tools.audit_historical_reimport_perimeter import build_report as build_perimeter_report  # noqa: E402
 
-DEFAULT_TARGET_DB = ROOT_DIR / "data" / "ralab3.db"
+from tools.tool_db_path import get_tool_db_path
+
+DEFAULT_TARGET_DB = get_tool_db_path()
 HISTORICAL_RESPONSABLE = "Import historique"
 HISTORICAL_NATURE_PREFIX = "Import historique"
 

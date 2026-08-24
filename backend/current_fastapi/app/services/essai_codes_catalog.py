@@ -52,6 +52,10 @@ LABO_ESSAI_TYPES: tuple[dict[str, str], ...] = (
     {"code": "CBR", "label": "CBR — après immersion 4 jours", "domain": "labo"},
     {"code": "ID", "label": "Identification GTR", "domain": "labo"},
     {"code": "MVA", "label": "Masse volumique des enrobés", "domain": "labo"},
+    {"code": "TX", "label": "Texture / granulométrie pédologique", "domain": "labo"},
+    {"code": "PH", "label": "pH", "domain": "labo"},
+    {"code": "MO", "label": "Matière organique", "domain": "labo"},
+    {"code": "CA", "label": "Calcaire actif", "domain": "labo"},
 )
 
 OPERATION_ESSAI_CODES: tuple[dict[str, str], ...] = (

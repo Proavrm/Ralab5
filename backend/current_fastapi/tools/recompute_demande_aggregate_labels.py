@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.tool_db_path import get_tool_db_path
+
 
 def _backup_sqlite(src: Path, dest: Path) -> None:
     src_conn = sqlite3.connect(str(src))
@@ -117,7 +119,7 @@ def _build_nature(has_de: bool, has_pmt: bool, has_sc: bool) -> Optional[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("db", nargs="?", default=str(ROOT / "data" / "ralab3.db"))
+    parser.add_argument("db", nargs="?", default=str(get_tool_db_path()))
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     db_path = Path(args.db)

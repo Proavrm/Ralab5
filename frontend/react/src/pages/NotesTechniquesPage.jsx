@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useResizableColumns } from '@/hooks/useResizableColumns'
-import { interventionsApi } from '@/services/api'
+import { interventionsApi, avisTechniqueApi, demandesApi } from '@/services/api'
 import Button from '@/components/ui/Button'
 import DemandeReferencePicker from '@/components/demande/DemandeReferencePicker'
 import Input, { Select } from '@/components/ui/Input'
@@ -14,6 +14,7 @@ import Modal from '@/components/ui/Modal'
 import { formatDate } from '@/lib/utils'
 import { buildG3NotesTechniquesPath, resolveG3NotesTechniquesPath } from '@/lib/modeleNTContent'
 import { isNoteTechniqueIntervention } from '@/lib/noteTechniqueIntervention'
+import { buildPathWithReturnTo } from '@/lib/detailNavigation'
 import { RefreshCw, X } from 'lucide-react'
 import {
   EmptyStateBox,
@@ -75,6 +76,28 @@ function normalizeRow(row) {
   }
 }
 
+function normalizeAvisRow(row) {
+  return {
+    uid: `avis-${row.id}`,
+    avis_id: row.id,
+    kind: 'avis',
+    reference: row.reference || '',
+    demande_ref: row.demande_ref || '',
+    affaire_ref: row.affaire_ref || '',
+    chantier: row.chantier || row.titre || '',
+    site: '',
+    client: '',
+    statut: row.statut || '',
+    date_label: row.created_at || '',
+    date_fin: '',
+    date_envoi: '',
+    geotechnicien: row.auteur || '',
+    sujet: row.titre || 'Avis technique',
+    demande_id: row.demande_id,
+    affaire_rst_id: null,
+  }
+}
+
 export default function NotesTechniquesPage() {
   const navigate = useNavigate()
   const listReturnTo = '/g3/notes-techniques'
@@ -86,18 +109,32 @@ export default function NotesTechniquesPage() {
   const [selected, setSelected] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [createDemandeQuery, setCreateDemandeQuery] = useState('')
+  const [createDemandeId, setCreateDemandeId] = useState(null)
 
-  const { data: rows = [], isLoading, refetch } = useQuery({
+  const { data: interventionRows = [], isLoading: loadingInterventions, refetch: refetchInterventions } = useQuery({
     queryKey: ['notes-techniques'],
     queryFn: () => interventionsApi.list(),
   })
 
-  const notes = useMemo(
-    () => (Array.isArray(rows) ? rows : [])
+  const { data: avisRows = [], isLoading: loadingAvis, refetch: refetchAvis } = useQuery({
+    queryKey: ['notes-techniques-avis'],
+    queryFn: () => avisTechniqueApi.listInstances({}),
+  })
+
+  const isLoading = loadingInterventions || loadingAvis
+
+  function refetch() {
+    refetchInterventions()
+    refetchAvis()
+  }
+
+  const notes = useMemo(() => {
+    const fromInterventions = (Array.isArray(interventionRows) ? interventionRows : [])
       .filter(isNoteTechniqueIntervention)
-      .map(normalizeRow),
-    [rows],
-  )
+      .map((row) => ({ ...normalizeRow(row), kind: 'intervention' }))
+    const fromAvis = (Array.isArray(avisRows) ? avisRows : []).map(normalizeAvisRow)
+    return [...fromAvis, ...fromInterventions]
+  }, [interventionRows, avisRows])
 
   const statutOptions = useMemo(
     () => [...new Set(notes.map((row) => row.statut).filter(Boolean))].sort(),
@@ -161,6 +198,10 @@ export default function NotesTechniquesPage() {
   }
 
   function openRedaction(row) {
+    if (row?.kind === 'avis' && row.avis_id) {
+      navigate(buildPathWithReturnTo(`/avis-technique/${row.avis_id}`, listReturnTo))
+      return
+    }
     if (!row?.demande_id) return
     navigate(buildG3NotesTechniquesPath({
       demandeUid: row.demande_id,
@@ -172,6 +213,28 @@ export default function NotesTechniquesPage() {
   async function openCreateRedaction() {
     const value = String(createDemandeQuery || '').trim()
     if (!value) return
+
+    let demandeId = createDemandeId
+    if (!demandeId) {
+      try {
+        const demandes = await demandesApi.list({ search: value })
+        const list = Array.isArray(demandes) ? demandes : (demandes?.items || [])
+        const match = list.find((d) => String(d.reference || '').toLowerCase() === value.toLowerCase())
+          || list.find((d) => String(d.reference || '').toLowerCase().includes(value.toLowerCase()))
+        demandeId = match?.id ?? match?.uid ?? null
+      } catch {
+        demandeId = null
+      }
+    }
+
+    if (demandeId) {
+      navigate(buildPathWithReturnTo(`/avis-technique/nouveau?demande_id=${demandeId}`, listReturnTo))
+      setCreateOpen(false)
+      setCreateDemandeQuery('')
+      setCreateDemandeId(null)
+      return
+    }
+
     const path = await resolveG3NotesTechniquesPath({
       demandeRef: value,
       returnTo: listReturnTo,
@@ -179,6 +242,7 @@ export default function NotesTechniquesPage() {
     navigate(path)
     setCreateOpen(false)
     setCreateDemandeQuery('')
+    setCreateDemandeId(null)
   }
 
   return (
@@ -284,7 +348,12 @@ export default function NotesTechniquesPage() {
                         }`}
                       >
                         <td className="px-3 py-1.5">
-                          <strong className="text-[#5b4b8a] text-xs font-mono">{row.reference || '—'}</strong>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <strong className="text-[#5b4b8a] text-xs font-mono truncate">{row.reference || '—'}</strong>
+                            {row.kind === 'avis' ? (
+                              <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold bg-[#e6f1fb] text-[#185fa5]">Avis</span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-1.5 text-xs font-mono text-nge">{row.demande_ref || '—'}</td>
                         <td className="px-3 py-1.5 text-xs font-mono">{row.affaire_ref || '—'}</td>
@@ -318,6 +387,7 @@ export default function NotesTechniquesPage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 px-[18px] py-4 border-b border-border">
+                  <DetItem label="Type" value={selected.kind === 'avis' ? 'Avis technique' : 'Note technique (planche)'} />
                   <DetItem label="Demande" value={selected.demande_ref} />
                   <DetItem label="Affaire" value={selected.affaire_ref} />
                   <DetItem label="Chantier" value={selected.chantier} />
@@ -350,14 +420,20 @@ export default function NotesTechniquesPage() {
 
       <Modal
         open={createOpen}
-        onClose={() => { setCreateOpen(false); setCreateDemandeQuery('') }}
+        onClose={() => { setCreateOpen(false); setCreateDemandeQuery(''); setCreateDemandeId(null) }}
         title="Rédaction pour une demande"
         size="md"
       >
+        <p className="text-[12px] text-text-muted mb-2">
+          Ouvre l’espace Avis technique (réf. NT commune). Les planches NT RARx restent accessibles depuis une intervention existante.
+        </p>
         <DemandeReferencePicker
           value={createDemandeQuery}
-          onChange={setCreateDemandeQuery}
-          onSelect={(row) => setCreateDemandeQuery(row.reference)}
+          onChange={(value) => { setCreateDemandeQuery(value); setCreateDemandeId(null) }}
+          onSelect={(row) => {
+            setCreateDemandeQuery(row.reference)
+            setCreateDemandeId(row.uid ?? row.id ?? null)
+          }}
           autoFocus
           defaultOpen
           enabled={createOpen}
@@ -365,7 +441,7 @@ export default function NotesTechniquesPage() {
           placeholder="Filtrer par référence, affaire, chantier…"
         />
         <div className="flex justify-end gap-2 pt-3">
-          <Button variant="secondary" onClick={() => { setCreateOpen(false); setCreateDemandeQuery('') }}>Annuler</Button>
+          <Button variant="secondary" onClick={() => { setCreateOpen(false); setCreateDemandeQuery(''); setCreateDemandeId(null) }}>Annuler</Button>
           <Button variant="primary" onClick={openCreateRedaction} disabled={!createDemandeQuery.trim()}>
             Ouvrir
           </Button>

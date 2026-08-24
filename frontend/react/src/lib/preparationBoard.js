@@ -108,6 +108,18 @@ export async function openEssaiCreation({
   const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[code] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
 
   if (intervention?.uid) {
+    if (isFeuilleTerrainEssaiCode(code)) {
+      const { feuilleUid } = await createTerrainFeuilleForIntervention({
+        interventionId: Number(intervention.uid),
+        code,
+        label: template.label,
+        dateFeuille: intervention.date_intervention || '',
+        operateur: intervention.technicien || '',
+      })
+      navigate(buildPathWithReturnTo(buildTerrainFeuilleOpenPath(feuilleUid, code), returnTo))
+      return
+    }
+
     if (isGenericTerrainEssaiCode(code)) {
       navigate(buildPathWithReturnTo(
         buildGenericTerrainEssaiOpenPath({
@@ -124,18 +136,6 @@ export async function openEssaiCreation({
         }),
         returnTo,
       ))
-      return
-    }
-
-    if (isFeuilleTerrainEssaiCode(code)) {
-      const { feuilleUid } = await createTerrainFeuilleForIntervention({
-        interventionId: Number(intervention.uid),
-        code,
-        label: template.label,
-        dateFeuille: intervention.date_intervention || '',
-        operateur: intervention.technicien || '',
-      })
-      navigate(buildPathWithReturnTo(buildTerrainFeuilleOpenPath(feuilleUid, code), returnTo))
       return
     }
 

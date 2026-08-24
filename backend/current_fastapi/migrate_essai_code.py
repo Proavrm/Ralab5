@@ -5,11 +5,17 @@ Usage: python migrate_essai_code.py
 """
 import sqlite3
 import sys
-import os
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.core.database import get_db_path as resolve_db_path
+
 
 def get_db_path():
-    base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, 'data', 'ralab3.db')
+    return str(resolve_db_path())
 
 def main():
     db = get_db_path()

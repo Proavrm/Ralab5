@@ -123,9 +123,9 @@ export function MetricCard({ label, value, detail }) {
 
 export function SectionCard({ title, subtitle, chip, actions, children, technical }) {
   return (
-    <section className={`overflow-hidden rounded-[18px] border bg-white ${technical ? 'opacity-[.82] border-dashed border-[#dbe1ea] shadow-none' : 'border-[#dbe1ea] shadow-[0_6px_22px_rgba(0,49,112,0.06)]'}`}>
+    <section className={`section-card overflow-hidden rounded-[18px] border bg-white ${technical ? 'opacity-[.82] border-dashed border-[#dbe1ea] shadow-none' : 'border-[#dbe1ea] shadow-[0_6px_22px_rgba(0,49,112,0.06)]'}`}>
       <div
-        className={`flex justify-between items-center gap-3 border-b border-[#e5e9f0] px-5 py-2.5 ${technical ? 'min-h-[40px] bg-[#f7f8fb]' : 'min-h-[44px]'}`}
+        className={`section-card-head flex justify-between items-center gap-3 border-b border-[#e5e9f0] px-5 py-2.5 ${technical ? 'min-h-[40px] bg-[#f7f8fb]' : 'min-h-[44px]'}`}
         style={!technical ? { background: 'linear-gradient(90deg, #f8fafc 0%, #f8fafc 78%, #fff6cf 100%)' } : undefined}
       >
         <div>
@@ -137,7 +137,7 @@ export function SectionCard({ title, subtitle, chip, actions, children, technica
           {actions}
         </div>
       </div>
-      <div className={technical ? 'p-3.5' : 'p-5'}>{children}</div>
+      <div className={`section-card-body ${technical ? 'p-3.5' : 'p-5'}`}>{children}</div>
     </section>
   )
 }
@@ -149,7 +149,7 @@ export function FicheTopbar({ backLabel, onBack, eyebrow, title, subtitle, child
       style={{ background: 'rgba(255,255,255,0.96)', boxShadow: '0 6px 24px rgba(0,49,112,0.08)', backdropFilter: 'blur(12px)' }}
     >
       <div style={{ height: '1px', background: 'linear-gradient(90deg, #003170 0%, #003170 70%, #ffcc00 70%, #ffcc00 100%)' }} />
-      <div className="w-full max-w-full mx-auto px-6 flex flex-wrap items-center gap-1.5 py-1.5">
+      <div className="fiche-topbar-inner w-full max-w-full mx-auto px-6 flex flex-wrap items-center gap-1.5 py-1.5">
         {onBack ? (
           <button
             type="button"
@@ -269,20 +269,36 @@ export function AffaireHero({ affaire, badgeLabel = 'RaLab 5 · Affaire RST' }) 
 
 export function FichePageShell({ children }) {
   return (
-    <div className="flex flex-col h-full -m-6 overflow-x-hidden" style={{ background: PAGE_BG }}>
+    <div
+      className="fiche-page-shell flex flex-col h-full overflow-x-hidden"
+      style={{
+        background: PAGE_BG,
+        marginTop: 'calc(var(--app-main-pt, 1.5rem) * -1)',
+        marginLeft: 'calc(var(--app-main-px, 1.5rem) * -1)',
+        marginRight: 'calc(var(--app-main-px, 1.5rem) * -1)',
+      }}
+    >
       {children}
     </div>
   )
 }
 
 export function FicheMain({ children, className }) {
-  return <div className={cn('w-full max-w-full mx-auto px-7 py-4 flex flex-col gap-4', className)}>{children}</div>
+  return <div className={cn('fiche-main w-full max-w-full mx-auto px-7 py-4 flex flex-col gap-4', className)}>{children}</div>
 }
 
 /** Shell plein écran pour feuilles essai / terrain (DE, PMT, SC, VC…). */
 export function WorksheetPageShell({ children, className }) {
   return (
-    <div className={cn('flex flex-col h-full -m-6 overflow-y-auto overflow-x-hidden', className)} style={{ background: PAGE_BG }}>
+    <div
+      className={cn('flex flex-col h-full overflow-y-auto overflow-x-hidden', className)}
+      style={{
+        background: PAGE_BG,
+        marginTop: 'calc(var(--app-main-pt, 1.5rem) * -1)',
+        marginLeft: 'calc(var(--app-main-px, 1.5rem) * -1)',
+        marginRight: 'calc(var(--app-main-px, 1.5rem) * -1)',
+      }}
+    >
       {children}
     </div>
   )

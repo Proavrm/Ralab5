@@ -40,6 +40,62 @@
     --success: #1d9e75;
     --warn: #ef9f27;
     --radius: 8px;
+    --app-sidebar-w: 240px;
+    --app-main-px: 1.5rem;
+    --app-main-pt: 1.5rem;
+  }
+
+  .app-shell {
+    --app-sidebar-w: 240px;
+    --app-main-px: 1.5rem;
+    --app-main-pt: 1.5rem;
+  }
+
+  .app-shell[data-density='compact'] {
+    --app-sidebar-w: 196px;
+    --app-main-px: 0.75rem;
+    --app-main-pt: 0.75rem;
+  }
+
+  .app-shell .app-sidebar-panel {
+    width: var(--app-sidebar-w);
+    min-width: var(--app-sidebar-w);
+  }
+
+  .app-shell .app-main {
+    padding-left: var(--app-main-px);
+    padding-right: var(--app-main-px);
+    padding-top: var(--app-main-pt);
+  }
+
+  /* Densité compacte : réduit le “zoom perçu” sur petits écrans / laptops. */
+  .app-shell[data-density='compact'] .app-main {
+    zoom: 0.9;
+  }
+
+  .app-shell[data-density='compact'] .fiche-main {
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .app-shell[data-density='compact'] .section-card-body {
+    padding: 0.85rem !important;
+  }
+
+  .app-shell[data-density='compact'] .section-card-head {
+    min-height: 38px !important;
+    padding-top: 0.45rem !important;
+    padding-bottom: 0.45rem !important;
+    padding-left: 0.85rem !important;
+    padding-right: 0.85rem !important;
+  }
+
+  .app-shell[data-density='compact'] .fiche-topbar-inner {
+    padding-left: 0.85rem !important;
+    padding-right: 0.85rem !important;
   }
 
   .app-sidebar {

@@ -36,6 +36,7 @@ from api.hierarchy_temporal_select import (  # noqa: E402
     select_campagne_id_for_anchor,
     select_demande_id_for_anchor,
 )
+from tools.tool_db_path import get_tool_db_path  # noqa: E402
 
 
 def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
@@ -317,7 +318,7 @@ def _fix_sc_series(conn: sqlite3.Connection, apply: bool) -> tuple[int, int, lis
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Apply 120/7 hierarchy fixes to PMT + SC series.")
-    parser.add_argument("db", nargs="?", default=str(ROOT / "data" / "ralab3.db"), help="Path to SQLite DB")
+    parser.add_argument("db", nargs="?", default=str(get_tool_db_path()), help="Path to SQLite DB")
     parser.add_argument("--apply", action="store_true", help="Write changes (default: dry-run)")
     args = parser.parse_args()
     db_path = Path(args.db)

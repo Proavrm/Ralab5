@@ -1,7 +1,13 @@
 import sqlite3
+import sys
+from pathlib import Path
 
-db_path = r"backend/current_fastapi/data/ralab3.db"
-conn = sqlite3.connect(db_path)
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT / "backend" / "current_fastapi"))
+
+from app.core.database import get_db_path
+
+conn = sqlite3.connect(str(get_db_path()))
 cur = conn.cursor()
 
 print(

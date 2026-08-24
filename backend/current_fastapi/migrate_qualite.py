@@ -1,11 +1,19 @@
 """
-migrate_qualite.py — crée les tables qualité dans data/ralab3.db
+migrate_qualite.py — crée les tables qualité dans la BD principale (get_db_path)
 Usage: python migrate_qualite.py
 """
-import sqlite3, os, sys
+import sqlite3
+import sys
+from pathlib import Path
 
-DB = os.path.join(os.path.dirname(__file__), "data", "ralab3.db")
-if not os.path.exists(DB):
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.core.database import get_db_path
+
+DB = str(get_db_path())
+if not Path(DB).exists():
     print(f"DB non trouvée: {DB}"); sys.exit(1)
 
 SQL = """
@@ -106,4 +114,4 @@ for stmt in SQL.strip().split(";"):
         con.execute(s)
 con.commit()
 con.close()
-print("✓ Tables qualité créées dans data/ralab3.db")
+print(f"✓ Tables qualité créées dans {DB}")

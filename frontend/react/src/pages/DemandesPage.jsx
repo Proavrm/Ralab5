@@ -22,6 +22,8 @@ import {
   MetricCard,
   SectionCard,
 } from '@/components/layout/FicheLayout'
+import CopilotImportPanel from '@/components/copilot/CopilotImportPanel'
+import CopyCopilotPromptButton from '@/components/copilot/CopyCopilotPromptButton'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { buildLaboSelectOptions, resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
 
@@ -510,6 +512,7 @@ export default function DemandesPage() {
         <Button type="button" variant="primary" size="sm" onClick={openCreate} className="rounded-xl font-bold">
           <Plus size={14} /> Nouvelle demande
         </Button>
+        <CopyCopilotPromptButton affaireRef={filterAffaireRef || ''} />
         <Button type="button" variant="secondary" size="sm" onClick={() => refetch()} className="rounded-xl px-3 text-text-muted">
           <RefreshCw size={14} />
         </Button>
@@ -524,6 +527,14 @@ export default function DemandesPage() {
           <MetricCard label="À revoir" value={metrics.aRevoirCount} detail="Demandes à surveiller" />
           <MetricCard label="Échéance ≤ 7j" value={metrics.urgCount} detail="Demandes urgentes" />
         </div>
+
+        <CopilotImportPanel
+          allowCreateMissing
+          affaireId={filterAffaireId}
+          affaireRef={filterAffaireRef || ''}
+          returnTo={filterAffaireId ? `/demandes?affaire_id=${filterAffaireId}` : '/demandes'}
+          showPromptCopy
+        />
 
         <SectionCard
           title="Demandes"

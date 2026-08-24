@@ -20,6 +20,14 @@ import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import { buildLocationTarget, navigateBackWithFallback, navigateWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
 import { LABO_ESSAI_TYPES as TYPES_ESSAI } from '@/lib/laboEssaiTypes'
+import { unwrapWeResultats } from '@/lib/weEssai'
+import { computeIdResultats } from '@/lib/gtrEssai'
+import {
+  buildDedicatedEssaiFeuillePath,
+  buildEssaiOpenPath,
+  buildTerreVegetaleRapportPath,
+  isDedicatedEssaiFeuilleCode,
+} from '@/lib/essaiFeuilleRoutes'
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { resolveLaboDisplayName } from '@/lib/laboratoireCatalog'
 import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
@@ -330,7 +338,7 @@ function getAssayLabel(e) {
     return code === 'MB' ? 'MB — Valeur au bleu 0/2mm' : 'MBF — Valeur au bleu 0/0.125mm'
   }
   if (code === 'WE' || e.type_essai?.includes('Teneur en eau') || e.type_essai?.includes('eau naturelle')) {
-    const r = parseResults(e.resultats)
+    const we = unwrapWeResultats(e.resultats)
     const usageLabels = {
       'wn':           'Wn — Teneur en eau naturelle',
       'vbs':          'VBS — Prise d\'essai au bleu (< 5mm)',
@@ -343,7 +351,7 @@ function getAssayLabel(e) {
       'wl':           'wL — Limite de liquidité',
       'wp':           'wP — Limite de plasticité',
     }
-    if (r.usage && usageLabels[r.usage]) return usageLabels[r.usage]
+    if (we.usage && usageLabels[we.usage]) return usageLabels[we.usage]
   }
 
   if (code && replicateLabel) return `${code} — ${rawLabel || code} (${replicateLabel})`
@@ -368,8 +376,10 @@ function getResultat(e, allEssais = [], echantillon = null) {
       || normType.includes('bleu')
       || normType.includes('vbs')
       || normType.includes('prise d\'essai au bleu')
-    if (code === 'WE' || type === 'Teneur en eau' || type === 'Teneur en eau naturelle')
-      return r.w_moyen != null ? `w = ${r.w_moyen} %` : null
+    if (code === 'WE' || type === 'Teneur en eau' || type === 'Teneur en eau naturelle') {
+      const we = unwrapWeResultats(e.resultats)
+      return we.w_moyen != null ? `w = ${we.w_moyen} %` : null
+    }
     if (code === 'GR' || type === 'Granulométrie')
       return r.passant_80 != null ? `P80µm = ${r.passant_80} %` : null
     if (mbResult)
@@ -434,9 +444,17 @@ function getResultat(e, allEssais = [], echantillon = null) {
       return null
     }
     if (codeUpper === 'ID' || normType.includes('identification')) {
-      const gtrClass = String(r.gtr_class || '').trim()
-      const gtrState = String(r.gtr_state || '').trim()
-      if (gtrClass) return `GTR = ${gtrClass}${gtrState ? ` (${gtrState})` : ''}`
+      const computed = computeIdResultats(r)
+      const ancienne = computed.gtr_ancienne || {}
+      const nouvelle = computed.gtr_nouvelle || {}
+      const euro = computed.eurocode || {}
+      const gtrClass = String(ancienne.classe || computed.gtr_class || computed.classification_gtr || '').trim()
+      const gtrState = String(ancienne.hydrique || computed.gtr_state || computed.sous_classe || '').trim()
+      const gtr1992 = gtrClass ? `GTR = ${gtrClass}${gtrState ? ` (${gtrState})` : ''}` : ''
+      const en16907 = String(nouvelle.code || '').trim() ? `EN 16907 = ${nouvelle.code}` : ''
+      const iso = String(euro.iso_14688 || '').trim() ? `ISO 14688 = ${euro.iso_14688}` : ''
+      const parts = [gtr1992, en16907, iso].filter(Boolean)
+      if (parts.length) return parts.join(' · ')
       const ipiValue = parseResultNumber(r.ipi)
       if (ipiValue != null) return `IPI = ${formatFixed2(ipiValue)} %`
       const vbsValue = parseResultNumber(r.vbs)
@@ -590,7 +608,6 @@ export default function EchantillonPage() {
 
   function handleCreateEssai() {
     const type = TYPES_ESSAI.find(t => t.code === newEssaiCode)
-    // Ne pas créer dans la BD tout de suite — l'essai est créé au Enregistrer
     const params = new URLSearchParams({
       echantillon_id: uid,
       essai_code:     newEssaiCode,
@@ -598,7 +615,15 @@ export default function EchantillonPage() {
       norme:          type?.norme || '',
       init_resultats: type?.init_resultats || '{}',
     })
-    navigateWithReturnTo(navigate, `/essais/new?${params.toString()}`, childReturnTo)
+    const dedicatedPath = isDedicatedEssaiFeuilleCode(newEssaiCode)
+      ? buildDedicatedEssaiFeuillePath({
+          code: newEssaiCode,
+          isNew: true,
+          query: Object.fromEntries(params),
+          returnTo: childReturnTo,
+        })
+      : `/essais/new?${params.toString()}`
+    navigateWithReturnTo(navigate, dedicatedPath, childReturnTo)
   }
 
   useEffect(() => {
@@ -852,6 +877,17 @@ export default function EchantillonPage() {
               <Button variant="primary" size="sm" onClick={handleCreateEssai}>
                 + Créer cet essai
               </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => navigateWithReturnTo(
+                  navigate,
+                  buildTerreVegetaleRapportPath({ echantillonId: uid, returnTo: childReturnTo }),
+                  childReturnTo,
+                )}
+              >
+                Rapport TV (regroupé)
+              </Button>
             </div>
             {essais.length === 0 ? (
               <p className="text-[13px] text-text-muted italic text-center py-4">Aucun essai</p>
@@ -869,7 +905,7 @@ export default function EchantillonPage() {
                         : `${tone.row} cursor-pointer`
                     }`}>
                       <div onClick={deleteMode ? undefined : () => {
-                        navigateWithReturnTo(navigate, `/essais/${e.uid}`, childReturnTo)
+                        navigateWithReturnTo(navigate, buildEssaiOpenPath(e) || `/essais/${e.uid}`, childReturnTo)
                       }} className={deleteMode ? '' : 'flex-1'}>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-[12px] font-bold font-mono ${tone.label}`}>{getAssayLabel(e)}</span>

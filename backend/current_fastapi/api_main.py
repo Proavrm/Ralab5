@@ -40,6 +40,8 @@ from api.passations import router as passations_router
 from api.planning import router as planning_router
 from api.feuille_mission import router as feuille_mission_router
 from api.g3 import router as g3_router
+from api.calculs import router as calculs_router
+from api.avis_technique import router as avis_technique_router
 from api.plans_implantation import router as plans_implantation_router
 from api.nivellements import router as nivellements_router
 from api.feuilles_terrain import router as feuilles_terrain_router
@@ -143,6 +145,8 @@ app.include_router(dst_router, prefix="/api/dst", tags=["DST"])
 app.include_router(planning_router, prefix="/api/planning", tags=["Planning"])
 app.include_router(feuille_mission_router, prefix="/api/feuille-mission", tags=["Feuille mission"])
 app.include_router(g3_router, prefix="/api/g3", tags=["G3"])
+app.include_router(calculs_router, prefix="/api/calculs", tags=["Calculs"])
+app.include_router(avis_technique_router, prefix="/api/avis-technique", tags=["Avis technique"])
 app.include_router(affaires_router, prefix="/api/affaires", tags=["Affaires RST"])
 app.include_router(contacts_router, prefix="/api/contacts", tags=["Contacts"])
 app.include_router(passations_router, prefix="/api/passations", tags=["Passations"])
@@ -180,6 +184,12 @@ if STORAGE_DIR.exists():
 @app.on_event("startup")
 def startup_event() -> None:
     ensure_ralab5_schema()
+    try:
+        from app.repositories.avis_technique_repository import AvisTechniqueRepository
+
+        AvisTechniqueRepository().seed_templates_from_disk(force=False)
+    except Exception:
+        pass
 
 
 @app.get("/api/status", tags=["Status"])

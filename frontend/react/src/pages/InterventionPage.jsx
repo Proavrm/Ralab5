@@ -24,6 +24,11 @@ import {
     isFeuilleTerrainEssaiCode,
     isGenericTerrainEssaiCode,
 } from '@/lib/terrainFeuilleFromIntervention'
+import {
+    buildDedicatedEssaiFeuillePath,
+    buildEssaiOpenPath,
+    isDedicatedEssaiFeuilleCode,
+} from '@/lib/essaiFeuilleRoutes'
 import { buildInterventionPrefillFromCampaignQuery } from '@/lib/campaignStructuredFields'
 import { buildG3NotesTechniquesPath } from '@/lib/modeleNTContent'
 import { isNoteTechniqueIntervention } from '@/lib/noteTechniqueIntervention'
@@ -2186,7 +2191,11 @@ export default function InterventionPage() {
         } else {
             const existingEssai = findLinkedEssaiByCode(essaiCode)
             if (existingEssai?.uid) {
-                navigateWithReturnTo(navigate, `/essais/${existingEssai.uid}`, childReturnTo)
+                navigateWithReturnTo(
+                    navigate,
+                    buildEssaiOpenPath(existingEssai) || `/essais/${existingEssai.uid}`,
+                    childReturnTo,
+                )
                 return
             }
         }
@@ -2231,6 +2240,25 @@ export default function InterventionPage() {
                 operateur: form.technicien || interventionInfo?.technicien || '',
                 dateFeuille: extractIsoDate(form.date_intervention || interventionInfo?.date_intervention),
                 returnTo: childReturnTo,
+            }), childReturnTo)
+            return
+        }
+
+        if (isDedicatedEssaiFeuilleCode(essaiCode)) {
+            const selectedDraft = resolveDirectEssaiDraftSelection(options)
+            const template = DIRECT_ESSAI_TEMPLATE_BY_CODE[essaiCode] || DIRECT_ESSAI_TEMPLATE_BY_CODE.GEN
+            navigateWithReturnTo(navigate, buildDedicatedEssaiFeuillePath({
+                code: essaiCode,
+                isNew: true,
+                query: {
+                    intervention_id: uid,
+                    essai_code: template.code,
+                    type_essai: selectedDraft.type_essai || template.typeEssai,
+                    norme: options.norme || selectedDraft.norme || template.norme || '',
+                    source_label: options.sourceLabel || selectedDraft.source_label || '',
+                    intervention_ref: interventionInfo?.reference || '',
+                    demande_ref: demandeInfo?.reference || '',
+                },
             }), childReturnTo)
             return
         }
@@ -3138,7 +3166,10 @@ export default function InterventionPage() {
                                     items={linkedEssais}
                                     loading={linkedEssaisLoading}
                                     error={linkedEssaisError}
-                                    onOpen={(essaiUid) => navigateWithReturnTo(navigate, `/essais/${essaiUid}`, childReturnTo)}
+                                    onOpen={(essaiUid) => {
+                                        const item = linkedEssais.find((row) => String(row.uid) === String(essaiUid)) || { uid: essaiUid }
+                                        navigateWithReturnTo(navigate, buildEssaiOpenPath(item) || `/essais/${essaiUid}`, childReturnTo)
+                                    }}
                                     emptyMessage={showHistoricalImportedResult
                                         ? 'Aucune fiche d’essai n’a encore été matérialisée pour cette intervention importée.'
                                         : 'Aucune fiche essai liée'}
@@ -3325,7 +3356,7 @@ export default function InterventionPage() {
                                         {linkedEssaisLoading ? 'Synchronisation…' : linkedEssaiActionLabel}
                                     </Button>
                                     {linkedEssais[0] ? (
-                                        <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/essais/${linkedEssais[0].uid}`, childReturnTo)}>
+                                        <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, buildEssaiOpenPath(linkedEssais[0]) || `/essais/${linkedEssais[0].uid}`, childReturnTo)}>
                                             Ouvrir le premier essai
                                         </Button>
                                     ) : null}
@@ -3344,7 +3375,10 @@ export default function InterventionPage() {
                                 items={linkedEssais}
                                 loading={linkedEssaisLoading}
                                 error={linkedEssaisError}
-                                onOpen={(essaiUid) => navigateWithReturnTo(navigate, `/essais/${essaiUid}`, childReturnTo)}
+                                onOpen={(essaiUid) => {
+                                    const item = linkedEssais.find((row) => String(row.uid) === String(essaiUid)) || { uid: essaiUid }
+                                    navigateWithReturnTo(navigate, buildEssaiOpenPath(item) || `/essais/${essaiUid}`, childReturnTo)
+                                }}
                                 emptyMessage={showHistoricalImportedResult
                                     ? 'Aucune fiche d’essai n’a encore été matérialisée pour cette intervention importée.'
                                     : 'Aucune fiche d’essai n’est encore liée directement à cette intervention.'}
@@ -3921,7 +3955,7 @@ export default function InterventionPage() {
                                         {linkedEssaisLoading ? 'Synchronisation...' : linkedEssaiActionLabel}
                                     </Button>
                                     {linkedEssais[0] ? (
-                                        <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, `/essais/${linkedEssais[0].uid}`, childReturnTo)}>
+                                        <Button variant="secondary" onClick={() => navigateWithReturnTo(navigate, buildEssaiOpenPath(linkedEssais[0]) || `/essais/${linkedEssais[0].uid}`, childReturnTo)}>
                                             Ouvrir le premier essai
                                         </Button>
                                     ) : null}
@@ -3940,7 +3974,10 @@ export default function InterventionPage() {
                                 items={linkedEssais}
                                 loading={linkedEssaisLoading}
                                 error={linkedEssaisError}
-                                onOpen={(essaiUid) => navigateWithReturnTo(navigate, `/essais/${essaiUid}`, childReturnTo)}
+                                onOpen={(essaiUid) => {
+                                    const item = linkedEssais.find((row) => String(row.uid) === String(essaiUid)) || { uid: essaiUid }
+                                    navigateWithReturnTo(navigate, buildEssaiOpenPath(item) || `/essais/${essaiUid}`, childReturnTo)
+                                }}
                                 emptyMessage={showHistoricalImportedResult
                                     ? 'Aucune fiche d’essai n’a encore été matérialisée pour cette intervention importée.'
                                     : 'Aucune fiche d’essai n’est encore liée directement à cette intervention.'}

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { g3Api } from '@/services/api'
+import { calculsApi, avisTechniqueApi, g3Api, getApiErrorMessage } from '@/services/api'
 import Button from '@/components/ui/Button'
 import { FicheBadge, FicheMain, FichePageShell, FicheTopbar, SectionCard } from '@/components/layout/FicheLayout'
 import { buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
@@ -65,6 +65,8 @@ export default function G3MissionPage() {
   const initialTab = searchParams.get('tab') || 'general'
   const [tab, setTab] = useState(initialTab)
   const [saveMessage, setSaveMessage] = useState('')
+  const [creatingCalcul, setCreatingCalcul] = useState(false)
+  const [calculError, setCalculError] = useState('')
 
   const { data: catalogsRaw } = useQuery({
     queryKey: ['g3-catalogs'],
@@ -76,6 +78,12 @@ export default function G3MissionPage() {
     queryKey: ['g3-mission', uid],
     queryFn: () => g3Api.getMission(uid),
     enabled: !!uid,
+  })
+
+  const { data: avisList = [] } = useQuery({
+    queryKey: ['avis-technique', 'mission', mission?.demande_id],
+    queryFn: () => avisTechniqueApi.listInstances({ demande_id: Number(mission.demande_id) }),
+    enabled: Boolean(mission?.demande_id),
   })
 
   const saveMut = useMutation({
@@ -92,6 +100,26 @@ export default function G3MissionPage() {
     ? buildPathWithReturnTo(`/demandes/${mission.demande_id}`, returnTo)
     : null
 
+  async function createCalculAlize() {
+    if (!mission) return
+    setCreatingCalcul(true)
+    setCalculError('')
+    try {
+      const created = await calculsApi.create({
+        type_calcul: 'alize',
+        nom_calcul: `Alizé · ${mission.reference || uid}`,
+        demande_id: mission.demande_id != null ? Number(mission.demande_id) : undefined,
+        affaire_rst_id: mission.affaire_rst_id != null ? Number(mission.affaire_rst_id) : undefined,
+        mission_id: Number(mission.id || uid),
+        ouvrage: mission.chantier || mission.title || '',
+      })
+      navigate(buildPathWithReturnTo(`/calculs/alize/${created.id}`, returnTo))
+    } catch (err) {
+      setCalculError(getApiErrorMessage(err, 'Création du calcul impossible'))
+      setCreatingCalcul(false)
+    }
+  }
+
   return (
     <FichePageShell>
       <FicheTopbar
@@ -107,14 +135,78 @@ export default function G3MissionPage() {
             Voir demande
           </Button>
         ) : null}
+        {mission ? (
+          <>
+            <Button size="sm" variant="primary" disabled={creatingCalcul} onClick={createCalculAlize}>
+              {creatingCalcul ? 'Calcul…' : '+ Calcul Alizé'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => navigate(buildPathWithReturnTo(
+                `/calculs?mission_id=${mission.id || uid}&demande_id=${mission.demande_id || ''}&affaire_rst_id=${mission.affaire_rst_id || ''}`,
+                returnTo,
+              ))}
+            >
+              Voir calculs
+            </Button>
+          </>
+        ) : null}
       </FicheTopbar>
 
       <FicheMain>
         {isLoading ? <p className="text-[13px] text-[#69758a]">Chargement de la mission…</p> : null}
         {error ? <p className="text-[13px] text-[#a32d2d]">{String(error.message || error)}</p> : null}
+        {calculError ? <p className="mb-3 text-[13px] text-[#a32d2d]">{calculError}</p> : null}
 
         {mission ? (
           <>
+            <div className="mb-4">
+              <SectionCard
+                title="Notes techniques / Avis"
+                subtitle="Livrables NT de la demande (série commune NT0001…)"
+                actions={(
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => navigate(buildPathWithReturnTo(
+                        `/avis-technique/nouveau?demande_id=${mission.demande_id}`,
+                        returnTo,
+                      ))}
+                    >
+                      + Avis / NT
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => navigate(buildPathWithReturnTo('/g3/notes-techniques', returnTo))}
+                    >
+                      Portefeuille NT
+                    </Button>
+                  </div>
+                )}
+              >
+                {!Array.isArray(avisList) || avisList.length === 0 ? (
+                  <p className="text-[13px] text-[#69758a]">
+                    Aucun avis technique sur cette demande — créez-en un pour démarrer la rédaction.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {avisList.map((avis) => (
+                      <button
+                        key={avis.id}
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-lg border border-[#eef1f6] px-3 py-2 text-left text-[13px] hover:bg-[#f8fafc]"
+                        onClick={() => navigate(buildPathWithReturnTo(`/avis-technique/${avis.id}`, returnTo))}
+                      >
+                        <span className="font-semibold text-[#003170]">{avis.reference || `Avis #${avis.id}`}</span>
+                        <span className="text-[#69758a]">{avis.titre || 'Avis technique'} · {avis.statut || '—'}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+            </div>
+
             <div className="mb-4 flex flex-wrap gap-2">
               {G3_MISSION_TABS.map((item) => (
                 <button

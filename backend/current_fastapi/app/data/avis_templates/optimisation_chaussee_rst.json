@@ -1,0 +1,989 @@
+{
+  "code": "optimisation_chaussee_rst",
+  "label": "Avis technique — optimisation structure de chaussée",
+  "version": 3,
+  "docx_style_path": "",
+  "definition": {
+    "reference_rule": "{annee}-{region}-NT{seq:04d}",
+    "meta_field_keys": [
+      "title",
+      "author",
+      "document_date",
+      "status",
+      "destinataire"
+    ],
+    "sections": [
+      {
+        "id": "cover",
+        "title": "Informations qualité du document",
+        "order": 0,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "meta",
+            "block_type": "meta_document",
+            "label": "Qualité document"
+          }
+        ]
+      },
+      {
+        "id": "ch1",
+        "title": "1. Préambule",
+        "order": 10,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s1_1",
+        "title": "1.1. Présentation",
+        "order": 11,
+        "parent_id": "ch1",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s1_2",
+        "title": "1.2. Objectifs recherchés",
+        "order": 12,
+        "parent_id": "ch1",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s1_3",
+        "title": "1.3. Contraintes du site",
+        "order": 13,
+        "parent_id": "ch1",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s1_4",
+        "title": "1.4. Documents de référence",
+        "order": 14,
+        "parent_id": "ch1",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s1_5",
+        "title": "1.5. Méthodologie appliquée",
+        "order": 15,
+        "parent_id": "ch1",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "ch2",
+        "title": "2. Informations sur le projet",
+        "order": 20,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s2_1",
+        "title": "2.1. Implantation du projet",
+        "order": 21,
+        "parent_id": "ch2",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s2_2",
+        "title": "2.2. Géométrie du projet",
+        "order": 22,
+        "parent_id": "ch2",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s2_3",
+        "title": "2.3. Environnement",
+        "order": 23,
+        "parent_id": "ch2",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s2_4",
+        "title": "2.4. Historique et interfaces",
+        "order": 24,
+        "parent_id": "ch2",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s2_5",
+        "title": "2.5. Contexte géologique et hydrogéologique",
+        "order": 25,
+        "parent_id": "ch2",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "ch3",
+        "title": "3. Analyse des données disponibles",
+        "order": 30,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s3_1",
+        "title": "3.1. Données du CCTP",
+        "order": 31,
+        "parent_id": "ch3",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s3_2",
+        "title": "3.2. Données de l’étude géotechnique",
+        "order": 32,
+        "parent_id": "ch3",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s3_3",
+        "title": "3.3. Voirie provisoire AFTRAL",
+        "order": 33,
+        "parent_id": "ch3",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s3_4",
+        "title": "3.4. Limites des données disponibles",
+        "order": 34,
+        "parent_id": "ch3",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s3_5",
+        "title": "3.5. Conséquences sur la structure provisoire",
+        "order": 35,
+        "parent_id": "ch3",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "ch4",
+        "title": "4. Dimensionnement",
+        "order": 40,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s4_1",
+        "title": "4.1. Partie supérieure des terrassements",
+        "order": 41,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s4_2",
+        "title": "4.2. Amélioration de la PST et couche de forme",
+        "order": 42,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s4_4",
+        "title": "4.4. Hypothèses de trafic",
+        "order": 44,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Commentaire"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Points"
+          }
+        ]
+      },
+      {
+        "id": "s4_5",
+        "title": "4.5. Structure DCE",
+        "order": 45,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "s4_6",
+        "title": "4.6. Matériaux des variantes BBME et BBSG",
+        "order": 46,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s4_7",
+        "title": "4.7. Variantes BBME et BBSG par rapport au DCE",
+        "order": 47,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s4_8",
+        "title": "4.8. Vérification mécanique",
+        "order": 48,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s4_9",
+        "title": "4.9. Résultats des variantes BBME et BBSG",
+        "order": 49,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s4_10",
+        "title": "4.10. Comparaison et choix de la variante",
+        "order": 50,
+        "parent_id": "ch4",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "ch5",
+        "title": "5. Synthèse et dispositions constructives",
+        "order": 60,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "s5_1",
+        "title": "5.1. Structures de chaussée proposées",
+        "order": 61,
+        "parent_id": "ch5",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s5_2",
+        "title": "5.2. PST, couche de forme et réception",
+        "order": 62,
+        "parent_id": "ch5",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s5_5",
+        "title": "5.5. Mise en œuvre GB4 et couches de roulement",
+        "order": 65,
+        "parent_id": "ch5",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "s5_7",
+        "title": "5.7. Contrôles et limites de la proposition",
+        "order": 67,
+        "parent_id": "ch5",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "ch6",
+        "title": "6. Annexes",
+        "order": 70,
+        "parent_id": null,
+        "optional": false,
+        "navigable_only": true,
+        "blocks": []
+      },
+      {
+        "id": "a1",
+        "title": "Annexe 1 - Plan d’aménagement",
+        "order": 71,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Commentaire"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Plans / photos"
+          }
+        ]
+      },
+      {
+        "id": "a2",
+        "title": "Annexe 2 - Voirie provisoire AFTRAL",
+        "order": 72,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Commentaire"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Plans / photos"
+          }
+        ]
+      },
+      {
+        "id": "a3",
+        "title": "Annexe 3 - Références matériaux et données de calcul",
+        "order": 73,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "figures",
+            "block_type": "media_cards",
+            "label": "Figures"
+          }
+        ]
+      },
+      {
+        "id": "a4",
+        "title": "Annexe 4 - Informations restant à compléter",
+        "order": 74,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Texte"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Liste"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          }
+        ]
+      },
+      {
+        "id": "a5",
+        "title": "Annexe 5 - Tableau comparatif final",
+        "order": 75,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Commentaire"
+          },
+          {
+            "slot_id": "tableau",
+            "block_type": "free_table",
+            "label": "Tableau"
+          },
+          {
+            "slot_id": "liste",
+            "block_type": "bullet_list",
+            "label": "Points"
+          }
+        ]
+      },
+      {
+        "id": "a6",
+        "title": "Annexe 6 - Calculs mécaniques complets",
+        "order": 76,
+        "parent_id": "ch6",
+        "optional": false,
+        "navigable_only": false,
+        "blocks": [
+          {
+            "slot_id": "texte",
+            "block_type": "rich_text",
+            "label": "Introduction"
+          },
+          {
+            "slot_id": "fiches",
+            "block_type": "calcul_fiches",
+            "label": "Fiches de calcul",
+            "binding": {
+              "source": "calculs",
+              "filter": {
+                "type_calcul": "alize",
+                "nom_contains": "CAM1"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

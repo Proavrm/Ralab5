@@ -16,11 +16,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from tools._manual_entry_guard import require_manual_entry_authorization
+from tools.tool_db_path import get_tool_db_path
 
 if __name__ == "__main__":
     require_manual_entry_authorization("seed_note_technique_d421.py")
 
-DB = ROOT / "data" / "ralab3.db"
+DB = get_tool_db_path()
 DEMANDE_ID = 421
 NOTE_TECHNIQUE_NATURE = "Note technique"
 

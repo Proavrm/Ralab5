@@ -3,20 +3,28 @@ import_liste_ars.py — Importe Liste_ARS.xlsb dans qualite_equipment
 Usage: python import_liste_ars.py <chemin_vers_Liste_ARS.xlsb>
        python import_liste_ars.py  (cherche dans le répertoire courant)
 """
-import sys, os, sqlite3
+import sys
+import sqlite3
 from datetime import datetime, date
+from pathlib import Path
 
 try:
     from pyxlsb import open_workbook
 except ImportError:
     print("pip install pyxlsb"); sys.exit(1)
 
-XLSB = sys.argv[1] if len(sys.argv) > 1 else "Liste_ARS.xlsb"
-DB   = os.path.join(os.path.dirname(__file__), "data", "ralab3.db")
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
-if not os.path.exists(XLSB):
+from app.core.database import get_db_path
+
+XLSB = sys.argv[1] if len(sys.argv) > 1 else "Liste_ARS.xlsb"
+DB = str(get_db_path())
+
+if not Path(XLSB).exists():
     print(f"Fichier non trouvé: {XLSB}"); sys.exit(1)
-if not os.path.exists(DB):
+if not Path(DB).exists():
     print(f"DB non trouvée: {DB}"); sys.exit(1)
 
 def xl_date(v):

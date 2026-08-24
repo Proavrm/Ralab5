@@ -1,7 +1,7 @@
 """
 tools/migrate_to_ralab4.py
 ─────────────────────────────────────────────────────────────────────────────
-Migration propre : demandes.db → ralab3.db
+Migration propre : demandes.db → BD principale (get_db_path)
 
 Schema final :
   affaires_rst  → données administratives (client, titulaire, chantier…)
@@ -18,8 +18,12 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT    = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from app.core.database import get_db_path
+
 SRC_DB  = ROOT / "data" / "demandes.db"
-DEST_DB = ROOT / "data" / "ralab3.db"
+DEST_DB = get_db_path()
 
 DDL = """
 PRAGMA foreign_keys = ON;

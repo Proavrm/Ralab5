@@ -172,7 +172,8 @@ export const G3_DOCUMENT_TYPE_OPTIONS = [
   'G1 ES+PGC', 'G2 AVP', 'G2 PRO', 'G4', 'INFOS-DIAG', 'CCTP', 'DPGF',
   'Plans EXE', 'Plans PRO', 'Plans VRD', 'Plans terrassement', 'Plans fondations',
   'Plans réseaux', 'Coupes / profils', 'Cubatures', 'Planning travaux',
-  'DICT / réseaux', 'Note technique AO', 'Compte rendu chantier', 'Photos', 'Autre',
+  'DICT / réseaux', 'Note technique AO', 'Compte rendu chantier', 'Photos',
+  'Plan de situation', "Plan d'implantation", 'Itinéraire', 'Autre',
 ]
 
 export const G3_ZONE_TYPE_OPTIONS = [

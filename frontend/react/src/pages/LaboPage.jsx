@@ -15,6 +15,7 @@ import { interventionsApi, echantillonsApi, essaisApi, prelevementsApi } from '@
 import { useLaboratoireCatalog } from '@/hooks/useLaboratoireCatalog'
 import { labCodesFromCatalog, labDisplayLine } from '@/lib/laboratoireCatalog'
 import { FicheMain, FichePageShell, FicheTopbar } from '@/components/layout/FicheLayout'
+import { buildEssaiOpenPath } from '@/lib/essaiFeuilleRoutes'
 
 const TABS = [
     { key: 'interventions', label: 'Interventions', icon: Truck },
@@ -1108,7 +1109,7 @@ export default function LaboPage() {
             return
         }
         if (activeTab === 'essais') {
-            navigate(`/essais/${selectedItem.uid}`)
+            navigate(buildEssaiOpenPath(selectedItem) || `/essais/${selectedItem.uid}`)
         }
     }
 
@@ -1260,7 +1261,10 @@ export default function LaboPage() {
                 sortDir={activeSort.dir}
                 onSort={(key) => handleSort('essais', key)}
                 selectedUid={selectedByTab.essais}
-                onOpen={(selectedUid) => navigate(`/essais/${selectedUid}`)}
+                onOpen={(selectedUid) => {
+                    const item = filteredRows.find((row) => String(row.uid) === String(selectedUid)) || { uid: selectedUid }
+                    navigate(buildEssaiOpenPath(item) || `/essais/${selectedUid}`)
+                }}
                 onSelect={(uid) => {
                     setSelectedByTab((prev) => ({ ...prev, essais: uid }))
                     setDetailOpenByTab((prev) => ({ ...prev, essais: true }))

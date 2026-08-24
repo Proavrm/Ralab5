@@ -24,7 +24,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DB_PATH = ROOT / "data" / "ralab3.db"
+from tools.tool_db_path import get_tool_db_path
+
+DB_PATH = get_tool_db_path()
 
 
 def _backup_file(src: Path, dest: Path) -> None:
@@ -86,7 +88,7 @@ def main() -> int:
     parser.add_argument(
         "--no-backup",
         action="store_true",
-        help="With --apply, skip copying ralab3.db to ralab3.backup.shellcleanup.*.db",
+        help="With --apply, skip copying the main DB to *.backup.shellcleanup.*.db",
     )
     args = parser.parse_args()
 

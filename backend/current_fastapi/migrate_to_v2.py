@@ -6,10 +6,16 @@ Usage: python migrate_to_v2.py
 """
 from __future__ import annotations
 import sqlite3
+import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parent
-DB_PATH = ROOT_DIR / "data" / "ralab3.db"
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from app.core.database import get_db_path
+
+DB_PATH = get_db_path()
 
 
 def _conn(path: Path) -> sqlite3.Connection:

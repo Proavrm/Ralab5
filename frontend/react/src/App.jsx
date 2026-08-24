@@ -61,7 +61,12 @@ const ModelePMTPage = lazy(() => import('@/pages/modeles/ModelePMTPage'))
 const ModeleSCPage = lazy(() => import('@/pages/modeles/ModeleSCPage'))
 const ModeleEssaiBasePage = lazy(() => import('@/pages/modeles/ModeleEssaiBasePage'))
 const NoteTechniquePage = lazy(() => import('@/pages/NoteTechniquePage'))
+const AvisTechniquePage = lazy(() => import('@/pages/AvisTechniquePage'))
+const AvisTechniquePreviewPage = lazy(() => import('@/pages/AvisTechniquePreviewPage'))
+const AvisTemplatesAdminPage = lazy(() => import('@/pages/AvisTemplatesAdminPage'))
 const FicheCalculPage = lazy(() => import('@/pages/FicheCalculPage'))
+const CalculsPage = lazy(() => import('@/pages/CalculsPage'))
+const CalculAlizePage = lazy(() => import('@/pages/CalculAlizePage'))
 const ModeleVisiteChantierPage = lazy(() => import('@/pages/modeles/ModeleVisiteChantierPage'))
 const G3Page = lazy(() => import('@/pages/G3Page'))
 const G3MissionListPage = lazy(() => import('@/pages/g3/G3MissionListPage'))
@@ -69,6 +74,53 @@ const G3MissionPage = lazy(() => import('@/pages/g3/G3MissionPage'))
 const NotesTechniquesPage = lazy(() => import('@/pages/NotesTechniquesPage'))
 const TerrainEssaiPage = lazy(() => import('@/pages/modeles/TerrainEssaiPage'))
 const TerrainEssaiRapportPage = lazy(() => import('@/pages/rapports/TerrainEssaiRapportPage'))
+const FeuillePldPage = lazy(() => import('@/pages/modeles/FeuillePldPage'))
+const FeuillePlPage = lazy(() => import('@/pages/modeles/FeuillePlPage'))
+const FeuilleDfPage = lazy(() => import('@/pages/modeles/FeuilleDfPage'))
+const FeuilleFwdPage = lazy(() => import('@/pages/modeles/FeuilleFwdPage'))
+const RapportPldPage = lazy(() => import('@/pages/rapports/RapportPldPage'))
+const RapportPlPage = lazy(() => import('@/pages/rapports/RapportPlPage'))
+const RapportDfPage = lazy(() => import('@/pages/rapports/RapportDfPage'))
+const RapportFwdPage = lazy(() => import('@/pages/rapports/RapportFwdPage'))
+const FeuilleMvaPage = lazy(() => import('@/pages/modeles/FeuilleMvaPage'))
+const ModeleCFEPage = lazy(() => import('@/pages/modeles/ModeleCFEPage'))
+const FeuilleElPage = lazy(() => import('@/pages/modeles/FeuilleElPage'))
+const FeuilleWePage = lazy(() => import('@/pages/modeles/FeuilleWePage'))
+const FeuilleGrPage = lazy(() => import('@/pages/modeles/FeuilleGrPage'))
+const FeuilleLcpPage = lazy(() => import('@/pages/modeles/FeuilleLcpPage'))
+const FeuilleVbsPage = lazy(() => import('@/pages/modeles/FeuilleVbsPage'))
+const FeuilleMbPage = lazy(() => import('@/pages/modeles/FeuilleMbPage'))
+const FeuilleMbfPage = lazy(() => import('@/pages/modeles/FeuilleMbfPage'))
+const FeuilleIdPage = lazy(() => import('@/pages/modeles/FeuilleIdPage'))
+const FeuillePnPage = lazy(() => import('@/pages/modeles/FeuillePnPage'))
+const FeuilleIpiPage = lazy(() => import('@/pages/modeles/FeuilleIpiPage'))
+const FeuilleCbriPage = lazy(() => import('@/pages/modeles/FeuilleCbriPage'))
+const FeuilleCbrPage = lazy(() => import('@/pages/modeles/FeuilleCbrPage'))
+const FeuilleEsPage = lazy(() => import('@/pages/modeles/FeuilleEsPage'))
+const FeuilleTxPage = lazy(() => import('@/pages/modeles/FeuilleTxPage'))
+const FeuillePhPage = lazy(() => import('@/pages/modeles/FeuillePhPage'))
+const FeuilleMoPage = lazy(() => import('@/pages/modeles/FeuilleMoPage'))
+const FeuilleCaPage = lazy(() => import('@/pages/modeles/FeuilleCaPage'))
+const RapportMvaPage = lazy(() => import('@/pages/rapports/RapportMvaPage'))
+const RapportCFEPage = lazy(() => import('@/pages/rapports/RapportCFEPage'))
+const RapportElPage = lazy(() => import('@/pages/rapports/RapportElPage'))
+const RapportWePage = lazy(() => import('@/pages/rapports/RapportWePage'))
+const RapportGrPage = lazy(() => import('@/pages/rapports/RapportGrPage'))
+const RapportLcpPage = lazy(() => import('@/pages/rapports/RapportLcpPage'))
+const RapportVbsPage = lazy(() => import('@/pages/rapports/RapportVbsPage'))
+const RapportMbPage = lazy(() => import('@/pages/rapports/RapportMbPage'))
+const RapportMbfPage = lazy(() => import('@/pages/rapports/RapportMbfPage'))
+const RapportIdPage = lazy(() => import('@/pages/rapports/RapportIdPage'))
+const RapportPnPage = lazy(() => import('@/pages/rapports/RapportPnPage'))
+const RapportIpiPage = lazy(() => import('@/pages/rapports/RapportIpiPage'))
+const RapportCbriPage = lazy(() => import('@/pages/rapports/RapportCbriPage'))
+const RapportCbrPage = lazy(() => import('@/pages/rapports/RapportCbrPage'))
+const RapportEsPage = lazy(() => import('@/pages/rapports/RapportEsPage'))
+const RapportTxPage = lazy(() => import('@/pages/rapports/RapportTxPage'))
+const RapportPhPage = lazy(() => import('@/pages/rapports/RapportPhPage'))
+const RapportMoPage = lazy(() => import('@/pages/rapports/RapportMoPage'))
+const RapportCaPage = lazy(() => import('@/pages/rapports/RapportCaPage'))
+const RapportTvPage = lazy(() => import('@/pages/rapports/RapportTvPage'))
 const ValiderRapportsPage = lazy(() => import('@/pages/modeles/valider_rapports_page'))
 const LaboratoiresAdminMockupPage = lazy(() => import('@/pages/mockups/LaboratoiresAdminMockupPage'))
 
@@ -180,6 +232,14 @@ export default function App() {
                 <Route path="feuilles-terrain/vc/:uid" element={<P><ModeleVisiteChantierPage /></P>} />
                 <Route path="feuilles-terrain/de/:uid/runtime" element={<RedirectDeRuntimeLegacy />} />
                 <Route path="modeles/de/:uid" element={<P><ModeleDEPage /></P>} />
+                <Route path="modeles/pld/:uid" element={<P><FeuillePldPage /></P>} />
+                <Route path="modeles/pld" element={<P><FeuillePldPage /></P>} />
+                <Route path="modeles/pl/:uid" element={<P><FeuillePlPage /></P>} />
+                <Route path="modeles/pl" element={<P><FeuillePlPage /></P>} />
+                <Route path="modeles/df/:uid" element={<P><FeuilleDfPage /></P>} />
+                <Route path="modeles/df" element={<P><FeuilleDfPage /></P>} />
+                <Route path="modeles/fwd/:uid" element={<P><FeuilleFwdPage /></P>} />
+                <Route path="modeles/fwd" element={<P><FeuilleFwdPage /></P>} />
                 <Route path="feuilles-terrain/:uid" element={<P><FeuilleTerrainPage /></P>} />
                 <Route path="modelos-base/:code" element={<Navigate to="/tools" replace />} />
                 <Route path="work/de" element={<Navigate to="/tools" replace />} />
@@ -190,6 +250,12 @@ export default function App() {
                 <Route path="g3/missions" element={<P><G3MissionListPage /></P>} />
                 <Route path="g3/missions/:uid" element={<P><G3MissionPage /></P>} />
                 <Route path="g3/fiche-calcul" element={<P><FicheCalculPage /></P>} />
+                <Route path="calculs" element={<P><CalculsPage /></P>} />
+                <Route path="calculs/alize/:id" element={<P><CalculAlizePage /></P>} />
+                <Route path="avis-technique/templates" element={<P><AvisTemplatesAdminPage /></P>} />
+                <Route path="avis-technique/nouveau" element={<P><AvisTechniquePage /></P>} />
+                <Route path="avis-technique/:id/preview" element={<P><AvisTechniquePreviewPage /></P>} />
+                <Route path="avis-technique/:id" element={<P><AvisTechniquePage /></P>} />
                 <Route path="g3/notes-techniques" element={<P><NotesTechniquesPage /></P>} />
                 <Route path="g3/notes-techniques/nouveau" element={<P><NoteTechniquePage /></P>} />
                 <Route path="g3/notes-techniques/:uid" element={<P><NoteTechniquePage /></P>} />
@@ -197,6 +263,44 @@ export default function App() {
                 <Route path="modeles/visite-chantier" element={<P><ModeleVisiteChantierPage /></P>} />
                 <Route path="modeles/terrain/:code" element={<P><TerrainEssaiPage /></P>} />
                 <Route path="modeles/essai/:code" element={<P><ModeleEssaiBasePage /></P>} />
+                <Route path="modeles/mva/:uid" element={<P><FeuilleMvaPage /></P>} />
+                <Route path="modeles/mva" element={<P><FeuilleMvaPage /></P>} />
+                <Route path="modeles/cfe/:uid" element={<P><ModeleCFEPage /></P>} />
+                <Route path="modeles/cfe" element={<P><ModeleCFEPage /></P>} />
+                <Route path="modeles/el/:uid" element={<P><FeuilleElPage /></P>} />
+                <Route path="modeles/el" element={<P><FeuilleElPage /></P>} />
+                <Route path="modeles/we/:uid" element={<P><FeuilleWePage /></P>} />
+                <Route path="modeles/we" element={<P><FeuilleWePage /></P>} />
+                <Route path="modeles/gr/:uid" element={<P><FeuilleGrPage /></P>} />
+                <Route path="modeles/gr" element={<P><FeuilleGrPage /></P>} />
+                <Route path="modeles/lcp/:uid" element={<P><FeuilleLcpPage /></P>} />
+                <Route path="modeles/lcp" element={<P><FeuilleLcpPage /></P>} />
+                <Route path="modeles/vbs/:uid" element={<P><FeuilleVbsPage /></P>} />
+                <Route path="modeles/vbs" element={<P><FeuilleVbsPage /></P>} />
+                <Route path="modeles/mb/:uid" element={<P><FeuilleMbPage /></P>} />
+                <Route path="modeles/mb" element={<P><FeuilleMbPage /></P>} />
+                <Route path="modeles/mbf/:uid" element={<P><FeuilleMbfPage /></P>} />
+                <Route path="modeles/mbf" element={<P><FeuilleMbfPage /></P>} />
+                <Route path="modeles/id/:uid" element={<P><FeuilleIdPage /></P>} />
+                <Route path="modeles/id" element={<P><FeuilleIdPage /></P>} />
+                <Route path="modeles/pn/:uid" element={<P><FeuillePnPage /></P>} />
+                <Route path="modeles/pn" element={<P><FeuillePnPage /></P>} />
+                <Route path="modeles/ipi/:uid" element={<P><FeuilleIpiPage /></P>} />
+                <Route path="modeles/ipi" element={<P><FeuilleIpiPage /></P>} />
+                <Route path="modeles/cbri/:uid" element={<P><FeuilleCbriPage /></P>} />
+                <Route path="modeles/cbri" element={<P><FeuilleCbriPage /></P>} />
+                <Route path="modeles/cbr/:uid" element={<P><FeuilleCbrPage /></P>} />
+                <Route path="modeles/cbr" element={<P><FeuilleCbrPage /></P>} />
+                <Route path="modeles/es/:uid" element={<P><FeuilleEsPage /></P>} />
+                <Route path="modeles/es" element={<P><FeuilleEsPage /></P>} />
+                <Route path="modeles/tx/:uid" element={<P><FeuilleTxPage /></P>} />
+                <Route path="modeles/tx" element={<P><FeuilleTxPage /></P>} />
+                <Route path="modeles/ph/:uid" element={<P><FeuillePhPage /></P>} />
+                <Route path="modeles/ph" element={<P><FeuillePhPage /></P>} />
+                <Route path="modeles/mo/:uid" element={<P><FeuilleMoPage /></P>} />
+                <Route path="modeles/mo" element={<P><FeuilleMoPage /></P>} />
+                <Route path="modeles/ca/:uid" element={<P><FeuilleCaPage /></P>} />
+                <Route path="modeles/ca" element={<P><FeuilleCaPage /></P>} />
                 <Route path="work/pmt" element={<Navigate to="/tools" replace />} />
                 <Route path="tools" element={<P><ToolsPage /></P>} />
                 <Route path="rapports/validation" element={<P><ValiderRapportsPage /></P>} />
@@ -210,7 +314,14 @@ export default function App() {
                 <Route path="interventions-requalification-2026" element={<P><InterventionsRequalificationWorkbench /></P>} />
                 <Route path="/rapports/de/view" element={<RapportDEPage />} />
                 <Route path="/rapports/de/:essaiId" element={<RapportDEPage />} />
-                <Route path="/rapports/fwd/view" element={<P><TerrainEssaiRapportPage code="FWD" /></P>} />
+                <Route path="/rapports/fwd/view" element={<P><RapportFwdPage /></P>} />
+                <Route path="/rapports/fwd/:essaiId" element={<P><RapportFwdPage /></P>} />
+                <Route path="/rapports/pld/view" element={<P><RapportPldPage /></P>} />
+                <Route path="/rapports/pld/:essaiId" element={<P><RapportPldPage /></P>} />
+                <Route path="/rapports/pl/view" element={<P><RapportPlPage /></P>} />
+                <Route path="/rapports/pl/:essaiId" element={<P><RapportPlPage /></P>} />
+                <Route path="/rapports/df/view" element={<P><RapportDfPage /></P>} />
+                <Route path="/rapports/df/:essaiId" element={<P><RapportDfPage /></P>} />
                 <Route path="/rapports/adh/view" element={<P><TerrainEssaiRapportPage code="ADH" /></P>} />
                 <Route path="/rapports/aco/view" element={<P><TerrainEssaiRapportPage code="ACO" /></P>} />
                 <Route path="/rapports/pmt/view" element={<RapportPMTPage />} />
@@ -221,6 +332,45 @@ export default function App() {
                 <Route path="/rapports/so/:essaiId" element={<RapportSOPage />} />
                 <Route path="/rapports/vc/view" element={<RapportVisiteChantierPage />} />
                 <Route path="/rapports/vc/:feuilleUid" element={<RapportVisiteChantierPage />} />
+                <Route path="/rapports/mva/view" element={<P><RapportMvaPage /></P>} />
+                <Route path="/rapports/mva/:essaiId" element={<P><RapportMvaPage /></P>} />
+                <Route path="/rapports/cfe/view" element={<P><RapportCFEPage /></P>} />
+                <Route path="/rapports/cfe/:essaiId" element={<P><RapportCFEPage /></P>} />
+                <Route path="/rapports/el/view" element={<P><RapportElPage /></P>} />
+                <Route path="/rapports/el/:essaiId" element={<P><RapportElPage /></P>} />
+                <Route path="/rapports/we/view" element={<P><RapportWePage /></P>} />
+                <Route path="/rapports/we/:essaiId" element={<P><RapportWePage /></P>} />
+                <Route path="/rapports/gr/view" element={<P><RapportGrPage /></P>} />
+                <Route path="/rapports/gr/:essaiId" element={<P><RapportGrPage /></P>} />
+                <Route path="/rapports/lcp/view" element={<P><RapportLcpPage /></P>} />
+                <Route path="/rapports/lcp/:essaiId" element={<P><RapportLcpPage /></P>} />
+                <Route path="/rapports/vbs/view" element={<P><RapportVbsPage /></P>} />
+                <Route path="/rapports/vbs/:essaiId" element={<P><RapportVbsPage /></P>} />
+                <Route path="/rapports/mb/view" element={<P><RapportMbPage /></P>} />
+                <Route path="/rapports/mb/:essaiId" element={<P><RapportMbPage /></P>} />
+                <Route path="/rapports/mbf/view" element={<P><RapportMbfPage /></P>} />
+                <Route path="/rapports/mbf/:essaiId" element={<P><RapportMbfPage /></P>} />
+                <Route path="/rapports/id/view" element={<P><RapportIdPage /></P>} />
+                <Route path="/rapports/id/:essaiId" element={<P><RapportIdPage /></P>} />
+                <Route path="/rapports/pn/view" element={<P><RapportPnPage /></P>} />
+                <Route path="/rapports/pn/:essaiId" element={<P><RapportPnPage /></P>} />
+                <Route path="/rapports/ipi/view" element={<P><RapportIpiPage /></P>} />
+                <Route path="/rapports/ipi/:essaiId" element={<P><RapportIpiPage /></P>} />
+                <Route path="/rapports/cbri/view" element={<P><RapportCbriPage /></P>} />
+                <Route path="/rapports/cbri/:essaiId" element={<P><RapportCbriPage /></P>} />
+                <Route path="/rapports/cbr/view" element={<P><RapportCbrPage /></P>} />
+                <Route path="/rapports/cbr/:essaiId" element={<P><RapportCbrPage /></P>} />
+                <Route path="/rapports/es/view" element={<P><RapportEsPage /></P>} />
+                <Route path="/rapports/es/:essaiId" element={<P><RapportEsPage /></P>} />
+                <Route path="/rapports/tx/view" element={<P><RapportTxPage /></P>} />
+                <Route path="/rapports/tx/:essaiId" element={<P><RapportTxPage /></P>} />
+                <Route path="/rapports/ph/view" element={<P><RapportPhPage /></P>} />
+                <Route path="/rapports/ph/:essaiId" element={<P><RapportPhPage /></P>} />
+                <Route path="/rapports/mo/view" element={<P><RapportMoPage /></P>} />
+                <Route path="/rapports/mo/:essaiId" element={<P><RapportMoPage /></P>} />
+                <Route path="/rapports/ca/view" element={<P><RapportCaPage /></P>} />
+                <Route path="/rapports/ca/:essaiId" element={<P><RapportCaPage /></P>} />
+                <Route path="/rapports/tv/view" element={<P><RapportTvPage /></P>} />
                 <Route path="/rapports/acces-chantier/:demandeUid" element={<RapportSituationItinerairePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

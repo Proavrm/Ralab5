@@ -20,7 +20,9 @@ from app.core.historical_reimport_scope import (
     parse_ra_affaire_reference,
 )
 
-DEFAULT_TARGET_DB = ROOT_DIR / "data" / "ralab3.db"
+from tools.tool_db_path import get_tool_db_path
+
+DEFAULT_TARGET_DB = get_tool_db_path()
 HISTORICAL_RESPONSABLE = "Import historique"
 
 

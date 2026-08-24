@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import Input, { Select } from '@/components/ui/Input'
 import {
   RST_NEED_STATUS_OPTIONS,
   RST_PRESTATION_TEMPLATES,
+  buildPrestationFollowUp,
   createStructuredNeed,
   normalizeStructuredNeed,
   serializePrestations,
@@ -21,7 +23,7 @@ function Textarea({ value, onChange, rows = 3, placeholder = '' }) {
   )
 }
 
-function PrestationCard({ item, onChange, onRemove }) {
+function PrestationCard({ item, onChange, onRemove, followUp, onFollowUp }) {
   function set(key, value) {
     onChange({ ...item, [key]: value })
   }
@@ -47,6 +49,11 @@ function PrestationCard({ item, onChange, onRemove }) {
             <option key={status} value={status}>{status}</option>
           ))}
         </Select>
+        {followUp ? (
+          <Button size="sm" onClick={() => onFollowUp?.(followUp)}>
+            {followUp.label}
+          </Button>
+        ) : null}
         <button
           type="button"
           onClick={onRemove}
@@ -88,7 +95,9 @@ export default function DemandePrestationsEditor({
   onChange,
   onSave,
   isSaving = false,
+  followUpContext = null,
 }) {
+  const navigate = useNavigate()
   const [items, setItems] = useState([])
 
   useEffect(() => {
@@ -119,6 +128,11 @@ export default function DemandePrestationsEditor({
 
   function handleSave() {
     onSave?.(serializePrestations(items))
+  }
+
+  function handleFollowUp(followUp) {
+    if (!followUp?.href) return
+    navigate(followUp.href)
   }
 
   return (
@@ -156,14 +170,21 @@ export default function DemandePrestationsEditor({
 
       {items.length ? (
         <div className="flex flex-col gap-3">
-          {items.map((item, index) => (
-            <PrestationCard
-              key={item.client_key || item.uid || index}
-              item={item}
-              onChange={(next) => updateItem(index, next)}
-              onRemove={() => removeItem(index)}
-            />
-          ))}
+          {items.map((item, index) => {
+            const followUp = followUpContext
+              ? buildPrestationFollowUp(item, followUpContext)
+              : null
+            return (
+              <PrestationCard
+                key={item.client_key || item.uid || index}
+                item={item}
+                followUp={followUp}
+                onFollowUp={handleFollowUp}
+                onChange={(next) => updateItem(index, next)}
+                onRemove={() => removeItem(index)}
+              />
+            )
+          })}
         </div>
       ) : (
         <div className="rounded-[14px] border border-dashed border-[#dbe1ea] bg-[#f8fafc] px-4 py-8 text-center text-[13px] text-[#69758a]">
