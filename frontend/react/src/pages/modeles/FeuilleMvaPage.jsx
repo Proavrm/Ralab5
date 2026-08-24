@@ -3,7 +3,14 @@
 // Purpose: MVA worksheet page for asphalt specimen bulk density, compacity and voids calculations.
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { api, essaisApi } from "@/services/api";
+import { resolveReturnTo } from "@/lib/detailNavigation";
+import {
+    buildDedicatedEssaiRapportPath,
+    parseEssaiResultats,
+    stringifyEssaiResultats,
+} from "@/lib/essaiFeuilleRoutes";
 
 const MVA_STORAGE_KEY = "ralab5:mva:draft";
 
@@ -75,6 +82,56 @@ const defaultMvaDraft = {
         visa: ""
     }
 };
+
+const emptyMvaDraft = {
+    id: "draft",
+    header: {
+        chronoNumber: "",
+        affairNumber: "",
+        reportDate: "",
+        reportTitle: "",
+        laboratory: "",
+        operator: "",
+        sampleDate: "",
+        testDate: "",
+        productNature: "",
+        origin: "",
+        layer: ""
+    },
+    criteria: {
+        source: "",
+        definition: "",
+        voidsMinPct: "",
+        voidsMaxPct: ""
+    },
+    parameters: {
+        waterTemperatureC: "20",
+        waterDensityKgM3: "998.2",
+        paraffinDensityKgM3: "890",
+        mvrKgM3: ""
+    },
+    specimens: [
+        {
+            ...emptySpecimen,
+            id: "mva-specimen-1"
+        }
+    ],
+    conclusion: {
+        controlType: "Contrôle",
+        manualStatus: "auto",
+        comment: ""
+    },
+    signature: {
+        name: "",
+        function: "",
+        visa: ""
+    }
+};
+
+function mvaStorageKey(uid) {
+    const clean = String(uid || "").trim();
+    return clean ? `${MVA_STORAGE_KEY}:${clean}` : MVA_STORAGE_KEY;
+}
 
 function createSpecimenId() {
     return `mva-specimen-${Date.now()}-${Math.round(Math.random() * 100000)}`;
@@ -247,47 +304,78 @@ function calculateMvaDraft(draft) {
     };
 }
 
-function readStoredDraft() {
+function mergeMvaDraft(parsed, fallback = emptyMvaDraft) {
+    const source = parsed && typeof parsed === "object" ? parsed : {};
+    const specimens = Array.isArray(source.specimens) && source.specimens.length > 0
+        ? source.specimens
+        : fallback.specimens;
+    return {
+        ...fallback,
+        ...source,
+        id: source.id || fallback.id,
+        header: {
+            ...fallback.header,
+            ...(source.header || {})
+        },
+        criteria: {
+            ...fallback.criteria,
+            ...(source.criteria || {})
+        },
+        parameters: {
+            ...fallback.parameters,
+            ...(source.parameters || {})
+        },
+        conclusion: {
+            ...fallback.conclusion,
+            ...(source.conclusion || {})
+        },
+        signature: {
+            ...fallback.signature,
+            ...(source.signature || {})
+        },
+        specimens
+    };
+}
+
+function draftFromResultats(raw) {
+    const parsed = parseEssaiResultats(raw);
+    if (!parsed || (!parsed.header && !parsed.specimens && parsed.worksheet_kind !== "mva")) {
+        return null;
+    }
+    return mergeMvaDraft(parsed);
+}
+
+function resultatsFromDraft(draft, calculation) {
+    return {
+        worksheet_kind: "mva",
+        id: draft.id,
+        header: draft.header,
+        criteria: draft.criteria,
+        parameters: draft.parameters,
+        specimens: draft.specimens,
+        conclusion: draft.conclusion,
+        signature: draft.signature,
+        masse_volumique_eprouvette_kg_m3: calculation?.averageDensity ?? null,
+        compacite_percent: calculation?.averageCompacity ?? null,
+        vides_percent: calculation?.averageVoids ?? null
+    };
+}
+
+function readStoredDraft(uid) {
     try {
-        const raw = window.localStorage.getItem(MVA_STORAGE_KEY);
-
+        const raw = window.localStorage.getItem(mvaStorageKey(uid));
         if (!raw) {
-            return defaultMvaDraft;
+            return emptyMvaDraft;
         }
-
-        const parsed = JSON.parse(raw);
-
-        return {
-            ...defaultMvaDraft,
-            ...parsed,
-            header: {
-                ...defaultMvaDraft.header,
-                ...(parsed.header || {})
-            },
-            criteria: {
-                ...defaultMvaDraft.criteria,
-                ...(parsed.criteria || {})
-            },
-            parameters: {
-                ...defaultMvaDraft.parameters,
-                ...(parsed.parameters || {})
-            },
-            conclusion: {
-                ...defaultMvaDraft.conclusion,
-                ...(parsed.conclusion || {})
-            },
-            signature: {
-                ...defaultMvaDraft.signature,
-                ...(parsed.signature || {})
-            },
-            specimens: Array.isArray(parsed.specimens) && parsed.specimens.length > 0
-                ? parsed.specimens
-                : defaultMvaDraft.specimens
-        };
+        return mergeMvaDraft(JSON.parse(raw));
     } catch (error) {
         console.warn("Unable to read stored MVA draft", error);
-        return defaultMvaDraft;
+        return emptyMvaDraft;
     }
+}
+
+function writeStoredDraft(uid, draft) {
+    window.localStorage.setItem(mvaStorageKey(uid), JSON.stringify(draft));
 }
 
 function Field({ label, value, onChange, type = "text", placeholder = "", className = "" }) {
@@ -340,24 +428,68 @@ function SummaryCard({ label, value, unit, tone = "neutral" }) {
 
 export default function FeuilleMvaPage() {
     const navigate = useNavigate();
-    const [draft, setDraft] = useState(() => readStoredDraft());
+    const params = useParams();
+    const [searchParams] = useSearchParams();
+    const uidFromPath = String(params.uid || "").trim();
+    const isNew = uidFromPath === "new" || (!uidFromPath && Boolean(searchParams.get("echantillon_id") || searchParams.get("intervention_id")));
+    const persistedUid = isNew ? "" : uidFromPath;
+    const echantillonId = Number.parseInt(searchParams.get("echantillon_id") || "", 10);
+    const interventionId = Number.parseInt(searchParams.get("intervention_id") || "", 10);
+    const returnTo = resolveReturnTo(searchParams, "/labo/workbench?tab=essais");
+
+    const [draft, setDraft] = useState(() => readStoredDraft(persistedUid || "new"));
     const [saveState, setSaveState] = useState("idle");
+    const [loading, setLoading] = useState(Boolean(persistedUid));
+    const [error, setError] = useState("");
+    const [essaiUid, setEssaiUid] = useState(persistedUid);
 
     const calculation = useMemo(() => calculateMvaDraft(draft), [draft]);
 
     useEffect(() => {
+        let cancelled = false;
+        const currentUid = String(params.uid || "").trim();
+        const creating = currentUid === "new" || (!currentUid && Boolean(searchParams.get("echantillon_id") || searchParams.get("intervention_id")));
+
+        async function loadEssai() {
+            if (!currentUid || creating) {
+                setEssaiUid("");
+                setDraft(readStoredDraft("new"));
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
+            setError("");
+            try {
+                const essai = await essaisApi.get(currentUid);
+                if (cancelled) return;
+                const fromApi = draftFromResultats(essai?.resultats);
+                setEssaiUid(String(essai?.uid || currentUid));
+                setDraft(fromApi || readStoredDraft(currentUid));
+            } catch (err) {
+                if (cancelled) return;
+                setError(err?.message || "Impossible de charger la feuille MVA.");
+                setDraft(readStoredDraft(currentUid));
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }
+
+        loadEssai();
+        return () => { cancelled = true; };
+    }, [params.uid, searchParams]);
+
+    useEffect(() => {
         const timeout = window.setTimeout(() => {
             try {
-                window.localStorage.setItem(MVA_STORAGE_KEY, JSON.stringify(draft));
-                setSaveState("saved");
-            } catch (error) {
-                console.warn("Unable to autosave MVA draft", error);
-                setSaveState("error");
+                writeStoredDraft(essaiUid || "new", draft);
+                if (saveState === "saving") setSaveState("idle");
+            } catch (autosaveError) {
+                console.warn("Unable to autosave MVA draft", autosaveError);
             }
         }, 350);
 
         return () => window.clearTimeout(timeout);
-    }, [draft]);
+    }, [draft, essaiUid, saveState]);
 
     function updateGroup(groupName, fieldName, value) {
         setDraft((current) => ({
@@ -407,13 +539,55 @@ export default function FeuilleMvaPage() {
         setSaveState("saving");
     }
 
-    function saveDraftNow() {
+    async function persistToApi() {
+        const payload = {
+            essai_code: "MVA",
+            type_essai: searchParams.get("type_essai") || "Masse volumique des enrobés",
+            norme: searchParams.get("norme") || "NF EN 12697-6",
+            statut: draft.header.operator ? "En cours" : "Programmé",
+            date_debut: draft.header.testDate || null,
+            operateur: draft.header.operator || "",
+            resultats: stringifyEssaiResultats(resultatsFromDraft(draft, calculation)),
+            source_label: searchParams.get("source_label") || "",
+        };
+        const hasParent = (Number.isInteger(echantillonId) && echantillonId > 0)
+            || (Number.isInteger(interventionId) && interventionId > 0);
+
+        if (essaiUid) {
+            return api.put(`/essais/${essaiUid}`, payload);
+        }
+        if (!hasParent) {
+            writeStoredDraft("new", draft);
+            return { uid: "" };
+        }
+        return essaisApi.create({
+            ...payload,
+            echantillon_id: Number.isInteger(echantillonId) && echantillonId > 0 ? echantillonId : undefined,
+            intervention_id: Number.isInteger(echantillonId) && echantillonId > 0
+                ? undefined
+                : (Number.isInteger(interventionId) && interventionId > 0 ? interventionId : undefined),
+        });
+    }
+
+    async function saveDraftNow() {
         try {
-            window.localStorage.setItem(MVA_STORAGE_KEY, JSON.stringify(draft));
+            setSaveState("saving");
+            writeStoredDraft(essaiUid || "new", draft);
+            const saved = await persistToApi();
+            const savedUid = String(saved?.uid || essaiUid || "");
+            if (savedUid && savedUid !== essaiUid) {
+                setEssaiUid(savedUid);
+                const query = returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : "";
+                navigate(`/modeles/mva/${encodeURIComponent(savedUid)}${query}`, { replace: true });
+            }
             setSaveState("saved");
-        } catch (error) {
-            console.warn("Unable to save MVA draft", error);
+            setError("");
+            return savedUid;
+        } catch (err) {
+            console.warn("Unable to save MVA draft", err);
             setSaveState("error");
+            setError(err?.message || "Enregistrement impossible.");
+            return essaiUid;
         }
     }
 
@@ -422,9 +596,14 @@ export default function FeuilleMvaPage() {
         setSaveState("saving");
     }
 
-    function openReport() {
-        saveDraftNow();
-        navigate(`/rapports/mva/${draft.id || "draft"}`);
+    async function openReport() {
+        const savedUid = await saveDraftNow();
+        const target = buildDedicatedEssaiRapportPath({
+            code: "MVA",
+            uid: savedUid || essaiUid,
+            returnTo: savedUid ? `/modeles/mva/${encodeURIComponent(savedUid)}` : "/modeles/mva",
+        });
+        if (target) navigate(target);
     }
 
     const statusTone = calculation.status === "Conforme"
@@ -432,6 +611,15 @@ export default function FeuilleMvaPage() {
         : calculation.status === "Non conforme"
             ? "danger"
             : "neutral";
+
+    if (loading) {
+        return (
+            <main className="mva-page">
+                <style>{mvaPageStyles}</style>
+                <p className="mva-page__eyebrow">Chargement de la feuille MVA…</p>
+            </main>
+        );
+    }
 
     return (
         <main className="mva-page">
@@ -445,14 +633,18 @@ export default function FeuilleMvaPage() {
                         NF EN 12697-6-A1 · Calcul par éprouvette avec masse sèche,
                         masse sèche paraffinée et masse dans l'eau.
                     </p>
+                    {error ? <p className="mva-save-state mva-save-state--error">{error}</p> : null}
                 </div>
 
                 <div className="mva-page__actions">
+                    <button type="button" className="mva-button mva-button--ghost" onClick={() => navigate(returnTo)}>
+                        ← Retour
+                    </button>
                     <span className={`mva-save-state mva-save-state--${saveState}`}>
                         {saveState === "saving" && "Sauvegarde…"}
                         {saveState === "saved" && "Sauvegardé"}
                         {saveState === "error" && "Erreur sauvegarde"}
-                        {saveState === "idle" && "Brouillon local"}
+                        {saveState === "idle" && (essaiUid ? `Essai #${essaiUid}` : "Brouillon local")}
                     </span>
                     <button type="button" className="mva-button mva-button--ghost" onClick={resetToExample}>
                         Recharger exemple
@@ -461,7 +653,7 @@ export default function FeuilleMvaPage() {
                         Enregistrer
                     </button>
                     <button type="button" className="mva-button mva-button--primary" onClick={openReport}>
-                        Ouvrir rapport MVA
+                        Imprimer / Rapport
                     </button>
                 </div>
             </header>

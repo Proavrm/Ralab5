@@ -185,6 +185,14 @@ def _default_feuille_label(code_feuille: str) -> str:
         return 'Sondage à la pelle'
     if normalized == 'VC':
         return 'Feuille de visite chantier'
+    if normalized == 'PLD':
+        return 'Portances dynaplaque'
+    if normalized == 'PL':
+        return 'Portances à la plaque'
+    if normalized == 'DF':
+        return 'Déflexions'
+    if normalized == 'FWD':
+        return 'FWD / déflexions lourdes'
     return normalized or 'Feuille terrain'
 
 

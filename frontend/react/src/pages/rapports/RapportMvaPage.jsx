@@ -2,8 +2,11 @@
 // Path not confirmed: replace or create this file at the real RaLab5 frontend page location.
 // Purpose: printable MVA report page, copied from the original NGE MVA Excel/PDF layout.
 
-import React, { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { essaisApi } from "@/services/api";
+import { resolveReturnTo } from "@/lib/detailNavigation";
+import { parseEssaiResultats } from "@/lib/essaiFeuilleRoutes";
 
 const MVA_STORAGE_KEY = "ralab5:mva:draft";
 
@@ -231,49 +234,44 @@ function calculateMvaDraft(draft) {
     };
 }
 
-function mergeDraft(parsed) {
+function mergeMvaDraft(parsed, fallback = defaultMvaDraft) {
+    const source = parsed && typeof parsed === "object" ? parsed : {};
     return {
-        ...defaultMvaDraft,
-        ...parsed,
-        header: {
-            ...defaultMvaDraft.header,
-            ...(parsed.header || {})
-        },
-        criteria: {
-            ...defaultMvaDraft.criteria,
-            ...(parsed.criteria || {})
-        },
-        parameters: {
-            ...defaultMvaDraft.parameters,
-            ...(parsed.parameters || {})
-        },
-        conclusion: {
-            ...defaultMvaDraft.conclusion,
-            ...(parsed.conclusion || {})
-        },
-        signature: {
-            ...defaultMvaDraft.signature,
-            ...(parsed.signature || {})
-        },
-        specimens: Array.isArray(parsed.specimens) && parsed.specimens.length > 0
-            ? parsed.specimens
-            : defaultMvaDraft.specimens
+        ...fallback,
+        ...source,
+        header: { ...fallback.header, ...(source.header || {}) },
+        criteria: { ...fallback.criteria, ...(source.criteria || {}) },
+        parameters: { ...fallback.parameters, ...(source.parameters || {}) },
+        conclusion: { ...fallback.conclusion, ...(source.conclusion || {}) },
+        signature: { ...fallback.signature, ...(source.signature || {}) },
+        specimens: Array.isArray(source.specimens) && source.specimens.length > 0
+            ? source.specimens
+            : fallback.specimens
     };
 }
 
-function readStoredDraft() {
+function draftFromResultats(raw) {
+    const parsed = parseEssaiResultats(raw);
+    if (!parsed || (!parsed.header && !parsed.specimens && parsed.worksheet_kind !== "mva")) {
+        return null;
+    }
+    return mergeMvaDraft(parsed);
+}
+
+function readStoredDraft(uid) {
     if (typeof window === "undefined") {
         return defaultMvaDraft;
     }
 
     try {
-        const raw = window.localStorage.getItem(MVA_STORAGE_KEY);
+        const keyed = uid ? window.localStorage.getItem(`${MVA_STORAGE_KEY}:${uid}`) : null;
+        const raw = keyed || window.localStorage.getItem(MVA_STORAGE_KEY);
 
         if (!raw) {
             return defaultMvaDraft;
         }
 
-        return mergeDraft(JSON.parse(raw));
+        return mergeMvaDraft(JSON.parse(raw));
     } catch (error) {
         console.warn("Unable to read the stored MVA draft.", error);
         return defaultMvaDraft;
@@ -351,8 +349,39 @@ function ParameterBox({ rows }) {
 
 export default function RapportMvaPage() {
     const navigate = useNavigate();
-    const { essaiId } = useParams();
-    const [draft] = useState(() => readStoredDraft());
+    const params = useParams();
+    const [searchParams] = useSearchParams();
+    const essaiId = String(params.essaiId || searchParams.get("essai_id") || searchParams.get("source_uid") || "").trim();
+    const returnTo = resolveReturnTo(searchParams, essaiId ? `/modeles/mva/${encodeURIComponent(essaiId)}` : "/modeles/mva");
+    const [draft, setDraft] = useState(() => readStoredDraft(essaiId));
+    const [loading, setLoading] = useState(Boolean(essaiId && /^\d+$/.test(essaiId)));
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        let cancelled = false;
+        async function loadEssai() {
+            if (!essaiId || !/^\d+$/.test(essaiId)) {
+                setDraft(readStoredDraft(essaiId));
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
+            setError("");
+            try {
+                const essai = await essaisApi.get(essaiId);
+                if (cancelled) return;
+                setDraft(draftFromResultats(essai?.resultats) || readStoredDraft(essaiId));
+            } catch (err) {
+                if (cancelled) return;
+                setError(err?.message || "Impossible de charger le rapport MVA.");
+                setDraft(readStoredDraft(essaiId));
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }
+        loadEssai();
+        return () => { cancelled = true; };
+    }, [essaiId]);
 
     const computed = useMemo(() => calculateMvaDraft(draft), [draft]);
     const printableRows = useMemo(() => buildPrintableRows(computed.rows, 5), [computed.rows]);
@@ -371,9 +400,11 @@ export default function RapportMvaPage() {
                 <div>
                     <strong>Rapport MVA</strong>
                     <span>{essaiId ? `Essai ${essaiId}` : "Brouillon local"}</span>
+                    {loading ? <span>Chargement…</span> : null}
+                    {error ? <span>{error}</span> : null}
                 </div>
                 <div className="mva-exact-toolbar-actions">
-                    <button type="button" onClick={() => navigate(-1)}>Retour</button>
+                    <button type="button" onClick={() => navigate(returnTo)}>Retour</button>
                     <button type="button" onClick={() => window.print()}>Imprimer / PDF</button>
                 </div>
             </div>

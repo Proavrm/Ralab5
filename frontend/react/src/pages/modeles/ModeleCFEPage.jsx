@@ -1,7 +1,15 @@
 // ModeleCFEPage.jsx
 // Path not confirmed: replace the existing CFE model page at its real project location.
 
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { api, essaisApi } from "@/services/api"
+import { resolveReturnTo } from "@/lib/detailNavigation"
+import {
+    buildDedicatedEssaiRapportPath,
+    parseEssaiResultats,
+    stringifyEssaiResultats,
+} from "@/lib/essaiFeuilleRoutes"
 
 const SIEVE_COLUMNS = [0.063, 0.125, 0.25, 0.5, 1, 2, 4, 6.3, 8, 10, 12.5, 14, 16, 20]
 
@@ -120,6 +128,76 @@ const DEFAULT_DRAFT = {
             moduleRichesse: ""
         }
     }
+}
+
+function emptyCfeMeasure(numero) {
+    return {
+        id: `m${numero}`,
+        numero,
+        heure: "",
+        temperatureMesuree: "",
+        teneurLiant: "",
+        passants: {}
+    }
+}
+
+const EMPTY_DRAFT = {
+    reference: "CFE",
+    numeroChrono: "",
+    numeroAffaire: "",
+    dateRedaction: "",
+    chantier: "",
+    site: "",
+    laboratoire: "",
+    operateur: "",
+    dateEssai: "",
+    dateMiseEnOeuvre: "",
+    lieuFabrication: "",
+    destinationProduit: "",
+    codeFormule: "",
+    appellationEuropeenne: "",
+    appellationFrancaise: "",
+    couche: "",
+    methodeEssai: "",
+    sourceCriteres: "",
+    definitionCriteres: "",
+    mvrGranulats: "",
+    commentaire: "",
+    controleNom: "",
+    controleFonction: "",
+    mesures: [1, 2, 3, 4].map(emptyCfeMeasure),
+    criteres: {
+        theorique: { passants: {}, teneurLiant: "", moduleRichesse: "" },
+        seuilMini: { passants: {}, teneurLiant: "", moduleRichesse: "" },
+        seuilMaxi: { passants: {}, teneurLiant: "", moduleRichesse: "" }
+    }
+}
+
+function mergeCfeDraft(parsed, fallback = EMPTY_DRAFT) {
+    const source = parsed && typeof parsed === "object" ? parsed : {}
+    const nestedDraft = source.draft && typeof source.draft === "object" ? source.draft : source
+    return {
+        ...fallback,
+        ...nestedDraft,
+        mesures: Array.isArray(nestedDraft.mesures) && nestedDraft.mesures.length
+            ? nestedDraft.mesures
+            : fallback.mesures,
+        criteres: {
+            theorique: { ...fallback.criteres.theorique, ...(nestedDraft.criteres?.theorique || {}) },
+            seuilMini: { ...fallback.criteres.seuilMini, ...(nestedDraft.criteres?.seuilMini || {}) },
+            seuilMaxi: { ...fallback.criteres.seuilMaxi, ...(nestedDraft.criteres?.seuilMaxi || {}) }
+        }
+    }
+}
+
+function draftFromCfeResultats(raw) {
+    const parsed = parseEssaiResultats(raw)
+    if (!parsed || (!parsed.draft && !parsed.mesures && parsed.worksheet_kind !== "cfe" && !parsed.reference && !parsed.essai)) {
+        return null
+    }
+    if (parsed.draft) return mergeCfeDraft(parsed)
+    if (parsed.reference || parsed.mesures || parsed.criteres) return mergeCfeDraft(parsed)
+    return null
 }
 
 function toNumber(value) {
@@ -723,9 +801,45 @@ function buildPayload(draft, computed) {
 }
 
 export default function ModeleCFEPage({ initialDraft, onSave, onOpenReport }) {
-    const [draft, setDraft] = useState(initialDraft || DEFAULT_DRAFT)
+    const navigate = useNavigate()
+    const params = useParams()
+    const [searchParams] = useSearchParams()
+    const uidFromPath = String(params.uid || "").trim()
+    const isNew = uidFromPath === "new" || (!uidFromPath && Boolean(searchParams.get("echantillon_id") || searchParams.get("intervention_id")))
+    const echantillonId = Number.parseInt(searchParams.get("echantillon_id") || "", 10)
+    const interventionId = Number.parseInt(searchParams.get("intervention_id") || "", 10)
+    const returnTo = resolveReturnTo(searchParams, "/labo/workbench?tab=essais")
+
+    const [draft, setDraft] = useState(initialDraft || EMPTY_DRAFT)
     const [saveMessage, setSaveMessage] = useState("")
+    const [essaiUid, setEssaiUid] = useState(isNew ? "" : uidFromPath)
     const computed = useMemo(() => buildComputed(draft), [draft])
+
+    useEffect(() => {
+        let cancelled = false
+        const currentUid = String(params.uid || "").trim()
+        const creating = currentUid === "new" || (!currentUid && Boolean(searchParams.get("echantillon_id") || searchParams.get("intervention_id")))
+
+        async function loadEssai() {
+            if (!currentUid || creating) {
+                setEssaiUid("")
+                setDraft(initialDraft || EMPTY_DRAFT)
+                return
+            }
+            try {
+                const essai = await essaisApi.get(currentUid)
+                if (cancelled) return
+                setEssaiUid(String(essai?.uid || currentUid))
+                setDraft(draftFromCfeResultats(essai?.resultats) || initialDraft || EMPTY_DRAFT)
+            } catch (err) {
+                if (cancelled) return
+                setSaveMessage(err?.message || "Impossible de charger la feuille CFE.")
+            }
+        }
+
+        loadEssai()
+        return () => { cancelled = true }
+    }, [params.uid, searchParams, initialDraft])
 
     function updateField(key, value) {
         setDraft((current) => ({
@@ -747,21 +861,83 @@ export default function ModeleCFEPage({ initialDraft, onSave, onOpenReport }) {
         }))
     }
 
-    function handleSave() {
+    function buildStoredResultats() {
+        const payload = buildPayload(draft, computed)
+        return {
+            worksheet_kind: "cfe",
+            draft,
+            ...payload,
+            moyenne: {
+                teneur_liant_percent: payload.resultats?.moyenne_teneur_liant,
+                teneur_liant_ext_percent: payload.resultats?.moyenne_teneur_liant_exterieure,
+                temperature_c: payload.resultats?.moyenne_temperature,
+            },
+            teneur_liant_percent: payload.resultats?.moyenne_teneur_liant,
+            teneur_liant_ext_percent: payload.resultats?.moyenne_teneur_liant_exterieure,
+            temperature_prelevement_c: payload.resultats?.moyenne_temperature,
+        }
+    }
+
+    async function persistToApi() {
+        const resultats = stringifyEssaiResultats(buildStoredResultats())
+        const payload = {
+            essai_code: "CFE",
+            type_essai: searchParams.get("type_essai") || "Contrôle de fabrication enrobés",
+            norme: searchParams.get("norme") || "",
+            statut: draft.operateur ? "En cours" : "Programmé",
+            date_debut: draft.dateEssai || null,
+            operateur: draft.operateur || "",
+            resultats,
+            source_label: searchParams.get("source_label") || "",
+        }
+        const hasParent = (Number.isInteger(echantillonId) && echantillonId > 0)
+            || (Number.isInteger(interventionId) && interventionId > 0)
+
+        if (essaiUid) {
+            return api.put(`/essais/${essaiUid}`, payload)
+        }
+        if (!hasParent) {
+            window.localStorage.setItem("ralab_cfe_draft", resultats)
+            return { uid: "" }
+        }
+        return essaisApi.create({
+            ...payload,
+            echantillon_id: Number.isInteger(echantillonId) && echantillonId > 0 ? echantillonId : undefined,
+            intervention_id: Number.isInteger(echantillonId) && echantillonId > 0
+                ? undefined
+                : (Number.isInteger(interventionId) && interventionId > 0 ? interventionId : undefined),
+        })
+    }
+
+    async function handleSave() {
         const payload = buildPayload(draft, computed)
 
         if (typeof onSave === "function") {
             onSave(payload)
-        } else {
-            window.localStorage.setItem("ralab_cfe_draft", JSON.stringify(payload))
-            console.info("CFE payload ready for API", payload)
+            setSaveMessage("Feuille CFE enregistrée.")
+            return ""
         }
 
-        setSaveMessage("Brouillon CFE préparé pour enregistrement.")
-        window.setTimeout(() => setSaveMessage(""), 2500)
+        try {
+            const saved = await persistToApi()
+            const savedUid = String(saved?.uid || essaiUid || "")
+            window.localStorage.setItem("ralab_cfe_draft", stringifyEssaiResultats(buildStoredResultats()))
+            window.localStorage.setItem("ralab_cfe_report_preview", JSON.stringify(payload))
+            if (savedUid && savedUid !== essaiUid) {
+                setEssaiUid(savedUid)
+                const query = returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ""
+                navigate(`/modeles/cfe/${encodeURIComponent(savedUid)}${query}`, { replace: true })
+            }
+            setSaveMessage(savedUid ? "Feuille CFE enregistrée." : "Brouillon CFE enregistré localement.")
+            window.setTimeout(() => setSaveMessage(""), 2500)
+            return savedUid
+        } catch (err) {
+            setSaveMessage(err?.message || "Enregistrement CFE impossible.")
+            return essaiUid
+        }
     }
 
-    function handleOpenReport() {
+    async function handleOpenReport() {
         const payload = buildPayload(draft, computed)
 
         if (typeof onOpenReport === "function") {
@@ -769,9 +945,14 @@ export default function ModeleCFEPage({ initialDraft, onSave, onOpenReport }) {
             return
         }
 
+        const savedUid = await handleSave()
         window.localStorage.setItem("ralab_cfe_report_preview", JSON.stringify(payload))
-        setSaveMessage("Rapport CFE préparé en aperçu local.")
-        window.setTimeout(() => setSaveMessage(""), 2500)
+        const target = buildDedicatedEssaiRapportPath({
+            code: "CFE",
+            uid: savedUid || essaiUid,
+            returnTo: savedUid ? `/modeles/cfe/${encodeURIComponent(savedUid)}` : "/modeles/cfe",
+        })
+        if (target) navigate(target)
     }
 
     return (
@@ -785,6 +966,10 @@ export default function ModeleCFEPage({ initialDraft, onSave, onOpenReport }) {
                     <p className="cfe-hero-subtitle">
                         Saisie granulométrie, teneur en liant, module de richesse et conformité.
                     </p>
+                    <div className="cfe-hero-actions">
+                        <button type="button" className="cfe-secondary-button" onClick={() => navigate(returnTo)}>← Retour</button>
+                        <button type="button" className="cfe-secondary-button" onClick={() => setDraft(DEFAULT_DRAFT)}>Recharger exemple</button>
+                    </div>
                 </div>
                 <div className="cfe-hero-panel">
                     <span>Contrôle global</span>
@@ -880,7 +1065,7 @@ export default function ModeleCFEPage({ initialDraft, onSave, onOpenReport }) {
                 <aside className="cfe-side-column">
                     <SectionCard title="Actions" className="sticky-card">
                         <button type="button" className="cfe-primary-button" onClick={handleSave}>Enregistrer la feuille</button>
-                        <button type="button" className="cfe-secondary-button" onClick={handleOpenReport}>Ouvrir le rapport CFE</button>
+                        <button type="button" className="cfe-secondary-button" onClick={handleOpenReport}>Imprimer / Rapport</button>
                         {saveMessage ? <p className="cfe-save-message">{saveMessage}</p> : null}
                     </SectionCard>
 
@@ -950,6 +1135,20 @@ const CFE_STYLES = `
     background: linear-gradient(135deg, #001f5f 0%, #0b3d91 55%, #d5a600 130%);
     color: white;
     box-shadow: 0 18px 45px rgba(0, 31, 95, 0.18);
+}
+
+.cfe-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.cfe-hero-actions .cfe-secondary-button {
+    width: auto;
+    background: rgba(255, 255, 255, 0.14);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .cfe-kicker {

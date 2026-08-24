@@ -14,6 +14,7 @@ import InterventionTypeModal, { applyInterventionTypeToPath } from '@/components
 import Input, { Select } from '@/components/ui/Input'
 import Modal from '@/components/ui/Modal'
 import { buildLocationTarget, buildPathWithReturnTo, resolveReturnTo } from '@/lib/detailNavigation'
+import { buildEssaiOpenPath } from '@/lib/essaiFeuilleRoutes'
 import { formatDate } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import { hasRole } from '@/lib/permissions'
@@ -431,7 +432,7 @@ function openRelatedObject(navigate, item, detailReturnTo) {
       navigate(buildPathWithReturnTo(`/modeles/pmt?essai_id=${item.pmt_essai_id}`, detailReturnTo))
       return
     }
-    navigate(buildPathWithReturnTo(`/essais/${item.uid}`, detailReturnTo))
+    navigate(buildEssaiOpenPath(item, detailReturnTo) || buildPathWithReturnTo(`/essais/${item.uid}`, detailReturnTo))
   }
 }
 

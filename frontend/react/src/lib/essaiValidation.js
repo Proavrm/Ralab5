@@ -130,6 +130,18 @@ export function buildEssaiTarget(report) {
     if (type === 'DE' && sourceUid) {
         return `/modeles/de/${encodeURIComponent(sourceUid)}`
     }
+    if (type === 'PLD' && sourceUid) {
+        return `/modeles/pld/${encodeURIComponent(sourceUid)}`
+    }
+    if (type === 'PL' && sourceUid) {
+        return `/modeles/pl/${encodeURIComponent(sourceUid)}`
+    }
+    if (type === 'DF' && sourceUid) {
+        return `/modeles/df/${encodeURIComponent(sourceUid)}`
+    }
+    if (type === 'FWD' && sourceUid) {
+        return `/modeles/fwd/${encodeURIComponent(sourceUid)}`
+    }
     if (type === 'PMT' && pmtEssaiId) {
         const params = new URLSearchParams()
         params.set('pmt_essai_id', pmtEssaiId)

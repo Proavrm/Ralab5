@@ -2,7 +2,7 @@ import { feuillesTerrainApi } from '@/services/api'
 import { buildScEssaiRoute } from '@/lib/essaiValidation'
 import { getTerrainEssaiConfig, getTerrainEssaiRoute } from '@/lib/terrainEssaiConfigs'
 
-export const FEUILLE_TERRAIN_ESSAI_CODES = new Set(['DE', 'SC', 'SO', 'PMT', 'PL', 'PLD', 'VC'])
+export const FEUILLE_TERRAIN_ESSAI_CODES = new Set(['DE', 'SC', 'SO', 'PMT', 'PL', 'PLD', 'VC', 'DF', 'FWD'])
 
 export function isFeuilleTerrainEssaiCode(code) {
   return FEUILLE_TERRAIN_ESSAI_CODES.has(String(code || '').trim().toUpperCase())
@@ -43,6 +43,18 @@ export function buildTerrainFeuilleOpenPath(feuilleUid, code) {
 
   if (normalizedCode === 'DE') {
     return `/modeles/de/${encodeURIComponent(feuilleId)}`
+  }
+  if (normalizedCode === 'PLD') {
+    return `/modeles/pld/${encodeURIComponent(feuilleId)}`
+  }
+  if (normalizedCode === 'PL') {
+    return `/modeles/pl/${encodeURIComponent(feuilleId)}`
+  }
+  if (normalizedCode === 'DF') {
+    return `/modeles/df/${encodeURIComponent(feuilleId)}`
+  }
+  if (normalizedCode === 'FWD') {
+    return `/modeles/fwd/${encodeURIComponent(feuilleId)}`
   }
   if (normalizedCode === 'SC') {
     return buildScEssaiRoute(feuilleId, '', true)

@@ -2,7 +2,11 @@
 // Path not confirmed: replace the existing CFE report page at its real project location.
 // This component rebuilds the CFE report as a fixed A4 portrait SVG, matching the provided Excel/PDF layout.
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { essaisApi } from "@/services/api";
+import { resolveReturnTo } from "@/lib/detailNavigation";
+import { parseEssaiResultats } from "@/lib/essaiFeuilleRoutes";
 
 const CFE_LOGO_DATA_URL = "data:image/png;base64,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";
 
@@ -233,7 +237,8 @@ function getStoredReport() {
         return null;
     }
 
-    const raw = window.localStorage.getItem("ralab_cfe_report_preview");
+    const raw = window.localStorage.getItem("ralab_cfe_report_preview")
+        || window.localStorage.getItem("ralab_cfe_draft");
 
     if (!raw) {
         return null;
@@ -245,6 +250,14 @@ function getStoredReport() {
         console.warn("Invalid local CFE report preview", error);
         return null;
     }
+}
+
+function reportFromResultats(raw) {
+    const parsed = parseEssaiResultats(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (parsed.essai || parsed.mesures) return parsed;
+    if (parsed.worksheet_kind === "cfe") return parsed;
+    return null;
 }
 
 function makeEmptyMeasure(index) {
@@ -559,7 +572,47 @@ function GranuloTableSvg({ report, measures }) {
 }
 
 function RapportCFEPage({ report: reportFromProps }) {
-    const report = useMemo(() => reportFromProps || getStoredReport() || FALLBACK_REPORT, [reportFromProps]);
+    const navigate = useNavigate();
+    const params = useParams();
+    const [searchParams] = useSearchParams();
+    const essaiId = String(params.essaiId || searchParams.get("essai_id") || searchParams.get("source_uid") || "").trim();
+    const returnTo = resolveReturnTo(searchParams, essaiId ? `/modeles/cfe/${encodeURIComponent(essaiId)}` : "/modeles/cfe");
+    const [loadedReport, setLoadedReport] = useState(null);
+    const [loading, setLoading] = useState(Boolean(essaiId && /^\d+$/.test(essaiId)));
+
+    useEffect(() => {
+        let cancelled = false;
+        async function loadEssai() {
+            if (reportFromProps) {
+                setLoadedReport(reportFromProps);
+                setLoading(false);
+                return;
+            }
+            if (!essaiId || !/^\d+$/.test(essaiId)) {
+                setLoadedReport(getStoredReport());
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
+            try {
+                const essai = await essaisApi.get(essaiId);
+                if (cancelled) return;
+                setLoadedReport(reportFromResultats(essai?.resultats) || getStoredReport());
+            } catch {
+                if (cancelled) return;
+                setLoadedReport(getStoredReport());
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }
+        loadEssai();
+        return () => { cancelled = true; };
+    }, [essaiId, reportFromProps]);
+
+    const report = useMemo(
+        () => reportFromProps || loadedReport || (essaiId ? { essai: { reference: "CFE" }, mesures: [] } : FALLBACK_REPORT),
+        [reportFromProps, loadedReport, essaiId],
+    );
     const essai = report.essai || FALLBACK_REPORT.essai;
     const measures = getReportMeasures(report);
     const siteLines = splitSiteTitle(essai.chantier);
@@ -569,7 +622,10 @@ function RapportCFEPage({ report: reportFromProps }) {
         <div className="rapport-cfe-shell">
             <style>{REPORT_CFE_STYLES}</style>
             <div className="rapport-cfe-toolbar no-print">
+                <button type="button" onClick={() => navigate(returnTo)}>Retour</button>
                 <button type="button" onClick={() => window.print()}>Imprimer / PDF</button>
+                {loading ? <span>Chargement…</span> : null}
+                {essaiId ? <span>Essai {essaiId}</span> : null}
             </div>
             <article className="rapport-cfe-page" aria-label="Rapport CFE">
                 <svg className="rapport-cfe-svg" viewBox="0 0 1191 1684" role="img" aria-label="Compte rendu CFE">
@@ -647,6 +703,8 @@ const REPORT_CFE_STYLES = `
 .rapport-cfe-toolbar {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
     width: 210mm;
     margin: 0 auto 12px;
 }

@@ -470,6 +470,8 @@ def _compute_result_summary(
 
     if code == "WE" or "teneur en eau" in typ:
         w = _to_float(r.get("w_moyen"))
+        if w is None and isinstance(r.get("draft"), dict):
+            w = _to_float(r["draft"].get("w_moyen"))
         if w is not None:
             return round(w, 2), "%", f"w = {w:.2f} %"
         return None, "", ""

@@ -46,7 +46,7 @@ const FEUILLE_TYPE_REGISTRY = {
     PL: {
         code: 'PL',
         family: 'technical-form',
-        renderer: 'technical-plaque',
+        renderer: 'technical-pl',
         title: 'Feuille technique',
         flags: {
             usesPointDetailView: false,
@@ -57,7 +57,29 @@ const FEUILLE_TYPE_REGISTRY = {
     PLD: {
         code: 'PLD',
         family: 'technical-form',
-        renderer: 'technical-plaque',
+        renderer: 'technical-pld',
+        title: 'Feuille technique',
+        flags: {
+            usesPointDetailView: false,
+            supportsPointDepthIntervalCm: false,
+            supportsCarottePhoto: false,
+        },
+    },
+    DF: {
+        code: 'DF',
+        family: 'technical-form',
+        renderer: 'technical-df',
+        title: 'Feuille technique',
+        flags: {
+            usesPointDetailView: false,
+            supportsPointDepthIntervalCm: false,
+            supportsCarottePhoto: false,
+        },
+    },
+    FWD: {
+        code: 'FWD',
+        family: 'technical-form',
+        renderer: 'technical-fwd',
         title: 'Feuille technique',
         flags: {
             usesPointDetailView: false,
